@@ -14,6 +14,7 @@ interface TechnicalSeoTabProps {
   crawl: CrawlJob | null;
   issues: CrawlIssue[];
   pages: CrawlPage[];
+  totalPages?: number;
   qualityDiagnostics?: CrawlQualityDiagnostics | null;
   historyRuns?: { pagesCrawled: number; issuesFound: number }[];
   onSwitchTab: (tab: WebsiteTabId) => void;
@@ -25,6 +26,7 @@ export function TechnicalSeoTab({
   crawl,
   issues,
   pages,
+  totalPages = crawl?.pagesCrawled ?? pages.length,
   qualityDiagnostics,
   historyRuns = [],
   onSwitchTab,
@@ -294,7 +296,7 @@ export function TechnicalSeoTab({
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         crawl={crawl}
-        pagesCount={pages.length}
+        pagesCount={totalPages}
         qualityDiagnostics={qualityDiagnostics}
         durationText={durationText}
         avgLatency={avgLatency}

@@ -12,6 +12,7 @@ interface OverviewTabProps {
   crawl: CrawlJob | null;
   issues: CrawlIssue[];
   pages: CrawlPage[];
+  totalPages?: number;
   onSwitchTab: (tab: WebsiteTabId) => void;
 }
 
@@ -19,6 +20,7 @@ export function OverviewTab({
   crawl,
   issues,
   pages,
+  totalPages = crawl?.pagesCrawled ?? pages.length,
   onSwitchTab,
 }: OverviewTabProps) {
   const healthScore = crawl?.healthScore != null ? Math.round(crawl.healthScore) : null;
@@ -99,13 +101,13 @@ export function OverviewTab({
               </div>
             </div>
             <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-              {pages.length.toLocaleString()}
+              {totalPages.toLocaleString()}
             </div>
             <p className="text-xs text-slate-500 mt-1">
               {brokenPages > 0 ? (
                 <span className="text-rose-600 font-semibold">{brokenPages} broken pages</span>
               ) : (
-                "All pages reachable"
+                "Loaded pages reachable"
               )}
             </p>
           </div>

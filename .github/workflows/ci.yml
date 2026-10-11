@@ -47,6 +47,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Crawl count regression test
+        run: node scripts/test-crawl-page-total.cjs
+
       # The error-level rules are all clean, so any new one fails the build.
       # `set-state-in-effect` is pinned to `warn` in eslint.config.mjs with the
       # reason and the remaining count; everything else gates here.
