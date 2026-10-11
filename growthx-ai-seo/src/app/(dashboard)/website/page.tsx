@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, Square, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -12,6 +12,7 @@ import {
   useCrawlHistory,
   useCrawlIssues,
   useCrawlPages,
+  useCancelCrawl,
   useIssueCounts,
   useIssueGroups,
   useLatestCrawl,
@@ -49,6 +50,7 @@ function WebsiteAuditClient() {
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const crawlInProgress = crawl.data?.status === "PENDING" || crawl.data?.status === "RUNNING";
+  const cancelCrawl = useCancelCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
   const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
   const history = useCrawlHistory(client?.domain ?? null, 12);
@@ -145,6 +147,19 @@ function WebsiteAuditClient() {
       );
     } finally {
       setCrawling(false);
+    }
+  }
+
+  async function handleStopCrawl() {
+    if (!crawl.data?.id || cancelCrawl.isPending) return;
+    setCrawlActionError(null);
+    setCrawlActionMessage(null);
+    try {
+      const result = await cancelCrawl.mutateAsync(crawl.data.id);
+      await crawl.refetch();
+      setCrawlActionMessage(result.cancelled ? "The website check has been stopped." : "The website check had already finished.");
+    } catch (error) {
+      setCrawlActionError(error instanceof Error ? error.message : "The website check could not be stopped. Please try again.");
     }
   }
 
@@ -264,15 +279,28 @@ function WebsiteAuditClient() {
 
           {/* Action buttons toolbar */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleReCrawl}
-              disabled={crawling || crawlInProgress || !client?.domain}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
-            >
-              <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
-              <span>{crawling || crawlInProgress ? "Checking…" : "Check my website again"}</span>
-            </button>
+            {crawlInProgress ? (
+              <button
+                type="button"
+                onClick={handleStopCrawl}
+                disabled={cancelCrawl.isPending}
+                aria-label="Stop crawling this website"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-error-200 bg-error-50 px-3.5 py-1.5 text-xs font-bold text-error-700 hover:bg-error-100 disabled:opacity-50 transition-colors"
+              >
+                {cancelCrawl.isPending ? <Loader2 size={13} className="animate-spin" /> : <Square size={12} fill="currentColor" />}
+                <span>{cancelCrawl.isPending ? "Stopping…" : "Stop crawl"}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleReCrawl}
+                disabled={crawling || !client?.domain}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
+              >
+                <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
+                <span>{crawling ? "Starting…" : "Check my website again"}</span>
+              </button>
+            )}
 
             <Link
               href="/fix-engine"
@@ -329,7 +357,7 @@ function WebsiteAuditClient() {
       {/* A re-audit that failed: the API returns the last good audit and says so. */}
       {crawlActionError && (
         <div role="alert">
-          <StatusNote tone="bad">Could not start the website check: {crawlActionError}</StatusNote>
+          <StatusNote tone="bad">Could not update the website check: {crawlActionError}</StatusNote>
         </div>
       )}
       {crawlActionMessage && !crawlActionError && (

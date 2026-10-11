@@ -427,6 +427,19 @@ export function useStartCrawl(_websiteId?: string | null) {
   });
 }
 
+export function useCancelCrawl(domain: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => api.cancelCrawl(jobId),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["latest-crawl", domain] }),
+        qc.invalidateQueries({ queryKey: ["crawl-history", domain] }),
+      ]);
+    },
+  });
+}
+
 /**
  * Completed crawls for a domain, oldest first.
  *

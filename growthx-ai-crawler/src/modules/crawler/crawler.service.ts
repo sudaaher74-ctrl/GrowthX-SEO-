@@ -96,6 +96,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * cancelled mid-flight stops within seconds.
    */
   private readonly jobStatusCache = new Map<string, { status: string; readAt: number }>();
+  private readonly activeMetricJobs = new Set<string>();
   /** Spaces requests to one website by its politeness delay. See HostPacer. */
   private readonly pacer = new HostPacer();
   private static readonly JOB_STATUS_TTL_MS = 10 * 1000;
@@ -381,6 +382,26 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     return job.id;
   }
 
+  /** Stop an active crawl and make every worker treat its remaining work as stale. */
+  async cancelCrawlJob(jobId: string): Promise<boolean> {
+    const now = new Date();
+    const { count } = await this.prisma.crawlJob.updateMany({
+      where: { id: jobId, status: { in: ['PENDING', 'RUNNING'] } },
+      data: { status: 'CANCELLED', finishedAt: now, errorMessage: 'Stopped by user.' },
+    });
+    if (count === 0) return false;
+
+    this.jobStatusCache.set(jobId, { status: 'CANCELLED', readAt: Date.now() });
+    const localQueue = this.localJobQueues.get(jobId);
+    if (localQueue) localQueue.length = 0;
+    this.releaseActiveCrawlMetric(jobId);
+    return true;
+  }
+
+  private releaseActiveCrawlMetric(jobId: string): void {
+    if (this.activeMetricJobs.delete(jobId)) this.metrics.activeCrawlJobs.dec();
+  }
+
   // Local fallback queue mechanism
   private readonly localJobQueues = new Map<string, PageFetchPayload[]>();
   private readonly localJobActiveWorkers = new Map<string, number>();
@@ -393,13 +414,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // The clock starts when the crawl does, not when it was queued, so a crawl
     // that waited its turn behind another still gets its whole budget.
     const deadlineAt = payload.timeBudgetMs ? Date.now() + payload.timeBudgetMs : undefined;
-    await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: {
-      status: 'RUNNING',
+    const claimed = await this.prisma.crawlJob.updateMany({
+      where: { id: payload.jobId, status: { in: ['PENDING', 'RUNNING'] } },
+      data: {
+        status: 'RUNNING',
       ...(process.env.CRAWL_FAIR_SCHEDULING === 'true' ? { qualityDiagnostics: {
         crawlConfig: JSON.parse(JSON.stringify(payload)), dispatchReady: false,
       } } : {}),
-    } });
+      },
+    });
+    if (claimed.count === 0) return;
+    this.jobStatusCache.set(payload.jobId, { status: 'RUNNING', readAt: Date.now() });
     this.metrics.activeCrawlJobs.inc();
+    this.activeMetricJobs.add(payload.jobId);
+    const current = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId }, select: { status: true } });
+    if (current?.status !== 'RUNNING') {
+      this.jobStatusCache.set(payload.jobId, { status: current?.status ?? 'GONE', readAt: Date.now() });
+      this.releaseActiveCrawlMetric(payload.jobId);
+      return;
+    }
 
     // Initialize per-job stats tracking
     this.state.jobStats.set(payload.jobId, {
@@ -421,6 +454,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     });
 
     const robotsRules = await this.robots.fetchRobotsRules(payload.domain);
+    if (!(await this.crawlStillWants(payload.jobId))) return;
     const delayMs = robotsRules.crawlDelayMs || payload.rateLimitDelayMs || 500;
 
     // Seeding runs through DiscoveryService, which unions robots.txt, declared
@@ -433,6 +467,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     let sitemapFindings: SitemapFinding[] = [];
     try {
       const discovered = await this.discovery.discoverSeeds(payload.startUrl, { useSitemap: payload.useSitemap });
+      if (!(await this.crawlStillWants(payload.jobId))) return;
       discoveredRobots = discovered.robots;
       sitemapFindings = discovered.findings;
 
@@ -503,6 +538,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.crawlJob
       .update({ where: { id: payload.jobId }, data: { pagesDiscovered: seedUrls.size } })
       .catch(() => {});
+
+    if (!(await this.crawlStillWants(payload.jobId))) return;
 
     this.logger.log(`[JOB ${payload.jobId}] Total seed URLs to crawl: ${seedUrls.size} (${sitemapSet.size} from sitemaps, 1 homepage)`);
 
@@ -636,7 +673,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private async crawlStillWants(jobId: string): Promise<boolean> {
     const cached = this.jobStatusCache.get(jobId);
     if (cached && Date.now() - cached.readAt < CrawlerService.JOB_STATUS_TTL_MS) {
-      return cached.status === 'RUNNING' || cached.status === 'PENDING';
+      const active = cached.status === 'RUNNING' || cached.status === 'PENDING';
+      if (!active) this.releaseActiveCrawlMetric(jobId);
+      return active;
     }
 
     let status: string;
@@ -657,7 +696,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    return status === 'RUNNING' || status === 'PENDING';
+    const active = status === 'RUNNING' || status === 'PENDING';
+    if (!active) this.releaseActiveCrawlMetric(jobId);
+    return active;
   }
 
   async processPageFetch(payload: PageFetchPayload): Promise<void> {
@@ -722,6 +763,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
       const fetchRes = this.toLegacyFetchResult(outcome);
       const sitemapSetForJob = crawlState.sitemapUrls;
+
+      // A stop request may arrive while the current page is being fetched.
+      // Let that request finish, then discard its result before writing it.
+      if (!(await this.crawlStillWants(payload.jobId))) return;
 
       // A file is not a page. The extension filter at enqueue time catches
       // most of these before the request is even made; this catches the ones
@@ -1608,7 +1653,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       crawlCoveragePercent,
     });
 
-    this.metrics.activeCrawlJobs.dec();
+    this.releaseActiveCrawlMetric(jobId);
     this.state.dropLocal(jobId);
     await this.state.forgetCrawlState(jobId);
 

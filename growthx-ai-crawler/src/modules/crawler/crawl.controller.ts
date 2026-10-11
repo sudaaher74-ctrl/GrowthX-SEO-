@@ -283,6 +283,15 @@ export class CrawlController {
     return this.crawlJobForCaller(req, id);
   }
 
+  @Post('crawls/:id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stop an active crawl job' })
+  async cancelCrawlJob(@Req() req: any, @Param('id') id: string) {
+    await this.crawlJobForCaller(req, id, 'write');
+    const cancelled = await this.crawlerService.cancelCrawlJob(id);
+    return { success: true, cancelled };
+  }
+
   @Get('websites/:domain/latest-crawl')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve the most recent crawl job for a domain' })

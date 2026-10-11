@@ -608,6 +608,7 @@ export const api = {
     }),
     startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number; useSitemap?: boolean }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
+    cancelCrawl: (jobId: string) => post<{ success: boolean; cancelled: boolean }>(`/api/crawls/${jobId}/cancel`, {}),
     getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
   getCrawlHistory: (domain: string, limit?: number) =>
     get<CrawlHistoryPoint[]>(
