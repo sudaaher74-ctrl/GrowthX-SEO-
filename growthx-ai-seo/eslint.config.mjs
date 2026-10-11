@@ -6,6 +6,13 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    files: ["scripts/**/*.cjs"],
+    // Node regression harnesses load transpiled modules through require().
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
+    // These overrides use plugins configured for TypeScript source files.
+    files: ["**/*.{ts,tsx,mts,cts}"],
     // Tracked exception, not an endorsement.
     //
     // Ten pre-existing call sites set state synchronously inside an effect
