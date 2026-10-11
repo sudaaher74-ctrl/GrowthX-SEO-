@@ -263,6 +263,15 @@ export class ContentIntelligenceController {
     return this.competitorCrawl.startCrawl(req.organizationId, projectId, competitorId, { force: body?.force });
   }
 
+  @Post('competitors/:competitorId/cancel-crawl')
+  async cancelCompetitorCrawl(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.competitorCrawl.cancelCrawl(req.organizationId, projectId, competitorId);
+  }
+
   /** What the last completed crawl found, by page kind. Null until one has. */
   @Get('competitors/:competitorId/coverage')
   async competitorCoverage(

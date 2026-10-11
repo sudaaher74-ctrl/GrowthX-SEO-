@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Loader2,
   RotateCw,
+  Square,
 } from "lucide-react";
 import { Panel, relativeTime } from "@/components/ui/console";
 import { api, type CompetitorWebsite, type SiteReadStatus } from "@/lib/api-client";
@@ -72,6 +73,24 @@ export function CompetitorWebsitesPanel({
     },
     onSettled: () => {
       setCrawlingCompId(null);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (competitorId: string) => api.cancelCompetitorSite(projectId, competitorId),
+    onSuccess: async (result) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] }),
+        qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
+        qc.invalidateQueries({ queryKey: ["competitor-pages", projectId] }),
+        qc.invalidateQueries({ queryKey: ["rival-moves", projectId] }),
+      ]);
+      setPanelMessage(result.cancelled ? "Competitor crawl stopped." : "That competitor crawl had already finished.");
+      setTimeout(() => setPanelMessage(null), 5000);
+    },
+    onError: (err: Error) => {
+      setPanelMessage(`Could not stop competitor crawl: ${err?.message || "Please try again."}`);
+      setTimeout(() => setPanelMessage(null), 6000);
     },
   });
 
@@ -172,6 +191,8 @@ export function CompetitorWebsitesPanel({
               yourHealth={yourHealth}
               onRecrawl={handleRecrawl}
               isRecrawling={crawlingCompId === site.competitorId}
+              onCancel={(competitorId) => cancelMutation.mutate(competitorId)}
+              isCancelling={cancelMutation.isPending && cancelMutation.variables === site.competitorId}
             />
           ))}
         </div>
@@ -186,12 +207,16 @@ function SiteCard({
   yourHealth: _yourHealth,
   onRecrawl,
   isRecrawling,
+  onCancel,
+  isCancelling,
 }: {
   site: CompetitorWebsite;
   yourPages: number | null;
   yourHealth: number | null;
   onRecrawl?: (competitorId: string, domain: string) => void;
   isRecrawling?: boolean;
+  onCancel?: (competitorId: string) => void;
+  isCancelling?: boolean;
 }) {
   const you = site.role === "you";
   const displayName = (site.name || site.domain || (you ? "Your website" : "Competitor")).trim();
@@ -379,16 +404,31 @@ function SiteCard({
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {site.competitorId && (
-                <button
-                  type="button"
-                  onClick={() => onRecrawl?.(site.competitorId!, displayDomain)}
-                  disabled={ACTIVE.includes(site.status) || isRecrawling}
-                  title={ACTIVE.includes(site.status) ? "Reading their pages…" : `Re-crawl ${displayName}'s website now`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200/60 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 hover:border-brand-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                >
-                  <RotateCw size={11} className={ACTIVE.includes(site.status) || isRecrawling ? "animate-spin text-signal-400" : "text-brand-400"} />
-                  <span>{ACTIVE.includes(site.status) ? "Reading…" : site.status === "FAILED" ? "Retry crawl" : "Re-crawl"}</span>
-                </button>
+                ACTIVE.includes(site.status) ? (
+                  <button
+                    type="button"
+                    onClick={() => onCancel?.(site.competitorId!)}
+                    disabled={isCancelling}
+                    title={`Stop reading ${displayName}'s website`}
+                    aria-label={`Stop crawling ${displayName}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-error-200 bg-error-50 px-2.5 py-1 text-[11px] font-semibold text-error-700 hover:bg-error-100 disabled:opacity-50 transition-colors shadow-2xs"
+                  >
+                    {isCancelling ? <Loader2 size={11} className="animate-spin" /> : <Square size={10} fill="currentColor" />}
+                    <span>{isCancelling ? "Stopping…" : "Stop crawl"}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onRecrawl?.(site.competitorId!, displayDomain)}
+                    disabled={isRecrawling}
+                    title={`Re-crawl ${displayName}'s website now`}
+                    aria-label={`Re-crawl ${displayName}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200/60 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 hover:border-brand-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                  >
+                    <RotateCw size={11} className={isRecrawling ? "animate-spin text-signal-400" : "text-brand-400"} />
+                    <span>{isRecrawling ? "Starting…" : site.status === "FAILED" ? "Retry crawl" : "Re-crawl"}</span>
+                  </button>
+                )
               )}
               <Link
                 href="/competitor-intelligence?tab=gaps"

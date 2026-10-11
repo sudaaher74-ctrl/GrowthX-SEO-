@@ -715,6 +715,11 @@ export const api = {
       );
     }
   },
+  cancelCompetitorSite: (projectId: string, competitorId: string) =>
+    post<{ cancelled: boolean }>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/cancel-crawl`,
+      {},
+    ),
   
   
   

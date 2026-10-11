@@ -143,6 +143,27 @@ export class CompetitorCrawlService {
     return { jobId, websiteId: website.id, domain, pageLimit: job?.pageLimit ?? null, alreadyRunning: false };
   }
 
+  async cancelCrawl(organizationId: string, projectId: string, competitorId: string) {
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: {
+        id: competitorId,
+        projectId,
+        ...(organizationId ? { project: { organizationId } } : {}),
+      },
+      select: { websiteId: true },
+    });
+    if (!competitor) throw new NotFoundException('Competitor not found for this project.');
+    if (!competitor.websiteId) return { cancelled: false };
+
+    const active = await this.prisma.crawlJob.findFirst({
+      where: { websiteId: competitor.websiteId, status: { in: ['PENDING', 'RUNNING'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!active) return { cancelled: false };
+    return { cancelled: await this.crawler.cancelCrawlJob(active.id) };
+  }
+
   async getCoverage(organizationId: string, projectId: string, competitorId: string) {
     const competitor = await this.prisma.competitorDomain.findFirst({
       where: {

@@ -287,6 +287,41 @@ describe('CompetitorCrawlService', () => {
       expect((await uncapped.service.getCoverage('org1', 'p1', 'comp1'))?.capped).toBe(false);
     });
   });
+
+  describe('stopping a crawl', () => {
+    it('cancels only the active crawl for the requested project competitor', async () => {
+      const prisma = {
+        competitorDomain: { findFirst: jest.fn().mockResolvedValue({ websiteId: 'w1' }) },
+        crawlJob: { findFirst: jest.fn().mockResolvedValue({ id: 'job1' }) },
+      };
+      const crawler = { cancelCrawlJob: jest.fn().mockResolvedValue(true) };
+      const service = new CompetitorCrawlService(prisma as any, crawler as any);
+
+      await expect(service.cancelCrawl('org1', 'p1', 'comp1')).resolves.toEqual({ cancelled: true });
+      expect(prisma.competitorDomain.findFirst).toHaveBeenCalledWith({
+        where: { id: 'comp1', projectId: 'p1', project: { organizationId: 'org1' } },
+        select: { websiteId: true },
+      });
+      expect(prisma.crawlJob.findFirst).toHaveBeenCalledWith({
+        where: { websiteId: 'w1', status: { in: ['PENDING', 'RUNNING'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      expect(crawler.cancelCrawlJob).toHaveBeenCalledWith('job1');
+    });
+
+    it('does nothing when the competitor has no active crawl', async () => {
+      const prisma = {
+        competitorDomain: { findFirst: jest.fn().mockResolvedValue({ websiteId: 'w1' }) },
+        crawlJob: { findFirst: jest.fn().mockResolvedValue(null) },
+      };
+      const crawler = { cancelCrawlJob: jest.fn() };
+      const service = new CompetitorCrawlService(prisma as any, crawler as any);
+
+      await expect(service.cancelCrawl('org1', 'p1', 'comp1')).resolves.toEqual({ cancelled: false });
+      expect(crawler.cancelCrawlJob).not.toHaveBeenCalled();
+    });
+  });
 });
 
 /**
