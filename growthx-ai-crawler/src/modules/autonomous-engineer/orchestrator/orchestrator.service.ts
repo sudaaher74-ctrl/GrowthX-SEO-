@@ -39,6 +39,8 @@ export class OrchestratorService {
 
       // 1. Clone
       repoDir = await this.gitAgent.cloneRepository(repoUrl, githubToken, repoName);
+      const repositoryAccess = await this.gitAgent.verifyAccess(githubToken, repoOwner, repoName);
+      if (!repositoryAccess.canPush) throw new Error('GitHub token cannot push a review branch to this repository.');
 
       // 2. Repository Understanding
       this.logger.log(`[2/7] Understanding Repository...`);
@@ -67,6 +69,10 @@ export class OrchestratorService {
       const absoluteTargetPath = path.isAbsolute(fileSelection.selectedFilePath) 
         ? fileSelection.selectedFilePath 
         : path.join(repoDir, fileSelection.selectedFilePath);
+      const changedFile = path.relative(repoDir, absoluteTargetPath);
+      if (changedFile.startsWith('..') || path.isAbsolute(changedFile)) {
+        throw new Error('Selected file is outside the cloned repository.');
+      }
 
       const patchOutcome = await this.patchAgent.generatePatch(absoluteTargetPath, issueAnalysis, organizationId);
 
@@ -76,7 +82,7 @@ export class OrchestratorService {
 
       // 7. Validation
       this.logger.log(`[7/7] Validating Code...`);
-      const validationResult = await this.validationAgent.validateRepository(repoDir, repoContext.packageManager);
+      const validationResult = await this.validationAgent.validateRepository(repoDir, repoContext.packageManager, [changedFile]);
       if (!validationResult.success) {
         throw new Error(`Validation failed. We must rollback or self-heal. Build output: ${validationResult.output}`);
       }
@@ -86,8 +92,8 @@ export class OrchestratorService {
       const commitMsg = `fix(seo): implement fix for ${issueId}`;
       await this.gitAgent.commitAndPush(repoDir, branchName, commitMsg);
 
-      const prBody = `## 🤖 Automated SEO Fix by GrowthX AI\n\nThis PR automatically fixes an SEO issue detected by our crawler.\n\n### Issue Resolved:\n${issueDetails}\n\n### Fix Strategy:\n${issueAnalysis.strategy}\n\n✅ Validation Passed: The project builds successfully.`;
-      const prUrl = await this.gitAgent.createPullRequest(githubToken, repoOwner, repoName, commitMsg, branchName, 'main', prBody);
+      const prBody = `## Proposed SEO fix\n\nIssue investigated: ${issueDetails}\n\nFix strategy: ${issueAnalysis.strategy}\n\nValidation performed: ${validationResult.output}\n\nReview the diff and repository CI before approval. This PR does not establish that the issue is resolved in production.`;
+      const prUrl = await this.gitAgent.createPullRequest(githubToken, repoOwner, repoName, commitMsg, branchName, repositoryAccess.defaultBranch, prBody);
 
       this.logger.log(`Workflow Complete! PR created at ${prUrl}`);
       return prUrl;
@@ -95,6 +101,14 @@ export class OrchestratorService {
     } catch (e) {
       this.logger.error(`Orchestrator Workflow Failed: ${e.message}`);
       return null;
+    } finally {
+      if (repoDir) {
+        try {
+          await this.gitAgent.cleanupRepository(repoDir);
+        } catch (error) {
+          this.logger.warn(`Could not remove temporary repository workspace: ${(error as Error).message}`);
+        }
+      }
     }
   }
 }

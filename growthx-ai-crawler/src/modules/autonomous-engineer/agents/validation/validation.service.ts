@@ -11,7 +11,6 @@ import * as path from 'path';
 // instance for a feature that runs on no normal day, on a box that was being
 // OOM-killed at 512MB while crawling.
 import type * as ts from 'typescript';
-import * as cheerio from 'cheerio';
 
 const execAsync = promisify(exec);
 
@@ -83,21 +82,32 @@ export class ValidationService {
       return syntaxResult;
     }
 
-    // 2. Check if this is a Node project with a build script
-    const pkgPath = path.join(repoDir, 'package.json');
+    // 2. Resolve the application's manifest from the changed file. Repositories
+    // often keep the app under apps/web or frontend rather than at the root.
+    const packageRoots = new Set<string>();
+    for (const file of filesToCheck) {
+      const root = await this.findPackageRoot(repoDir, file);
+      if (root) packageRoots.add(root);
+    }
+    if (packageRoots.size > 1) {
+      return { success: false, output: 'Changed files span multiple Node applications; validate each application separately.' };
+    }
+    const packageRoot = [...packageRoots][0];
+    if (!packageRoot) {
+      return { success: true, output: `${syntaxResult.output}. Build skipped: no package.json found for the changed files; non-Node build was not validated.` };
+    }
+    const pkgPath = path.join(packageRoot, 'package.json');
     let pkg: any = null;
     try {
       const content = await fs.readFile(pkgPath, 'utf8');
       pkg = JSON.parse(content);
-    } catch {
-      // Non-node project (e.g. Shopify Liquid theme, static HTML, Hugo, Jekyll)
-      this.logger.log(`No package.json found in ${repoDir}. File syntax verified.`);
-      return { success: true, output: 'Syntax validation passed (non-Node repository)' };
+    } catch (error) {
+      return { success: false, output: 'Cannot validate application: package.json is unreadable or invalid JSON.' };
     }
 
     if (!pkg?.scripts?.build) {
       this.logger.log(`No build script in package.json. File syntax verified.`);
-      return { success: true, output: 'Syntax validation passed (no build script in package.json)' };
+      return { success: true, output: `${syntaxResult.output}. Build skipped: no build script in package.json.` };
     }
 
     // 3. Attempt sandbox build, only where the operator has isolated it
@@ -105,10 +115,26 @@ export class ValidationService {
       this.logger.log('Build validation is off (AUTONOMOUS_ENGINEER_RUN_BUILDS is not "true"); syntax verified only.');
       return {
         success: true,
-        output: 'Syntax validation passed. The build was not run here; the repository CI will build the change.',
+        output: `${syntaxResult.output}. Build skipped: isolated build execution is disabled. Repository CI must verify the change before approval.`,
       };
     }
-    return this.attemptBuild(repoDir, packageManager, pkg, filesToCheck);
+    return this.attemptBuild(packageRoot, packageManager, pkg, filesToCheck);
+  }
+
+  private async findPackageRoot(repoDir: string, changedFile: string): Promise<string | null> {
+    const root = path.resolve(repoDir);
+    let current = path.dirname(path.resolve(root, changedFile));
+    while (current === root || current.startsWith(`${root}${path.sep}`)) {
+      try {
+        await fs.access(path.join(current, 'package.json'));
+        return current;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      if (current === root) break;
+      current = path.dirname(current);
+    }
+    return null;
   }
 
   /** Resolves relative file paths for all modified or specified files. */
@@ -133,17 +159,27 @@ export class ValidationService {
    */
   private async validateFilesSyntax(repoDir: string, files: string[]): Promise<ValidationResult> {
     const ts = await import('typescript');
+    let checked = 0;
+    const skipped: string[] = [];
     for (const relativePath of files) {
       const absolutePath = path.resolve(repoDir, relativePath);
+      const withinRepo = path.relative(path.resolve(repoDir), absolutePath);
+      if (withinRepo.startsWith('..') || path.isAbsolute(withinRepo)) {
+        return { success: false, output: `Cannot validate file outside repository: ${relativePath}` };
+      }
       let content: string;
       try {
         content = await fs.readFile(absolutePath, 'utf8');
       } catch {
-        // File may have been removed or moved; skip
-        continue;
+        return { success: false, output: `Cannot read changed file: ${relativePath}. Validate deletions separately.` };
       }
 
       const ext = path.extname(relativePath).toLowerCase();
+      if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'].includes(ext)) {
+        skipped.push(relativePath);
+        continue;
+      }
+      checked++;
 
       // TypeScript / JavaScript / JSX / TSX
       if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
@@ -185,20 +221,12 @@ export class ValidationService {
         }
       }
 
-      // HTML files
-      if (['.html', '.htm'].includes(ext)) {
-        try {
-          cheerio.load(content, { xmlMode: false });
-        } catch (e: any) {
-          return {
-            success: false,
-            output: `Malformed HTML in ${path.basename(relativePath)}: ${e.message}`,
-          };
-        }
-      }
     }
 
-    return { success: true, output: 'Syntax validation passed' };
+    if (!checked || skipped.length) {
+      return { success: false, output: `Syntax validation incomplete: ${checked} files checked; unsupported files: ${skipped.join(', ') || 'none; no changed files resolved'}. Review with the repository native validator.` };
+    }
+    return { success: true, output: `Syntax validation passed for ${checked} changed files; type checking and runtime behavior were not checked` };
   }
 
   /**

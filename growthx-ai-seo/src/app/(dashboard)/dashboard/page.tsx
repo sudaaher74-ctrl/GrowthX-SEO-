@@ -123,7 +123,8 @@ export default function UnifiedDashboardPage() {
   // defect crowding out everything else that is wrong.
   const priorityGroups = issueGroups.data?.groups ?? [];
   const reachAvailable = issueGroups.data?.reachAvailable ?? false;
-  const totalAffectedPages = priorityGroups.reduce((acc, g) => acc + g.affectedCount, 0);
+  const uniqueAffectedPages = issueGroups.data?.uniqueAffectedPages;
+  const issueOccurrences = priorityGroups.reduce((acc, g) => acc + g.affectedCount, 0);
   const aiReadyCount = priorityGroups.filter((g) => g.aiFixAvailable || g.fixClass === "AUTO").length;
 
   const hasWebsite = Boolean(client?.domain);
@@ -549,9 +550,11 @@ export default function UnifiedDashboardPage() {
                 <Layers size={15} />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Total Reach</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Audit scope</p>
                 <p className="text-[14px] font-bold text-brand-950 leading-tight">
-                  {totalAffectedPages} {totalAffectedPages === 1 ? "page affected" : "pages affected"}
+                  {uniqueAffectedPages == null
+                    ? `${issueOccurrences} issue ${issueOccurrences === 1 ? "occurrence" : "occurrences"}`
+                    : `${uniqueAffectedPages} ${uniqueAffectedPages === 1 ? "page" : "pages"} affected`}
                 </p>
               </div>
             </div>

@@ -45,6 +45,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
       - PORT=3000
+      - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-true}
       - CRAWL_UNLIMITED_PAGES=${CRAWL_UNLIMITED_PAGES:-false}
       - CRAWL_RENDER_ALL_PAGES=${CRAWL_RENDER_ALL_PAGES:-false}
       - CRAWL_FAIR_SCHEDULING=${CRAWL_FAIR_SCHEDULING:-false}

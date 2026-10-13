@@ -43,6 +43,7 @@ describe('StorageService — deleting snapshots', () => {
   it('refuses a locator that points outside the snapshot directory', async () => {
     await expect(storage.deleteSnapshot(`file://${outside}`)).resolves.toBe(false);
     await expect(storage.deleteSnapshot(`file://${dir}/../outside.html`)).resolves.toBe(false);
+    await expect(storage.readSnapshot(`file://${outside}`)).resolves.toBeNull();
     expect(fs.existsSync(outside)).toBe(true);
   });
 
@@ -67,5 +68,18 @@ describe('StorageService — deleting snapshots', () => {
     fs.rmSync(dir, { recursive: true });
 
     await expect(storage.deleteSnapshotsForJobs(['job1'])).resolves.toBe(0);
+  });
+
+  it('refuses the unimplemented S3 mode rather than returning a fake snapshot URL', async () => {
+    const previousProvider = process.env.STORAGE_PROVIDER;
+    process.env.STORAGE_PROVIDER = 's3';
+    try {
+      const s3Storage = new StorageService();
+      await expect(s3Storage.onModuleInit()).rejects.toThrow('not implemented');
+      await expect(s3Storage.saveSnapshot('job', 'page', '<html/>')).resolves.toContain('error://storage-unavailable/');
+    } finally {
+      if (previousProvider === undefined) delete process.env.STORAGE_PROVIDER;
+      else process.env.STORAGE_PROVIDER = previousProvider;
+    }
   });
 });

@@ -17,6 +17,8 @@ jest.mock('simple-git', () => ({
 }));
 
 import { GitService } from './git.service';
+import * as fs from 'fs/promises';
+import * as os from 'os';
 
 describe('GitService', () => {
   let service: GitService;
@@ -41,12 +43,21 @@ describe('GitService', () => {
     const dir = await service.cloneRepository('https://github.com/o/r.git', 'ghp_supersecret', 'r');
 
     expect(dir).not.toContain('ghp_supersecret');
-    expect(dir).toContain('r');
+    expect(dir.startsWith(os.tmpdir())).toBe(true);
+    await service.cleanupRepository(dir);
   });
 
   it('authenticates the clone URL without mutating the caller\'s input', async () => {
     const url = 'https://github.com/o/r.git';
-    await service.cloneRepository(url, 'ghp_supersecret', 'r');
+    const dir = await service.cloneRepository(url, 'ghp_supersecret', 'r');
     expect(url).toBe('https://github.com/o/r.git');
+    await service.cleanupRepository(dir);
+  });
+
+  it('removes only its own temporary clone and refuses other directories', async () => {
+    const dir = await service.cloneRepository('https://github.com/o/r.git', 'token', 'r');
+    await service.cleanupRepository(dir);
+    await expect(fs.access(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(service.cleanupRepository(os.tmpdir())).rejects.toThrow('outside the Fix Engine');
   });
 });

@@ -35,6 +35,8 @@ describe('OrchestratorService', () => {
   beforeEach(async () => {
     git = {
       cloneRepository: jest.fn().mockResolvedValue('/tmp/repo'),
+      cleanupRepository: jest.fn().mockResolvedValue(undefined),
+      verifyAccess: jest.fn().mockResolvedValue({ defaultBranch: 'develop', canPush: true }),
       createFeatureBranch: jest.fn().mockResolvedValue(undefined),
       commitAndPush: jest.fn().mockResolvedValue(undefined),
       createPullRequest: jest.fn().mockResolvedValue('https://github.com/o/r/pull/1'),
@@ -71,6 +73,11 @@ describe('OrchestratorService', () => {
     expect(patch.generatePatch).toHaveBeenCalled();
     expect(validation.validateRepository).toHaveBeenCalled();
     expect(git.createPullRequest).toHaveBeenCalled();
+    expect(git.cleanupRepository).toHaveBeenCalledWith('/tmp/repo');
+    expect(validation.validateRepository.mock.calls[0][2][0].replace(/\\/g, '/')).toBe('app/layout.tsx');
+    expect(git.createPullRequest.mock.calls[0][5]).toBe('develop');
+    expect(git.createPullRequest.mock.calls[0][6]).toContain('Validation performed:');
+    expect(git.createPullRequest.mock.calls[0][6]).not.toContain('project builds successfully');
   });
 
   it('branches before patching so the default branch is never written to', async () => {
