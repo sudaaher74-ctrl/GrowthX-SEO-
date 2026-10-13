@@ -25,6 +25,9 @@ export class StorageService implements OnModuleInit {
   private directoryReady = false;
 
   async onModuleInit(): Promise<void> {
+    if (this.provider !== 'local') {
+      throw new Error(`STORAGE_PROVIDER=${this.provider} is not implemented. Configure shared snapshot storage before deploying multiple API or worker hosts.`);
+    }
     if (this.provider === 'local') {
       // Surfaced once at boot so a misconfigured volume is visible in the
       // deploy log rather than only in the first crawl that tries to use it.
@@ -84,11 +87,7 @@ export class StorageService implements OnModuleInit {
   ): Promise<string> {
     const filename = `${jobId}_${pageId}_${Date.now()}.${extension}`;
 
-    if (this.provider === 's3' && process.env.AWS_S3_BUCKET) {
-      // In a real S3 deployment, we would use S3Client from @aws-sdk/client-s3
-      this.logger.log(`Uploading ${filename} to AWS S3 bucket ${process.env.AWS_S3_BUCKET}`);
-      return `https://${process.env.AWS_S3_BUCKET}.s3.amazonaws.com/snapshots/${filename}`;
-    }
+    if (this.provider !== 'local') return `error://storage-unavailable/${filename}`;
 
     if (!(await this.ensureDirectory())) {
       return `error://storage-unavailable/${filename}`;
@@ -184,7 +183,11 @@ export class StorageService implements OnModuleInit {
 
   async readSnapshot(fileUrl: string): Promise<string | null> {
     if (fileUrl.startsWith('file://')) {
-      const filePath = fileUrl.replace('file://', '');
+      const filePath = path.resolve(fileUrl.slice('file://'.length));
+      if (path.dirname(filePath) !== this.localPath) {
+        this.logger.warn(`Refusing to read a snapshot outside ${this.localPath}.`);
+        return null;
+      }
       try {
         return await fs.promises.readFile(filePath, 'utf-8');
       } catch (err) {

@@ -38,16 +38,11 @@ export class CrawlFindingsRecorder {
       const diff = outcome.renderDiff;
       await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, {
         issueType: 'JS_RENDER_REQUIRED',
-        severity: 'HIGH',
-        confidence: 'CONFIRMED',
-        description: 'Content is only available after JavaScript execution.',
-        explanation:
-          'The HTML the server sends is an empty shell. Everything that describes this page — its title, its copy and its links — is ' +
-          'written by JavaScript in the browser afterwards.',
-        impact:
-          'Googlebot renders JavaScript, so Google will eventually see this page, though on a slower second pass. Bingbot, GPTBot, ' +
-          'PerplexityBot, ClaudeBot and most social-preview scrapers largely do not, so to those engines this page is effectively blank. ' +
-          'That is the difference between being ranked late and not being quotable in an AI answer at all.',
+        severity: 'LOW',
+        confidence: 'ADVISORY',
+        description: 'Content was available after JavaScript rendering on this crawl.',
+        explanation: 'The rendered response contains content absent from the initial HTML. Rendering succeeded; this alone does not establish an indexing failure.',
+        impact: 'Consumers that do not execute JavaScript may receive less content. GPTBot, PerplexityBot and ClaudeBot behavior and ranking impact were not measured.',
         recommendation:
           'Server-render or pre-render this route so the title, meta description, copy and navigation are present in the initial HTML response.',
         evidence:

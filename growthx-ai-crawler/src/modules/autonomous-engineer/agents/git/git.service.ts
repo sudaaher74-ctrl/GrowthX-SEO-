@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Octokit } from '@octokit/rest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 
 @Injectable()
@@ -48,9 +49,8 @@ export class GitService {
   /**
    * Clones a repository to a local temporary directory.
    */
-  async cloneRepository(repoUrl: string, token: string, repoName: string): Promise<string> {
-    const targetDir = path.join('/tmp', 'growthx-auto-engineer', repoName, Date.now().toString());
-    await fs.mkdir(targetDir, { recursive: true });
+  async cloneRepository(repoUrl: string, token: string, _repoName: string): Promise<string> {
+    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
 
     // GitHub's documented form for a token over HTTPS. The token is URL-encoded, so a
     // character that is not valid in a URL cannot corrupt the address (git reports that
@@ -61,9 +61,24 @@ export class GitService {
     const git: SimpleGit = simpleGit();
 
     this.logger.log(`Cloning ${repoUrl} to ${targetDir}...`);
-    await git.clone(url.toString(), targetDir);
+    try {
+      await git.clone(url.toString(), targetDir);
+    } catch (error) {
+      await this.cleanupRepository(targetDir);
+      throw error;
+    }
 
     return targetDir;
+  }
+
+  /** Remove only workspaces this service created under the host temp directory. */
+  async cleanupRepository(repoDir: string): Promise<void> {
+    const resolved = path.resolve(repoDir);
+    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) ||
+        !path.basename(resolved).startsWith('growthx-auto-engineer-')) {
+      throw new Error('Refusing to remove a directory outside the Fix Engine temporary workspace.');
+    }
+    await fs.rm(resolved, { recursive: true, force: true });
   }
 
   /**

@@ -58,6 +58,17 @@ function service(issues: Array<Record<string, any>>, gsc: Array<{ page: string; 
 }
 
 describe('IssueGroupService.groupsForProject', () => {
+  it('counts distinct affected pages across overlapping issue groups', async () => {
+    const svc = service([
+      issue({ issueType: 'MISSING_TITLE', affectedUrl: 'https://x.com/a' }),
+      issue({ issueType: 'MISSING_H1', affectedUrl: 'https://x.com/a' }),
+      issue({ issueType: 'MISSING_H1', affectedUrl: 'https://x.com/b' }),
+    ]);
+    const result = await svc.groupsForProject('proj_1', { limit: 1 });
+    expect(result.groups).toHaveLength(1);
+    expect(result.uniqueAffectedPages).toBe(2);
+  });
+
   it('shows distinct problems instead of one problem on five pages', async () => {
     // The live Aiva queue: five rows, all SCHEMA_PRODUCT_OFFERS, while the
     // other kinds of finding never made it onto the list.

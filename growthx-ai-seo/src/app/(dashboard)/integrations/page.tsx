@@ -1,11 +1,10 @@
 "use client";
 
 import { Suspense, useState, useMemo } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Database, ExternalLink, GitBranch, Loader2, MapPin, PlugZap, RefreshCw, Search, Trash2 } from "lucide-react";
-import { ActionButton, PageHeader, relativeTime } from "@/components/ui/console";
+import { BarChart3, Database, GitBranch, Loader2, MapPin, PlugZap, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ActionButton, PageHeader, Pill, relativeTime } from "@/components/ui/console";
 import {
   useConnectRepository,
   useRepository,
@@ -30,10 +29,31 @@ function accountLabel(provider: GoogleProviderStatus | undefined): string {
   return "Connected (email not recorded — reconnect to show it)";
 }
 
+function googleConnectionState(
+  provider: GoogleProviderStatus | undefined,
+  checking: boolean,
+  failed: boolean,
+  configured: boolean,
+): { label: string; tone: "default" | "good" | "bad" | "warn" } {
+  if (checking) return { label: "Checking", tone: "default" };
+  if (failed) return { label: "Status unavailable", tone: "bad" };
+  if (!configured) return { label: "Unavailable on this deployment", tone: "warn" };
+  switch (provider?.status) {
+    case "CONNECTED": return { label: "Connected", tone: "good" };
+    case "NEEDS_SELECTION": return { label: "Choose property", tone: "warn" };
+    case "NEEDS_REAUTH": return { label: "Reconnect required", tone: "warn" };
+    case "ERROR": return { label: "Connection error", tone: "bad" };
+    case "NOT_CONNECTED":
+    case "DISCONNECTED": return { label: "Not connected", tone: "default" };
+    default: return { label: "Status unavailable", tone: "bad" };
+  }
+}
+
 export default function IntegrationsPage() {
+  const { projectId } = useWorkspace();
   return (
     <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading Integrations...</div>}>
-      <IntegrationsClient />
+      <IntegrationsClient key={projectId ?? "no-project"} />
     </Suspense>
   );
 }
@@ -49,12 +69,9 @@ function IntegrationsClient() {
 
   const [connectingGitHub, setConnectingGitHub] = useState(false);
   const [githubForm, setGithubForm] = useState({
-    owner: "sudaaher74-ctrl",
-    name: "GrowthX-SEO-",
-    defaultBranch: "main",
+    owner: "",
+    name: "",
     accessToken: "",
-    framework: "nextjs",
-    contentDir: "src/app",
   });
 
   const urlNotice = useMemo<{ type: "success" | "warn" | "error"; text: string } | null>(() => {
@@ -105,6 +122,8 @@ function IntegrationsClient() {
 
   const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
+  const gscState = googleConnectionState(gsc, googleQuery.isPending, googleQuery.isError, googleQuery.data?.configuration.configured ?? false);
+  const ga4State = googleConnectionState(ga4, googleQuery.isPending, googleQuery.isError, googleQuery.data?.configuration.configured ?? false);
   // Authorize mutations
   const authorizeGoogle = useMutation({
     mutationFn: (provider: string) => api.googleAuthorizeUrl(projectId!, provider, "/integrations"),
@@ -196,17 +215,17 @@ function IntegrationsClient() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-[14px] font-bold text-brand-950">Google Search Console</h3>
-                  <MetricBadge state={gsc?.status === "CONNECTED" ? "MEASURED" : "NOT_CONNECTED"} />
+                  <Pill tone={gscState.tone}>{gscState.label}</Pill>
                 </div>
                 <p className="text-[12px] text-brand-500 mt-0.5">
                   Provides authoritative organic search impressions, verified Google clicks, CTR, and keyword rankings.
                 </p>
                 <div className="flex flex-wrap gap-2 text-[11px] text-brand-500 font-mono mt-2">
-                  <span>Account: <strong>{accountLabel(gsc)}</strong></span>
+                  <span>Account: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : accountLabel(gsc)}</strong></span>
                   <span>·</span>
-                  <span>Property: <strong>{gsc?.selectedResourceName || "None selected"}</strong></span>
+                  <span>Property: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : gsc?.selectedResourceName || "None selected"}</strong></span>
                   <span>·</span>
-                  <span>Last Sync: <strong>{gsc?.lastSyncedAt ? relativeTime(gsc.lastSyncedAt) : "Never"}</strong></span>
+                  <span>Last Sync: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : gsc?.lastSyncedAt ? relativeTime(gsc.lastSyncedAt) : "Never"}</strong></span>
                 </div>
               </div>
             </div>
@@ -236,7 +255,7 @@ function IntegrationsClient() {
                   variant="primary"
                   icon={authorizeGoogle.isPending ? <Loader2 size={12} className="animate-spin" /> : <PlugZap size={12} />}
                   onClick={() => authorizeGoogle.mutate("search_console")}
-                  disabled={authorizeGoogle.isPending || !projectId}
+                  disabled={authorizeGoogle.isPending || !projectId || googleQuery.isPending || googleQuery.isError || googleQuery.data?.configuration.configured === false}
                 >
                   Connect Google
                 </ActionButton>
@@ -261,17 +280,17 @@ function IntegrationsClient() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-[14px] font-bold text-brand-950">Google Analytics 4 (GA4)</h3>
-                  <MetricBadge state={ga4?.status === "CONNECTED" ? "MEASURED" : "NOT_CONNECTED"} />
+                  <Pill tone={ga4State.tone}>{ga4State.label}</Pill>
                 </div>
                 <p className="text-[12px] text-brand-500 mt-0.5">
                   Synchronizes user sessions, engaged landing pages, conversion rates, and traffic channels.
                 </p>
                 <div className="flex flex-wrap gap-2 text-[11px] text-brand-500 font-mono mt-2">
-                  <span>Account: <strong>{accountLabel(ga4)}</strong></span>
+                  <span>Account: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : accountLabel(ga4)}</strong></span>
                   <span>·</span>
-                  <span>Stream / Property: <strong>{ga4?.selectedResourceName || "None selected"}</strong></span>
+                  <span>Stream / Property: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : ga4?.selectedResourceName || "None selected"}</strong></span>
                   <span>·</span>
-                  <span>Last Sync: <strong>{ga4?.lastSyncedAt ? relativeTime(ga4.lastSyncedAt) : "Never"}</strong></span>
+                  <span>Last Sync: <strong>{googleQuery.isPending ? "Checking…" : googleQuery.isError ? "Status unavailable" : ga4?.lastSyncedAt ? relativeTime(ga4.lastSyncedAt) : "Never"}</strong></span>
                 </div>
               </div>
             </div>
@@ -301,7 +320,7 @@ function IntegrationsClient() {
                   variant="primary"
                   icon={authorizeGoogle.isPending ? <Loader2 size={12} className="animate-spin" /> : <PlugZap size={12} />}
                   onClick={() => authorizeGoogle.mutate("analytics")}
-                  disabled={authorizeGoogle.isPending || !projectId}
+                  disabled={authorizeGoogle.isPending || !projectId || googleQuery.isPending || googleQuery.isError || googleQuery.data?.configuration.configured === false}
                 >
                   Connect GA4
                 </ActionButton>
@@ -354,17 +373,19 @@ function IntegrationsClient() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-[14px] font-bold text-brand-950">GitHub Repository</h3>
-                  <MetricBadge state={repo.data ? "MEASURED" : "NOT_CONFIGURED"} />
+                  <Pill tone={repo.isError ? "bad" : repo.data ? "good" : "default"}>
+                    {!projectId ? "Select a site" : repo.isPending ? "Checking" : repo.isError ? "Status unavailable" : repo.data ? "Connected" : "Not configured"}
+                  </Pill>
                 </div>
                 <p className="text-[12px] text-brand-500 mt-0.5">
-                  Allows autonomous AI engineers to open verified pull requests for schema and technical fixes.
+                  Allows Fix Engine to prepare reviewable pull requests for schema and technical fixes.
                 </p>
                 <div className="flex flex-wrap gap-2 text-[11px] text-brand-500 font-mono mt-2">
-                  <span>Repo: <strong>{repo.data ? `${repo.data.owner}/${repo.data.name}` : "Not configured"}</strong></span>
+                  <span>Repo: <strong>{repo.data ? `${repo.data.owner}/${repo.data.name}` : repo.isPending ? "Checking…" : repo.isError ? "Status unavailable" : "Not configured"}</strong></span>
                   <span>·</span>
-                  <span>Branch: <strong>{repo.data?.defaultBranch || "main"}</strong></span>
+                  <span>Branch: <strong>{repo.data?.defaultBranch || "Not verified"}</strong></span>
                   <span>·</span>
-                  <span>Framework: <strong>{repo.data?.framework || "Next.js"}</strong></span>
+                  <span>Framework: <strong>{repo.data?.framework || "Not detected"}</strong></span>
                 </div>
               </div>
             </div>

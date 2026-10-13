@@ -1026,6 +1026,7 @@ export interface IssueGroup {
 
 export interface IssueGroupList {
   groups: IssueGroup[];
+  uniqueAffectedPages?: number;
   /** False means the order is not traffic-weighted, and the UI must say so. */
   reachAvailable: boolean;
 }

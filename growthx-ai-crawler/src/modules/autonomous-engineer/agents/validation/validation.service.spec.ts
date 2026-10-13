@@ -40,7 +40,7 @@ describe('ValidationService', () => {
 
     const result = await service.validateRepository(tempDir, 'npm', ['page.tsx']);
     expect(result.success).toBe(true);
-    expect(result.output).toContain('non-Node repository');
+    expect(result.output).toContain('no package.json found');
   });
 
   it('fails syntax validation on malformed JSX with unclosed tags before attempting any build', async () => {
@@ -87,7 +87,7 @@ describe('ValidationService', () => {
 
     expect(attempt).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
-    expect(result.output).toContain('build was not run');
+    expect(result.output).toContain('Build skipped');
   });
 
   it('gives a customer build a listed environment, none of the API secrets', () => {
@@ -148,5 +148,37 @@ describe('ValidationService', () => {
     const result = await service.validateRepository(tempDir, 'npm', ['page.tsx']);
     expect(result.success).toBe(false);
     expect(result.output).toContain('Build error caused by modified file');
+  });
+
+  it('does not pass a changed file with unsupported syntax', async () => {
+    await fs.writeFile(path.join(tempDir, 'theme.liquid'), '{{ title }}');
+    const result = await service.validateRepository(tempDir, 'npm', ['theme.liquid']);
+    expect(result.success).toBe(false);
+    expect(result.output).toContain('unsupported files: theme.liquid');
+  });
+
+  it('fails when a changed file cannot be read', async () => {
+    const result = await service.validateRepository(tempDir, 'npm', ['missing.tsx']);
+    expect(result.success).toBe(false);
+    expect(result.output).toContain('Cannot read changed file');
+  });
+
+  it('does not classify a malformed manifest as a non-Node project', async () => {
+    await fs.writeFile(path.join(tempDir, 'package.json'), '{');
+    await fs.writeFile(path.join(tempDir, 'page.jsx'), 'export default () => <div/>;');
+    const result = await service.validateRepository(tempDir, 'npm', ['page.jsx']);
+    expect(result.success).toBe(false);
+    expect(result.output).toContain('invalid JSON');
+  });
+
+  it('finds the changed application manifest in a monorepo', async () => {
+    const appDir = path.join(tempDir, 'apps', 'web');
+    await fs.mkdir(appDir, { recursive: true });
+    await fs.writeFile(path.join(appDir, 'package.json'), JSON.stringify({ scripts: { build: 'next build' } }));
+    await fs.writeFile(path.join(appDir, 'page.tsx'), 'export default () => <div/>;');
+    const result = await service.validateRepository(tempDir, 'npm', ['apps/web/page.tsx']);
+    expect(result.success).toBe(true);
+    expect(result.output).toContain('Build skipped: isolated build execution is disabled');
+    expect(result.output).not.toContain('no package.json');
   });
 });

@@ -46,6 +46,8 @@ export interface IssueGroup {
 
 export interface IssueGroupList {
   groups: IssueGroup[];
+  /** Distinct normalized URLs across matching open groups, before list pagination. */
+  uniqueAffectedPages: number;
   /**
    * Whether the ordering is traffic-weighted. When false, the UI says
    * "connect Search Console for traffic-weighted priority" rather than
@@ -92,12 +94,12 @@ export class IssueGroupService {
     // detector's findings gets an honest empty list, not the audit's findings
     // relabelled.
     if (filters.source && filters.source.toUpperCase() !== 'WEBSITE') {
-      return { groups: [], reachAvailable: false };
+      return { groups: [], uniqueAffectedPages: 0, reachAvailable: false };
     }
     // Only open findings exist in the latest crawl's queue. Anything else is a
     // history question this endpoint does not answer.
     if (filters.status && filters.status.toUpperCase() !== 'OPEN') {
-      return { groups: [], reachAvailable: false };
+      return { groups: [], uniqueAffectedPages: 0, reachAvailable: false };
     }
 
     const open = await this.counts.openFindings(projectId);
@@ -122,8 +124,12 @@ export class IssueGroupService {
     );
 
     const limit = clampLimit(filters.limit, DEFAULT_GROUP_LIMIT, MAX_PAGE_LIMIT);
+    const uniqueAffectedPages = new Set(
+      groups.flatMap((group) => (members.get(group.groupKey) ?? []).map((finding) => normaliseUrl(finding.affectedUrl))),
+    ).size;
     return {
       groups: groups.slice(0, limit),
+      uniqueAffectedPages,
       reachAvailable: groups.length > 0 ? groups.every((g) => g.reachAvailable) : reach.size > 0,
     };
   }
