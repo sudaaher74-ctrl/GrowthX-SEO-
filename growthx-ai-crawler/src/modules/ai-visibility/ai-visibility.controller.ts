@@ -24,9 +24,7 @@ export class AiVisibilityController {
 
   @Post('sweep')
   async runSweep(@Param('projectId') projectId: string) {
-    // Fire and forget or await
-    this.aiVisibilityService.runScanForProject(projectId);
-    return { success: true, message: 'Scan started' };
+    return this.aiVisibilityService.runScanForProject(projectId);
   }
 
   @Get('prompts')
@@ -44,6 +42,16 @@ export class AiVisibilityController {
       sharePct: 0,
       trend: [],
     }));
+  }
+
+  @Get('questions')
+  async getQuestions(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getQuestionAnalysis(projectId);
+  }
+
+  @Get('questions/suggestions')
+  async getQuestionSuggestions(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getQuestionSuggestions(projectId);
   }
 
   @Post('prompts')

@@ -18,6 +18,7 @@ export class ResponseAnalyzerService {
       where: {
         scanRun: { scanId },
         analysis: null, // Only unanalyzed
+        errorMessage: null,
       },
       include: {
         scanRun: { include: { scan: { include: { project: { include: { competitors: true, websites: true } } } } } },
