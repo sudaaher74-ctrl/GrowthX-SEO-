@@ -24,7 +24,6 @@ import { redactSecretsForAi } from "../security/ai-sanitizer.util";
 import { VisibilityContextService } from "./visibility-context.service";
 import { MetricsEngineService } from "./metrics-engine.service";
 import {
-  VisibilityAnswer,
   VisibilityAssessment,
   VisibilityBrief,
   VisibilityContext,

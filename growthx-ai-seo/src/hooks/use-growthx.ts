@@ -1,7 +1,7 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role, type GeoSimulationResult, type SimulateGeoBody, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
+import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
 import { stagingEngine, EMPTY_STAGED_ITEMS, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
@@ -266,78 +266,6 @@ export function useVisibility(projectId: string | null, days?: number) {
   });
 }
 
-export function useTrackedPrompts(projectId: string | null) {
-  return useQuery({
-    queryKey: ["tracked-prompts", projectId],
-    queryFn: () => api.listTrackedPrompts(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useAddPrompts(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (prompts: { text: string; cluster?: string }[]) =>
-      api.addTrackedPrompts(projectId!, prompts),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-suggestions", projectId] });
-    },
-  });
-}
-
-/** Each tracked question joined to the Website Audit and Competitor Intelligence. */
-export function useQuestionAnalysis(projectId: string | null) {
-  return useQuery({
-    queryKey: ["question-analysis", projectId],
-    queryFn: () => api.getQuestionAnalysis(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-/** Buyer questions drawn from your pages, rivals' pages and open content gaps. */
-export function useQuestionSuggestions(projectId: string | null) {
-  return useQuery({
-    queryKey: ["question-suggestions", projectId],
-    queryFn: () => api.getQuestionSuggestions(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-/**
- * AI-written analysis of the measured citation data. Keyed on the report, so
- * it refreshes after a sweep. `question` asks something specific of the data.
- */
-export function useVisibilityInsights(projectId: string | null, question?: string) {
-  return useQuery({
-    queryKey: ["visibility-insights", projectId, question ?? ""],
-    queryFn: () => api.getVisibilityInsights(projectId!, question),
-    enabled: Boolean(projectId),
-    staleTime: 10 * 60 * 1000,
-    retry: false,
-  });
-}
-
-export function useSimulateGeo(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<GeoSimulationResult, Error, SimulateGeoBody>({
-    mutationFn: (body) => {
-      if (!projectId) {
-        throw new Error("Select a project before running a simulation.");
-      }
-      return api.simulateGeo(projectId, body);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visibility-report"] });
-      qc.invalidateQueries({ queryKey: ["tracked-prompts"] });
-    },
-  });
-}
-
 export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
@@ -363,32 +291,6 @@ export function useStagedFixItems(projectId: string | null): StagedFixItem[] {
   const getServerSnapshot = useCallback(() => EMPTY_STAGED_ITEMS, []);
 
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
-
-export function useAddCompetitor(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ domain, label }: { domain: string; label?: string }) =>
-      api.addCompetitor(projectId!, domain, label),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
-      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      qc.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
-    },
-  });
-}
-export function useRunSweep(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.runVisibilitySweep(projectId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
-      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
-      qc.invalidateQueries({ queryKey: ["visibility-insights", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
-      qc.invalidateQueries({ queryKey: ["aivis-roadmap", projectId] });
-    },
-  });
 }
 
 export function useLatestCrawl(domain: string | null) {
