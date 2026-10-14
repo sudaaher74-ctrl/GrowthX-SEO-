@@ -19,4 +19,8 @@ The server move still requires the database, secrets, snapshot storage, any pend
 
 ## Future changes
 
+For an existing Linux Compose host, `scripts/deploy-compose-release.py` builds a clean Git archive and retains the running API/worker environment, resource limits, network, volumes and previous image IDs. It requires Python 3.12+, Git and Docker Compose. Invoke it with `PHASE SOURCE_CHECKOUT LIVE_CHECKOUT ENV_FILE NEW_RELEASE_DIRECTORY FULL_COMMIT_SHA`. Run phases `prepare`, `build`, `backup`, `migrate`, then `activate` in order. Inspect pending migrations before `migrate`. The backup phase checks the PostgreSQL archive and snapshots Redis; no existing data volumes are replaced. Pause any external watchdog while activating and resume it after health checks. Deploy the matching frontend only after the API is healthy. `rollback` restores the previous API/worker images without dropping additive tables.
+
+The release directory contains private resolved Compose settings and a database backup under `runtime/`; keep it outside Git, restrict access and encrypt it for off-host storage. Restart that release using `docker compose -p EXISTING_PROJECT -f RELEASE/runtime/compose.json up -d --no-build --no-deps api worker`. Point host startup automation at this saved release configuration; do not rebuild a historical dirty checkout. A new server uses the clean repository instructions above and restored private state.
+
 Change code in a branch from current GitHub `main`; run relevant tests; open and merge a pull request; build and deploy that commit. Verify the live behavior and keep the previous image or commit available for rollback. If an emergency server edit is necessary, put the same fix in GitHub immediately so the next replacement server includes it.

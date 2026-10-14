@@ -33,6 +33,7 @@ services:
       - redis_data:/data
 
   api:
+    stop_grace_period: 3m
     build:
       context: ./growthx-ai-crawler
       dockerfile: Dockerfile
@@ -45,6 +46,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
       - PORT=3000
+      - WORKER_MODE=false
       - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-true}
       - CRAWL_UNLIMITED_PAGES=${CRAWL_UNLIMITED_PAGES:-false}
       - CRAWL_RENDER_ALL_PAGES=${CRAWL_RENDER_ALL_PAGES:-false}
@@ -60,8 +62,11 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
       - ENABLE_PLAYWRIGHT_STARTUP=false
       - PLAYWRIGHT_HEADLESS=true
-      - CRAWLER_JOB_CONCURRENCY=5
-      - CRAWLER_WORKER_CONCURRENCY=10
+      - CRAWLER_JOB_CONCURRENCY=${CRAWLER_JOB_CONCURRENCY:-2}
+      - CRAWLER_WORKER_CONCURRENCY=${CRAWLER_WORKER_CONCURRENCY:-4}
+      - MAX_RENDER_CONCURRENCY=${MAX_RENDER_CONCURRENCY:-2}
+      - MAX_PLAYWRIGHT_CONCURRENCY=${MAX_PLAYWRIGHT_CONCURRENCY:-2}
+      - CRAWL_JOB_LOCK_MS=${CRAWL_JOB_LOCK_MS:-180000}
       # Required, and never committed: a key in this file is a public key.
       # Generate each with `openssl rand -hex 32` and put them in .env.
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (openssl rand -hex 32)}
@@ -98,6 +103,7 @@ services:
       - crawler_snapshots:/app/storage/snapshots
 
   worker:
+    stop_grace_period: 3m
     build:
       context: ./growthx-ai-crawler
       dockerfile: Dockerfile
@@ -135,8 +141,11 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - TAVILY_API_KEY=${TAVILY_API_KEY:-}
       - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
-      - CRAWLER_JOB_CONCURRENCY=5
-      - CRAWLER_WORKER_CONCURRENCY=10
+      - CRAWLER_JOB_CONCURRENCY=${CRAWLER_JOB_CONCURRENCY:-2}
+      - CRAWLER_WORKER_CONCURRENCY=${CRAWLER_WORKER_CONCURRENCY:-4}
+      - MAX_RENDER_CONCURRENCY=${MAX_RENDER_CONCURRENCY:-2}
+      - MAX_PLAYWRIGHT_CONCURRENCY=${MAX_PLAYWRIGHT_CONCURRENCY:-2}
+      - CRAWL_JOB_LOCK_MS=${CRAWL_JOB_LOCK_MS:-180000}
       # Tokens must be configured identically for the API and the worker: both
       # run AI calls, and two processes disagreeing about limits would meter
       # the same organization two ways. Left empty, the built-in defaults apply.
