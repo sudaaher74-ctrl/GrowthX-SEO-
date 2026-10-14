@@ -7,9 +7,13 @@ import { AiProviderAbstractionService } from './ai-provider-abstraction.service'
 import { ResponseAnalyzerService } from './response-analyzer.service';
 import { MetricsEngineService } from './metrics-engine.service';
 import { AiVisibilityController } from './ai-visibility.controller';
+import { SearchIntelligenceModule } from '../search-intelligence/search-intelligence.module';
+import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
+import { VisibilityContextService } from './visibility-context.service';
+import { VisibilityWorkflowService } from './visibility-workflow.service';
 
 @Module({
-  imports: [DatabaseModule, AiSearchModule],
+  imports: [DatabaseModule, AiSearchModule, SearchIntelligenceModule, CompetitorActionEngineModule],
   controllers: [AiVisibilityController],
   providers: [
     AiVisibilityService, 
@@ -17,6 +21,8 @@ import { AiVisibilityController } from './ai-visibility.controller';
     AiProviderAbstractionService, 
     ResponseAnalyzerService,
     MetricsEngineService,
+    VisibilityContextService,
+    VisibilityWorkflowService,
   ],
   exports: [AiVisibilityService],
 })

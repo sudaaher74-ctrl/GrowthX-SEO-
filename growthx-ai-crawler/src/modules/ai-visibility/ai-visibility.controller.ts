@@ -3,6 +3,7 @@ import { AiVisibilityService } from './ai-visibility.service';
 import { PromptEngineService } from './prompt-engine.service';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { VisibilityWorkflowService } from './visibility-workflow.service';
 
 @Controller(['api/projects/:projectId/ai-visibility', 'projects/:projectId/ai-visibility'])
 @UseGuards(JwtAuthGuard)
@@ -11,7 +12,23 @@ export class AiVisibilityController {
     private readonly aiVisibilityService: AiVisibilityService,
     private readonly promptEngineService: PromptEngineService,
     private readonly prisma: PrismaService,
+    private readonly workflow: VisibilityWorkflowService,
   ) {}
+
+  @Get('journey')
+  getJourney(@Param('projectId') projectId: string) {
+    return this.workflow.read(projectId);
+  }
+
+  @Post('journey')
+  prepareJourney(@Param('projectId') projectId: string) {
+    return this.workflow.prepare(projectId);
+  }
+
+  @Post('journey/:journeyId/check')
+  checkJourney(@Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
+    return this.workflow.check(projectId, journeyId, brief);
+  }
 
   @Get()
   async getVisibilityReport(

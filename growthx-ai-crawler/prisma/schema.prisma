@@ -554,6 +554,7 @@ model Project {
   aiVisibilityProviderUsage AiVisibilityProviderUsage[]
   aiVisibilityMetrics       AiVisibilityMetrics[]
   aiVisibilitySettings      AiVisibilitySettings?
+  aiVisibilityJourneys      AiVisibilityJourney[]
 
   @@index([organizationId])
 }
@@ -4096,6 +4097,26 @@ model AiVisibilityPrompt {
   responses      AiVisibilityResponse[]
 
   @@index([projectId, isActive])
+}
+
+/// A durable business-context -> buyer questions -> answers -> action plan run.
+/// JSON snapshots keep the exact evidence and reviewed questions used by a run.
+model AiVisibilityJourney {
+  id        String   @id @default(uuid())
+  projectId String
+  status    String   @default("QUEUED")
+  phase     String   @default("PREPARE")
+  progress  Int      @default(0)
+  context   Json?
+  brief     Json?
+  analysis  Json?
+  errors    Json     @default("[]")
+  scanId    String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 model AiVisibilityPromptVersion {

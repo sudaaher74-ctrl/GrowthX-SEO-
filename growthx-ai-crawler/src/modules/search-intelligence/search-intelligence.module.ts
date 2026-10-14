@@ -46,6 +46,6 @@ import { SearchRankingsService } from './search-rankings.service';
     ChangeRiskService,
     SearchIntelligenceScheduler,
   ],
-  exports: [DataForSeoService, IndexStatusService, RankTrackingService],
+  exports: [DataForSeoService, IndexStatusService, RankTrackingService, GoogleReportService],
 })
 export class SearchIntelligenceModule {}

@@ -516,6 +516,8 @@ export class MultiAiRouterService {
       config: {
         systemInstruction: request.systemInstruction,
         temperature: 0.2,
+        ...(request.maxTokens ? { maxOutputTokens: request.maxTokens } : {}),
+        ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
         ...(request.jsonSchema
           ? { responseMimeType: 'application/json', responseSchema: request.jsonSchema as any }
           : {}),
