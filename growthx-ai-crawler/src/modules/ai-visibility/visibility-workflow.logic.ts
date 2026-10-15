@@ -35,6 +35,41 @@ export function evidenceIds(value: unknown, allowed: Set<string>): string[] {
   return strings(value).filter((id) => allowed.has(id));
 }
 
+/** Replace repeated model wording using only its cited offering and location. */
+export function replaceRepeatedBuyerQuestions(raw: unknown): unknown {
+  const draft = object(raw);
+  const questions = list(draft.questions);
+  if (questions.length !== 10) return raw;
+  const allOriginal = new Set(
+    questions.map((q) => normalized(str(q?.text, 300))),
+  );
+  const seen = new Set<string>();
+  const revised = questions.map((question) => {
+    const text = str(question?.text, 300);
+    const key = normalized(text);
+    if (!seen.has(key)) {
+      seen.add(key);
+      return question;
+    }
+    const offering = str(question?.offering, 180);
+    const location = str(question?.location, 180);
+    const area = location ? ` in ${location}` : "";
+    const alternatives = [
+      `Which local suppliers deliver ${offering}${area}?`,
+      `Where can I order ${offering} for home delivery${area}?`,
+      `What options are available for buying ${offering}${area}?`,
+    ];
+    const replacement = alternatives.find((candidate) => {
+      const candidateKey = normalized(candidate);
+      return !seen.has(candidateKey) && !allOriginal.has(candidateKey);
+    });
+    if (!replacement) return question;
+    seen.add(normalized(replacement));
+    return { ...object(question), text: replacement };
+  });
+  return { ...draft, questions: revised };
+}
+
 /** Reject weak, branded or unrelated question sets instead of reporting them as ten buyer checks. */
 export function normalizeBrief(
   raw: unknown,
@@ -95,13 +130,13 @@ export function normalizeBrief(
       "Provide exactly 10 different buyer questions.",
     );
   }
-  for (const q of questions) {
+  for (const [index, q] of questions.entries()) {
     if (
       q.text.length < 15 ||
       [...ownNames, ...rivalNames].some((name) => hasName(q.text, name))
     ) {
       throw new BadRequestException(
-        "Buyer questions must be specific and must not name your brand or a tracked competitor.",
+        `Question ${index + 1}: Buyer questions must be specific and must not name your brand or a tracked competitor.`,
       );
     }
     const offeringWords = normalized(q.offering)
@@ -119,7 +154,7 @@ export function normalizeBrief(
         (!locations.includes(q.location) || !hasName(q.text, q.location)))
     ) {
       throw new BadRequestException(
-        "Each question needs an offering, supporting evidence, and a stated service area when the business serves named locations.",
+        `Question ${index + 1}: Each question needs an offering, supporting evidence, and a stated service area when the business serves named locations. The offering and location fields must exactly match entries in the brief, and the question text must contain the offering and location.`,
       );
     }
   }
@@ -249,6 +284,8 @@ Identify what the business sells, who it serves, and service areas explicitly st
 Create exactly 10 distinct high-intent buyer questions for recommendation, product selection, delivery/service and purchase comparison.
 Questions MUST NOT name the customer's brand or any rival. Use the real offerings and locations, distribute questions across the service areas and products.
 For a non-local business with no evidenced service area, return locations=[] and location="". Every question must include an offering from offerings and, for local businesses, a location from locations in its text. Cite fact IDs.
+Use short, natural questions a NEW buyer would ask to find or compare suppliers, such as "Which suppliers deliver [offering] in [location]?" or "Where can I buy [offering] in [location]?" Replace both placeholders with exact values from your lists. Do not ask general nutrition, health, recipe or existing-customer support questions. Do not assume a product has a subscription just because milk subscriptions exist.
+Before returning, check ALL ten questions: no brand names (including the businessName you identified), unique text, exact offering/location fields, the named location written in the actual question, and valid evidence IDs. Naming a location only in metadata or rationale does NOT meet the requirement. Keep the summary and rationales concise.
 Return JSON: {businessName,summary,offerings:string[],locations:string[],evidenceIds:string[],questions:[{text,offering,location,intent,rationale,evidenceIds:string[]}]}.
 EVIDENCE: ${JSON.stringify(context)}`;
 }

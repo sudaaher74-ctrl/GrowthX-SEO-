@@ -2,6 +2,7 @@ import {
   classifyAnswer,
   normalizeAssessment,
   normalizeBrief,
+  replaceRepeatedBuyerQuestions,
 } from "./visibility-workflow.logic";
 import { VisibilityWorkflowService } from "./visibility-workflow.service";
 import {
@@ -98,6 +99,17 @@ describe("business-context buyer questions", () => {
         context,
       ),
     ).toThrow("exactly 10");
+  });
+  it("replaces a repeated model question using its cited offering and service area", () => {
+    const d = draft();
+    d.questions[9] = { ...d.questions[9], text: d.questions[0].text };
+    expect(() => normalizeBrief(d, context)).toThrow("exactly 10");
+    const repaired = normalizeBrief(replaceRepeatedBuyerQuestions(d), context);
+    expect(repaired.questions).toHaveLength(10);
+    expect(new Set(repaired.questions.map((q) => q.text)).size).toBe(10);
+    expect(repaired.questions[9].text).toContain("cow milk");
+    expect(repaired.questions[9].text).toContain("Panvel");
+    expect(repaired.questions[9].evidenceIds).toEqual(["page-home"]);
   });
   it("does not prime a question with a tracked competitor name", () => {
     const d = draft();
@@ -353,6 +365,84 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it("corrects missing locations and branded drafts once before saving ten buyer questions", async () => {
+    const h = harness();
+    h.row().brief = null;
+    const invalid = draft();
+    invalid.questions[2].text =
+      "What is the recommended quantity of cow milk for a family?";
+    invalid.questions[9].text =
+      "How does Milquufresh cow milk compare in Panvel?";
+    h.router.generate.mockResolvedValueOnce({
+      model: "test",
+      text: JSON.stringify(invalid),
+    });
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.row().status).toBe("READY");
+    expect(h.row().brief.questions).toHaveLength(10);
+    expect(h.router.generate).toHaveBeenCalledTimes(3);
+    const correction = h.router.generate.mock.calls[1][0];
+    expect(correction.prompt).toContain("Question 3:");
+    expect(correction.prompt).toContain("Recheck ALL ten questions");
+    expect(correction.provider).toBe(AiProvider.GEMINI);
+    expect(correction.allowFallback).toBe(false);
+  });
+  it("keeps a valid corrected brief when the model repeats one question", async () => {
+    const h = harness();
+    h.row().brief = null;
+    const first = draft();
+    first.questions[2].text =
+      "What is the recommended quantity of cow milk for a family?";
+    const corrected = draft();
+    corrected.questions[9] = {
+      ...corrected.questions[9],
+      text: corrected.questions[0].text,
+    };
+    h.router.generate
+      .mockResolvedValueOnce({ model: "test", text: JSON.stringify(first) })
+      .mockResolvedValueOnce({
+        model: "test",
+        text: JSON.stringify(corrected),
+      });
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.row().status).toBe("READY");
+    expect(h.row().brief.questions).toHaveLength(10);
+    expect(new Set(h.row().brief.questions.map((q: any) => q.text)).size).toBe(
+      10,
+    );
+    expect(h.row().brief.analysts).toHaveLength(2);
+  });
+  it("bounds failed corrections and explains the validation failure without saving invalid work", async () => {
+    const h = harness();
+    h.row().brief = null;
+    const invalid = draft();
+    invalid.questions[2].text =
+      "What is the recommended quantity of cow milk for a family?";
+    h.router.generate.mockResolvedValue({
+      model: "test",
+      text: JSON.stringify(invalid),
+    });
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.router.generate).toHaveBeenCalledTimes(4);
+    expect(h.row().status).toBe("FAILED");
+    expect(h.row().brief).toBeNull();
+    expect(h.row().errors).toHaveLength(2);
+    expect(h.row().errors[0]).toContain("Question 3:");
+  });
+  it("does not retry provider failures or expose provider payloads", async () => {
+    const h = harness();
+    h.row().brief = null;
+    h.router.generate.mockRejectedValue(
+      new Error("HTTP 403 private-provider-key"),
+    );
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.router.generate).toHaveBeenCalledTimes(2);
+    expect(h.row().status).toBe("FAILED");
+    expect(JSON.stringify(h.row().errors)).not.toContain(
+      "private-provider-key",
+    );
+    expect(h.row().errors[0]).toContain("access, quota and availability");
+  });
   it("collects 20 unprimed answers, classifies both providers and persists two plans", async () => {
     const h = harness();
     await h.service.process({ id: "journey", phase: "CHECK" });

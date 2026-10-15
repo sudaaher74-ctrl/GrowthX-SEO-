@@ -13,16 +13,20 @@ export const briefSchema = obj({
   offerings: texts,
   locations: texts,
   evidenceIds: texts,
-  questions: array(
-    obj({
-      text,
-      offering: text,
-      location: text,
-      intent: text,
-      rationale: text,
-      evidenceIds: texts,
-    }),
-  ),
+  questions: {
+    ...array(
+      obj({
+        text,
+        offering: text,
+        location: text,
+        intent: text,
+        rationale: text,
+        evidenceIds: texts,
+      }),
+    ),
+    minItems: 10,
+    maxItems: 10,
+  },
 });
 export const measurementSchema = obj({
   measurements: array(
