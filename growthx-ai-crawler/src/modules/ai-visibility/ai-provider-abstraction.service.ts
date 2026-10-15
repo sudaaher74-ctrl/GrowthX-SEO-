@@ -24,12 +24,14 @@ export class AiProviderAbstractionService {
     provider: AiProvider,
     organizationId?: string,
     projectId?: string,
+    model?: string,
   ): Promise<ScanResult> {
     const start = Date.now();
     try {
       const completion = await this.aiRouter.generate({
         prompt,
         provider,
+        model,
         allowFallback: false,
         task: AiTask.REASONING,
         organizationId,

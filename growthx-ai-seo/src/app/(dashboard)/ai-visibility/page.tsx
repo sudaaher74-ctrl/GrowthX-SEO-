@@ -88,6 +88,21 @@ function AiVisibilityClient() {
     queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
     enabled: !!projectId,
   });
+  const citationsQuery = useQuery({
+    queryKey: ["ai-visibility-citations", projectId],
+    queryFn: () => (projectId ? api.getAiVisibilityCitations(projectId) : Promise.resolve(null)),
+    enabled: !!projectId,
+  });
+  const rootCauseQuery = useQuery({
+    queryKey: ["ai-visibility-root-cause", projectId],
+    queryFn: () => (projectId ? api.getAiVisibilityRootCause(projectId) : Promise.resolve(null)),
+    enabled: !!projectId,
+  });
+  const actionsQuery = useQuery({
+    queryKey: ["ai-visibility-actions", projectId],
+    queryFn: () => (projectId ? api.getAiVisibilityActions(projectId) : Promise.resolve([])),
+    enabled: !!projectId,
+  });
 
   // The sidebar's sub-items link to ?tab=; a click in the page replaces the choice.
   const tabParam = useSearchParams().get("tab");
@@ -112,6 +127,9 @@ function AiVisibilityClient() {
     void visibility.refetch();
     void prompts.refetch();
     void competitorsQuery.refetch();
+    void citationsQuery.refetch();
+    void rootCauseQuery.refetch();
+    void actionsQuery.refetch();
   };
 
   const runScan = async () => {
@@ -250,7 +268,7 @@ function AiVisibilityClient() {
         {activeTab === "prompts" && (
           <PromptIntelligenceView prompts={promptList} onAddPrompt={() => setDialog("prompt")} />
         )}
-        {activeTab === "citations" && <CitationIntelligenceView />}
+        {activeTab === "citations" && <CitationIntelligenceView citations={citationsQuery.data} />}
         {activeTab === "competitors" && (
           <CompetitorComparisonView
             report={report}
@@ -259,8 +277,8 @@ function AiVisibilityClient() {
             onAddCompetitor={() => setDialog("competitor")}
           />
         )}
-        {activeTab === "root-cause" && <RootCauseView />}
-        {activeTab === "actions" && <ActionCenterView />}
+        {activeTab === "root-cause" && <RootCauseView rootCause={rootCauseQuery.data} />}
+        {activeTab === "actions" && <ActionCenterView actions={actionsQuery.data} />}
         {activeTab === "history" && <MonitoringHistoryView report={report} />}
         {activeTab === "settings" && <SettingsView report={report} />}
       </div>

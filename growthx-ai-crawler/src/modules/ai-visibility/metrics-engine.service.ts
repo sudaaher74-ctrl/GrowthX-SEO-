@@ -20,6 +20,31 @@ export class MetricsEngineService {
 
     if (responses.length === 0) return;
 
+    // Fetch project context for customer brand label and competitor domain mapping
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        businessProfile: true,
+        websites: { where: { scope: 'own' } },
+        competitors: true,
+      },
+    });
+
+    const customerBrandLabel =
+      project?.businessProfile?.businessName ||
+      project?.websites?.[0]?.domain ||
+      project?.name ||
+      'Your Brand';
+
+    const ownDomains = new Set(
+      (project?.websites || []).map((w) => w.domain.toLowerCase()),
+    );
+
+    const competitorMap = new Map<string, string>();
+    for (const comp of project?.competitors || []) {
+      competitorMap.set(comp.domain.toLowerCase(), comp.label || comp.name || comp.domain);
+    }
+
     let total = 0;
     let mentioned = 0;
     let shortlisted = 0;
@@ -29,10 +54,14 @@ export class MetricsEngineService {
     let positionsCount = 0;
     
     // For SOV
-    const domainCounts: Record<string, number> = {};
+    let ownMentions = 0;
+    const competitorCounts: Record<string, number> = {};
 
     for (const res of responses) {
       if (!res.analysis) continue;
+      // Exclude responses that failed execution
+      if (res.errorMessage || !res.rawResponse) continue;
+
       total++;
       
       if (res.analysis.brandMentioned) mentioned++;
@@ -46,7 +75,12 @@ export class MetricsEngineService {
 
       // Calculate mentions for SOV
       for (const mention of res.mentions) {
-        domainCounts[mention.brandName] = (domainCounts[mention.brandName] || 0) + 1;
+        const brandKey = mention.brandName.toLowerCase();
+        if (mention.isCustomer || ownDomains.has(brandKey)) {
+          ownMentions++;
+        } else {
+          competitorCounts[brandKey] = (competitorCounts[brandKey] || 0) + 1;
+        }
       }
     }
 
@@ -56,18 +90,43 @@ export class MetricsEngineService {
     const finalChoiceRate = total > 0 ? finalChoice / total : 0;
     const averagePosition = positionsCount > 0 ? positionsSum / positionsCount : null;
 
-    // A simplified visibility score: 10% mentioned + 30% shortlisted + 40% recommended + 20% final choice
-    const visibilityScore = (mentionRate * 10) + (shortlistRate * 30) + (recommendationRate * 40) + (finalChoiceRate * 20);
+    // Visibility score: 10% mentioned + 30% shortlisted + 40% recommended + 20% final choice (0-100)
+    const visibilityScore = Math.round(
+      (mentionRate * 10 + shortlistRate * 30 + recommendationRate * 40 + finalChoiceRate * 20) * 100,
+    ) / 100;
 
     // Calculate Share of Voice (percentage of total brand mentions)
-    const totalMentions = Object.values(domainCounts).reduce((sum, count) => sum + count, 0);
-    const shareOfVoice = Object.entries(domainCounts)
-      .map(([domain, count]) => ({
-        domain,
+    const competitorTotal = Object.values(competitorCounts).reduce((sum, count) => sum + count, 0);
+    const totalMentions = ownMentions + competitorTotal;
+
+    const shareOfVoice: Array<{
+      domain: string | null;
+      label: string;
+      mentions: number;
+      sharePct: number;
+    }> = [];
+
+    // The customer brand ALWAYS has domain: null per the frontend contract
+    if (ownMentions > 0 || totalMentions > 0) {
+      shareOfVoice.push({
+        domain: null,
+        label: customerBrandLabel,
+        mentions: ownMentions,
+        sharePct: totalMentions > 0 ? Math.round((ownMentions / totalMentions) * 100) : 0,
+      });
+    }
+
+    for (const [compKey, count] of Object.entries(competitorCounts)) {
+      const label = competitorMap.get(compKey) || compKey;
+      shareOfVoice.push({
+        domain: compKey,
+        label,
         mentions: count,
-        sharePct: totalMentions > 0 ? (count / totalMentions) * 100 : 0,
-      }))
-      .sort((a, b) => b.sharePct - a.sharePct);
+        sharePct: totalMentions > 0 ? Math.round((count / totalMentions) * 100) : 0,
+      });
+    }
+
+    shareOfVoice.sort((a, b) => b.sharePct - a.sharePct);
 
     const funnelMetrics = {
       totalAnalyzed: total,

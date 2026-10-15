@@ -274,28 +274,95 @@ export function PromptIntelligenceView({ prompts, onAddPrompt }: { prompts: AvPr
 
 /* ── Citation Intelligence ───────────────────────────────────────── */
 
-export function CitationIntelligenceView() {
+export function CitationIntelligenceView(props?: {
+  citations?: {
+    totalCitations: number;
+    citationsByDomain: { domain: string; count: number; ownCited: boolean }[];
+  } | null;
+}) {
+  const data = props?.citations;
+  const hasData = Boolean(data && data.totalCitations > 0);
+  const ownCitationsCount =
+    data?.citationsByDomain
+      .filter((d) => d.ownCited)
+      .reduce((sum, d) => sum + d.count, 0) ?? 0;
+  const competitorCitationsCount = (data?.totalCitations ?? 0) - ownCitationsCount;
+
   return (
     <div className="space-y-4">
       <section aria-label="Citation totals" className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Total citations" value="—" sub="Awaiting verified source data" />
-        <Kpi label="Your domain" value="—" sub="Links to your website" />
-        <Kpi label="Competitor domains" value="—" sub="Links to tracked rivals" />
+        <Kpi
+          label="Total citations"
+          value={hasData ? data!.totalCitations.toLocaleString() : "—"}
+          sub={hasData ? "Extracted from AI responses" : "Awaiting verified source data"}
+        />
+        <Kpi
+          label="Your domain"
+          value={hasData ? ownCitationsCount.toLocaleString() : "—"}
+          sub={hasData ? "Direct links to your website" : "Links to your website"}
+        />
+        <Kpi
+          label="Competitor domains"
+          value={hasData ? competitorCitationsCount.toLocaleString() : "—"}
+          sub={hasData ? "Links to rival & market sources" : "Links to tracked rivals"}
+        />
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        {[
-          ["Top cited domains", "Websites AI models link to most often."],
-          ["Most cited pages", "The exact URLs models used as sources."],
-          ["Citation trend", "How cited sources change cycle to cycle."],
-          ["Citation opportunities", "Sources cited for competitors but never for you. Appearing there does not guarantee recommendations."],
-        ].map(([t, s]) => (
-          <Panel key={t} title={t} subtitle={s}>
+        <Panel title="Top cited domains" subtitle="Websites AI models link to most often as authoritative sources.">
+          {!hasData || data!.citationsByDomain.length === 0 ? (
             <EmptyBlock
               title="No verified citations recorded"
               body="Citations are stored only when a provider returns them in its response. Plain-text mentions are never counted."
             />
-          </Panel>
-        ))}
+          ) : (
+            <Table minWidth={400}>
+              <thead>
+                <tr>
+                  <Th>Domain</Th>
+                  <Th align="right">Citations</Th>
+                  <Th align="right">Type</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {data!.citationsByDomain.map((row) => (
+                  <Tr key={row.domain}>
+                    <Td className="text-[12.5px] font-medium text-brand-950">
+                      <Mono>{row.domain}</Mono>
+                    </Td>
+                    <Td align="right">
+                      <Mono>{row.count}</Mono>
+                    </Td>
+                    <Td align="right">
+                      <Pill tone={row.ownCited ? "good" : "default"}>
+                        {row.ownCited ? "Your site" : "External"}
+                      </Pill>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Panel>
+
+        <Panel title="Citation opportunities" subtitle="Sources cited for competitors but never for you.">
+          {!hasData ? (
+            <EmptyBlock
+              title="No citation gaps detected"
+              body="As scans identify recurring citation sources where competitors are referenced, gaps will appear here with recommended actions."
+            />
+          ) : (
+            <div className="p-4 text-[12.5px] text-brand-700 space-y-2">
+              <p>Top authorities cited in this category:</p>
+              <ul className="list-disc pl-5 space-y-1 text-brand-600">
+                {data!.citationsByDomain.slice(0, 5).map((d) => (
+                  <li key={d.domain}>
+                    <span className="font-semibold text-brand-900">{d.domain}</span> ({d.count} citation{d.count === 1 ? "" : "s"})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );
@@ -373,9 +440,18 @@ const STEPS = [
   "Prioritise improvements",
 ];
 
-export function RootCauseView({ findings }: { findings?: AvFinding[] | null }) {
+export function RootCauseView(props: {
+  findings?: AvFinding[] | null;
+  rootCause?: {
+    rivalsWinning: { brand: string; wins: number }[];
+    missedPrompts: { prompt: string; category: string; winner: string }[];
+  } | null;
+}) {
   const [open, setOpen] = useState<string | null>(null);
-  if (!findings || findings.length === 0) {
+  const rc = props.rootCause;
+  const hasRootCause = Boolean(rc && (rc.rivalsWinning.length > 0 || rc.missedPrompts.length > 0));
+
+  if (!hasRootCause && (!props.findings || props.findings.length === 0)) {
     return (
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel className="lg:col-span-2" title="Investigations">
@@ -397,51 +473,109 @@ export function RootCauseView({ findings }: { findings?: AvFinding[] | null }) {
       </div>
     );
   }
+
   const tone = { HIGH: "good", MEDIUM: "warn", LOW: "default" } as const;
+
   return (
-    <div className="space-y-3">
-      {findings.map((f) => {
-        const expanded = open === f.id;
-        return (
-          <Panel key={f.id}>
-            <button
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => setOpen(expanded ? null : f.id)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-primary-600"
-            >
-              <span>
-                <span className="block text-[13px] font-semibold text-brand-950">{f.title}</span>
-                <span className="text-[11.5px] text-brand-500">
-                  {f.model} · {f.prompts.length} prompt{f.prompts.length === 1 ? "" : "s"}
-                </span>
-              </span>
-              <Pill tone={tone[f.confidence]}>{f.confidence} confidence</Pill>
-            </button>
-            {expanded && (
-              <div className="grid gap-4 border-t p-4 md:grid-cols-2">
-                {(
-                  [
-                    ["Observed evidence", f.observed],
-                    ["Possible causes (not proven)", f.possibleCauses],
-                    ["Related competitors", f.competitors],
-                    ["Relevant pages", f.pages],
-                    ["Related SEO issues", f.seoIssues],
-                    ["Recommended actions", f.actions],
-                  ] as const
-                ).map(([h, items]) => (
-                  <section key={h}>
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-400">{h}</h3>
-                    <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12px] text-brand-700">
-                      {items.length ? items.map((x) => <li key={x}>{x}</li>) : <li className="list-none text-brand-300">None recorded</li>}
-                    </ul>
-                  </section>
+    <div className="space-y-4">
+      {hasRootCause && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="Rival recommendation wins" subtitle="Competitors chosen over you in neutral buyer prompts">
+            <Table minWidth={350}>
+              <thead>
+                <tr>
+                  <Th>Rival brand</Th>
+                  <Th align="right">Winning queries</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rc!.rivalsWinning.map((r) => (
+                  <Tr key={r.brand}>
+                    <Td className="text-[12.5px] font-semibold text-brand-950">{r.brand}</Td>
+                    <Td align="right">
+                      <Mono tone="soft">{r.wins}</Mono>
+                    </Td>
+                  </Tr>
                 ))}
-              </div>
-            )}
+              </tbody>
+            </Table>
           </Panel>
-        );
-      })}
+
+          <Panel title="Missed prompt evidence" subtitle="Queries where models recommended a competitor">
+            <Table minWidth={400}>
+              <thead>
+                <tr>
+                  <Th>Prompt</Th>
+                  <Th>Category</Th>
+                  <Th align="right">Recommended rival</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rc!.missedPrompts.map((mp, i) => (
+                  <Tr key={i}>
+                    <Td className="text-[12.5px] text-brand-900 line-clamp-1">{mp.prompt}</Td>
+                    <Td className="text-[11.5px] text-brand-500">{mp.category}</Td>
+                    <Td align="right">
+                      <Pill tone="warn">{mp.winner}</Pill>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </Panel>
+        </div>
+      )}
+
+      {props.findings && props.findings.length > 0 && (
+        <div className="space-y-3">
+          {props.findings.map((f) => {
+            const expanded = open === f.id;
+            return (
+              <Panel key={f.id}>
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setOpen(expanded ? null : f.id)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-primary-600"
+                >
+                  <span>
+                    <span className="block text-[13px] font-semibold text-brand-950">{f.title}</span>
+                    <span className="text-[11.5px] text-brand-500">
+                      {f.model} · {f.prompts.length} prompt{f.prompts.length === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <Pill tone={tone[f.confidence]}>{f.confidence} confidence</Pill>
+                </button>
+                {expanded && (
+                  <div className="grid gap-4 border-t p-4 md:grid-cols-2">
+                    {(
+                      [
+                        ["Observed evidence", f.observed],
+                        ["Possible causes (not proven)", f.possibleCauses],
+                        ["Related competitors", f.competitors],
+                        ["Relevant pages", f.pages],
+                        ["Related SEO issues", f.seoIssues],
+                        ["Recommended actions", f.actions],
+                      ] as const
+                    ).map(([h, items]) => (
+                      <section key={h}>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-400">{h}</h3>
+                        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12px] text-brand-700">
+                          {items.length ? (
+                            items.map((x) => <li key={x}>{x}</li>)
+                          ) : (
+                            <li className="list-none text-brand-300">None recorded</li>
+                          )}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -457,17 +591,20 @@ export interface AvAction {
   title: string;
   category: string;
   priority: number;
-  status: (typeof ACTION_STATUSES)[number];
-  identifiedAt: string;
+  status: string;
+  identifiedAt?: string;
+  createdAt?: string;
+  recommendedAction?: string;
 }
 
-export function ActionCenterView({ actions }: { actions?: AvAction[] | null }) {
+export function ActionCenterView({ actions }: { actions?: any[] | null }) {
   const [filter, setFilter] = useState<string>("ALL");
-  const rows = (actions ?? []).filter((a) => filter === "ALL" || a.status === filter);
+  const rawActions = actions ?? [];
+  const rows = rawActions.filter((a) => filter === "ALL" || (a.status || a.lifecycle) === filter);
   return (
     <div className="space-y-4">
       <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5">
-        {["ALL", ...ACTION_STATUSES].map((s) => (
+        {["ALL", "OPEN", "RESOLVED", "DISMISSED"].map((s) => (
           <button
             key={s}
             type="button"
@@ -485,7 +622,7 @@ export function ActionCenterView({ actions }: { actions?: AvAction[] | null }) {
       <Panel title="AI Action Center" subtitle="Findings from audit, Google, competitors and AI monitoring in one queue">
         {rows.length === 0 ? (
           <EmptyBlock
-            title={actions?.length ? "No actions with this status" : "No actions yet"}
+            title={rawActions.length ? "No actions with this status" : "No actions yet"}
             body="Actions appear when analysis finds an evidence-backed problem. Fixes always open as a pull request for you to review — nothing is merged automatically."
           />
         ) : (
@@ -504,11 +641,16 @@ export function ActionCenterView({ actions }: { actions?: AvAction[] | null }) {
             <tbody>
               {rows.map((a) => (
                 <Tr key={a.id}>
-                  <Td className="text-[12.5px] font-medium text-brand-950">{a.title}</Td>
+                  <Td className="text-[12.5px] font-medium text-brand-950">
+                    <div>{a.title}</div>
+                    {a.recommendedAction && (
+                      <div className="mt-0.5 text-[11.5px] text-brand-500 font-normal">{a.recommendedAction}</div>
+                    )}
+                  </Td>
                   <Td className="text-[12px] text-brand-500">{a.category}</Td>
-                  <Td align="right"><Mono>{a.priority}</Mono></Td>
-                  <Td><Pill>{a.status}</Pill></Td>
-                  <Td align="right"><Mono tone="soft">{relativeTime(a.identifiedAt)}</Mono></Td>
+                  <Td align="right"><Mono>{a.priority ?? 0}</Mono></Td>
+                  <Td><Pill tone={a.status === 'OPEN' || a.lifecycle === 'QUEUED' ? 'warn' : 'good'}>{a.status || a.lifecycle}</Pill></Td>
+                  <Td align="right"><Mono tone="soft">{relativeTime(a.createdAt || a.identifiedAt)}</Mono></Td>
                 </Tr>
               ))}
             </tbody>
