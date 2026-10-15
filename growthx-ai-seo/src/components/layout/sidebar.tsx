@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, LayoutGrid, LogOut, Moon, MoreHorizontal, PanelLeftClose, Settings, Sun, FileText } from "lucide-react";
 
@@ -244,10 +244,27 @@ function NavLink({
     );
   }
 
-  const active =
-    pathname === item.href ||
-    pathname.startsWith(`${item.href}/`) ||
-    (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
+
+  const [itemPath, itemQuery] = item.href.split("?");
+  const itemTab = itemQuery ? new URLSearchParams(itemQuery).get("tab") : null;
+
+  let active = false;
+  if (itemTab) {
+    active =
+      (pathname === itemPath || (item.aliases?.includes(pathname) ?? false)) &&
+      currentTab === itemTab;
+  } else if (itemPath === "/ai-visibility") {
+    active = pathname === "/ai-visibility" && (!currentTab || currentTab === "overview");
+  } else if (itemPath === "/fix-engine") {
+    active = pathname === "/fix-engine" && (!currentTab || currentTab === "overview");
+  } else {
+    active =
+      pathname === itemPath ||
+      pathname.startsWith(`${itemPath}/`) ||
+      (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
+  }
 
   return <NavLinkEnabled item={item} active={active} onNavigate={onNavigate} />;
 }
