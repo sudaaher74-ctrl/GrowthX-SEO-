@@ -548,7 +548,7 @@ export class AutomationService {
       select: { url: true, title: true, statusCode: true, blockedSuspected: true, crawlJob: { select: { createdAt: true } } },
       orderBy: { crawlJob: { createdAt: 'desc' } }, take: 10000,
     });
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'reigel-pr-evidence-'));
+    const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'reigel-pr-evidence-')));
     try {
       const safeFile = (file: string) => !file.includes('\\') && !path.posix.isAbsolute(file) && !file.split('/').includes('..');
       for (const entry of [...review.files.map(file => ({ file: file.file, content: file.after })), ...review.routers]) {

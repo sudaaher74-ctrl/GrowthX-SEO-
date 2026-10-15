@@ -266,6 +266,55 @@ export function useVisibility(projectId: string | null, days?: number) {
   });
 }
 
+export function useTrackedPrompts(projectId: string | null) {
+  return useQuery({
+    queryKey: ["tracked-prompts", projectId],
+    queryFn: () => api.listTrackedPrompts(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useAddPrompts(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (prompts: { text: string; cluster?: string }[]) =>
+      api.addTrackedPrompts(projectId!, prompts),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-suggestions", projectId] });
+    },
+  });
+}
+
+export function useAddCompetitor(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, label }: { domain: string; label?: string }) =>
+      api.addCompetitor(projectId!, domain, label),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
+    },
+  });
+}
+
+export function useRunSweep(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.runVisibilitySweep(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
+      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
+      qc.invalidateQueries({ queryKey: ["visibility-insights", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
+      qc.invalidateQueries({ queryKey: ["aivis-roadmap", projectId] });
+    },
+  });
+}
+
 export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],

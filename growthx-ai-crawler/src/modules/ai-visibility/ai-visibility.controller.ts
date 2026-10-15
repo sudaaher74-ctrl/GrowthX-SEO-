@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Param, Query, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  NotFoundException,
+} from '@nestjs/common';
 import { AiVisibilityService } from './ai-visibility.service';
 import { PromptEngineService } from './prompt-engine.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -44,21 +55,84 @@ export class AiVisibilityController {
     return this.aiVisibilityService.runScanForProject(projectId);
   }
 
+  @Get('unified')
+  async getUnifiedIntelligence(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getUnifiedIntelligence(projectId);
+  }
+
+  @Get('citations')
+  async getCitations(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getCitationsIntelligence(projectId);
+  }
+
+  @Get('root-cause')
+  async getRootCause(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getRootCauseAnalysis(projectId);
+  }
+
+  @Get('actions')
+  async getActions(@Param('projectId') projectId: string) {
+    return this.aiVisibilityService.getAiActions(projectId);
+  }
+
   @Get('prompts')
   async listPrompts(@Param('projectId') projectId: string) {
     const prompts = await this.prisma.aiVisibilityPrompt.findMany({
-      where: { projectId, isActive: true },
+      where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
-    // Frontend expects TrackedPromptRow[]
-    return prompts.map(p => ({
-      id: p.id,
-      text: p.text,
-      category: p.category,
-      citations: 0,
-      sharePct: 0,
-      trend: [],
-    }));
+
+    const latestScan = await this.prisma.aiVisibilityScan.findFirst({
+      where: { projectId, status: 'COMPLETED' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const responses = latestScan
+      ? await this.prisma.aiVisibilityResponse.findMany({
+          where: { scanRun: { scanId: latestScan.id } },
+          include: { analysis: true, mentions: true, scanRun: true },
+        })
+      : [];
+
+    const responsesByPrompt = new Map<string, typeof responses>();
+    for (const r of responses) {
+      if (!responsesByPrompt.has(r.promptId)) {
+        responsesByPrompt.set(r.promptId, []);
+      }
+      responsesByPrompt.get(r.promptId)!.push(r);
+    }
+
+    return prompts.map((p) => {
+      const promptResponses = responsesByPrompt.get(p.id) || [];
+      const latestChecks = promptResponses.map((r) => {
+        const competitors = r.mentions
+          .filter((m) => !m.isCustomer)
+          .map((m) => m.brandName);
+
+        return {
+          assistant: r.scanRun?.provider || r.provider,
+          checkedAt: r.createdAt.toISOString(),
+          cited: Boolean(r.analysis?.brandMentioned),
+          position: r.analysis?.brandPosition || null,
+          citedUrl: null,
+          competitorsCited: competitors,
+          error: r.errorMessage,
+          model: r.model,
+          answerExcerpt: r.rawResponse ? r.rawResponse.slice(0, 160) : null,
+        };
+      });
+
+      return {
+        id: p.id,
+        text: p.text,
+        category: p.category,
+        cluster: p.category,
+        intent: p.journeyStage || null,
+        estimatedVolume: null,
+        isActive: p.isActive,
+        latestChecks,
+      };
+    });
   }
 
   @Get('questions')
@@ -74,18 +148,65 @@ export class AiVisibilityController {
   @Post('prompts')
   async addPrompts(
     @Param('projectId') projectId: string,
-    @Body('prompts') prompts: { text: string; cluster?: string }[],
+    @Body('prompts') prompts: { text: string; cluster?: string; category?: string }[],
   ) {
+    if (!Array.isArray(prompts)) return { added: 0 };
     for (const p of prompts) {
       await this.prisma.aiVisibilityPrompt.create({
         data: {
           projectId,
           text: p.text,
-          category: p.cluster || 'Custom',
+          category: p.category || p.cluster || 'Custom',
         },
       });
     }
     return { added: prompts.length };
+  }
+
+  @Post('prompts/generate')
+  async generatePrompts(
+    @Param('projectId') projectId: string,
+    @Body('overwrite') overwrite?: boolean,
+  ) {
+    return this.promptEngineService.generatePromptsForProject(projectId, Boolean(overwrite));
+  }
+
+  @Patch('prompts/:promptId')
+  async updatePrompt(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Body() body: { isActive?: boolean; text?: string; category?: string },
+  ) {
+    const existing = await this.prisma.aiVisibilityPrompt.findFirst({
+      where: { id: promptId, projectId },
+    });
+    if (!existing) throw new NotFoundException(`Prompt ${promptId} not found`);
+
+    return this.prisma.aiVisibilityPrompt.update({
+      where: { id: promptId },
+      data: {
+        ...(typeof body.isActive === 'boolean' ? { isActive: body.isActive } : {}),
+        ...(body.text ? { text: body.text } : {}),
+        ...(body.category ? { category: body.category } : {}),
+      },
+    });
+  }
+
+  @Delete('prompts/:promptId')
+  async deletePrompt(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+  ) {
+    const existing = await this.prisma.aiVisibilityPrompt.findFirst({
+      where: { id: promptId, projectId },
+    });
+    if (!existing) throw new NotFoundException(`Prompt ${promptId} not found`);
+
+    await this.prisma.aiVisibilityPrompt.delete({
+      where: { id: promptId },
+    });
+
+    return { success: true };
   }
 
   @Get('competitors')

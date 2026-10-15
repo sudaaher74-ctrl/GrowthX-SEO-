@@ -116,6 +116,8 @@ export interface AiRequest {
   allowFallback?: boolean;
   /** JSON Schema. When supplied, the response is constrained to match it. */
   jsonSchema?: Record<string, unknown>;
+  /** Specific model identifier override (e.g. openai/gpt-4.1-mini, gemini-2.5-flash-lite). */
+  model?: string;
   maxTokens?: number;
   /** Optional request deadline for visibility probes and analysis. */
   timeoutMs?: number;

@@ -173,7 +173,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, GbpLocationList, GbpSyncResult, GbpOverview, GbpMetrics, GbpReviews, GbpPhotos, GbpPosts, GbpServices, PlacesCompetitorSearch, GbpCategories, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, GbpLocationList, GbpSyncResult, GbpOverview, GbpMetrics, GbpReviews, GbpPhotos, GbpPosts, GbpServices, PlacesCompetitorSearch, GbpCategories, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -428,6 +428,8 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 const put = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body) });
+const patch = <T>(path: string, body?: unknown) =>
+  request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
 const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
 
 export const visibilityJourneyApi = {
@@ -688,6 +690,27 @@ export const api = {
     question
       ? post<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`, { question })
       : get<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`),
+  getAiVisibilityUnified: (projectId: string) =>
+    get<AvUnifiedIntelligence>(`/api/projects/${projectId}/ai-visibility/unified`),
+  getAiVisibilityCitations: (projectId: string) =>
+    get<{ totalCitations: number; citationsByDomain: { domain: string; count: number; ownCited: boolean }[] }>(
+      `/api/projects/${projectId}/ai-visibility/citations`,
+    ),
+  getAiVisibilityRootCause: (projectId: string) =>
+    get<{ rivalsWinning: { brand: string; wins: number }[]; missedPrompts: { prompt: string; category: string; winner: string }[] }>(
+      `/api/projects/${projectId}/ai-visibility/root-cause`,
+    ),
+  getAiVisibilityActions: (projectId: string) =>
+    get<AvAction[]>(`/api/projects/${projectId}/ai-visibility/actions`),
+  generateAiVisibilityPrompts: (projectId: string, overwrite = false) =>
+    post<{ count: number }>(`/api/projects/${projectId}/ai-visibility/prompts/generate`, { overwrite }),
+  updateTrackedPrompt: (
+    projectId: string,
+    promptId: string,
+    updates: { isActive?: boolean; text?: string; category?: string },
+  ) => patch(`/api/projects/${projectId}/ai-visibility/prompts/${promptId}`, updates),
+  deleteTrackedPrompt: (projectId: string, promptId: string) =>
+    del(`/api/projects/${projectId}/ai-visibility/prompts/${promptId}`),
   /**
    * Returns the stored CompetitorDomain row, not the enriched shape
    * `listCompetitors` builds — the scores and crawl state on that one are

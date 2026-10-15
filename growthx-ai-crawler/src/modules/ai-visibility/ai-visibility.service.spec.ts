@@ -4,17 +4,26 @@ import { AiVisibilityController } from './ai-visibility.controller';
 describe('AI visibility dashboard contract', () => {
   const create = (responses: any[] = []) => {
     const prisma: any = {
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'project',
+          organizationId: 'org',
+          websites: [{ domain: 'example.com' }],
+          competitors: [],
+        }),
+      },
       aiVisibilityPrompt: { findMany: jest.fn().mockResolvedValue([{ id: 'prompt', text: 'Buyer question' }]) },
       aiVisibilitySettings: { findUnique: jest.fn().mockResolvedValue({ enabledModels: ['GEMINI', 'OPENAI'] }) },
       aiVisibilityScan: { create: jest.fn().mockResolvedValue({ id: 'scan' }), update: jest.fn().mockResolvedValue({}) },
       aiVisibilityScanRun: { create: jest.fn().mockResolvedValue({ id: 'run' }), update: jest.fn().mockResolvedValue({}) },
       aiVisibilityResponse: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue(responses) },
-      aiVisibilityMetrics: { findFirst: jest.fn().mockResolvedValue(null) },
+      aiVisibilityMetrics: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     };
     const providers: any = { configuredProviders: () => ['GEMINI'], runPrompt: jest.fn().mockResolvedValue({ model: 'tested-model', text: 'Answer', latencyMs: 1, inputTokens: 2, outputTokens: 3, costUsd: null }) };
     const analyzer: any = { analyzePendingResponses: jest.fn().mockResolvedValue(undefined) };
     const metrics: any = { calculateScanMetrics: jest.fn().mockResolvedValue(undefined) };
-    return { service: new AiVisibilityService(prisma, providers, analyzer, metrics), prisma, providers, analyzer };
+    const promptEngine: any = { generatePromptsForProject: jest.fn().mockResolvedValue([]) };
+    return { service: new AiVisibilityService(prisma, providers, analyzer, metrics, promptEngine), prisma, providers, analyzer };
   };
 
   it('returns the measured scan result expected by the Run button', async () => {
@@ -42,14 +51,26 @@ describe('AI visibility dashboard contract', () => {
 
   it('computes provider totals and trend from stored responses', async () => {
     const { service, prisma } = create([
-      { scanRunId: 'gemini', errorMessage: null, analysis: { brandMentioned: true }, prompt: null },
-      { scanRunId: 'gemini', errorMessage: null, analysis: { brandMentioned: false }, prompt: null },
-      { scanRunId: 'openai', errorMessage: 'Failed', analysis: null, prompt: null },
+      { scanRunId: 'gemini', errorMessage: null, rawResponse: 'response', analysis: { brandMentioned: true }, prompt: null },
+      { scanRunId: 'gemini', errorMessage: null, rawResponse: 'response', analysis: { brandMentioned: false }, prompt: null },
+      { scanRunId: 'openai', errorMessage: 'Failed', rawResponse: null, analysis: null, prompt: null },
     ]);
-    prisma.aiVisibilityMetrics.findFirst.mockResolvedValue({ scanId: 'scan', createdAt: new Date('2026-10-14T00:00:00Z'), shareOfVoice: [], scan: { runs: [{ id: 'gemini', provider: 'GEMINI' }, { id: 'openai', provider: 'OPENAI' }] } });
+    const mockMetric = {
+      scanId: 'scan',
+      visibilityScore: 50,
+      createdAt: new Date('2026-10-14T00:00:00Z'),
+      shareOfVoice: [],
+      funnelMetrics: { totalAnalyzed: 2 },
+      scan: { runs: [{ id: 'gemini', provider: 'GEMINI', model: 'gemini-model' }, { id: 'openai', provider: 'OPENAI', model: 'openai-model' }] },
+    };
+    prisma.aiVisibilityMetrics.findFirst.mockResolvedValue(mockMetric);
+    prisma.aiVisibilityMetrics.findMany.mockResolvedValue([mockMetric]);
     const report = await service.getReport('project', 28);
     expect(report.summary).toMatchObject({ checked: 2, cited: 1, citationSharePct: 50, failedChecks: 1 });
-    expect(report.byAssistant).toEqual([{ assistant: 'GEMINI', checked: 2, cited: 1, citationSharePct: 50 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }]);
+    expect(report.byAssistant).toEqual([
+      { assistant: 'GEMINI', model: 'gemini-model', checked: 2, cited: 1, citationSharePct: 50 },
+      { assistant: 'OPENAI', model: 'openai-model', checked: 0, cited: 0, citationSharePct: 0 },
+    ]);
     expect(report.trend[0]).toMatchObject({ checked: 2, citationSharePct: 50 });
   });
 

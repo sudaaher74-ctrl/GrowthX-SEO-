@@ -424,7 +424,7 @@ export class MultiAiRouterService {
   ): Promise<AiCompletion> {
     const startedAt = Date.now();
     try {
-      const completion = await this.invoke(provider, request, task);
+      const completion = await this.invoke(provider, request, task, request.model);
       this.usageLedger?.record({
         organizationId: request.organizationId,
         projectId: request.projectId,
@@ -444,7 +444,7 @@ export class MultiAiRouterService {
         projectId: request.projectId,
         taskType: task,
         provider,
-        model: this.configuredModels()[provider] ?? 'unknown',
+        model: request.model ?? this.configuredModels()[provider] ?? 'unknown',
         inputTokens: 0,
         outputTokens: 0,
         estimatedCostUsd: null,
@@ -466,15 +466,15 @@ export class MultiAiRouterService {
       case AiProvider.ANTHROPIC:
         return this.callAnthropic(request, task);
       case AiProvider.OPENAI:
-        return this.callOpenAi(request);
+        return this.callOpenAi(request, modelOverride);
       case AiProvider.GEMINI:
-        return this.callGemini(request);
+        return this.callGemini(request, modelOverride);
       case AiProvider.GROQ:
         return this.callGroq(request);
       case AiProvider.OPENROUTER:
         return this.callOpenRouter(request, modelOverride);
       case AiProvider.PERPLEXITY:
-        return this.callPerplexity(request);
+        return this.callPerplexity(request, modelOverride);
       case AiProvider.GROK:
         return this.callOpenRouter(request, 'x-ai/grok-4-fast', AiProvider.GROK);
     }
@@ -510,7 +510,7 @@ export class MultiAiRouterService {
 
   // ------------------------------------------------------------------- OpenAI
 
-  private async callOpenAi(request: AiRequest): Promise<AiCompletion> {
+  private async callOpenAi(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
     if (!this.openai) throw new ServiceUnavailableException('OPENAI_API_KEY is not configured.');
 
     const messages: any[] = [];
@@ -518,7 +518,7 @@ export class MultiAiRouterService {
     messages.push({ role: 'user', content: request.prompt });
 
     const response = await this.openai.chat.completions.create({
-      model: this.openaiModel,
+      model: modelOverride || this.openaiModel,
       messages,
       max_tokens: request.maxTokens ?? 4000,
       ...(request.jsonSchema
@@ -549,8 +549,9 @@ export class MultiAiRouterService {
   private async callGemini(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
     if (!this.gemini) throw new ServiceUnavailableException('GEMINI_API_KEY is not configured.');
 
+    const targetModel = modelOverride || request.model || this.geminiModel;
     const response = await this.gemini.models.generateContent({
-      model: modelOverride ?? this.geminiModel,
+      model: targetModel,
       contents: request.prompt,
       config: {
         systemInstruction: request.systemInstruction,
@@ -569,7 +570,7 @@ export class MultiAiRouterService {
     if (modelOverride && (!Number.isFinite(metadata.promptTokenCount) || !Number.isFinite(metadata.candidatesTokenCount))) measured.estimatedCostUsd = null;
     return {
       provider: AiProvider.GEMINI,
-      model: modelOverride ?? this.geminiModel,
+      model: targetModel,
       text: response.text || '',
       usage: measured,
       refused: response.candidates?.[0]?.finishReason === 'MAX_TOKENS',
@@ -630,15 +631,16 @@ export class MultiAiRouterService {
    * because being one of the sources is exactly what a citation check for a
    * search-grounded assistant has to see.
    */
-  private async callPerplexity(request: AiRequest): Promise<AiCompletion> {
+  private async callPerplexity(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
     if (!this.perplexity) throw new ServiceUnavailableException('PERPLEXITY_API_KEY is not configured.');
 
+    const targetModel = modelOverride || request.model || this.perplexityModel;
     const messages: { role: 'system' | 'user'; content: string }[] = [];
     if (request.systemInstruction) messages.push({ role: 'system', content: request.systemInstruction });
     messages.push({ role: 'user', content: request.prompt });
 
     const response = await this.perplexity.chat.completions.create({
-      model: this.perplexityModel,
+      model: targetModel,
       messages,
       ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
     });
@@ -649,7 +651,7 @@ export class MultiAiRouterService {
 
     return {
       provider: AiProvider.PERPLEXITY,
-      model: response.model ?? this.perplexityModel,
+      model: response.model ?? targetModel,
       text: sources.length > 0 ? `${answer}\n\nSources:\n${sources.map((u) => `- ${u}`).join('\n')}` : answer,
       usage: this.usage(response.usage?.prompt_tokens ?? 0, response.usage?.completion_tokens ?? 0, this.envRate('PERPLEXITY')),
       refused: false,
