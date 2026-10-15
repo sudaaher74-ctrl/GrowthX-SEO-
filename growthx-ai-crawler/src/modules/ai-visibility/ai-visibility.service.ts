@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProviderAbstractionService } from './ai-provider-abstraction.service';
 import { AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { ResponseAnalyzerService } from './response-analyzer.service';
 import { MetricsEngineService } from './metrics-engine.service';
+import { questionAnalysis, questionSuggestions } from './question-analysis';
 
 @Injectable()
 export class AiVisibilityService {
@@ -16,6 +17,14 @@ export class AiVisibilityService {
     private readonly metrics: MetricsEngineService,
   ) {}
 
+  getQuestionAnalysis(projectId: string) {
+    return questionAnalysis(this.prisma, projectId);
+  }
+
+  getQuestionSuggestions(projectId: string) {
+    return questionSuggestions(this.prisma, projectId);
+  }
+
   async runScanForProject(projectId: string) {
     this.logger.log(`Starting AI Visibility scan for project ${projectId}`);
     
@@ -26,7 +35,7 @@ export class AiVisibilityService {
     
     if (prompts.length === 0) {
       this.logger.log(`No active prompts found for project ${projectId}`);
-      return;
+      throw new BadRequestException('Add at least one buyer question in the Questions tab before running AI Visibility.');
     }
 
     // 2. Fetch configured providers
@@ -44,6 +53,13 @@ export class AiVisibilityService {
     const providers = providersStr
       .filter((p): p is AiProvider => Object.values(AiProvider).includes(p as AiProvider));
 
+    const configured = this.providerAbstraction.configuredProviders();
+    const skippedAssistants = providers.filter(p => !configured.includes(p));
+    const enabledProviders = providers.filter(p => configured.includes(p));
+    if (enabledProviders.length === 0) {
+      throw new ServiceUnavailableException('No selected AI assistant is configured. Enable Gemini or update this project\'s AI visibility settings.');
+    }
+
     // 3. Create a scan record
     const scan = await this.prisma.aiVisibilityScan.create({
       data: {
@@ -58,7 +74,7 @@ export class AiVisibilityService {
 
     try {
       // 4. Execute prompts against providers
-      for (const provider of providers) {
+      for (const provider of enabledProviders) {
         // Create scan run for this provider
         const scanRun = await this.prisma.aiVisibilityScanRun.create({
           data: {
@@ -135,6 +151,16 @@ export class AiVisibilityService {
       });
 
       this.logger.log(`Scan ${scan.id} completed. Total cost: $${totalCost.toFixed(4)}. Responses: ${completedCount}`);
+      const responses = await this.prisma.aiVisibilityResponse.findMany({
+        where: { scanRun: { scanId: scan.id } },
+        include: { analysis: true },
+      });
+      return {
+        checksRun: responses.filter(r => !r.errorMessage && r.analysis).length,
+        checksFailed: responses.filter(r => r.errorMessage || !r.analysis).length,
+        citations: responses.filter(r => !r.errorMessage && r.analysis?.brandMentioned).length,
+        skippedAssistants,
+      };
     } catch (e: any) {
       this.logger.error(`Scan ${scan.id} failed`, e.stack);
       await this.prisma.aiVisibilityScan.update({
@@ -144,6 +170,7 @@ export class AiVisibilityService {
           errorMessage: e.message,
         },
       });
+      throw new ServiceUnavailableException('AI Visibility could not finish. Please try again or check the AI provider configuration.');
     }
   }
 
@@ -166,7 +193,7 @@ export class AiVisibilityService {
         byAssistant: [] as any[],
         shareOfVoice: [] as any[],
         trend: [] as any[],
-        measurableAssistants: [],
+        measurableAssistants: this.providerAbstraction.configuredProviders(),
         brandPerception: { positive: 0, neutral: 0, negative: 0, total: 0 },
         customerJourney: {
           discovery: { checked: 0, cited: 0, citationSharePct: 0 },
@@ -227,31 +254,38 @@ export class AiVisibilityService {
       mentions: s.mentions,
     }));
 
-    // For byAssistant, we would aggregate responses per provider, simplified for now:
-    const byAssistant = latestMetrics.scan.runs.map((r: any) => ({
-      assistant: r.provider,
-      checked: 10, // Mocking
-      cited: 5, // Mocking
-      citationSharePct: latestMetrics.visibilityScore, // Mocking for now, ideally calc per provider
-    }));
+    const successful = responses.filter(r => !r.errorMessage && r.analysis);
+    const checked = successful.length;
+    const cited = successful.filter(r => r.analysis?.brandMentioned).length;
+    const citationSharePct = checked > 0 ? (cited / checked) * 100 : 0;
+    const byAssistant = latestMetrics.scan.runs.map((run: any) => {
+      const measured = successful.filter(r => r.scanRunId === run.id);
+      const mentioned = measured.filter(r => r.analysis?.brandMentioned).length;
+      return {
+        assistant: run.provider,
+        checked: measured.length,
+        cited: mentioned,
+        citationSharePct: measured.length > 0 ? (mentioned / measured.length) * 100 : 0,
+      };
+    });
 
-    const measurableAssistants = latestMetrics.scan.runs.map((r: any) => r.provider);
+    const measurableAssistants = [...new Set([...this.providerAbstraction.configuredProviders(), ...latestMetrics.scan.runs.map((r: any) => r.provider)])];
 
     return {
       periodStart,
       periodEnd,
       summary: {
-        checked: latestMetrics.funnelMetrics ? (latestMetrics.funnelMetrics as any).totalAnalyzed : 0,
-        cited: latestMetrics.funnelMetrics ? (latestMetrics.funnelMetrics as any).mentioned : 0,
-        citationSharePct: latestMetrics.visibilityScore,
+        checked,
+        cited,
+        citationSharePct,
         deltaPt: 0,
-        previousCitationSharePct: latestMetrics.visibilityScore,
+        previousCitationSharePct: null,
         averagePosition: latestMetrics.averagePosition || null,
-        failedChecks: 0,
+        failedChecks: responses.length - checked,
       },
       byAssistant,
       shareOfVoice,
-      trend: [{ weekStart: periodStart, checked: 10, citationSharePct: latestMetrics.visibilityScore }],
+      trend: [{ weekStart: latestMetrics.createdAt.toISOString(), checked, citationSharePct }],
       measurableAssistants,
       brandPerception,
       customerJourney,

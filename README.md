@@ -43,6 +43,8 @@ this repository.
 
 ## Deploy
 
+For a replacement server, use [the server move guide](docs/operations/move-server.md). Deploy committed code from GitHub, restore the data and private settings, and keep the public API hostname stable.
+
 **API (Render).** `render.yaml` defines the API service, PostgreSQL and Redis.
 Every secret is `sync: false`, so Render asks for it on first deploy. Migrations
 run on boot from `growthx-ai-crawler/docker-entrypoint.sh`.

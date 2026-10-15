@@ -19,6 +19,10 @@ export class AiProviderAbstractionService {
 
   constructor(private readonly aiRouter: MultiAiRouterService) {}
 
+  configuredProviders(): AiProvider[] {
+    return this.aiRouter.configuredProviders();
+  }
+
   async runPrompt(
     prompt: string,
     provider: AiProvider,

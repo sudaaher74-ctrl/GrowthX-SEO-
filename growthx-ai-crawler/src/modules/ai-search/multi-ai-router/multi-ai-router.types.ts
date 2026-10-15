@@ -112,6 +112,8 @@ export interface AiRequest {
   /** JSON Schema. When supplied, the response is constrained to match it. */
   jsonSchema?: Record<string, unknown>;
   maxTokens?: number;
+  /** Optional request deadline for visibility probes and analysis. */
+  timeoutMs?: number;
 }
 
 export interface AiUsage {

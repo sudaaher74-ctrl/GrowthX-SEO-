@@ -6,6 +6,7 @@
  */
 
 import type { StagedFixItem } from "@/lib/staging-engine";
+import type { VisibilityBrief, VisibilityJourneyResponse } from './visibility-workflow';
 import { createSessionRefresh, type RefreshResult } from './session-refresh';
 import type {
   ChangeImpact,
@@ -428,6 +429,13 @@ const post = <T>(path: string, body?: unknown) =>
 const put = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body) });
 const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
+
+export const visibilityJourneyApi = {
+  read: (projectId: string) => get<VisibilityJourneyResponse>(`/api/projects/${projectId}/ai-visibility/journey`),
+  prepare: (projectId: string) => post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey`, {}),
+  check: (projectId: string, id: string, brief?: VisibilityBrief) =>
+    post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey/${id}/check`, { brief }),
+};
 
 export const api = {
   // Mammouth AI Orchestration

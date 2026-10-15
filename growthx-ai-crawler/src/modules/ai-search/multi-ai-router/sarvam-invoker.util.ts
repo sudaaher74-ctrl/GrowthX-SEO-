@@ -12,7 +12,7 @@ import {
 import { isConfiguredValue } from '../../../config/optional-env';
 import { AiCompletion, AiProvider, AiRequest, Rate, AiUsage } from './multi-ai-router.types';
 
-export function postToSarvam(sarvamKey: string, body: Record<string, unknown>): Promise<Response> {
+export function postToSarvam(sarvamKey: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
   return fetch(SARVAM_CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: {
@@ -21,6 +21,7 @@ export function postToSarvam(sarvamKey: string, body: Record<string, unknown>): 
       Authorization: `Bearer ${sarvamKey}`,
     },
     body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   });
 }
 
@@ -76,7 +77,8 @@ export async function executeSarvamCall({
     jsonMode: Boolean(request.jsonSchema),
   });
 
-  let response = await postToSarvam(sarvamKey, body);
+  const signal = request.timeoutMs ? AbortSignal.timeout(request.timeoutMs) : undefined;
+  let response = await postToSarvam(sarvamKey, body, signal);
 
   if (response.status === 400) {
     const errText = await response.text().catch(() => '');
@@ -86,7 +88,7 @@ export async function executeSarvamCall({
     }
     logger.warn(`Sarvam rejected '${relaxed.dropped}'; retrying without it.`);
     body = relaxed.body;
-    response = await postToSarvam(sarvamKey, body);
+    response = await postToSarvam(sarvamKey, body, signal);
   }
 
   if (!response.ok) {

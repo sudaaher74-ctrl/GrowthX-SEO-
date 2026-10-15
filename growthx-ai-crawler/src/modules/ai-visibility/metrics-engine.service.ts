@@ -77,8 +77,7 @@ export class MetricsEngineService {
       finalChoice,
     };
 
-    await this.prisma.aiVisibilityMetrics.create({
-      data: {
+    const data = {
         projectId,
         scanId,
         visibilityScore,
@@ -89,7 +88,9 @@ export class MetricsEngineService {
         averagePosition,
         shareOfVoice,
         funnelMetrics,
-      },
+      };
+    await this.prisma.aiVisibilityMetrics.upsert({
+      where: { scanId }, create: data, update: data,
     });
 
     this.logger.log(`Metrics calculated for scan ${scanId}: Visibility ${visibilityScore.toFixed(2)}`);

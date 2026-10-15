@@ -144,6 +144,7 @@ export class CompetitorCrawlService {
   }
 
   async cancelCrawl(organizationId: string, projectId: string, competitorId: string) {
+    if (!organizationId) throw new NotFoundException('Competitor not found for this project.');
     const competitor = await this.prisma.competitorDomain.findFirst({
       where: {
         id: competitorId,
@@ -154,6 +155,12 @@ export class CompetitorCrawlService {
     });
     if (!competitor) throw new NotFoundException('Competitor not found for this project.');
     if (!competitor.websiteId) return { cancelled: false };
+
+    const website = await this.prisma.website.findFirst({
+      where: { id: competitor.websiteId, projectId: null, scope: competitorScope(projectId) },
+      select: { id: true },
+    });
+    if (!website) throw new BadRequestException('This competitor has no project-scoped crawl to stop.');
 
     const active = await this.prisma.crawlJob.findFirst({
       where: { websiteId: competitor.websiteId, status: { in: ['PENDING', 'RUNNING'] } },

@@ -105,7 +105,7 @@ export class MultiAiRouterService {
     @Optional() private readonly tokens?: TokensService,
   ) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
-    this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
+    this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
     this.perplexityModel = this.config.get<string>('PERPLEXITY_MODEL') || 'sonar';
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
@@ -516,6 +516,8 @@ export class MultiAiRouterService {
       config: {
         systemInstruction: request.systemInstruction,
         temperature: 0.2,
+        ...(request.maxTokens ? { maxOutputTokens: request.maxTokens } : {}),
+        ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
         ...(request.jsonSchema
           ? { responseMimeType: 'application/json', responseSchema: request.jsonSchema as any }
           : {}),
