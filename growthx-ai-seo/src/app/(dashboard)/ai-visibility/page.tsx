@@ -1,10 +1,10 @@
 "use client";
 import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Plus, Loader2, Calendar, ChevronDown, ArrowRight, X, Bot, Building2, Globe, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Download, Loader2, Play, RefreshCw } from "lucide-react";
 import {
   useWorkspace,
   useVisibility,
@@ -15,504 +15,329 @@ import {
   useLatestCrawl,
   usePortfolio,
 } from "@/hooks/use-growthx";
+import { useGoogleOverview } from "@/hooks/use-google";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-
-// New AI Visibility Components
-import { AiPipelineBanner } from "@/components/ai-visibility/ai-pipeline-banner";
-import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibility-overview-tab";
-import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
-import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
-import { AiInsightsTab } from "@/components/ai-visibility/ai-visibility-insights-tab";
-import { AiVisibilityQuestionsTab } from "@/components/ai-visibility/ai-visibility-questions-tab";
-import { GeoSimulationSandbox } from "@/components/ai-visibility/geo-simulation-sandbox";
+import { ActionButton, PageHeader, StatusNote, Tabs } from "@/components/ui/console";
+import { AiVisibilityOverview, overviewFigures } from "@/components/ai-visibility/av-overview";
 import {
-  CitationsTabContent,
-  ContentGapsTabContent,
-} from "@/components/ai-visibility/ai-visibility-other-tabs";
-import { assistantList } from "@/lib/ai-assistants";
+  ActionCenterView,
+  CitationIntelligenceView,
+  CompetitorComparisonView,
+  ModelVisibilityView,
+  MonitoringHistoryView,
+  PromptIntelligenceView,
+  RootCauseView,
+  SettingsView,
+  UnifiedIntelligenceView,
+} from "@/components/ai-visibility/av-views";
+import { type AvPrompt, cycleInfo, pct } from "@/components/ai-visibility/av-shared";
+
+/** Order matches the sidebar's AI Visibility children in `nav-items.tsx`. */
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "unified", label: "Unified Intelligence" },
+  { id: "models", label: "AI Model Visibility" },
+  { id: "prompts", label: "Prompt Intelligence" },
+  { id: "citations", label: "Citation Intelligence" },
+  { id: "competitors", label: "Competitor Comparison" },
+  { id: "root-cause", label: "Root Cause Analysis" },
+  { id: "actions", label: "Action Center" },
+  { id: "history", label: "Monitoring History" },
+  { id: "settings", label: "Settings" },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
+const RANGES = [
+  { days: 7, label: "Last 7 days" },
+  { days: 28, label: "Last 28 days" },
+  { days: 90, label: "Last 90 days" },
+];
 
 export default function AiVisibilityPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading AI Visibility...</div>}>
+    <Suspense fallback={<div className="p-8 text-[13px] text-brand-400">Loading AI Visibility…</div>}>
       <AiVisibilityClient />
     </Suspense>
   );
 }
 
-const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "questions", label: "Questions" },
-  { id: "sandbox", label: "GEO Sandbox & Simulation" },
-  { id: "insights", label: "AI Insights" },
-  { id: "citations", label: "Citations" },
-  { id: "competitors", label: "Competitors" },
-  { id: "gaps", label: "Content Gaps" },
-  { id: "recommendations", label: "Recommendations" },
-];
+function csvCell(v: string | number) {
+  return `"${String(v).replace(/"/g, '""')}"`;
+}
 
 function AiVisibilityClient() {
-  const router = useRouter();
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-
-  const currentProject = projects?.find(p => p.id === projectId);
-  // The project's own website, as every other page resolves it. This used to
-  // be the project *name* ("Aiva"), so the crawl lookup always missed and the
-  // banner said "No crawl yet" for a site that had been audited.
+  const currentProject = projects?.find((p) => p.id === projectId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const domain = clientRow?.domain ?? "";
-  const businessName = currentProject?.name || "your business";
+  const brandLabel = currentProject?.name || "Your brand";
 
-  const visibility = useVisibility(projectId, 28);
+  const [days, setDays] = useState(28);
+  const visibility = useVisibility(projectId, days);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
   const addPrompts = useAddPrompts(projectId);
   const addCompetitor = useAddCompetitor(projectId);
-  const crawlQuery = useLatestCrawl(domain || null);
-
-  // Competitor list query
+  const crawl = useLatestCrawl(domain || null);
+  const google = useGoogleOverview(projectId);
   const competitorsQuery = useQuery({
     queryKey: ["competitors", projectId],
     queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
     enabled: !!projectId,
   });
 
-  // The tab follows the URL's ?tab= (the sidebar's sub-tabs link to it) and
-  // keeps working when it is clicked in the page. A new ?tab= replaces the choice.
+  // The sidebar's sub-items link to ?tab=; a click in the page replaces the choice.
   const tabParam = useSearchParams().get("tab");
-  const tabFromUrl = TABS.some((t) => t.id === tabParam) ? (tabParam as string) : "overview";
-  const [tabState, setTabState] = useState({ param: tabParam, tab: tabFromUrl });
-  if (tabState.param !== tabParam) setTabState({ param: tabParam, tab: tabFromUrl });
+  const fromUrl = (TABS.find((t) => t.id === tabParam)?.id ?? "overview") as TabId;
+  const [tabState, setTabState] = useState({ param: tabParam, tab: fromUrl });
+  if (tabState.param !== tabParam) setTabState({ param: tabParam, tab: fromUrl });
   const activeTab = tabState.tab;
-  const setActiveTab = (tab: string) => setTabState({ param: tabParam, tab });
-  const [showAddQueryModal, setShowAddQueryModal] = useState(false);
-  const [showAddCompModal, setShowAddCompModal] = useState(false);
-  const [newQueryText, setNewQueryText] = useState("");
-  const [newCompDomain, setNewCompDomain] = useState("");
-  const [statusMessage, setStatusMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const setActiveTab = (tab: string) => setTabState({ param: tabParam, tab: tab as TabId });
 
-  // Pages crawled count
-  const pagesCrawled = crawlQuery.data?.pagesCrawled;
-
-  // Run AI Visibility probe / sweep
-  const handleRunSweep = async () => {
-    setStatusMessage(null);
-    try {
-      const res = await sweep.mutateAsync();
-      await prompts.refetch();
-      await visibility.refetch();
-      // Report exactly what ran — never "completed" for a sweep where every
-      // check failed.
-      const parts = [
-        `${res.checksRun} answer${res.checksRun === 1 ? "" : "s"} checked`,
-        `cited in ${res.citations}`,
-      ];
-      if (res.checksFailed > 0) parts.push(`${res.checksFailed} could not run`);
-      if (res.skippedAssistants.length > 0) parts.push(`${assistantList(res.skippedAssistants)} not enabled`);
-      setStatusMessage({
-        text: res.checksRun > 0 ? `Sweep finished: ${parts.join(", ")}.` : `No answers were measured: ${parts.join(", ")}.`,
-        ok: res.checksRun > 0,
-      });
-    } catch (err) {
-      setStatusMessage({ text: errorMessage(err), ok: false });
-    }
-  };
-
-  // Add brand query handler
-  const handleAddQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newQueryText.trim() || !projectId) return;
-    try {
-      await addPrompts.mutateAsync([{ text: newQueryText.trim(), cluster: "brand & buyer intent" }]);
-      setNewQueryText("");
-      setShowAddQueryModal(false);
-      await prompts.refetch();
-      await handleRunSweep();
-    } catch (err) {
-      console.error("Add query error:", err);
-    }
-  };
-
-  // Add competitor handler
-  const handleAddCompetitor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCompDomain.trim() || !projectId) return;
-    try {
-      await addCompetitor.mutateAsync({ domain: newCompDomain.trim() });
-      setNewCompDomain("");
-      setShowAddCompModal(false);
-      await competitorsQuery.refetch();
-    } catch (err) {
-      console.error("Add competitor error:", err);
-    }
-  };
+  const [dialog, setDialog] = useState<"prompt" | "competitor" | null>(null);
+  const [text, setText] = useState("");
+  const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
 
   const report = visibility.data;
-  const promptList = prompts.data ?? [];
-  const competitorsList = competitorsQuery.data ?? [];
-  const assistantsAsked = assistantList(report?.measurableAssistants);
+  // The API's prompt rows have drifted from the declared type; read what is there.
+  const promptList = (prompts.data ?? []) as unknown as AvPrompt[];
+  const competitors = competitorsQuery.data ?? [];
+  const cycle = cycleInfo();
+  const refreshing = visibility.isFetching || prompts.isFetching;
+
+  const refresh = () => {
+    void visibility.refetch();
+    void prompts.refetch();
+    void competitorsQuery.refetch();
+  };
+
+  const runScan = async () => {
+    setNote(null);
+    try {
+      await sweep.mutateAsync();
+      await Promise.all([prompts.refetch(), visibility.refetch()]);
+      setNote({ text: "Scan finished. Results below reflect the answers just collected.", ok: true });
+    } catch (err) {
+      setNote({ text: errorMessage(err), ok: false });
+    }
+  };
+
+  const exportCsv = () => {
+    const f = overviewFigures(report);
+    const lines = [
+      ["Metric", "Value"],
+      ["Overall visibility", pct(f.visibility)],
+      ["AI share of voice", pct(f.shareOfVoice)],
+      ["Answers checked", f.checked],
+      ["Failed requests", f.failed],
+      [],
+      ["Prompt", "Category"],
+      ...promptList.map((p) => [p.text, p.category ?? p.cluster ?? ""]),
+    ];
+    const csv = lines.map((r) => r.map(csvCell).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: `ai-visibility-${days}d.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const submitDialog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = text.trim();
+    if (!value || !projectId) return;
+    try {
+      if (dialog === "prompt") {
+        await addPrompts.mutateAsync([{ text: value, cluster: "custom" }]);
+        await prompts.refetch();
+      } else {
+        await addCompetitor.mutateAsync({ domain: value });
+        await competitorsQuery.refetch();
+      }
+      setText("");
+      setDialog(null);
+    } catch (err) {
+      setNote({ text: errorMessage(err), ok: false });
+      setDialog(null);
+    }
+  };
+
+  const busy = addPrompts.isPending || addCompetitor.isPending;
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* ── HEADER SECTION ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100/70 text-slate-900 border border-slate-200 shadow-2xs">
-            <Sparkles size={20} className="text-slate-900" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-extrabold tracking-tight text-slate-900 leading-none">
-              AI Visibility
-            </h1>
-            <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
-              {activeTab === "sandbox"
-                ? `Ask ${assistantsAsked} any search question live, see whether your brand is cited, and get a draft section to answer it.`
-                : activeTab === "competitors"
-                ? `See how often ${assistantsAsked} names your brand versus your tracked competitors.`
-                : activeTab === "questions"
-                ? `Each question joined to your Website Audit and Competitor Intelligence: the page that should answer it, and why a rival was named instead.`
-                : activeTab === "recommendations"
-                ? `Recommendations drawn from what ${assistantsAsked} actually said about your market.`
-                : `Track whether ${assistantsAsked} cites your brand when buyers ask your questions.`}
-            </p>
-          </div>
-        </div>
-
-        {/* Action buttons on the right */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {activeTab !== "sandbox" && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("sandbox")}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-[12px] font-bold text-slate-800 shadow-2xs hover:bg-slate-100 transition-colors"
+    <div className="space-y-4 pb-16">
+      <PageHeader
+        title="AI Visibility"
+        subtitle="Understand how AI models discover, mention, cite, and recommend your brand."
+        actions={
+          <>
+            <label className="sr-only" htmlFor="av-range">Date range</label>
+            <select
+              id="av-range"
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="rounded-lg border bg-white px-2.5 py-1.5 text-[12px] font-medium text-brand-700 focus-visible:outline-2 focus-visible:outline-primary-600"
             >
-              <Bot size={14} className="text-slate-900" />
-              <span>Launch GEO Sandbox</span>
-            </button>
-          )}
-
-          {activeTab === "competitors" || activeTab === "recommendations" ? (
-            <>
-              {/* Domain dropdown button */}
-              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
-                <Globe size={13} className="text-slate-400" />
-                <span>{domain}</span>
-                <ChevronDown size={12} className="text-slate-400 ml-1" />
-              </div>
-
-              {/* Date range dropdown */}
-              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
-                <Calendar size={13} className="text-slate-400" />
-                <span>Last 28 days</span>
-                <ChevronDown size={12} className="text-slate-400 ml-1" />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRunSweep}
-                disabled={sweep.isPending || !projectId}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-black hover:to-slate-900 transition-all disabled:opacity-60 active:scale-[0.98]"
-              >
-                {sweep.isPending ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Analyzing...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Run AI Analysis</span>
-                    <ArrowRight size={13} />
-                  </>
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowAddQueryModal(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
-              >
-                <Plus size={14} className="text-slate-900" />
-                <span>Add Brand Query</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleRunSweep}
-                disabled={sweep.isPending || !projectId}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-black hover:to-slate-900 transition-all disabled:opacity-60 active:scale-[0.98]"
-              >
-                {sweep.isPending ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Sweeping Models...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Run AI Visibility</span>
-                    <ArrowRight size={13} />
-                  </>
-                )}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Status banner if sweep finished */}
-      {statusMessage && (
-        <div
-          className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[12.5px] font-medium ${
-            statusMessage.ok ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
-          }`}
-        >
-          {statusMessage.ok ? (
-            <CheckCircle2 size={15} className="text-success-600 shrink-0" />
-          ) : (
-            <AlertTriangle size={15} className="text-warning-600 shrink-0" />
-          )}
-          <span>{statusMessage.text}</span>
-          <button
-            type="button"
-            onClick={() => setStatusMessage(null)}
-            className="ml-auto opacity-70 hover:opacity-100"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      {/* ── TOP PIPELINE STATUS BANNER ── */}
-      <AiPipelineBanner
-        mode={
-          activeTab === "competitors"
-            ? "competitors"
-            : activeTab === "recommendations"
-            ? "recommendations"
-            : "overview"
+              {RANGES.map((r) => (
+                <option key={r.days} value={r.days}>{r.label}</option>
+              ))}
+            </select>
+            <span
+              className="flex items-center rounded-lg border bg-white px-2.5 py-1.5 text-[12px] text-brand-600"
+              title="Scans run once in each cycle: days 1–10, 11–20 and 21 to month end"
+            >
+              <span className="font-medium text-brand-950">{cycle.label}</span>
+              <span className="ml-1.5 text-brand-400">{cycle.range} · next {cycle.nextScan}</span>
+            </span>
+            <ActionButton
+              onClick={refresh}
+              disabled={refreshing}
+              aria-label="Refresh data"
+              icon={<RefreshCw size={13} className={refreshing ? "animate-spin" : undefined} />}
+            >
+              Refresh
+            </ActionButton>
+            <ActionButton onClick={exportCsv} disabled={!report} icon={<Download size={13} />}>
+              Export
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              onClick={runScan}
+              disabled={sweep.isPending || !projectId}
+              icon={sweep.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            >
+              {sweep.isPending ? "Scanning…" : "Run scan"}
+            </ActionButton>
+          </>
         }
-        domain={domain}
-        crawledPages={pagesCrawled}
-        competitorsCount={competitorsList.length}
-        competitors={competitorsList}
-        report={report}
-        onViewInsights={() => setActiveTab("insights")}
-        onViewQuestions={() => setActiveTab("questions")}
-        onViewCrawlDetails={() => router.push("/website")}
-        isAnalyzing={sweep.isPending}
       />
 
-      {/* ── SUB-NAVIGATION TABS ── */}
-      <div className="flex items-center justify-between border-b border-slate-200/90">
-        <div className="flex items-center gap-6">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative pb-3 text-[13px] font-medium transition-colors ${
-                  isActive
-                    ? "font-bold text-slate-800"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                {tab.label}
-                {isActive && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-slate-950" />
-                )}
-              </button>
-            );
-          })}
+      {sweep.isPending && (
+        <div role="status" className="rounded-xl border bg-accent-50 px-4 py-2.5 text-[12px] text-accent-700">
+          Asking each AI model your monitored questions. This can take a few minutes; you can leave this page.
         </div>
+      )}
+      {note && <StatusNote tone={note.ok ? "good" : "bad"}>{note.text}</StatusNote>}
+      {visibility.error && !visibility.isLoading && (
+        <StatusNote tone="bad">Could not load visibility data: {errorMessage(visibility.error)}</StatusNote>
+      )}
 
-        {activeTab === "competitors" && (
-          <button
-            type="button"
-            onClick={() => setShowAddCompModal(true)}
-            className="mb-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
-          >
-            <Plus size={12} className="text-slate-900" />
-            <span>Add Competitor</span>
-          </button>
+      <Tabs tabs={[...TABS]} active={activeTab} onChange={setActiveTab} />
+
+      <div role="tabpanel" aria-label={TABS.find((t) => t.id === activeTab)?.label}>
+        {activeTab === "overview" && (
+          <AiVisibilityOverview
+            report={report}
+            prompts={promptList}
+            loading={visibility.isLoading || prompts.isLoading}
+            brandLabel={brandLabel}
+            onNavigate={setActiveTab}
+          />
         )}
+        {activeTab === "unified" && (
+          <UnifiedIntelligenceView
+            businessName={brandLabel}
+            domain={domain}
+            crawl={crawl.data}
+            google={google.query.data}
+            googleLoading={google.query.isLoading}
+            competitors={competitors}
+          />
+        )}
+        {activeTab === "models" && <ModelVisibilityView report={report} />}
+        {activeTab === "prompts" && (
+          <PromptIntelligenceView prompts={promptList} onAddPrompt={() => setDialog("prompt")} />
+        )}
+        {activeTab === "citations" && <CitationIntelligenceView />}
+        {activeTab === "competitors" && (
+          <CompetitorComparisonView
+            report={report}
+            competitors={competitors}
+            brandLabel={brandLabel}
+            onAddCompetitor={() => setDialog("competitor")}
+          />
+        )}
+        {activeTab === "root-cause" && <RootCauseView />}
+        {activeTab === "actions" && <ActionCenterView />}
+        {activeTab === "history" && <MonitoringHistoryView report={report} />}
+        {activeTab === "settings" && <SettingsView report={report} />}
       </div>
 
-      {/* ── TAB CONTENT RENDERING ── */}
-      {activeTab === "overview" && (
-        <AiVisibilityOverviewTab
-          report={report}
-          trackedPromptsCount={promptList.length}
-          domain={domain}
-          businessName={businessName}
-          onViewCompetitorsTab={() => setActiveTab("competitors")}
-          onViewInsightsTab={() => setActiveTab("insights")}
-          onViewRecommendationsTab={() => setActiveTab("recommendations")}
-          onGenerateRecommendations={() => setActiveTab("recommendations")}
+      {dialog && (
+        <AddDialog
+          title={dialog === "prompt" ? "Add a prompt to monitor" : "Add a competitor"}
+          label={dialog === "prompt" ? "Customer question" : "Competitor website"}
+          placeholder={dialog === "prompt" ? "e.g. Which companies deliver fresh milk in Mumbai?" : "e.g. competitor.com"}
+          hint={
+            dialog === "prompt"
+              ? "Keep it neutral — do not include your brand name, or results will be biased."
+              : "We compare how often each competitor is named next to your brand."
+          }
+          value={text}
+          onChange={setText}
+          onSubmit={submitDialog}
+          onClose={() => setDialog(null)}
+          busy={busy}
         />
-      )}
-
-      {activeTab === "questions" && <AiVisibilityQuestionsTab projectId={projectId} />}
-
-      {activeTab === "sandbox" && (
-        <GeoSimulationSandbox
-          projectId={projectId}
-          availableEngines={report?.measurableAssistants}
-          suggestions={promptList.map((p) => p.text)}
-        />
-      )}
-
-      {activeTab === "competitors" && (
-        <AiVisibilityCompetitorsTab
-          report={report}
-          competitors={competitorsList}
-          ownCrawl={crawlQuery.data ?? null}
-          domain={domain}
-          onAddCompetitor={() => setShowAddCompModal(true)}
-          onViewAllGaps={() => setActiveTab("gaps")}
-        />
-      )}
-
-      {activeTab === "insights" && (
-        <AiInsightsTab projectId={projectId} onRunSweep={handleRunSweep} />
-      )}
-
-      {activeTab === "citations" && (
-        <CitationsTabContent
-          promptList={promptList}
-          report={report}
-          onAddQuery={() => setShowAddQueryModal(true)}
-        />
-      )}
-
-      {activeTab === "gaps" && (
-        <ContentGapsTabContent promptList={promptList} onAddQuery={() => setShowAddQueryModal(true)} />
-      )}
-
-      {activeTab === "recommendations" && (
-        <AiVisibilityRecommendationsTab projectId={projectId} onRunSweep={handleRunSweep} />
-      )}
-
-      {/* ── MODAL: ADD BRAND QUERY ── */}
-      {showAddQueryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-slate-900" />
-                <h3 className="text-[15px] font-bold text-slate-900">Add Brand Query to Monitor</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddQueryModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddQuery} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-[12px] font-medium text-slate-700">
-                  Target Search Query or Buyer Intent Prompt
-                </label>
-                <input
-                  type="text"
-                  value={newQueryText}
-                  onChange={(e) => setNewQueryText(e.target.value)}
-                  placeholder="e.g., best AI SEO software for agencies"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
-                  autoFocus
-                />
-                <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                  We will ask {assistantsAsked} this question on every sweep and record whether your brand is cited.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddQueryModal(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addPrompts.isPending || !newQueryText.trim()}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
-                >
-                  {addPrompts.isPending ? "Adding..." : "Add & Monitor"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL: ADD COMPETITOR ── */}
-      {showAddCompModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Building2 size={16} className="text-slate-900" />
-                <h3 className="text-[15px] font-bold text-slate-900">Add Competitor Domain</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddCompModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddCompetitor} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-[12px] font-medium text-slate-700">
-                  Competitor Website Domain
-                </label>
-                <input
-                  type="text"
-                  value={newCompDomain}
-                  onChange={(e) => setNewCompDomain(e.target.value)}
-                  placeholder="e.g., semrush.com or ahrefs.com"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
-                  autoFocus
-                />
-                <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                  We will compare AI mention frequency and citation share for this competitor against your brand.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCompModal(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addCompetitor.isPending || !newCompDomain.trim()}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
-                >
-                  {addCompetitor.isPending ? "Adding..." : "Add Competitor"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );
 }
 
+function AddDialog(props: {
+  title: string;
+  label: string;
+  placeholder: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onClose: () => void;
+  busy: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [props]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4" onClick={props.onClose}>
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="av-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={props.onSubmit}
+        className="w-full max-w-md rounded-xl border bg-white p-5 shadow-card-hover"
+      >
+        <h2 id="av-dialog-title" className="text-[14px] font-semibold text-brand-950">{props.title}</h2>
+        <label htmlFor="av-dialog-input" className="mt-4 block text-[12px] font-medium text-brand-700">
+          {props.label}
+        </label>
+        <input
+          id="av-dialog-input"
+          ref={ref}
+          value={props.value}
+          onChange={(e) => props.onChange(e.target.value)}
+          placeholder={props.placeholder}
+          className="mt-1.5 w-full rounded-lg border px-3 py-2 text-[13px] text-brand-950 placeholder:text-brand-300 focus-visible:outline-2 focus-visible:outline-primary-600"
+        />
+        <p className="mt-1.5 text-[11.5px] text-brand-500">{props.hint}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <ActionButton type="button" onClick={props.onClose}>Cancel</ActionButton>
+          <ActionButton type="submit" variant="primary" disabled={props.busy || !props.value.trim()}>
+            {props.busy ? "Adding…" : "Add"}
+          </ActionButton>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 export function AiVisibilityDisabledPage() {
   return <AiVisibilityDisabled />;
