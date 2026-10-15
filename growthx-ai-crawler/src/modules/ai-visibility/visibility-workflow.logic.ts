@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+export const buyerQuestionCount = () => process.env.AI_LOW_COST_POLICY === 'false' ? 10 : 20;
 import {
   BuyerQuestion,
   VisibilityBrief,
@@ -39,7 +40,7 @@ export function evidenceIds(value: unknown, allowed: Set<string>): string[] {
 export function replaceRepeatedBuyerQuestions(raw: unknown): unknown {
   const draft = object(raw);
   const questions = list(draft.questions);
-  if (questions.length !== 10) return raw;
+  if (questions.length !== buyerQuestionCount()) return raw;
   const allOriginal = new Set(
     questions.map((q) => normalized(str(q?.text, 300))),
   );
@@ -75,6 +76,7 @@ export function normalizeBrief(
   raw: unknown,
   context: VisibilityContext,
   reviewed = false,
+  expectedCount = buyerQuestionCount(),
 ): VisibilityBrief {
   const r = object(raw);
   const allowed = new Set(context.facts.map((f) => f.id));
@@ -123,11 +125,11 @@ export function normalizeBrief(
     evidenceIds: reviewed ? ["owner"] : evidenceIds(q?.evidenceIds, allowed),
   }));
   if (
-    questions.length !== 10 ||
-    new Set(questions.map((q) => normalized(q.text))).size !== 10
+    questions.length !== expectedCount ||
+    new Set(questions.map((q) => normalized(q.text))).size !== expectedCount
   ) {
     throw new BadRequestException(
-      "Provide exactly 10 different buyer questions.",
+      `Provide exactly ${expectedCount} different buyer questions.`,
     );
   }
   for (const [index, q] of questions.entries()) {
@@ -281,7 +283,7 @@ Missing conversions mean unknown, not zero leads. Distinguish observed facts fro
 export function briefPrompt(context: VisibilityContext): string {
   return `Read these Website Audit, Search Console, GA4 and Competitor Intelligence facts together.
 Identify what the business sells, who it serves, and service areas explicitly stated in its own website/profile. Other cities seen in analytics are NOT service areas.
-Create exactly 10 distinct high-intent buyer questions for recommendation, product selection, delivery/service and purchase comparison.
+Create exactly ${buyerQuestionCount()} distinct high-intent buyer questions for recommendation, product selection, delivery/service and purchase comparison.
 Questions MUST NOT name the customer's brand or any rival. Use the real offerings and locations, distribute questions across the service areas and products.
 For a non-local business with no evidenced service area, return locations=[] and location="". Every question must include an offering from offerings and, for local businesses, a location from locations in its text. Cite fact IDs.
 Use short, natural questions a NEW buyer would ask to find or compare suppliers, such as "Which suppliers deliver [offering] in [location]?" or "Where can I buy [offering] in [location]?" Replace both placeholders with exact values from your lists. Do not ask general nutrition, health, recipe or existing-customer support questions. Do not assume a product has a subscription just because milk subscriptions exist.

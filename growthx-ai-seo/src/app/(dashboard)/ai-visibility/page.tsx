@@ -1,7 +1,8 @@
 "use client";
 
+import { QueryState } from "@/components/ui/query-state";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bot, ChevronDown, Crosshair, Layers, Link2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,8 @@ export default function AiVisibilityPage() {
 }
 
 function AiVisibilityClient() {
-  const { orgId, projectId, projects } = useWorkspace();
+  const { orgId, projectId, projects, isLoading: workspaceLoading, error: workspaceError } = useWorkspace();
+  const router = useRouter();
   const portfolio = usePortfolio(orgId);
   const currentProject = projects?.find((p) => p.id === projectId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
@@ -84,7 +86,7 @@ function AiVisibilityClient() {
   const [days, setDays] = useState(30);
   const visibility = useVisibility(projectId, days);
   const prompts = useTrackedPrompts(projectId);
-  const sweep = useRunSweep(projectId);
+
   const addPrompts = useAddPrompts(projectId);
   const addCompetitor = useAddCompetitor(projectId);
   const crawl = useLatestCrawl(domain || null);
@@ -95,6 +97,7 @@ function AiVisibilityClient() {
     queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
     enabled: !!projectId,
   });
+  const citationsQuery = useQuery({ queryKey:['ai-visibility-citations',projectId],queryFn:()=>api.getAiVisibilityCitations(projectId!),enabled:!!projectId });
   const rootCauseQuery = useQuery({
     queryKey: ["ai-visibility-root-cause", projectId],
     queryFn: () => (projectId ? api.getAiVisibilityRootCause(projectId) : Promise.resolve(null)),
@@ -130,16 +133,7 @@ function AiVisibilityClient() {
   const promptList = (prompts.data ?? []) as unknown as AvPrompt[];
   const competitors = competitorsQuery.data ?? [];
 
-  const runScan = async () => {
-    setNote(null);
-    try {
-      await sweep.mutateAsync();
-      await Promise.all([prompts.refetch(), visibility.refetch()]);
-      setNote({ text: "Scan finished. AI responses have been updated.", ok: true });
-    } catch (err) {
-      setNote({ text: errorMessage(err), ok: false });
-    }
-  };
+  const runScan = async () => { router.push('/ai-visibility/journey'); };
 
   const submitDialog = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +159,7 @@ function AiVisibilityClient() {
 
   const viewParam = useSearchParams().get("view");
   const _figures = overviewFigures(report);
+  const dependentQueries = activeTab === 'unified' ? [portfolio, crawl, google.query, competitorsQuery] : activeTab === 'competitors' ? [competitorsQuery] : activeTab === 'overview' ? [citationsQuery, actionsQuery] : [];
 
   return (
     <div className="space-y-4">
@@ -294,6 +289,8 @@ function AiVisibilityClient() {
         </div>
       </div>
 
+      <QueryState isLoading={workspaceLoading} error={workspaceError} isEmpty={!projectId} emptyTitle="Choose a project to view real measurements" emptyBody="Add your website to begin monitoring.">
+      <QueryState isLoading={visibility.isLoading || prompts.isLoading || dependentQueries.some(q=>q.isLoading) || (activeTab === 'citations' && citationsQuery.isLoading) || (activeTab === 'root-cause' && rootCauseQuery.isLoading)} error={visibility.error || prompts.error || dependentQueries.find(q=>q.error)?.error || (activeTab === 'citations' ? citationsQuery.error : activeTab === 'root-cause' ? rootCauseQuery.error : activeTab === 'actions' ? actionsQuery.error : null)}>
       {/* ── Main Views ────────────────────────────────────────────── */}
       {activeTab === "overview" && (
         viewParam === "table" ? (
@@ -310,13 +307,17 @@ function AiVisibilityClient() {
             prompts={promptList}
             domain={domain}
             brandLabel={brandLabel}
+            citations={citationsQuery.data}
+            rootCause={rootCauseQuery.data}
+            actions={actionsQuery.data}
+            competitors={competitors}
             projects={projects}
             currentProjectId={projectId ?? undefined}
             onSelectProject={(id) => setActiveProject(id)}
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={sweep.isPending}
+            isScanning={false}
             onNavigateTab={setActiveTab}
           />
         )
@@ -324,18 +325,24 @@ function AiVisibilityClient() {
 
       {activeTab === "citations" && (
         viewParam === "classic" ? (
-          <CitationIntelligenceView citations={null} />
+          <CitationIntelligenceView citations={citationsQuery.data} />
         ) : (
           <CitationIntelligenceDashboard
             domain={domain}
             brandLabel={brandLabel}
+            report={report}
+            prompts={promptList}
+            citations={citationsQuery.data}
+            rootCause={rootCauseQuery.data}
+            actions={actionsQuery.data}
+            competitors={competitors}
             projects={projects}
             currentProjectId={projectId ?? undefined}
             onSelectProject={(id) => setActiveProject(id)}
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={sweep.isPending}
+            isScanning={false}
           />
         )
       )}
@@ -369,13 +376,19 @@ function AiVisibilityClient() {
           <CompetitorIntelligenceDashboard
             domain={domain}
             brandLabel={brandLabel}
+            report={report}
+            prompts={promptList}
+            citations={citationsQuery.data}
+            rootCause={rootCauseQuery.data}
+            actions={actionsQuery.data}
+            competitors={competitors}
             projects={projects}
             currentProjectId={projectId ?? undefined}
             onSelectProject={(id) => setActiveProject(id)}
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={sweep.isPending}
+            isScanning={false}
           />
         )
       )}
@@ -387,13 +400,19 @@ function AiVisibilityClient() {
           <RootCauseAnalysisDashboard
             domain={domain}
             brandLabel={brandLabel}
+            report={report}
+            prompts={promptList}
+            citations={citationsQuery.data}
+            rootCause={rootCauseQuery.data}
+            actions={actionsQuery.data}
+            competitors={competitors}
             projects={projects}
             currentProjectId={projectId ?? undefined}
             onSelectProject={(id) => setActiveProject(id)}
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={sweep.isPending}
+            isScanning={false}
           />
         )
       )}
@@ -401,6 +420,7 @@ function AiVisibilityClient() {
       {activeTab === "history" && <MonitoringHistoryView report={report} />}
       {activeTab === "settings" && <SettingsView report={report} />}
 
+      </QueryState></QueryState>
       {dialog && (
         <AddDialog
           title={dialog === "prompt" ? "Add a prompt to monitor" : "Add a competitor"}

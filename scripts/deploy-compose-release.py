@@ -92,7 +92,7 @@ elif phase == 'backup':
     if dump.exists():
         raise SystemExit('Backup already exists; preserve it and choose a new release for another backup.')
     with dump.open('wb') as f:
-        run(['docker', 'exec', postgres, 'pg_dump', '-U', database['POSTGRES_USER'], '-d', database['POSTGRES_DB'], '-Fc'], stdout=f)
+        run(['docker', 'exec', postgres, 'pg_dump', '-U', database['POSTGRES_USER'], '-d', database['POSTGRES_DB'], '-Fc', '--compress=1'], stdout=f)
     with dump.open('rb') as f:
         run(['docker', 'exec', '-i', postgres, 'pg_restore', '--list'], stdin=f, stdout=subprocess.DEVNULL)
     run(['docker', 'exec', f"{config['name']}-redis-1", 'redis-cli', 'BGSAVE'])

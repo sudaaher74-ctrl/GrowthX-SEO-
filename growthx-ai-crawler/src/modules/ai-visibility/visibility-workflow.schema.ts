@@ -24,8 +24,8 @@ export const briefSchema = obj({
         evidenceIds: texts,
       }),
     ),
-    minItems: 10,
-    maxItems: 10,
+    minItems: process.env.AI_LOW_COST_POLICY === 'false' ? 10 : 20,
+    maxItems: process.env.AI_LOW_COST_POLICY === 'false' ? 10 : 20,
   },
 });
 export const measurementSchema = obj({

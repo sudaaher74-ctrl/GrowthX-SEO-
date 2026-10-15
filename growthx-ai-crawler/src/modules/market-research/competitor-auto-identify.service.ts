@@ -456,6 +456,8 @@ export class CompetitorAutoIdentifyService {
         };
 
         const result = await this.models.generate({
+          organizationId,
+          projectId,
           step: 'auto_identify_competitors',
           role: ModelRole.ANALYST,
           instructions:

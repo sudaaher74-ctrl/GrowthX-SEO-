@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AiSearchController } from './ai-search.controller';
 import { MultiAiRouterService } from './multi-ai-router/multi-ai-router.service';
 import { AiUsageService } from './multi-ai-router/ai-usage.service';
+import { LowCostPolicyService } from './multi-ai-router/low-cost-policy.service';
 import { InvestigationToolsService } from './investigation-tools/investigation-tools.service';
 import { AiSearchService } from './ai-search/ai-search.service';
 import { DatabaseModule } from '../../database/database.module';
@@ -14,7 +15,7 @@ import { TokensModule } from '../tokens/tokens.module';
   // pins it.
   imports: [DatabaseModule, TokensModule],
   controllers: [AiSearchController],
-  providers: [AiUsageService, MultiAiRouterService, InvestigationToolsService, AiSearchService],
+  providers: [LowCostPolicyService, AiUsageService, MultiAiRouterService, InvestigationToolsService, AiSearchService],
   exports: [AiSearchService, MultiAiRouterService, AiUsageService]
 })
 export class AiSearchModule {}

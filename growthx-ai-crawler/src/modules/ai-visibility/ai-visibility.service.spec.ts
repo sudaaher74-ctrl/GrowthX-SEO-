@@ -57,7 +57,8 @@ describe('AI visibility dashboard contract', () => {
     ]);
     const mockMetric = {
       scanId: 'scan',
-      visibilityScore: 50,
+      visibilityScore: 10,
+      mentionRate: 50,
       createdAt: new Date('2026-10-14T00:00:00Z'),
       shareOfVoice: [],
       funnelMetrics: { totalAnalyzed: 2 },
@@ -80,4 +81,57 @@ describe('AI visibility dashboard contract', () => {
     const controller = new AiVisibilityController(service, {} as any, {} as any, {} as any);
     await expect(controller.runSweep('project')).resolves.toEqual(result);
   });
+
+  it('classifies citations by the actual customer domain rather than a brand mention', async () => {
+    const { service, prisma } = create();
+    prisma.aiVisibilityScan.findFirst = jest.fn().mockResolvedValue({ id: 'scan' });
+    prisma.aiVisibilityCitation = { findMany: jest.fn().mockResolvedValue([
+      { domain: 'publisher.test', brandMentioned: true },
+      { domain: 'www.example.com', brandMentioned: false },
+    ]) };
+    await expect(service.getCitationsIntelligence('project')).resolves.toEqual({
+      totalCitations: 2,
+      citationsByDomain: [
+        { domain: 'publisher.test', count: 1, ownCited: false },
+        { domain: 'www.example.com', count: 1, ownCited: true },
+      ],
+    });
+  });
+
+  it('applies the selected date window to measured reports and history', async () => {
+    const { service, prisma } = create();
+    await service.getReport('project', 7);
+    expect(prisma.aiVisibilityMetrics.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectId: 'project', createdAt: { gte: expect.any(Date) } },
+    }));
+  });
+  it('allows the five-model plan after legacy single-model scans and marks the new planned cycle', async () => {
+    const { service, prisma, providers } = create();
+    providers.lowCostEnabled = () => true;
+    providers.configuredProviders = () => ['GEMINI','OPENAI','ANTHROPIC','PERPLEXITY','GROK'];
+    prisma.aiVisibilityPrompt.findMany.mockResolvedValue(Array.from({length:20},(_,i)=>({id:'q'+i,text:'Buyer question '+i})));
+    const legacyScans = ['2026-10-15T15:38:48.288Z','2026-10-15T13:35:48.392Z','journey-old'];
+    prisma.aiVisibilityScan.count = jest.fn(async ({where}: any) => legacyScans.filter(c => c.startsWith(where.cycleId.startsWith)).length);
+    prisma.project.findUniqueOrThrow = prisma.project.findUnique;
+    prisma.$executeRaw = jest.fn().mockResolvedValue(1);
+    prisma.$transaction = (fn: any) => fn(prisma);
+    await service.runScanForProject('project');
+    expect(providers.runPrompt).toHaveBeenCalledTimes(100);
+    expect(new Set(providers.runPrompt.mock.calls.map((call: any[])=>call[1]))).toEqual(new Set(['GEMINI','OPENAI','ANTHROPIC','PERPLEXITY','GROK']));
+    expect(prisma.aiVisibilityScan.create).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({cycleId:expect.stringMatching(/^low-cost-v1:/)})}));
+  });
+
+  it('still rejects a fourth planned monthly cycle before sending any model request', async () => {
+    const { service, prisma, providers } = create();
+    providers.lowCostEnabled = () => true;
+    prisma.aiVisibilityPrompt.findMany.mockResolvedValue(Array.from({length:20},(_,i)=>({id:'q'+i,text:'Buyer question '+i})));
+    prisma.aiVisibilityScan.count = jest.fn().mockResolvedValue(3);
+    prisma.project.findUniqueOrThrow = prisma.project.findUnique;
+    prisma.$executeRaw = jest.fn().mockResolvedValue(1);
+    prisma.$transaction = (fn: any) => fn(prisma);
+    await expect(service.runScanForProject('project')).rejects.toThrow('three monthly visibility cycles');
+    expect(providers.runPrompt).not.toHaveBeenCalled();
+    expect(prisma.aiVisibilityScan.create).not.toHaveBeenCalled();
+  });
+
 });

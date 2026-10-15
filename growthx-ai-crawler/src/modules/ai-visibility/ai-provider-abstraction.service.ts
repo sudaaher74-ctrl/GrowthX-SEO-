@@ -23,6 +23,10 @@ export class AiProviderAbstractionService {
     return this.aiRouter.configuredProviders();
   }
 
+  lowCostEnabled(): boolean {
+    return this.aiRouter.lowCostEnabled();
+  }
+
   async runPrompt(
     prompt: string,
     provider: AiProvider,
@@ -37,7 +41,8 @@ export class AiProviderAbstractionService {
         provider,
         model,
         allowFallback: false,
-        task: AiTask.REASONING,
+        task: AiTask.VISIBILITY_MEASUREMENT,
+        freshMeasurement: true,
         organizationId,
         projectId,
       });

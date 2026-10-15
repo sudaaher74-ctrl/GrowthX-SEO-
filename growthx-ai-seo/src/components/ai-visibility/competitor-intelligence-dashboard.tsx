@@ -1,5 +1,7 @@
 "use client";
 
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import {
   Crosshair,
@@ -28,7 +30,7 @@ import {
 } from "recharts";
 import { GeminiIcon, OpenAiIcon, ClaudeIcon, PerplexityIcon, GrokIcon } from "./ai-visibility-dashboard";
 
-export interface CompetitorIntelligenceDashboardProps {
+export interface CompetitorIntelligenceDashboardProps extends LiveDashboardData {
   domain: string;
   brandLabel: string;
   projects?: Array<{ id: string; name: string }>;
@@ -41,6 +43,7 @@ export interface CompetitorIntelligenceDashboardProps {
 }
 
 export function CompetitorIntelligenceDashboard({
+  report, prompts = [], citations, rootCause, actions = [], competitors = [],
   domain,
   brandLabel,
   projects = [],
@@ -51,166 +54,28 @@ export function CompetitorIntelligenceDashboard({
   onRunScan,
   isScanning = false,
 }: CompetitorIntelligenceDashboardProps) {
+  const router = useRouter();
   const [selectedMetric, setSelectedMetric] = useState<"all" | "keywords" | "traffic" | "backlinks">("all");
-  const displayDomain = domain || "your-domain.com";
+  const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
 
   // Competitor Overview Table Data
-  const competitorRows = [
-    {
-      website: displayDomain,
-      isOwn: true,
-      keywords: "2.4K",
-      top10: "320",
-      da: 28,
-      backlinks: "1.2K",
-      aiMentions: 42,
-      contentScore: 40,
-      barClass: "bg-accent-500",
-    },
-    {
-      website: "countrydelight.com",
-      isOwn: false,
-      keywords: "18.6K",
-      top10: "2.1K",
-      da: 62,
-      backlinks: "4.8K",
-      aiMentions: 96,
-      contentScore: 75,
-      barClass: "bg-series-1",
-    },
-    {
-      website: "amul.com",
-      isOwn: false,
-      keywords: "45.2K",
-      top10: "5.6K",
-      da: 89,
-      backlinks: "22.4K",
-      aiMentions: 124,
-      contentScore: 95,
-      barClass: "bg-series-6",
-    },
-    {
-      website: "nandini.coop",
-      isOwn: false,
-      keywords: "12.8K",
-      top10: "1.9K",
-      da: 68,
-      backlinks: "6.1K",
-      aiMentions: 48,
-      contentScore: 65,
-      barClass: "bg-series-2",
-    },
-    {
-      website: "motherdairy.com",
-      isOwn: false,
-      keywords: "9.6K",
-      top10: "1.3K",
-      da: 56,
-      backlinks: "3.8K",
-      aiMentions: 28,
-      contentScore: 55,
-      barClass: "bg-series-8",
-    },
-    {
-      website: "aavinmilk.com",
-      isOwn: false,
-      keywords: "7.4K",
-      top10: "980",
-      da: 49,
-      backlinks: "2.1K",
-      aiMentions: 18,
-      contentScore: 45,
-      barClass: "bg-series-7",
-    },
-  ];
+  const competitorRows = (report?.shareOfVoice ?? []).map(r=>({website:r.domain ?? displayDomain,isOwn:r.domain===null,keywords:'—',top10:'—',da:'—',backlinks:'—',aiMentions:r.mentions,contentScore:null,barClass:'bg-series-1'}));
 
   // Market Position Bar Chart Data
-  const marketPositionData = [
-    { name: displayBrand, keywords: 2.4, color: "var(--color-series-2)" },
-    { name: "Country Delight", keywords: 18.6, color: "var(--color-series-3)" },
-    { name: "Amul", keywords: 45.2, color: "var(--color-series-6)" },
-    { name: "Nandini", keywords: 12.8, color: "var(--color-series-1)" },
-    { name: "Mother Dairy", keywords: 9.6, color: "var(--color-series-8)" },
-    { name: "Aavin", keywords: 7.4, color: "var(--color-series-7)" },
-  ];
+  const marketPositionData = [] as {name:string;keywords:number;color:string}[];
 
   // Topical Coverage Comparison Data
-  const topicalCoverageData = [
-    { topic: "Dairy Products", yourSite: 72, competitorsAvg: 92 },
-    { topic: "Nutrition", yourSite: 58, competitorsAvg: 86 },
-    { topic: "Health Benefits", yourSite: 43, competitorsAvg: 78 },
-    { topic: "Sustainability", yourSite: 28, competitorsAvg: 64 },
-    { topic: "Recipes", yourSite: 36, competitorsAvg: 71 },
-  ];
+  const topicalCoverageData = [] as {topic:string;yourSite:number;competitorsAvg:number}[];
 
   // Competitor Profiles
-  const competitorProfiles = [
-    {
-      name: "Country Delight",
-      domain: "countrydelight.com",
-      da: 62,
-      keywords: "2.1K",
-      tag: "Direct Competitor",
-      tagTone: "good",
-      desc: "Strong in subscription model and home delivery.",
-    },
-    {
-      name: "Amul",
-      domain: "amul.com",
-      da: 89,
-      keywords: "5.6K",
-      tag: "Market Leader",
-      tagTone: "brand",
-      desc: "Highest brand visibility and widest product range.",
-    },
-    {
-      name: "Nandini",
-      domain: "nandini.coop",
-      da: 68,
-      keywords: "1.9K",
-      tag: "Regional Competitor",
-      tagTone: "warning",
-      desc: "Strong regional presence and government backing.",
-    },
-    {
-      name: "Mother Dairy",
-      domain: "motherdairy.com",
-      da: 56,
-      keywords: "1.3K",
-      tag: "Product Competitor",
-      tagTone: "accent",
-      desc: "Good distribution network and varied product line.",
-    },
-    {
-      name: "Aavin Milk",
-      domain: "aavinmilk.com",
-      da: 49,
-      keywords: "980",
-      tag: "Regional Competitor",
-      tagTone: "warning",
-      desc: "Strong in regional market with loyal base.",
-    },
-  ];
+  const competitorProfiles = competitors.map(c=>({name:c.label ?? c.name ?? c.domain,domain:c.domain,da:'—',keywords:'—',tag:'Tracked competitor',tagTone:'brand',desc:c.lastAnalyzedAt ? 'Last analysed '+recordedDate(c.lastAnalyzedAt) : 'Not analysed yet'}));
 
   // Content Gap Opportunities
-  const contentGaps = [
-    { topic: "Paneer Recipes", covering: "4 / 5", volume: "12,000", level: "High", tone: "error" },
-    { topic: "Lactose Free Milk", covering: "3 / 5", volume: "8,500", level: "High", tone: "error" },
-    { topic: "Kids Nutrition", covering: "4 / 5", volume: "6,200", level: "Medium", tone: "warning" },
-    { topic: "Organic Dairy", covering: "3 / 5", volume: "5,800", level: "Medium", tone: "warning" },
-    { topic: "Milk Shelf Life", covering: "4 / 5", volume: "4,300", level: "Low", tone: "good" },
-  ];
+  const contentGaps = [] as {topic:string;covering:string;volume:string;level:string;tone:string}[];
 
   // AI Visibility Comparison Table
-  const aiVisibilityMatrix = [
-    { domain: displayDomain, gemini: 8, openai: 10, claude: 6, perplexity: 12, grok: 6, total: 42, isOwn: true },
-    { domain: "countrydelight.com", gemini: 24, openai: 28, claude: 18, perplexity: 32, grok: 16, total: 96, isOwn: false },
-    { domain: "amul.com", gemini: 32, openai: 36, claude: 28, perplexity: 44, grok: 24, total: 124, isOwn: false },
-    { domain: "nandini.coop", gemini: 14, openai: 16, claude: 8, perplexity: 18, grok: 12, total: 48, isOwn: false },
-    { domain: "motherdairy.com", gemini: 8, openai: 10, claude: 4, perplexity: 14, grok: 8, total: 28, isOwn: false },
-    { domain: "aavinmilk.com", gemini: 6, openai: 8, claude: 2, perplexity: 10, grok: 4, total: 18, isOwn: false },
-  ];
+  const aiVisibilityMatrix = (report?.shareOfVoice ?? []).map(r=>({domain:r.domain ?? displayDomain,gemini:'—',openai:'—',claude:'—',perplexity:'—',grok:'—',total:r.mentions,isOwn:r.domain===null}));
 
   return (
     <div className="space-y-6 pb-12 font-sans text-brand-950">
@@ -276,7 +141,7 @@ export function CompetitorIntelligenceDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning}
+            disabled={isScanning || !currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -302,7 +167,7 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">5</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{competitors.length}</span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">Monitored websites</p>
         </div>
@@ -318,12 +183,12 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">12.4K</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 28%
+              —
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Competitors rank for 12.4K keywords</p>
+          <p className="mt-1 text-[11px] text-brand-400">Keyword rankings not measured</p>
         </div>
 
         {/* Topical Coverage */}
@@ -337,9 +202,9 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">78%</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Competitors cover 78% more topics</p>
+          <p className="mt-1 text-[11px] text-brand-400">Topic coverage not measured</p>
         </div>
 
         {/* Backlinks */}
@@ -353,12 +218,12 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">3.2K</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 41%
+              —
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Competitors have 3.2K more backlinks</p>
+          <p className="mt-1 text-[11px] text-brand-400">Backlinks not measured</p>
         </div>
 
         {/* AI Mentions */}
@@ -372,12 +237,12 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">286</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{report?.shareOfVoice?.reduce((sum,r)=>sum+r.mentions,0) ?? "—"}</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 65%
+              —
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Total mentions across 5 AI platforms</p>
+          <p className="mt-1 text-[11px] text-brand-400">Mentions from the latest saved run</p>
         </div>
       </div>
 
@@ -424,7 +289,7 @@ export function CompetitorIntelligenceDashboard({
                   <th className="pb-2 font-medium text-right">Content Score</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!competitorRows.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {competitorRows.map((row) => (
                   <tr key={row.website} className={`hover:bg-brand-50/50 ${row.isOwn ? "bg-primary-50/20 font-semibold" : ""}`}>
                     <td className="py-2.5">
@@ -443,7 +308,7 @@ export function CompetitorIntelligenceDashboard({
                     <td className="py-2.5 text-right">
                       <div className="inline-block w-20">
                         <div className="h-1.5 w-full rounded-full bg-brand-100 overflow-hidden">
-                          <div className={`h-full rounded-full ${row.barClass}`} style={{ width: `${row.contentScore}%` }} />
+                          <div className={`h-full rounded-full ${row.barClass}`} style={{ width: row.contentScore ?? 0 }} />
                         </div>
                       </div>
                     </td>
@@ -472,7 +337,7 @@ export function CompetitorIntelligenceDashboard({
             </div>
 
             <div className="mt-4 h-[140px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              {marketPositionData.length ? (<ResponsiveContainer width="100%" height="100%">
                 <BarChart data={marketPositionData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                   <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={10} tick={{ fill: "var(--color-brand-600)" }} />
@@ -487,7 +352,7 @@ export function CompetitorIntelligenceDashboard({
                   />
                   <Bar dataKey="keywords" name="Keywords (K)" fill="var(--color-series-6)" radius={[4, 4, 0, 0]} barSize={18} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer>) : <NoMeasurement />}
             </div>
           </div>
 
@@ -509,7 +374,7 @@ export function CompetitorIntelligenceDashboard({
             </div>
 
             <div className="mt-4 h-[140px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              {topicalCoverageData.length ? (<ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topicalCoverageData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }} barGap={4}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                   <XAxis dataKey="topic" tickLine={false} axisLine={false} fontSize={10} tick={{ fill: "var(--color-brand-600)" }} />
@@ -525,7 +390,7 @@ export function CompetitorIntelligenceDashboard({
                   <Bar dataKey="yourSite" name="Your Site (%)" fill="var(--color-accent-600)" radius={[3, 3, 0, 0]} barSize={12} />
                   <Bar dataKey="competitorsAvg" name="Competitors Avg (%)" fill="var(--color-accent-200)" radius={[3, 3, 0, 0]} barSize={12} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer>) : <NoMeasurement />}
             </div>
           </div>
         </div>
@@ -538,7 +403,7 @@ export function CompetitorIntelligenceDashboard({
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Competitor Profiles</h2>
             <p className="mt-0.5 text-xs text-brand-500">Quick overview of each competitor&apos;s strengths and positioning.</p>
           </div>
-          <button type="button" className="text-xs font-semibold text-primary-600 hover:underline">
+          <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=actions")}> 
             View Detailed Analysis →
           </button>
         </div>
@@ -569,7 +434,7 @@ export function CompetitorIntelligenceDashboard({
               <button
                 type="button"
                 className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:underline"
-              >
+               onClick={() => router.push("/ai-visibility?tab=actions")}> 
                 <span>View Analysis</span>
                 <ArrowRight className="h-3 w-3" />
               </button>
@@ -602,7 +467,7 @@ export function CompetitorIntelligenceDashboard({
                   <th className="pb-2 font-medium text-right">Opportunity</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!contentGaps.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {contentGaps.map((gap) => (
                   <tr key={gap.topic} className="hover:bg-brand-50/50">
                     <td className="py-2.5 font-semibold text-brand-900">{gap.topic}</td>
@@ -653,7 +518,7 @@ export function CompetitorIntelligenceDashboard({
                   <th className="pb-2 font-medium text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!aiVisibilityMatrix.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {aiVisibilityMatrix.map((row) => (
                   <tr key={row.domain} className={`hover:bg-brand-50/50 ${row.isOwn ? "font-bold text-brand-950" : "text-brand-700"}`}>
                     <td className="py-2.5 font-medium">{row.domain}</td>
@@ -680,47 +545,16 @@ export function CompetitorIntelligenceDashboard({
               <h2 className="text-sm font-bold text-brand-950">Key Insights & Actions</h2>
             </div>
 
-            <ol className="mt-4 space-y-2.5 text-xs text-brand-700 leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                  1
-                </span>
-                <span>Amul dominates AI mentions (124) with strong brand authority.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                  2
-                </span>
-                <span>Country Delight has the strongest content coverage in recipes.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                  3
-                </span>
-                <span>There is a high opportunity in &ldquo;Paneer Recipes&rdquo; (12K search volume).</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                  4
-                </span>
-                <span>Competitors have 3.2K more backlinks on average.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                  5
-                </span>
-                <span>Your AI visibility on Perplexity can be improved (+125% potential).</span>
-              </li>
-            </ol>
+            <ol className="mt-4 space-y-2.5 text-xs text-brand-700 leading-relaxed">{actions.length ? actions.map(a=><li key={a.id}>{a.title}</li>) : <li>No evidence-backed actions yet.</li>}</ol>
           </div>
 
           <div className="mt-5">
             <button
               type="button"
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
-            >
+             onClick={() => router.push("/ai-visibility?tab=actions")}> 
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Generate Detailed Action Plan with AI</span>
+              <span>Review Recorded Action Plan</span>
             </button>
           </div>
         </div>

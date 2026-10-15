@@ -92,13 +92,11 @@ export interface VisibilityJourney {
 export interface VisibilityJourneyResponse {
   journey: VisibilityJourney | null;
   answers: VisibilityAnswer[];
-  providers: { provider: string; configured: boolean; model: string | null }[];
+  providers: { provider: string; configured: boolean; model: string | null; unavailableReason?: string | null }[];
 }
 export const journeyRunning = (status?: string) =>
   !!status && ["QUEUED", "PREPARING", "CHECKING", "PLANNING"].includes(status);
-export const providerName = (provider: string) =>
-  provider === "GEMINI"
-    ? "Gemini"
-    : provider === "SARVAM"
-      ? "Sarvam"
-      : provider;
+export const providerName = (provider: string) => ({
+  GEMINI: 'Gemini Flash', OPENAI: 'GPT-4.1 Mini', ANTHROPIC: 'Claude Haiku 4.5',
+  PERPLEXITY: 'Perplexity Sonar', GROK: 'Grok 4 Fast', SARVAM: 'Sarvam', OPENROUTER: 'OpenRouter',
+}[provider] ?? provider);

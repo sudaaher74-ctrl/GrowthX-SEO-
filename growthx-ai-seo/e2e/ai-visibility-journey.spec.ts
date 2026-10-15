@@ -11,7 +11,10 @@ function fixture(): VisibilityJourneyResponse {
   return {
     providers: [
       { provider: "GEMINI", configured: true, model: "fixture-gemini" },
-      { provider: "SARVAM", configured: true, model: "fixture-sarvam" },
+      { provider: "OPENAI", configured: true, model: "openai/gpt-4.1-mini" },
+      { provider: "ANTHROPIC", configured: true, model: "anthropic/claude-haiku-4.5" },
+      { provider: "PERPLEXITY", configured: true, model: "perplexity/sonar" },
+      { provider: "GROK", configured: true, model: "x-ai/grok-4-fast", unavailableReason: "The approved Grok model is unavailable. No model was substituted." },
     ],
     answers: [],
     journey: {
@@ -94,7 +97,7 @@ function fixture(): VisibilityJourneyResponse {
             summary: "Local dairy delivery.",
           },
         ],
-        questions: Array.from({ length: 10 }, (_, i) => ({
+        questions: Array.from({ length: 20 }, (_, i) => ({
           text: `Which cow milk delivery option ${i + 1} serves ${locations[i % 3]}?`,
           offering: "cow milk",
           location: locations[i % 3],
@@ -161,7 +164,7 @@ test("reviews local questions before checking and preserves missing-source truth
   await setup(page, data, (body) => {
     sent.brief = (body as { brief: VisibilityBrief }).brief;
   });
-  await page.goto("/ai-visibility");
+  await page.goto("/ai-visibility/journey");
   await expect(
     page.getByRole("heading", {
       name: "What we understand about your business",
@@ -179,21 +182,21 @@ test("reviews local questions before checking and preserves missing-source truth
   await page.getByRole("tab", { name: "2. Buyer questions" }).click();
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
-  ).toHaveCount(10);
+  ).toHaveCount(20);
   await page
     .getByRole("textbox", { name: "Buyer question 1", exact: true })
     .fill("Which cow milk delivery is best for families in Panvel?");
   await page
-    .getByRole("button", { name: "Confirm & check 10 questions" })
+    .getByRole("button", { name: "Confirm & check 20 questions" })
     .click();
   await expect(page.getByRole("status")).toContainText(
-    "Asking Gemini and Sarvam",
+    "Asking the approved models",
   );
   expect(sent.brief?.questions[0].text).toContain("families in Panvel");
-  expect(sent.brief?.questions).toHaveLength(10);
+  expect(sent.brief?.questions).toHaveLength(20);
   await page.reload();
   await expect(page.getByRole("status")).toContainText(
-    "Asking Gemini and Sarvam",
+    "Asking the approved models",
   );
   await expect(
     page.getByRole("button", { name: "Refresh business & questions" }),
@@ -223,11 +226,11 @@ test("shows measured results, failed checks, competitor evidence and action plan
     },
     {
       id: "answer2",
-      provider: "SARVAM",
-      model: "fixture-sarvam",
+      provider: "OPENAI",
+      model: "openai/gpt-4.1-mini",
       promptText: "Best cow milk delivery in Panvel?",
       rawResponse: null,
-      errorMessage: "Sarvam could not answer.",
+      errorMessage: "GPT-4.1 Mini could not answer.",
       createdAt: "2026-10-14T10:05:00Z",
       analysis: null,
       mentions: [],
@@ -262,11 +265,11 @@ test("shows measured results, failed checks, competitor evidence and action plan
     },
   ];
   await setup(page, data);
-  await page.goto("/ai-visibility?tab=answers");
+  await page.goto("/ai-visibility/journey?tab=answers");
   await expect(page.getByText("Not mentioned", { exact: true })).toBeVisible();
   await expect(page.getByText("Check failed", { exact: true })).toBeVisible();
   await expect(page.getByText("0 / 1", { exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Sarvam", exact: true }).click();
+  await page.getByRole("button", { name: "GPT-4.1 Mini", exact: true }).click();
   await expect(page.getByText("Not mentioned", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "4. Competitor gaps" }).click();
   await expect(
@@ -291,9 +294,9 @@ test("shows measured results, failed checks, competitor evidence and action plan
 test("keeps the review usable on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, fixture());
-  await page.goto("/ai-visibility?tab=questions");
+  await page.goto("/ai-visibility/journey?tab=questions");
   await expect(
-    page.getByRole("textbox", { name: "Buyer question 10", exact: true }),
+    page.getByRole("textbox", { name: "Buyer question 20", exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(

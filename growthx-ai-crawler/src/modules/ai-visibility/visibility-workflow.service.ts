@@ -1,3 +1,4 @@
+import { LOW_COST_CYCLE_PREFIX, monthlyMonitoringCycles } from './monitoring-cycle-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -46,7 +47,8 @@ import {
 } from "./visibility-workflow.schema";
 
 const ACTIVE = ["QUEUED", "PREPARING", "CHECKING", "PLANNING"];
-const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM];
+const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.OPENROUTER];
+const MONITORING_PROVIDERS = [AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY, AiProvider.GROK];
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 type JobData = { id: string; phase: "PREPARE" | "CHECK" };
@@ -107,9 +109,17 @@ export class VisibilityWorkflowService
   }
 
   private providers() {
-    return PROVIDERS.filter((p) =>
+    return this.supportedProviders().filter((p) =>
       this.router.configuredProviders().includes(p),
     );
+  }
+
+  private supportedProviders() {
+    return this.router.lowCostEnabled?.() ? MONITORING_PROVIDERS : PROVIDERS;
+  }
+
+  private analysisProviders() {
+    return this.router.lowCostEnabled?.() ? this.providers().filter(p => p === AiProvider.GEMINI) : this.providers();
   }
 
   async read(projectId: string) {
@@ -122,11 +132,12 @@ export class VisibilityWorkflowService
     return {
       journey,
       answers,
-      providers: PROVIDERS.map((provider) => ({
+      providers: await Promise.all(this.supportedProviders().map(async (provider) => ({
         provider,
         configured: configured.includes(provider),
         model: this.router.configuredModels()[provider] ?? null,
-      })),
+        unavailableReason: configured.includes(provider) ? await this.router.providerAvailability?.(provider) ?? null : 'Provider credentials are not configured.',
+      }))),
     };
   }
 
@@ -134,7 +145,7 @@ export class VisibilityWorkflowService
     await this.ready();
     if (!this.providers().length)
       throw new ServiceUnavailableException(
-        "Configure Gemini or Sarvam before building AI Visibility.",
+        "Configure Gemini, Sarvam or OpenRouter before building AI Visibility.",
       );
     let journey;
     try {
@@ -160,7 +171,7 @@ export class VisibilityWorkflowService
     await this.ready();
     if (!this.providers().length)
       throw new ServiceUnavailableException(
-        "Configure Gemini or Sarvam before checking answers.",
+        "Configure Gemini, Sarvam or OpenRouter before checking answers.",
       );
     const journey = await this.prisma.aiVisibilityJourney.findFirst({
       where: { id, projectId },
@@ -183,6 +194,7 @@ export class VisibilityWorkflowService
       rawBrief ?? journey.brief,
       journey.context as unknown as VisibilityContext,
       true,
+      journey.scanId ? (journey.brief as unknown as VisibilityBrief).questions.length : undefined,
     );
     brief.analysts =
       (journey.brief as unknown as VisibilityBrief).analysts ?? [];
@@ -305,7 +317,7 @@ export class VisibilityWorkflowService
   ) {
     const result = await this.router.generate({
       projectId,
-      provider,
+      provider: this.router.lowCostEnabled?.() ? AiProvider.GEMINI : provider,
       allowFallback: false,
       task: AiTask.AI_VISIBILITY_ANALYSIS,
       systemInstruction: CONTEXT_INSTRUCTION,
@@ -341,13 +353,7 @@ export class VisibilityWorkflowService
     let brief = previous.brief as unknown as VisibilityBrief | null;
     const analysts = brief?.analysts ?? [];
     const errors: string[] = [];
-    for (const provider of PROVIDERS) {
-      if (!this.providers().includes(provider)) {
-        errors.push(
-          `${provider} is not configured and did not analyse this business.`,
-        );
-        continue;
-      }
+    for (const provider of this.analysisProviders()) {
       if (analysts.some((a) => a.provider === provider)) continue;
       try {
         let result = await this.ask(
@@ -440,6 +446,17 @@ export class VisibilityWorkflowService
     if (!brief?.reviewed || !ctx)
       throw new BadRequestException("Review the business and questions first.");
     const scanId = journey.scanId || id;
+    if (this.router.lowCostEnabled?.() && !journey.scanId) {
+      await this.prisma.$transaction(async tx => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(734193813)`;
+        if (await tx.aiVisibilityScan.findUnique({ where: { id: scanId } })) return;
+        const project = await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { organizationId: true } });
+        const now = new Date();
+        const count = await tx.aiVisibilityScan.count({ where: monthlyMonitoringCycles(project.organizationId, now) });
+        if (count >= 3) throw new BadRequestException('This customer has used its three monthly visibility cycles.');
+        await tx.aiVisibilityScan.create({ data: { id: scanId, projectId, cycleId: `${this.router.lowCostEnabled?.() ? LOW_COST_CYCLE_PREFIX : ''}journey-${id}`, status: 'RUNNING', startedAt: new Date() } });
+      });
+    }
     await this.prisma.aiVisibilityScan.upsert({
       where: { id: scanId },
       update: { status: "RUNNING" },
@@ -457,13 +474,7 @@ export class VisibilityWorkflowService
     });
     const errors: string[] = [];
     let finished = 0;
-    for (const provider of PROVIDERS) {
-      if (!this.providers().includes(provider)) {
-        errors.push(
-          `${provider} is not configured. Its 10 answers were not measured.`,
-        );
-        continue;
-      }
+    for (const provider of this.providers()) {
       const runId = `${id}-${provider}`;
       await this.prisma.aiVisibilityScanRun.upsert({
         where: { id: runId },
@@ -506,6 +517,7 @@ export class VisibilityWorkflowService
               provider,
               allowFallback: false,
               task: AiTask.AI_VISIBILITY_ANALYSIS,
+              freshMeasurement: true,
               prompt: question.text,
               maxTokens: 1200,
               timeoutMs: 90_000,
@@ -549,7 +561,7 @@ export class VisibilityWorkflowService
           where: { id },
           data: {
             progress:
-              25 + Math.round((finished / (this.providers().length * 10)) * 45),
+              25 + Math.round((finished / (this.providers().length * brief.questions.length)) * 45),
           },
         });
       }
@@ -677,7 +689,7 @@ ANSWERS: ${JSON.stringify(pending.map((a) => ({ id: a.id, question: a.promptText
       .digest("hex");
     const savedAssessments = list(journey.analysis) as VisibilityAssessment[];
     const assessments: VisibilityAssessment[] = [];
-    for (const provider of this.providers()) {
+    for (const provider of this.analysisProviders()) {
       if (!usable.length) break;
       const saved = savedAssessments.find(
         (a) =>
@@ -691,7 +703,7 @@ ANSWERS: ${JSON.stringify(pending.map((a) => ({ id: a.id, question: a.promptText
         const result = await this.ask(
           projectId,
           provider,
-          `Use the reviewed business, all four evidence sources, and the measured answer findings from both assistants to create a local lead and GEO action plan.
+          `Use the reviewed business, all four evidence sources, and the measured answer findings from all configured assistants to create a local lead and GEO action plan.
 For every competitor gap separate an observed difference from a hypothesis about why AI recommends a rival. Never claim to know a model's internal ranking reasons.
 If a named rival has no crawl evidence, say its website has not been investigated. Do not invent pages, reviews or practices.
 Prioritize service-area pages, local discovery, conversion paths and measurable lead events according to facts. Use GSC and GA4 evidence where available, distinguishing missing data from zero.
@@ -735,7 +747,7 @@ BUSINESS: ${JSON.stringify(brief)}\nEVIDENCE: ${JSON.stringify(ctx)}\nFINDINGS: 
     if (measured) await this.metrics.calculateScanMetrics(scanId, projectId);
     const status = !usable.length
       ? "FAILED"
-      : errors.length || assessments.length !== 2
+      : errors.length || assessments.length !== this.analysisProviders().length
         ? "PARTIAL"
         : "COMPLETED";
     await this.prisma.aiVisibilityScan.update({

@@ -2780,6 +2780,11 @@ model StrategyAction {
 /// relations. This is a billing ledger — deleting a project should not erase
 /// the record of what that project spent.
 model AiUsageRecord {
+  budgetCategory   String?
+  reservedCostUsd  Float?
+  actualCostUsd    Float?
+  webSearchCostUsd Float?
+  generationId    String?
   id               String   @id @default(uuid())
   organizationId   String?
   projectId        String?
@@ -2806,6 +2811,13 @@ model AiUsageRecord {
   @@index([projectId, createdAt])
   @@index([taskType, createdAt])
   @@index([provider, createdAt])
+  @@index([budgetCategory, createdAt])
+}
+
+model AiInternalAnalysisCache {
+  key        String   @id
+  completion Json
+  expiresAt  DateTime @db.Timestamptz
 }
 
 /// What one row of the token ledger records. A closed set, so a typo is a
@@ -4359,8 +4371,8 @@ model AiVisibilitySettings {
   projectId      String               @unique
   enabledModels  String[]
   useOpenRouter  Boolean              @default(false)
-  promptsQuota   Int                  @default(10)
-  scansPerMonth  Int                  @default(2)
+  promptsQuota   Int                  @default(20)
+  scansPerMonth  Int                  @default(3)
   updatedAt      DateTime             @updatedAt
 
   project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -416,7 +416,7 @@ export class MarketResearchService {
     try {
       // 1. Classify and plan.
       emit({ stage: 'classify', status: 'started' });
-      const classification = await this.classify(question, usage);
+      const classification = await this.classify(question, usage, projectId);
       emit({
         stage: 'classify',
         status: 'done',
@@ -470,6 +470,7 @@ export class MarketResearchService {
       // pages said, not over raw HTML text.
       if (webSources.length > 0) {
         const notes = await this.models.generate({
+          projectId,
           step: 'web-research',
           role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
           instructions:
@@ -537,6 +538,7 @@ export class MarketResearchService {
 
       emit({ stage: 'answer', status: 'started' });
       const answerResult = await this.models.generate({
+        projectId,
         step: 'answer',
         role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
         instructions: ANSWER_INSTRUCTIONS,
@@ -644,8 +646,9 @@ export class MarketResearchService {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  private async classify(question: string, usage: ModelUsage[]) {
+  private async classify(question: string, usage: ModelUsage[], projectId?: string) {
     const result = await this.models.generate({
+      projectId,
       step: 'classify',
       role: ModelRole.WORKER,
       instructions: CLASSIFY_INSTRUCTIONS,

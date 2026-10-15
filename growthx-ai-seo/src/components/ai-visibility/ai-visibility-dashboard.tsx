@@ -1,5 +1,7 @@
 "use client";
 
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import {
   Sparkles,
@@ -34,9 +36,7 @@ import {
 import type { VisibilityReport } from "@/lib/api-types";
 import type { AvPrompt } from "./av-shared";
 
-export interface AiVisibilityDashboardProps {
-  report?: VisibilityReport | null;
-  prompts?: AvPrompt[];
+export interface AiVisibilityDashboardProps extends LiveDashboardData {
   domain: string;
   brandLabel: string;
   projects?: Array<{ id: string; name: string }>;
@@ -99,104 +99,32 @@ export function GrokIcon({ className = "w-4 h-4" }: { className?: string }) {
 interface PlatformData {
   id: "gemini" | "openai" | "claude" | "perplexity" | "grok";
   name: string;
-  score: number;
+  score: number | null;
   delta: string;
-  mentions: number;
-  recommendations: number;
-  citations: number;
+  mentions: number | null;
+  recommendations: number | null;
+  citations: number | null;
   colorVar: string;
   barClass: string;
   icon: (props: { className?: string }) => React.JSX.Element;
   iconColor: string;
 }
 
-const PLATFORMS: PlatformData[] = [
-  {
-    id: "gemini",
-    name: "Gemini",
-    score: 78,
-    delta: "↗ 32%",
-    mentions: 42,
-    recommendations: 28,
-    citations: 18,
-    colorVar: "var(--color-series-1)",
-    barClass: "bg-series-1",
-    icon: GeminiIcon,
-    iconColor: "text-series-1",
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    score: 65,
-    delta: "↗ 18%",
-    mentions: 35,
-    recommendations: 18,
-    citations: 12,
-    colorVar: "var(--color-series-2)",
-    barClass: "bg-series-2",
-    icon: OpenAiIcon,
-    iconColor: "text-brand-950",
-  },
-  {
-    id: "claude",
-    name: "Claude",
-    score: 62,
-    delta: "↗ 24%",
-    mentions: 28,
-    recommendations: 20,
-    citations: 10,
-    colorVar: "var(--color-series-7)",
-    barClass: "bg-series-7",
-    icon: ClaudeIcon,
-    iconColor: "text-series-7",
-  },
-  {
-    id: "perplexity",
-    name: "Perplexity",
-    score: 70,
-    delta: "↗ 41%",
-    mentions: 38,
-    recommendations: 24,
-    citations: 26,
-    colorVar: "var(--color-series-6)",
-    barClass: "bg-series-6",
-    icon: PerplexityIcon,
-    iconColor: "text-series-8",
-  },
-  {
-    id: "grok",
-    name: "Grok",
-    score: 60,
-    delta: "↗ 27%",
-    mentions: 26,
-    recommendations: 16,
-    citations: 14,
-    colorVar: "var(--color-series-5)",
-    barClass: "bg-series-5",
-    icon: GrokIcon,
-    iconColor: "text-brand-950",
-  },
-];
+const PLATFORMS = [
+{id:'gemini', name:'Gemini', colorVar:'var(--color-series-1)',barClass:'bg-series-1',icon:GeminiIcon,iconColor:'text-series-1'},
+{id:'openai', name:'OpenAI', colorVar:'var(--color-series-2)',barClass:'bg-series-2',icon:OpenAiIcon,iconColor:'text-brand-950'},
+{id:'claude', name:'Claude', colorVar:'var(--color-series-7)',barClass:'bg-series-7',icon:ClaudeIcon,iconColor:'text-series-7'},
+{id:'perplexity', name:'Perplexity', colorVar:'var(--color-series-6)',barClass:'bg-series-6',icon:PerplexityIcon,iconColor:'text-series-8'},
+{id:'grok', name:'Grok', colorVar:'var(--color-series-5)',barClass:'bg-series-5',icon:GrokIcon,iconColor:'text-brand-950'}
+] as const;
 
 /* ── Historical Trend Data (5 platforms over 5 weeks) ────────────── */
 
-const TREND_POINTS = [
-  { date: "Aug 1", gemini: 46, openai: 38, claude: 30, perplexity: 52, grok: 22 },
-  { date: "Aug 8", gemini: 58, openai: 44, claude: 36, perplexity: 62, grok: 28 },
-  { date: "Aug 15", gemini: 66, openai: 52, claude: 42, perplexity: 67, grok: 36 },
-  { date: "Aug 22", gemini: 64, openai: 50, claude: 41, perplexity: 66, grok: 38 },
-  { date: "Aug 29", gemini: 78, openai: 65, claude: 62, perplexity: 70, grok: 60 },
-];
+
 
 /* ── Mentions vs Competitors Comparison Data ─────────────────────── */
 
-const MENTION_COMPARISONS = [
-  { platform: "Gemini", yourBrand: 42, competitors: 28, id: "gemini" },
-  { platform: "OpenAI", yourBrand: 35, competitors: 18, id: "openai" },
-  { platform: "Claude", yourBrand: 28, competitors: 32, id: "claude" },
-  { platform: "Perplexity", yourBrand: 38, competitors: 26, id: "perplexity" },
-  { platform: "Grok", yourBrand: 26, competitors: 34, id: "grok" },
-];
+
 
 /* ── Citation Sources Table Data ─────────────────────────────────── */
 
@@ -210,6 +138,7 @@ interface CitationSource {
 /* ── Component Main Implementation ──────────────────────────────── */
 
 export function AiVisibilityDashboard({
+  report, prompts = [], citations, rootCause, actions = [], competitors = [],
   domain,
   brandLabel,
   projects = [],
@@ -221,76 +150,33 @@ export function AiVisibilityDashboard({
   isScanning,
   onNavigateTab,
 }: AiVisibilityDashboardProps) {
+  const router = useRouter();
   const [selectedModel, setSelectedModel] = useState<PlatformData["id"]>("gemini");
   const [activeResponseIndex, setActiveResponseIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const displayDomain = domain || "your-domain.com";
+  const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
 
   // Citation sources with dynamic user domain in the first row
-  const citationSources: CitationSource[] = [
-    {
-      domain: displayDomain,
-      citedBy: ["gemini", "openai", "perplexity"],
-      mentions: 24,
-      lastSeen: "Aug 28, 2025",
-    },
-    {
-      domain: "instagram.com",
-      citedBy: ["gemini", "openai"],
-      mentions: 18,
-      lastSeen: "Aug 27, 2025",
-    },
-    {
-      domain: "facebook.com",
-      citedBy: ["gemini", "openai"],
-      mentions: 15,
-      lastSeen: "Aug 26, 2025",
-    },
-    {
-      domain: "justdial.com",
-      citedBy: ["gemini", "openai", "perplexity"],
-      mentions: 12,
-      lastSeen: "Aug 25, 2025",
-    },
-    {
-      domain: "youtube.com",
-      citedBy: ["claude", "gemini", "openai"],
-      mentions: 10,
-      lastSeen: "Aug 24, 2025",
-    },
-  ];
+  const citationSources = (citations?.citationsByDomain ?? []).map(c => ({domain:c.domain, citedBy:[] as PlatformData['id'][], mentions:c.count, lastSeen:'Unavailable'}));
 
   // Model-specific quotes for the "Latest AI Responses" card
-  const modelQuotes: Record<PlatformData["id"], string[]> = {
-    gemini: [
-      `"${displayBrand} is a popular choice for quality offerings and trusted service, highlighted for high standards, transparent sourcing, and direct-to-consumer reliability. They emphasize freshness, customer care, and prompt delivery across regions."`,
-      `"When looking for reliable regional providers, ${displayBrand} consistently ranks as a recommended option with verified client feedback and strong consistency in product availability."`,
-    ],
-    openai: [
-      `"${displayBrand} operates as an established provider known for consistent quality and customer satisfaction. It is regularly recommended for users prioritizing verified purity, direct ordering options, and timely support."`,
-    ],
-    claude: [
-      `"In comparison to market competitors, ${displayBrand} maintains strong standing in dedicated customer service and reliable direct distribution, though competitors are frequently cited in general category guides."`,
-    ],
-    perplexity: [
-      `"According to multiple web sources, ${displayBrand} is a leading brand recognized for authentic production standards and rapid order turnaround, frequently referenced in local review digests and social directories."`,
-    ],
-    grok: [
-      `"${displayBrand} shows notable positive engagement across social mentions and customer feedback channels, with growing visibility for its core product line and competitive pricing structure."`,
-    ],
-  };
+  const modelQuotes = Object.fromEntries(PLATFORMS.map(p => [p.id, savedAnswers(prompts).filter(a => a.platform===p.id).map(a => a.answerExcerpt!)])) as Record<PlatformData['id'],string[]>;
 
   const currentQuotes = modelQuotes[selectedModel] || modelQuotes.gemini;
-  const currentQuote = currentQuotes[activeResponseIndex % currentQuotes.length];
+  const currentQuote = currentQuotes[activeResponseIndex % (currentQuotes.length || 1)] ?? 'No saved response for this model yet.';
+  const answer = savedAnswers(prompts).filter(a => a.platform === selectedModel)[activeResponseIndex % (currentQuotes.length || 1)];
+  const platforms: PlatformData[] = PLATFORMS.map(p => { const measured=report?.byAssistant.find(r=>platformKey(r.assistant)===p.id); return {...p,score:measured && measured.checked>0?measured.citationSharePct:null,delta:'—',mentions:measured && measured.checked>0?measured.cited:null,recommendations:null,citations:null}; });
+  const trendPoints = (report?.trend ?? []).filter(r=>r.checked>0).map(r=>({date:new Date(r.weekStart).toLocaleDateString(),overall:r.citationSharePct}));
+  const mentionComparisons = platforms.filter(p=>p.mentions!==null).map(p=>({platform:p.name,yourBrand:p.mentions,competitors:null,id:p.id}));
 
   const handleNextQuote = () => {
-    setActiveResponseIndex((prev) => (prev + 1) % currentQuotes.length);
+    setActiveResponseIndex((prev) => (prev + 1) % (currentQuotes.length || 1));
   };
 
   const handlePrevQuote = () => {
-    setActiveResponseIndex((prev) => (prev - 1 + currentQuotes.length) % currentQuotes.length);
+    setActiveResponseIndex((prev) => (prev - 1 + currentQuotes.length) % (currentQuotes.length || 1));
   };
 
   return (
@@ -360,7 +246,7 @@ export function AiVisibilityDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning}
+            disabled={isScanning || !currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -375,7 +261,7 @@ export function AiVisibilityDashboard({
 
       {/* ── Top Row: 5 Platform Cards ───────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
-        {PLATFORMS.map((platform) => {
+        {platforms.map((platform) => {
           const Icon = platform.icon;
           return (
             <div
@@ -399,7 +285,7 @@ export function AiVisibilityDashboard({
               {/* Big Score */}
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="text-2xl font-bold tracking-tight text-brand-950">
-                  {platform.score}
+                  {platform.score ?? "—"}
                 </span>
                 <span className="text-xs font-medium text-brand-400">/100</span>
               </div>
@@ -408,7 +294,7 @@ export function AiVisibilityDashboard({
               <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
                 <div
                   className={`h-full rounded-full ${platform.barClass}`}
-                  style={{ width: `${platform.score}%` }}
+                  style={{ width: `${platform.score ?? 0}%` }}
                 />
               </div>
 
@@ -417,19 +303,19 @@ export function AiVisibilityDashboard({
                 <div className="pr-1">
                   <span className="block text-[10px] font-medium text-brand-400">Mentions</span>
                   <span className="mt-0.5 block text-xs font-bold text-brand-800">
-                    {platform.mentions}
+                    {platform.mentions ?? "—"}
                   </span>
                 </div>
                 <div className="px-1">
                   <span className="block text-[10px] font-medium text-brand-400">Recommendations</span>
                   <span className="mt-0.5 block text-xs font-bold text-brand-800">
-                    {platform.recommendations}
+                    {platform.recommendations ?? "—"}
                   </span>
                 </div>
                 <div className="pl-1">
                   <span className="block text-[10px] font-medium text-brand-400">Citations</span>
                   <span className="mt-0.5 block text-xs font-bold text-brand-800">
-                    {platform.citations}
+                    {platform.citations ?? "—"}
                   </span>
                 </div>
               </div>
@@ -446,12 +332,12 @@ export function AiVisibilityDashboard({
             <div>
               <h2 className="text-sm font-bold text-brand-950 md:text-base">Visibility Trends</h2>
               <p className="mt-0.5 text-xs text-brand-500">
-                Your overall visibility score across AI platforms over time.
+                Share of saved valid answers mentioning your brand over time.
               </p>
             </div>
             <div className="relative">
               <div className="flex items-center rounded-lg border bg-white px-2.5 py-1 text-xs font-medium text-brand-700 shadow-xs">
-                <span>Last 30 Days</span>
+                <span>Last {days} Days</span>
                 <ChevronDown className="ml-1 h-3 w-3 text-brand-400" />
               </div>
             </div>
@@ -459,8 +345,8 @@ export function AiVisibilityDashboard({
 
           {/* Line Chart */}
           <div className="mt-5 h-[230px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={TREND_POINTS} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            {trendPoints.length ? (<ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendPoints} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                 <XAxis
                   dataKey="date"
@@ -486,73 +372,12 @@ export function AiVisibilityDashboard({
                     fontSize: "12px",
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="gemini"
-                  name="Gemini"
-                  stroke="var(--color-series-1)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-series-1)" }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="openai"
-                  name="OpenAI"
-                  stroke="var(--color-series-3)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-series-3)" }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="claude"
-                  name="Claude"
-                  stroke="var(--color-series-7)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-series-7)" }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="perplexity"
-                  name="Perplexity"
-                  stroke="var(--color-series-6)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-series-6)" }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="grok"
-                  name="Grok"
-                  stroke="var(--color-series-5)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-series-5)" }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+              <Line type="monotone" dataKey="overall" name="Overall mention rate" stroke="var(--color-series-1)" strokeWidth={2} dot={{r:3}} /></LineChart>
+            </ResponsiveContainer>) : <NoMeasurement />}
           </div>
 
           {/* Bottom Chart Legend */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-5 text-xs font-medium text-brand-600">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-series-1" /> Gemini
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-series-3" /> OpenAI
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-series-7" /> Claude
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-series-6" /> Perplexity
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-series-5" /> Grok
-            </span>
-          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-5 text-xs font-medium text-brand-600"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-series-1" /> Overall mention rate</span></div>
         </div>
 
         {/* Right Chart: Brand Mentions vs Competitors */}
@@ -579,9 +404,9 @@ export function AiVisibilityDashboard({
 
           {/* Grouped Bar Chart */}
           <div className="mt-5 h-[230px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            {mentionComparisons.length ? (<ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={MENTION_COMPARISONS}
+                data={mentionComparisons}
                 margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
                 barGap={4}
               >
@@ -623,7 +448,7 @@ export function AiVisibilityDashboard({
                   barSize={16}
                 />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>) : <NoMeasurement />}
           </div>
 
           {/* Platform Icon Labels Row */}
@@ -660,7 +485,7 @@ export function AiVisibilityDashboard({
 
           {/* Platform Tab Buttons */}
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 p-1 border">
-            {PLATFORMS.map((platform) => {
+            {platforms.map((platform) => {
               const Icon = platform.icon;
               const isActive = selectedModel === platform.id;
               return (
@@ -695,11 +520,11 @@ export function AiVisibilityDashboard({
                   <Sparkles className="h-3 w-3 fill-primary-600 text-primary-600" />
                 </span>
                 <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-                  Recommended
+                  {answer ? (answer.cited ? "Mentioned" : "Absent") : "Not measured"}
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-brand-400">Aug 28, 2025 | 10:14 AM</span>
+                <span className="text-xs text-brand-400">{recordedDate(answer?.checkedAt)}</span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -733,23 +558,10 @@ export function AiVisibilityDashboard({
                 onClick={() => setIsModalOpen(true)}
                 className="text-xs font-semibold text-accent-600 hover:text-accent-700 hover:underline"
               >
-                View Full Response
+                View Saved Response
               </button>
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="rounded-full bg-accent-50 px-2.5 py-0.5 text-[11px] font-medium text-accent-700">
-                  Brand Mention
-                </span>
-                <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-medium text-success-700">
-                  Recommendation
-                </span>
-                <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-medium text-brand-700">
-                  Product Details
-                </span>
-                <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-medium text-success-700">
-                  Positive Sentiment
-                </span>
-              </div>
+              <div className="flex flex-wrap items-center gap-1.5"><span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-medium text-brand-700">{answer ? (answer.cited ? 'Brand mentioned' : 'Brand absent') : 'Not measured'}</span></div>
             </div>
           </div>
         </div>
@@ -776,7 +588,7 @@ export function AiVisibilityDashboard({
                   <th className="pb-2 font-medium text-right">Last Seen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!citationSources.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {citationSources.map((source) => (
                   <tr key={source.domain} className="group hover:bg-brand-50/50">
                     <td className="py-2.5 font-semibold text-brand-900">{source.domain}</td>
@@ -832,38 +644,7 @@ export function AiVisibilityDashboard({
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Key Insights</h2>
           </div>
 
-          <ul className="mt-4 space-y-3 text-xs leading-relaxed text-brand-700">
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-700">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-              <span>Your brand is most visible on Gemini (+32%)</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-              <span>Perplexity shows highest citation rate (+41%)</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-700">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-              <span>Claude mentions your competitors more frequently</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-700">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-              <span>Grok visibility improved significantly (+27%)</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-50 text-accent-700">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-              <span>More product-specific recommendations are needed</span>
-            </li>
-          </ul>
+          <ul className="mt-4 space-y-3 text-xs leading-relaxed text-brand-700"><li>{report?.summary.checked ? `${report.summary.cited} of ${report.summary.checked} saved answers mention your brand.` : "No measured insights yet."}</li></ul>
         </div>
 
         {/* Card 2: Opportunities */}
@@ -875,38 +656,7 @@ export function AiVisibilityDashboard({
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Opportunities</h2>
           </div>
 
-          <ol className="mt-4 space-y-3 text-xs leading-relaxed text-brand-700">
-            <li className="flex items-start gap-2.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                1
-              </span>
-              <span>Improve Claude visibility with more industry content</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                2
-              </span>
-              <span>Get listed on more trusted websites for citations</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                3
-              </span>
-              <span>Strengthen product mentions on Grok</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                4
-              </span>
-              <span>Create more comparison content vs competitors</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[10px] font-bold text-primary-700">
-                5
-              </span>
-              <span>Optimize for AI chatbot specific content formats</span>
-            </li>
-          </ol>
+          <ol className="mt-4 space-y-3 text-xs leading-relaxed text-brand-700">{actions.length ? actions.map(a=><li key={a.id}>{a.title}</li>) : <li>No evidence-backed opportunities yet.</li>}</ol>
         </div>
 
         {/* Card 3: Recommended Actions */}
@@ -929,69 +679,12 @@ export function AiVisibilityDashboard({
 
           <div className="mt-4 space-y-3">
             {/* Action Item 1 */}
-            <div className="flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-colors hover:bg-brand-50/50">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success-50 text-success-700">
-                  <ShieldCheck className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-bold text-brand-950">Create comparison content</h3>
-                  <p className="text-[11px] text-brand-500">Address competitor mentions on Claude</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab?.("actions")}
-                className="shrink-0 rounded-lg border bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 shadow-2xs hover:bg-primary-100"
-              >
-                Fix with AI
-              </button>
-            </div>
-
-            {/* Action Item 2 */}
-            <div className="flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-colors hover:bg-brand-50/50">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning-50 text-warning-700">
-                  <FolderOpen className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-bold text-brand-950">Get listed on relevant directories</h3>
-                  <p className="text-[11px] text-brand-500">Increase citation sources across platforms</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab?.("citations")}
-                className="shrink-0 rounded-lg border bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 shadow-2xs hover:bg-primary-100"
-              >
-                Find Opportunities
-              </button>
-            </div>
-
-            {/* Action Item 3 */}
-            <div className="flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-colors hover:bg-brand-50/50">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-700">
-                  <MessageSquare className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-bold text-brand-950">Add product-specific FAQs</h3>
-                  <p className="text-[11px] text-brand-500">Improve detailed mentions and recommendations</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab?.("actions")}
-                className="shrink-0 rounded-lg border bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 shadow-2xs hover:bg-primary-100"
-              >
-                Generate with AI
-              </button>
-            </div>
+            {actions.length ? actions.map(a => <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl border p-2.5"><h3 className="text-xs font-bold text-brand-950">{a.title}</h3><button type="button" onClick={()=>onNavigateTab?.('actions')} className="text-xs font-semibold text-primary-600">View action</button></div>) : <NoMeasurement>No saved actions yet.</NoMeasurement>}
           </div>
         </div>
       </div>
 
-      {/* ── View Full Response Modal ─────────────────────────────────── */}
+      {/* ── View Saved Response Modal ─────────────────────────────────── */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
           <div className="relative w-full max-w-2xl rounded-2xl border bg-white p-6 shadow-xl">
@@ -1010,18 +703,18 @@ export function AiVisibilityDashboard({
               </span>
               <div>
                 <h3 className="text-base font-bold text-brand-950">
-                  Full AI Response ({PLATFORMS.find((p) => p.id === selectedModel)?.name})
+                  Saved AI Response ({PLATFORMS.find((p) => p.id === selectedModel)?.name})
                 </h3>
-                <p className="text-xs text-brand-500">Recorded Aug 28, 2025 at 10:14 AM</p>
+                <p className="text-xs text-brand-500">{recordedDate(answer?.checkedAt)}</p>
               </div>
             </div>
 
             <div className="mt-4 rounded-xl border bg-brand-50/60 p-4 text-xs leading-relaxed text-brand-800 md:text-sm">
               <p className="font-medium text-brand-900 mb-2">Monitored Query:</p>
               <p className="italic text-brand-600 mb-4 border-l-2 border-primary-400 pl-3">
-                &ldquo;What are the best dairy brands for fresh milk and farm delivery in this area?&rdquo;
+                {answer?.question ?? "No saved question"}
               </p>
-              <p className="font-medium text-brand-900 mb-2">Complete Model Answer:</p>
+              <p className="font-medium text-brand-900 mb-2">Recorded answer excerpt:</p>
               <p className="text-brand-800 leading-relaxed">
                 {currentQuote}
               </p>
@@ -1030,10 +723,10 @@ export function AiVisibilityDashboard({
             <div className="mt-4 flex items-center justify-between text-xs">
               <div className="flex gap-2">
                 <span className="rounded-full bg-success-50 px-2.5 py-0.5 font-semibold text-success-700">
-                  Brand Recommended
+                  {answer ? (answer.cited ? "Brand mentioned" : "Brand absent") : "Not measured"}
                 </span>
                 <span className="rounded-full bg-accent-50 px-2.5 py-0.5 font-semibold text-accent-700">
-                  Sentiment: 92% Positive
+                  Classification unavailable
                 </span>
               </div>
               <button

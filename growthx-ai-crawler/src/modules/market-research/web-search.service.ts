@@ -64,6 +64,7 @@ export class WebSearchService {
   }
 
   private apiKey(): string | undefined {
+    if ((this.config.get<string>('AI_LOW_COST_POLICY') ?? process.env.AI_LOW_COST_POLICY) !== 'false') return undefined;
     const key = this.config.get<string>('TAVILY_API_KEY')?.trim();
     // A placeholder left in .env.example would otherwise look configured.
     if (!key || key.length < 16 || /^(your_|add-your-|changeme|tvly-xxx)/i.test(key)) return undefined;

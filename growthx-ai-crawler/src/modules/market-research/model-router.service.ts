@@ -1,4 +1,5 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException, Optional } from '@nestjs/common';
+import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import {
@@ -30,7 +31,7 @@ export enum ModelRole {
   EMBEDDING = 'EMBEDDING',
 }
 
-export type ResearchProvider = 'sarvam' | 'openai' | 'openrouter' | 'groq';
+export type ResearchProvider = 'gemini' | 'sarvam' | 'openai' | 'openrouter' | 'groq';
 
 /**
  * Model ids per provider.
@@ -41,6 +42,12 @@ export type ResearchProvider = 'sarvam' | 'openai' | 'openrouter' | 'groq';
  * every provider works with the same call shape.
  */
 const MODELS: Record<ResearchProvider, Record<ModelRole, string>> = {
+  gemini: {
+    [ModelRole.ANALYST]: 'gemini-2.5-flash-lite',
+    [ModelRole.WORKER]: 'gemini-2.5-flash-lite',
+    [ModelRole.DEEP]: 'gemini-2.5-flash-lite',
+    [ModelRole.EMBEDDING]: 'local-keyword-retrieval',
+  },
   sarvam: {
     [ModelRole.ANALYST]: 'sarvam-105b',
     [ModelRole.WORKER]: 'sarvam-105b',
@@ -78,6 +85,7 @@ const BASE_URLS: Partial<Record<ResearchProvider, string>> = {
 };
 
 const KEY_ENV: Record<ResearchProvider, string> = {
+  gemini: 'GEMINI_API_KEY',
   sarvam: 'SARVAM_API_KEY',
   openai: 'OPENAI_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
@@ -109,6 +117,8 @@ export interface RetrievedWebSource {
 }
 
 export interface GenerateOptions {
+  organizationId?: string;
+  projectId?: string;
   step: string;
   role: ModelRole;
   instructions: string;
@@ -141,7 +151,11 @@ export class ModelRouterService {
   /** Separate from `client`: embeddings can run on OpenAI while chat runs on Sarvam. */
   private embeddings: OpenAI | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService, @Optional() private readonly sharedRouter?: MultiAiRouterService) {}
+
+  private lowCostEnabled() {
+    return (this.config.get<string>('AI_LOW_COST_POLICY') ?? process.env.AI_LOW_COST_POLICY) !== 'false';
+  }
 
   /**
    * Which provider serves this deployment.
@@ -151,6 +165,7 @@ export class ModelRouterService {
    * provider for this platform.
    */
   provider(): ResearchProvider {
+    if (this.lowCostEnabled()) return 'gemini';
     const configured = this.config.get<string>('MARKET_RESEARCH_PROVIDER')?.toLowerCase();
     if (configured === 'sarvam' || configured === 'openai' || configured === 'openrouter' || configured === 'groq') {
       return configured;
@@ -171,6 +186,7 @@ export class ModelRouterService {
 
   /** The configured id for a role, so callers record what actually ran. */
   modelFor(role: ModelRole): string {
+    if (this.lowCostEnabled()) return role === ModelRole.EMBEDDING ? 'local-keyword-retrieval' : 'gemini-2.5-flash-lite';
     const configured = this.config.get<string>(ENV_KEYS[role]) || MODELS[this.provider()][role];
 
     // Sarvam retired its earlier model generation; an inherited id that the
@@ -185,6 +201,7 @@ export class ModelRouterService {
   }
 
   isConfigured(): boolean {
+    if (this.lowCostEnabled()) return !!this.sharedRouter?.configuredProviders().includes('GEMINI' as any);
     return Boolean(this.apiKey());
   }
 
@@ -196,6 +213,7 @@ export class ModelRouterService {
    * to lexical matching rather than silently returning nothing.
    */
   supportsEmbeddings(): boolean {
+    if (this.lowCostEnabled()) return false;
     if (this.provider() === 'openai') return this.isConfigured();
     // Sarvam, Groq and OpenRouter don't serve embeddings; an OpenAI key
     // alongside them still can, unless AI_PROVIDERS rules OpenAI out.
@@ -277,6 +295,18 @@ export class ModelRouterService {
   }
 
   async generate(options: GenerateOptions): Promise<GenerateResult> {
+    if (this.lowCostEnabled()) {
+      if (!this.sharedRouter) throw new ServiceUnavailableException('Shared AI spending controls are unavailable.');
+      if (options.webSearch) return { text: '', webSources: [], webSearchUnavailable: 'Paid research web-search tools are disabled by the low-cost policy.', usage: { step: options.step, role: options.role, model: this.modelFor(options.role), inputTokens: 0, outputTokens: 0, costUsd: 0 } };
+      const result = await this.sharedRouter.generate({
+        organizationId: options.organizationId, projectId: options.projectId,
+        task: options.step === 'auto_identify_competitors' ? AiTask.COMPETITOR_ANALYSIS : AiTask.SUMMARY_GENERATION,
+        prompt: options.input, systemInstruction: options.instructions,
+        jsonSchema: options.jsonSchema?.schema, maxTokens: options.maxOutputTokens,
+        allowFallback: false,
+      });
+      return { text: result.text, webSources: [], usage: { step: options.step, role: options.role, model: result.model, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens, costUsd: result.usage.actualCostUsd ?? result.usage.estimatedCostUsd } };
+    }
     const model = this.modelFor(options.role);
     const provider = this.provider();
 
@@ -419,6 +449,7 @@ export class ModelRouterService {
   }
 
   async embed(texts: string[]): Promise<{ vectors: number[][]; model: string }> {
+    if (this.lowCostEnabled()) throw new ServiceUnavailableException('Paid embedding models are disabled; use local keyword retrieval.');
     const model = this.modelFor(ModelRole.EMBEDDING);
     if (texts.length === 0) return { vectors: [], model };
 

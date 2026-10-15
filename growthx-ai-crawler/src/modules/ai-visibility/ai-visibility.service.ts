@@ -1,3 +1,4 @@
+import { LOW_COST_CYCLE_PREFIX, monthlyMonitoringCycles } from './monitoring-cycle-policy';
 import {
   BadRequestException,
   Injectable,
@@ -14,6 +15,7 @@ import { AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service
 import { ResponseAnalyzerService } from './response-analyzer.service';
 import { MetricsEngineService } from './metrics-engine.service';
 import { questionAnalysis, questionSuggestions } from './question-analysis';
+import { VISIBILITY_MODELS } from '../ai-search/multi-ai-router/low-cost-policy';
 import { PromptEngineService } from './prompt-engine.service';
 import { FindingSyncService } from '../opportunities/finding-sync.service';
 
@@ -52,6 +54,7 @@ export class AiVisibilityService {
    * Configurable via env variables with verified fallbacks.
    */
   getMonitoredModels(): MonitoredModelConfig[] {
+    if (this.providerAbstraction.lowCostEnabled?.()) return Object.entries(VISIBILITY_MODELS).map(([provider, model]) => ({ key: provider.toLowerCase(), label: provider, provider: provider as AiProvider, model: model! }));
     return [
       {
         key: 'gemini',
@@ -132,6 +135,9 @@ export class AiVisibilityService {
       this.logger.warn(`Still no prompts found for project ${projectId} after generation.`);
       throw new BadRequestException('Add at least one buyer question in the Questions tab before running AI Visibility.');
     }
+    const lowCost = this.providerAbstraction.lowCostEnabled?.() ?? false;
+    if (lowCost && prompts.length !== 20)
+      throw new BadRequestException('The low-cost monitoring plan requires exactly 20 active buyer questions. Review the questions before running a cycle.');
 
     // 2. Fetch configured models / settings
     const settings = await this.prisma.aiVisibilitySettings.findUnique({
@@ -141,7 +147,7 @@ export class AiVisibilityService {
     const allModels = this.getMonitoredModels();
     let targetModels = allModels;
 
-    if (settings?.enabledModels && settings.enabledModels.length > 0) {
+    if (!lowCost && settings?.enabledModels && settings.enabledModels.length > 0) {
       const enabledSet = new Set(settings.enabledModels.map((m) => m.toLowerCase()));
       const filtered = allModels.filter(
         (m) =>
@@ -167,16 +173,24 @@ export class AiVisibilityService {
       throw new ServiceUnavailableException("No selected AI assistant is configured. Enable Gemini or update this project's AI visibility settings.");
     }
 
-    const cycleId = this.getCycleId();
+    const cycleId = (lowCost ? LOW_COST_CYCLE_PREFIX : '') + this.getCycleId();
 
     // 3. Create a scan record
-    const scan = await this.prisma.aiVisibilityScan.create({
+    const scanData = {
       data: {
         projectId,
         cycleId,
         status: 'RUNNING',
       },
-    });
+    };
+    const scan = lowCost ? await this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(734193813)`;
+      const project = await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { organizationId: true } });
+      const now = new Date();
+      const count = await tx.aiVisibilityScan.count({ where: monthlyMonitoringCycles(project.organizationId, now) });
+      if (count >= 3) throw new BadRequestException('This customer has used its three monthly visibility cycles.');
+      return tx.aiVisibilityScan.create(scanData);
+    }) : await this.prisma.aiVisibilityScan.create(scanData);
 
     let totalCost = 0;
     let completedCount = 0;
@@ -303,7 +317,7 @@ export class AiVisibilityService {
     const periodEnd = new Date().toISOString();
 
     const latestMetrics = await this.prisma.aiVisibilityMetrics.findFirst({
-      where: { projectId },
+      where: { projectId, createdAt: { gte: new Date(periodStart) } },
       orderBy: { createdAt: 'desc' },
       include: { scan: { include: { runs: true } } },
     });
@@ -351,7 +365,7 @@ export class AiVisibilityService {
     let validCited = 0;
 
     for (const r of responses) {
-      if (r.errorMessage || !r.rawResponse) {
+      if (r.errorMessage || !r.rawResponse || !r.analysis) {
         failedChecks++;
         continue;
       }
@@ -400,7 +414,7 @@ export class AiVisibilityService {
     // Calculate real byAssistant breakdown from responses per scan run
     const byAssistant = latestMetrics.scan.runs.map((r: any) => {
       const runResponses = responses.filter((resp) => resp.scanRunId === r.id);
-      const valid = runResponses.filter((resp) => !resp.errorMessage && resp.rawResponse);
+      const valid = runResponses.filter((resp) => !resp.errorMessage && resp.rawResponse && resp.analysis);
       const checked = valid.length;
       const cited = valid.filter((resp) => resp.analysis?.brandMentioned).length;
       const citationSharePct = checked > 0 ? Math.round((cited / checked) * 100) : 0;
@@ -423,17 +437,17 @@ export class AiVisibilityService {
 
     // Read historical scans for real trend and deltaPt
     const historicalMetrics = await this.prisma.aiVisibilityMetrics.findMany({
-      where: { projectId },
+      where: { projectId, createdAt: { gte: new Date(periodStart) } },
       orderBy: { createdAt: 'desc' },
-      take: 8,
+      take: 100,
     });
 
     let deltaPt: number | null = null;
     let previousCitationSharePct: number | null = null;
 
     if (historicalMetrics.length >= 2) {
-      previousCitationSharePct = Math.round(historicalMetrics[1].visibilityScore);
-      deltaPt = Math.round(latestMetrics.visibilityScore - historicalMetrics[1].visibilityScore);
+      previousCitationSharePct = Math.round(historicalMetrics[1].mentionRate);
+      deltaPt = Math.round(latestMetrics.mentionRate - historicalMetrics[1].mentionRate);
     }
 
     const trend = [...historicalMetrics].reverse().map((m) => {
@@ -441,7 +455,7 @@ export class AiVisibilityService {
       return {
         weekStart: m.createdAt.toISOString(),
         checked: funnel.totalAnalyzed ?? 0,
-        citationSharePct: Math.round(m.visibilityScore),
+        citationSharePct: Math.round(m.mentionRate),
       };
     });
 
@@ -460,7 +474,7 @@ export class AiVisibilityService {
       summary: {
         checked: validChecked,
         cited: validCited,
-        citationSharePct: Math.round(latestMetrics.visibilityScore),
+        citationSharePct: validChecked > 0 ? Math.round(validCited / validChecked * 100) : 0,
         deltaPt,
         previousCitationSharePct,
         averagePosition: latestMetrics.averagePosition ? Number(latestMetrics.averagePosition.toFixed(1)) : null,
@@ -551,6 +565,9 @@ export class AiVisibilityService {
       return { totalCitations: 0, citationsByDomain: [] };
     }
 
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, include: { websites: { where: { scope: 'own' } } } });
+    const canonical = (domain: string) => domain.toLowerCase().replace(/^www\./, '');
+    const ownDomains = new Set((project?.websites ?? []).map(w => canonical(w.domain)));
     const citations = await this.prisma.aiVisibilityCitation.findMany({
       where: { response: { scanRun: { scanId: latestScan.id } } },
       include: { response: { include: { mentions: true } } },
@@ -561,13 +578,12 @@ export class AiVisibilityService {
       const d = c.domain.toLowerCase();
       const existing = domainMap.get(d) || { domain: d, count: 0, ownCited: false };
       existing.count++;
-      if (c.brandMentioned) existing.ownCited = true;
+      if (ownDomains.has(canonical(d))) existing.ownCited = true;
       domainMap.set(d, existing);
     }
 
     const sortedDomains = Array.from(domainMap.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
+      .sort((a, b) => b.count - a.count);
 
     return {
       totalCitations: citations.length,
@@ -594,6 +610,7 @@ export class AiVisibilityService {
     const missedPrompts: Array<{ prompt: string; category: string; winner: string }> = [];
 
     for (const r of responses) {
+      if (r.errorMessage || !r.rawResponse || !r.analysis) continue;
       const customerMentioned = r.mentions.some((m) => m.isCustomer && (m.recommended || m.shortlisted));
       const competitorMentioned = r.mentions.find((m) => !m.isCustomer && (m.recommended || m.shortlisted));
 

@@ -32,7 +32,7 @@ interface OverviewProps {
 export function overviewFigures(report?: VisibilityReport | null) {
   const measured = (report?.summary?.checked ?? 0) > 0;
   const rows = report?.shareOfVoice ?? [];
-  const own = rows.find((r) => r.domain === null)?.mentions ?? 0;
+  const own = rows.find((r) => r.domain === null);
   const all = rows.reduce((s, r) => s + r.mentions, 0);
   const trend = (report?.trend ?? []).filter((t) => t.checked > 0);
   const hasDelta = measured && report?.summary.previousCitationSharePct != null && report?.summary.deltaPt != null;
@@ -42,7 +42,7 @@ export function overviewFigures(report?: VisibilityReport | null) {
     mentions: report?.summary.cited ?? 0,
     checked: report?.summary.checked ?? 0,
     failed: report?.summary.failedChecks ?? 0,
-    shareOfVoice: measured && all > 0 ? Math.round((own / all) * 100) : null,
+    shareOfVoice: measured && own && all > 0 ? Math.round((own.mentions / all) * 100) : null,
     delta: hasDelta ? Math.round(report!.summary.deltaPt! * 10) / 10 : null,
     trend,
   };
@@ -229,7 +229,7 @@ export function ModelBars({ report }: { report?: VisibilityReport | null }) {
           <li key={m.key}>
             <div className="mb-1 flex items-baseline justify-between text-[12px]">
               <span className="font-medium text-brand-950">{m.label}</span>
-              {row ? (
+              {row && row.checked > 0 ? (
                 <span className="font-mono text-brand-700">
                   {pct(row.citationSharePct)} <span className="text-brand-400">· {row.checked} checked</span>
                 </span>
@@ -348,7 +348,7 @@ export function PromptTable({ prompts }: { prompts: AvPrompt[] }) {
                             <p className="mt-1.5 text-[12px] leading-relaxed text-brand-700">
                               {c.error ? `Request failed: ${c.error}` : c.answerExcerpt}
                             </p>
-                            {c.competitorsCited.length > 0 && (
+                            {(c.competitorsCited?.length ?? 0) > 0 && (
                               <p className="mt-1.5 text-[11px] text-brand-500">
                                 Competitors named: {c.competitorsCited.join(", ")}
                               </p>

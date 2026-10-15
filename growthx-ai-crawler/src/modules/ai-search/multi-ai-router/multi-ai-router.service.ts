@@ -32,6 +32,8 @@ import { executeMammouthCall, redactMammouthKey, taskToCapability } from './mamm
 import { executeSarvamCall, postToSarvam } from './sarvam-invoker.util';
 import { executeAnthropicCall, anthropicWithFallback } from './anthropic-invoker.util';
 import { redactSecretsForAi } from '../../security/ai-sanitizer.util';
+import { LowCostPolicyService } from './low-cost-policy.service';
+import { APPROVED_MODELS, VISIBILITY_MODELS, costBucket, policyModel, policyTokens } from './low-cost-policy';
 
 // Re-export all types, enums and utilities so callers and declaration files remain 100% compatible
 export {
@@ -103,15 +105,16 @@ export class MultiAiRouterService {
      * ai-search.module.spec.ts), or enforcement would silently not exist.
      */
     @Optional() private readonly tokens?: TokensService,
+    @Optional() private readonly costPolicy?: LowCostPolicyService,
   ) {
-    this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
+    this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-haiku-4-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
-    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
+    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4.1-mini';
     this.perplexityModel = this.config.get<string>('PERPLEXITY_MODEL') || 'sonar';
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
-    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
+    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4.1-mini';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
     this.mammouthModel = this.config.get<string>('MAMMOUTH_DEFAULT_MODEL') || 'mammouth-recommended';
@@ -145,6 +148,7 @@ export class MultiAiRouterService {
     const openrouterKey = configuredValue(this.config.get<string>('OPENROUTER_API_KEY'));
     if (openrouterKey) {
       this.openrouter = new OpenAI({
+        maxRetries: 0,
         apiKey: openrouterKey,
         baseURL: 'https://openrouter.ai/api/v1',
         defaultHeaders: {
@@ -173,6 +177,13 @@ export class MultiAiRouterService {
   }
 
   configuredProviders(): AiProvider[] {
+    if (this.lowCostEnabled()) {
+      const providers: AiProvider[] = [];
+      if (this.gemini && isProviderAllowed(this.providerAllowlist, 'GEMINI')) providers.push(AiProvider.GEMINI);
+      if (this.openrouter && isProviderAllowed(this.providerAllowlist, 'OPENROUTER'))
+        providers.push(AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY, AiProvider.GROK);
+      return providers;
+    }
     const configured: AiProvider[] = [];
     if (this.mammouth) configured.push(AiProvider.MAMMOUTH);
     if (this.isRealKey(this.sarvamKey)) configured.push(AiProvider.SARVAM);
@@ -193,12 +204,14 @@ export class MultiAiRouterService {
    * visible by reading the service's own logs.
    */
   chainFor(task: AiTask): AiProvider[] {
+    if (this.lowCostEnabled()) return this.configuredProviders().includes(AiProvider.GEMINI) ? [AiProvider.GEMINI] : [];
     const allowed = this.configuredProviders();
     return TASK_PREFERENCE[profileFor(task)].filter((p) => allowed.includes(p));
   }
 
   /** The model each configured provider would use. Names only — never key material. */
   configuredModels(): Record<string, string> {
+    if (this.lowCostEnabled()) return Object.fromEntries(this.configuredProviders().map(p => [p, VISIBILITY_MODELS[p]!]));
     const models: Record<string, string> = {
       [AiProvider.MAMMOUTH]: this.mammouthModel,
       [AiProvider.ANTHROPIC]: this.anthropicModel,
@@ -229,13 +242,14 @@ export class MultiAiRouterService {
    *     customer's.
    */
   async generate(request: AiRequest): Promise<AiCompletion> {
-    const task = request.task ?? AiTask.REASONING;
+    const task = request.freshMeasurement ? AiTask.VISIBILITY_MEASUREMENT : request.task ?? AiTask.REASONING;
     const sanitizedPrompt = request.prompt ? redactSecretsForAi(request.prompt) : request.prompt;
     const sanitizedSystemInstruction = request.systemInstruction
       ? redactSecretsForAi(request.systemInstruction)
       : request.systemInstruction;
     const sanitizedRequest: AiRequest = {
       ...request,
+      task,
       prompt: sanitizedPrompt,
       systemInstruction: sanitizedSystemInstruction,
     };
@@ -244,9 +258,20 @@ export class MultiAiRouterService {
     await this.usageLedger?.assertWithinBudget(scoped.organizationId);
     await this.tokens?.assertCanStart(scoped.organizationId);
 
-    const completion = await this.route(scoped, task);
+    let completion: AiCompletion;
+    if (this.lowCostEnabled()) {
+      if (!this.costPolicy) throw new ServiceUnavailableException('AI spending controls are unavailable; paid requests stopped.');
+      const model = policyModel(scoped);
+      const provider = costBucket(scoped) === 'VISIBILITY' ? scoped.provider ?? AiProvider.GEMINI : AiProvider.GEMINI;
+      if (!this.configuredProviders().includes(provider)) throw new ServiceUnavailableException(`${provider} is not configured under the low-cost policy.`);
+      const bounded = { ...scoped, provider, maxTokens: policyTokens(scoped), task };
+      completion = await this.costPolicy.run(bounded, model, () =>
+        model.startsWith('gemini-') ? this.callGemini(bounded, model) : this.callOpenRouter(bounded, model, provider));
+    } else {
+      completion = await this.route(scoped, task);
+    }
 
-    if (this.tokens && !completion.refused) {
+    if (this.tokens && !completion.refused && !completion.usage.cached) {
       // Settling never throws by contract, and is caught anyway: the answer
       // exists and the vendor has billed us for it, so a bookkeeping failure
       // here must not stop it reaching the customer.
@@ -267,6 +292,18 @@ export class MultiAiRouterService {
         });
     }
     return completion;
+  }
+
+  lowCostEnabled(): boolean {
+    return (this.config.get<string>('AI_LOW_COST_POLICY') ?? process.env.AI_LOW_COST_POLICY) !== 'false';
+  }
+
+  async providerAvailability(provider: AiProvider): Promise<string | null> {
+    if (!this.lowCostEnabled()) return null;
+    const model = VISIBILITY_MODELS[provider];
+    if (!model || !this.costPolicy) return 'Spending controls are unavailable.';
+    try { await this.costPolicy.verifyPrice(model); return null; }
+    catch (error) { return (error as Error).message; }
   }
 
   /**
@@ -438,6 +475,8 @@ export class MultiAiRouterService {
         return this.callOpenRouter(request, modelOverride);
       case AiProvider.PERPLEXITY:
         return this.callPerplexity(request, modelOverride);
+      case AiProvider.GROK:
+        return this.callOpenRouter(request, 'x-ai/grok-4-fast', AiProvider.GROK);
     }
   }
 
@@ -517,6 +556,7 @@ export class MultiAiRouterService {
       config: {
         systemInstruction: request.systemInstruction,
         temperature: 0.2,
+        ...(modelOverride ? { thinkingConfig: (modelOverride.startsWith('gemini-2.5-') ? { thinkingBudget: 0 } : { thinkingLevel: 'minimal' }) as any } : {}),
         ...(request.maxTokens ? { maxOutputTokens: request.maxTokens } : {}),
         ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
         ...(request.jsonSchema
@@ -526,16 +566,14 @@ export class MultiAiRouterService {
     });
 
     const metadata: any = (response as any).usageMetadata ?? {};
+    const measured = this.usage(metadata.promptTokenCount ?? 0, (metadata.candidatesTokenCount ?? 0) + (metadata.thoughtsTokenCount ?? 0), modelOverride ? APPROVED_MODELS[modelOverride as keyof typeof APPROVED_MODELS] : this.envRate('GEMINI'));
+    if (modelOverride && (!Number.isFinite(metadata.promptTokenCount) || !Number.isFinite(metadata.candidatesTokenCount))) measured.estimatedCostUsd = null;
     return {
       provider: AiProvider.GEMINI,
       model: targetModel,
       text: response.text || '',
-      usage: this.usage(
-        metadata.promptTokenCount ?? 0,
-        metadata.candidatesTokenCount ?? 0,
-        this.envRate('GEMINI'),
-      ),
-      refused: false,
+      usage: measured,
+      refused: response.candidates?.[0]?.finishReason === 'MAX_TOKENS',
     };
   }
 
@@ -628,7 +666,7 @@ export class MultiAiRouterService {
    * `openai/gpt-4o-mini`) behind one API, so it is treated as a
    * last-resort fallback in every task chain.
    */
-  private async callOpenRouter(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
+  private async callOpenRouter(request: AiRequest, modelOverride?: string, logicalProvider = AiProvider.OPENROUTER): Promise<AiCompletion> {
     if (!this.openrouter) throw new ServiceUnavailableException('OPENROUTER_API_KEY is not configured.');
 
     const messages: any[] = [];
@@ -646,19 +684,40 @@ export class MultiAiRouterService {
       messages,
       temperature: this.openrouterTemperature,
       max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
+      ...(this.lowCostEnabled() && modelOverride ? {
+        reasoning: { enabled: false, exclude: true },
+        provider: { allow_fallbacks: false, max_price: {
+          prompt: APPROVED_MODELS[modelOverride as keyof typeof APPROVED_MODELS].input,
+          completion: APPROVED_MODELS[modelOverride as keyof typeof APPROVED_MODELS].output,
+          request: APPROVED_MODELS[modelOverride as keyof typeof APPROVED_MODELS].search,
+        } },
+        ...(modelOverride === 'perplexity/sonar' ? { web_search_options: { search_context_size: 'low' } } : {}),
+      } : {}),
       ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
     } as any);
 
+    const citations = ((response.choices[0]?.message as any)?.annotations ?? [])
+      .filter((a: any) => a.type === 'url_citation' && typeof a.url_citation?.url === 'string')
+      .map((a: any) => a.url_citation.url);
+    const answer = response.choices[0]?.message?.content ?? '';
+    const usage = response.usage as any;
+    const rate = modelOverride ? APPROVED_MODELS[modelOverride as keyof typeof APPROVED_MODELS] : undefined;
+    const measured = this.usage(usage?.prompt_tokens ?? 0, usage?.completion_tokens ?? 0, rate ?? this.envRate('OPENROUTER'));
+    if (this.lowCostEnabled() && (!Number.isFinite(usage?.prompt_tokens) || !Number.isFinite(usage?.completion_tokens))) measured.estimatedCostUsd = null;
+    if (this.lowCostEnabled() && modelOverride && response.model !== modelOverride)
+      throw new ServiceUnavailableException('The provider returned a different model; the measurement was rejected.');
     return {
-      provider: AiProvider.OPENROUTER,
+      provider: logicalProvider,
       model: response.model ?? this.openrouterModel,
-      text: response.choices[0]?.message?.content ?? '',
-      usage: this.usage(
-        response.usage?.prompt_tokens ?? 0,
-        response.usage?.completion_tokens ?? 0,
-        this.envRate('OPENROUTER'),
-      ),
-      refused: false,
+      text: citations.length ? `${answer}\n\nSources:\n${citations.map((u: string) => `- ${u}`).join('\n')}` : answer,
+      usage: {
+        ...measured,
+        estimatedCostUsd: measured.estimatedCostUsd == null ? null : measured.estimatedCostUsd + (rate?.search ?? 0),
+        actualCostUsd: typeof usage?.cost === 'number' && Number.isFinite(usage.cost) && usage.cost >= 0 ? usage.cost : null,
+        searchCostUsd: rate?.search ?? 0,
+        generationId: response.id,
+      },
+      refused: response.choices[0]?.finish_reason === 'length',
     };
   }
 

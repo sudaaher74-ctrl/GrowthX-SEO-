@@ -1,5 +1,7 @@
 "use client";
 
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import {
   Sparkles,
@@ -24,7 +26,7 @@ import {
 } from "lucide-react";
 import { GeminiIcon, OpenAiIcon, ClaudeIcon, PerplexityIcon, GrokIcon } from "./ai-visibility-dashboard";
 
-export interface RootCauseAnalysisDashboardProps {
+export interface RootCauseAnalysisDashboardProps extends LiveDashboardData {
   domain: string;
   brandLabel: string;
   projects?: Array<{ id: string; name: string }>;
@@ -37,6 +39,7 @@ export interface RootCauseAnalysisDashboardProps {
 }
 
 export function RootCauseAnalysisDashboard({
+  report, prompts = [], citations, rootCause, actions = [], competitors = [],
   domain,
   brandLabel,
   projects = [],
@@ -47,245 +50,35 @@ export function RootCauseAnalysisDashboard({
   onRunScan,
   isScanning = false,
 }: RootCauseAnalysisDashboardProps) {
+  const router = useRouter();
   const [selectedResponsePlatform, setSelectedResponsePlatform] = useState<
     "gemini" | "openai" | "claude" | "perplexity" | "grok"
   >("gemini");
   const [severityFilter, setSeverityFilter] = useState<"all" | "high" | "medium">("all");
 
-  const displayDomain = domain || "your-domain.com";
+  const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
 
   // Data Sources for the Overview diagram
-  const dataSources = [
-    {
-      name: "AI Visibility (5 platforms)",
-      desc: "Brand mentions & citations",
-      icon: Bot,
-      color: "text-primary-600 bg-primary-50",
-    },
-    {
-      name: "Website Audit",
-      desc: "Technical & content issues",
-      icon: Gauge,
-      color: "text-accent-600 bg-accent-50",
-    },
-    {
-      name: "Competitor Analysis",
-      desc: "How competitors are performing",
-      icon: Users,
-      color: "text-warning-600 bg-warning-50",
-    },
-    {
-      name: "Search Console",
-      desc: "Search performance trends",
-      icon: Search,
-      color: "text-series-1 bg-series-1/10",
-    },
-    {
-      name: "Citation Intelligence",
-      desc: "External source coverage",
-      icon: Link2,
-      color: "text-series-2 bg-series-2/10",
-    },
-  ];
+  const dataSources = [{name:'Saved AI responses',desc:savedAnswers(prompts).length+' recorded answers',icon:Bot,color:'text-primary-600 bg-primary-50'}];
 
   // Key Root Causes
-  const keyRootCauses = [
-    {
-      id: 1,
-      title: "Lack of authoritative content",
-      severity: "High",
-      badgeColor: "bg-error-50 text-error-700 border-error-200",
-      numBg: "bg-error-600 text-white",
-    },
-    {
-      id: 2,
-      title: "Missing product-specific information",
-      severity: "High",
-      badgeColor: "bg-warning-50 text-warning-700 border-warning-200",
-      numBg: "bg-warning-600 text-white",
-    },
-    {
-      id: 3,
-      title: "Weak external citations",
-      severity: "Medium",
-      badgeColor: "bg-accent-50 text-accent-700 border-accent-200",
-      numBg: "bg-accent-600 text-white",
-    },
-    {
-      id: 4,
-      title: "Competitors have stronger content",
-      severity: "Medium",
-      badgeColor: "bg-series-1/10 text-series-1 border-series-1/20",
-      numBg: "bg-series-1 text-white",
-    },
-    {
-      id: 5,
-      title: "Limited E-E-A-T signals",
-      severity: "Medium",
-      badgeColor: "bg-primary-50 text-primary-700 border-primary-200",
-      numBg: "bg-primary-600 text-white",
-    },
-  ];
+  const keyRootCauses = [] as {id:number;title:string;severity:string;badgeColor:string;numBg:string}[];
 
   // AI Visibility Comparison Brands (Bar Chart)
-  const competitorBars = [
-    { name: "Amul", mentions: 124, percent: 100, barColor: "bg-primary-600" },
-    { name: "Country Delight", mentions: 96, percent: 77, barColor: "bg-series-1" },
-    { name: "Nandini", mentions: 48, percent: 39, barColor: "bg-accent-500" },
-    { name: "Mother Dairy", mentions: 28, percent: 23, barColor: "bg-series-2" },
-    { name: "Aavin", mentions: 18, percent: 15, barColor: "bg-warning-500" },
-    { name: `${displayBrand} (You)`, mentions: 16, percent: 13, barColor: "bg-success-600" },
-  ];
+  const competitorBars = (rootCause?.rivalsWinning ?? []).map(r=>({name:r.brand,mentions:r.wins,percent:Math.max(...(rootCause?.rivalsWinning ?? []).map(x=>x.wins))>0?r.wins/Math.max(...(rootCause?.rivalsWinning ?? []).map(x=>x.wins))*100:0,barColor:'bg-series-1'}));
 
   // Detailed Root Cause Cards
-  const detailedCauses = [
-    {
-      id: 1,
-      title: "1. Lack of authoritative content",
-      severity: "High",
-      severityClass: "bg-error-50 text-error-700",
-      desc: "Your website has limited in-depth content on key dairy topics that AI platforms frequently reference.",
-      affects: "AI Mentions, Citations, Recommendations",
-    },
-    {
-      id: 2,
-      title: "2. Missing product-specific info",
-      severity: "High",
-      severityClass: "bg-warning-50 text-warning-700",
-      desc: "Important product details like nutrition, sourcing, and benefits are incomplete or not clearly structured.",
-      affects: "Product Recommendations",
-    },
-    {
-      id: 3,
-      title: "3. Weak external citations",
-      severity: "Medium",
-      severityClass: "bg-accent-50 text-accent-700",
-      desc: "Fewer high-authority websites mention your brand compared to competitors.",
-      affects: "Citations, Brand Authority",
-    },
-    {
-      id: 4,
-      title: "4. Stronger competitor content",
-      severity: "Medium",
-      severityClass: "bg-series-1/10 text-series-1",
-      desc: "Competitors like Amul and Country Delight have more comprehensive content and more external mentions.",
-      affects: "Relative Visibility",
-    },
-    {
-      id: 5,
-      title: "5. Limited E-E-A-T signals",
-      severity: "Medium",
-      severityClass: "bg-primary-50 text-primary-700",
-      desc: "Your website lacks clear trust signals such as expert content, author information, and external endorsements.",
-      affects: "Authority & Trust",
-    },
-  ];
+  const detailedCauses = [] as {id:number;title:string;severity:string;severityClass:string;desc:string;affects:string}[];
 
   // AI Response Quotes
-  const platformQuotes: Record<
-    "gemini" | "openai" | "claude" | "perplexity" | "grok",
-    { quote: string; missingNote: string; date: string }
-  > = {
-    gemini: {
-      quote:
-        "Amul is one of the most popular dairy brands in India, known for its wide range of milk, curd, paneer and other dairy products. It is widely available and trusted for quality.",
-      missingNote: `No mention of ${displayBrand}`,
-      date: "Aug 28, 2025",
-    },
-    openai: {
-      quote:
-        "Country Delight and Amul are frequently cited for fresh dairy delivery and pure organic farm milk with subscription models in metro cities.",
-      missingNote: `${displayBrand} ranked below top 5 organic search citations`,
-      date: "Aug 27, 2025",
-    },
-    claude: {
-      quote:
-        "For certified farm-to-table dairy products, leading cooperative brands such as Nandini and Mother Dairy provide consistent national coverage.",
-      missingNote: `Zero cited authority sources found for ${displayDomain}`,
-      date: "Aug 26, 2025",
-    },
-    perplexity: {
-      quote:
-        "According to consumer reports, Amul and Country Delight dominate market share and customer recall across online grocery channels.",
-      missingNote: `${displayBrand} missing from major third-party ranking roundups`,
-      date: "Aug 25, 2025",
-    },
-    grok: {
-      quote:
-        "Top dairy suppliers with high verified user ratings include Amul, Mother Dairy, and regional state federations.",
-      missingNote: `No structured FAQ or Product schema detected on ${displayDomain}`,
-      date: "Aug 24, 2025",
-    },
-  };
+  const platformQuotes = Object.fromEntries(['gemini','openai','claude','perplexity','grok'].map(id=>{const a=savedAnswers(prompts).find(x=>x.platform===id);return [id,{quote:a?.answerExcerpt ?? 'No saved response for this model yet.',missingNote:a ? (a.cited?'Brand mentioned':'Brand absent') : 'Not measured',date:recordedDate(a?.checkedAt)}]})) as Record<'gemini'|'openai'|'claude'|'perplexity'|'grok',{quote:string;missingNote:string;date:string}>;
 
   // Content Gap Table Data
-  const contentGaps = [
-    {
-      topic: "Health benefits of cow milk",
-      competitorsCovering: "4 / 5",
-      status: "Missing",
-      statusColor: "bg-error-50 text-error-700",
-    },
-    {
-      topic: "Nutritional information",
-      competitorsCovering: "5 / 5",
-      status: "Missing",
-      statusColor: "bg-error-50 text-error-700",
-    },
-    {
-      topic: "Sourcing and farm practices",
-      competitorsCovering: "4 / 5",
-      status: "Limited",
-      statusColor: "bg-warning-50 text-warning-700",
-    },
-    {
-      topic: "Recipes and usage ideas",
-      competitorsCovering: "3 / 5",
-      status: "Missing",
-      statusColor: "bg-error-50 text-error-700",
-    },
-    {
-      topic: "Sustainability and packaging",
-      competitorsCovering: "4 / 5",
-      status: "Missing",
-      statusColor: "bg-error-50 text-error-700",
-    },
-  ];
+  const contentGaps = (rootCause?.missedPrompts ?? []).map(p=>({topic:p.prompt,competitorsCovering:p.winner,status:'Brand absent',statusColor:'bg-warning-50 text-warning-700'}));
 
   // Recommended Actions
-  const recommendedActions = [
-    {
-      num: 1,
-      title: "Create in-depth content on health benefits and nutrition",
-      buttonText: "Generate with AI",
-      buttonColor: "bg-primary-600 hover:bg-primary-700 text-white",
-    },
-    {
-      num: 2,
-      title: "Add detailed product pages with FAQs",
-      buttonText: "Fix with AI",
-      buttonColor: "bg-primary-600 hover:bg-primary-700 text-white",
-    },
-    {
-      num: 3,
-      title: "Get listed on high-authority food and dairy websites",
-      buttonText: "Find Opportunities",
-      buttonColor: "bg-accent-600 hover:bg-accent-700 text-white",
-    },
-    {
-      num: 4,
-      title: "Improve structured data (Product, FAQ, Organization)",
-      buttonText: "Fix with AI",
-      buttonColor: "bg-primary-600 hover:bg-primary-700 text-white",
-    },
-    {
-      num: 5,
-      title: "Publish expert content with author information",
-      buttonText: "Generate with AI",
-      buttonColor: "bg-primary-600 hover:bg-primary-700 text-white",
-    },
-  ];
+  const recommendedActions = actions.map((a,i)=>({num:i+1,title:a.title,buttonText:'View action',buttonColor:'bg-primary-600 hover:bg-primary-700 text-white'}));
 
   return (
     <div className="space-y-6">
@@ -356,7 +149,7 @@ export function RootCauseAnalysisDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning}
+            disabled={isScanning || !currentProjectId}
             className="flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60"
           >
             {isScanning ? (
@@ -383,11 +176,11 @@ export function RootCauseAnalysisDashboard({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">62</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{report?.summary.checked ? report.summary.citationSharePct : "—"}</span>
             <span className="text-xs font-medium text-brand-400">/100</span>
-            <span className="ml-auto text-xs font-semibold text-error-700">↘ -18%</span>
+            <span className="ml-auto text-xs font-semibold text-error-700">—</span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">vs previous 30 days</p>
+          <p className="mt-1 text-[11px] text-brand-400">Latest measured mention rate</p>
         </div>
 
         {/* Card 2: Brand Mentions */}
@@ -402,10 +195,10 @@ export function RootCauseAnalysisDashboard({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">286</span>
-            <span className="ml-auto text-xs font-semibold text-error-700">↘ -24%</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{report?.summary.checked ? report.summary.cited : "—"}</span>
+            <span className="ml-auto text-xs font-semibold text-error-700">—</span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">across 5 AI platforms</p>
+          <p className="mt-1 text-[11px] text-brand-400">in the latest saved run</p>
         </div>
 
         {/* Card 3: Citations */}
@@ -420,8 +213,8 @@ export function RootCauseAnalysisDashboard({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">84</span>
-            <span className="ml-auto text-xs font-semibold text-error-700">↘ -32%</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{citations?.citationsByDomain.filter(c=>c.ownCited).reduce((sum,c)=>sum+c.count,0) ?? "—"}</span>
+            <span className="ml-auto text-xs font-semibold text-error-700">—</span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">links to your website</p>
         </div>
@@ -438,8 +231,8 @@ export function RootCauseAnalysisDashboard({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">22%</span>
-            <span className="ml-auto text-xs font-semibold text-error-700">↘ -14%</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
+            <span className="ml-auto text-xs font-semibold text-error-700">—</span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">of responses recommend brand</p>
         </div>
@@ -456,7 +249,7 @@ export function RootCauseAnalysisDashboard({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">4 / 5</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">competitors mentioned more often</p>
         </div>
@@ -473,7 +266,7 @@ export function RootCauseAnalysisDashboard({
             <div>
               <h2 className="text-base font-bold text-brand-950">Root Cause Overview</h2>
               <p className="mt-0.5 text-xs text-brand-500">
-                Based on analysis of 5 data sources, we found the key reasons behind your low AI visibility.
+                Saved evidence for this project. Causal explanations appear only when supported by analysis.
               </p>
             </div>
             <span className="rounded-lg border bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-700">
@@ -486,7 +279,7 @@ export function RootCauseAnalysisDashboard({
             {/* 1. Left Data Sources (4 cols) */}
             <div className="space-y-2 md:col-span-4">
               <span className="block text-[11px] font-bold uppercase tracking-wider text-brand-400 mb-2">
-                Data Sources Analyzed
+                Available Evidence
               </span>
               {dataSources.map((ds) => {
                 const Icon = ds.icon;
@@ -516,7 +309,7 @@ export function RootCauseAnalysisDashboard({
                 </div>
                 <h3 className="text-xs font-bold text-primary-950">AI Analysis</h3>
                 <p className="mt-1 text-[10.5px] leading-relaxed text-primary-700">
-                  Cross-analyzes all data to find patterns and root causes
+                  Recorded monitoring evidence; causal analysis is not yet available.
                 </p>
               </div>
             </div>
@@ -526,7 +319,7 @@ export function RootCauseAnalysisDashboard({
               <span className="block text-[11px] font-bold uppercase tracking-wider text-brand-400 mb-2">
                 Key Root Causes
               </span>
-              {keyRootCauses.map((rc) => (
+              {!keyRootCauses.length && <NoMeasurement>No causal analysis recorded yet.</NoMeasurement>}{keyRootCauses.map((rc) => (
                 <div
                   key={rc.id}
                   className={`flex items-center gap-2 rounded-xl border p-2 text-xs font-semibold ${rc.badgeColor}`}
@@ -551,7 +344,7 @@ export function RootCauseAnalysisDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-brand-950">AI Visibility Comparison</h2>
-              <p className="mt-0.5 text-xs text-brand-500">Why competitors are mentioned more often.</p>
+              <p className="mt-0.5 text-xs text-brand-500">Recorded prompts where rivals were named and your brand was absent.</p>
             </div>
             <span className="text-xs font-semibold text-brand-600">Brand Mentions ▾</span>
           </div>
@@ -607,7 +400,8 @@ export function RootCauseAnalysisDashboard({
 
         {/* 5 Cause Cards */}
         <div className="mt-4 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
-          {detailedCauses
+          {!detailedCauses.length && <NoMeasurement>No evidence-backed causal diagnosis recorded yet.</NoMeasurement>}
+            {detailedCauses
             .filter((c) => severityFilter === "all" || c.severity.toLowerCase() === severityFilter)
             .map((item) => (
               <div
@@ -628,7 +422,7 @@ export function RootCauseAnalysisDashboard({
                   <button
                     type="button"
                     className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-                  >
+                   onClick={() => router.push("/ai-visibility?tab=actions")}> 
                     <span>View Evidence</span>
                     <span>↓</span>
                   </button>
@@ -710,8 +504,8 @@ export function RootCauseAnalysisDashboard({
             <button
               type="button"
               className="flex items-center gap-1 font-semibold text-primary-600 hover:text-primary-700"
-            >
-              <span>View Full Response</span>
+             onClick={() => router.push("/ai-visibility?tab=actions")}> 
+              <span>View Saved Response</span>
               <ArrowRight className="h-3 w-3" />
             </button>
           </div>
@@ -736,7 +530,7 @@ export function RootCauseAnalysisDashboard({
                   <th className="pb-2 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
+              <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>{!contentGaps.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {contentGaps.map((item) => (
                   <tr key={item.topic}>
                     <td className="py-2.5 font-medium text-brand-900 pr-2">{item.topic}</td>
@@ -767,7 +561,7 @@ export function RootCauseAnalysisDashboard({
               <button
                 type="button"
                 className="text-xs font-semibold text-primary-600 hover:text-primary-700"
-              >
+               onClick={() => router.push("/ai-visibility?tab=actions")}> 
                 View All Actions →
               </button>
             </div>
@@ -793,7 +587,7 @@ export function RootCauseAnalysisDashboard({
                   <button
                     type="button"
                     className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${action.buttonColor}`}
-                  >
+                   onClick={() => router.push("/ai-visibility?tab=actions")}> 
                     {action.buttonText}
                   </button>
                 </div>
