@@ -2170,4 +2170,210 @@ export interface MammouthTestResult {
 // NOT_YET_CRAWLED means this catalog has no completed crawl at all yet.
 // Never render any of the three as a blank cell.
 
-// ── Business → Marketing Strategy (mirrors business-strategy.ts) ──────────
+// ── Fix Engine 2.0: Proof of Impact ──────────────────────────────
+
+export interface FixEngineKpis {
+  verifiedFixes: number;
+  pagesImproved: number;
+  activeFixes: number;
+  regressionsDetected: number;
+  organicSearchChangePct: number | null;
+  organicClicksDelta: number;
+  aiVisibilityChangePt: number | null;
+  aiVisibilityScore: number | null;
+}
+
+export interface FixStatusBreakdown {
+  verified: number;
+  awaitingApproval: number;
+  inProgress: number;
+  failed: number;
+  regressions: number;
+}
+
+export interface FixPerformanceTrendPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+  milestones: string[];
+}
+
+export interface FixHistoryItem {
+  id: string;
+  runId: string;
+  title: string;
+  affectedPage: string;
+  category: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  pullRequestUrl: string | null;
+  branch: string | null;
+  deploymentStatus: 'NOT_DEPLOYED' | 'PR_CREATED' | 'DEPLOYED' | 'FAILED';
+  verificationStatus: 'NOT_CHECKED' | 'AWAITING_APPROVAL' | 'VERIFYING' | 'VERIFIED' | 'FAILED' | 'REGRESSION';
+  impactStatus: 'PENDING' | 'OBSERVED' | 'ESTIMATED' | 'INCONCLUSIVE';
+  date: string;
+  filesChanged: string[];
+}
+
+export interface FixEngineOpportunity {
+  id: string;
+  title: string;
+  category: string;
+  priority: number;
+  potentialImpact: string;
+  status: string;
+}
+
+export interface FixEngineRegressionAlert {
+  id: string;
+  url: string;
+  severity: string;
+  title: string;
+  description: string;
+  detectedAt: string;
+}
+
+export interface FixEngineOverviewData {
+  kpis: FixEngineKpis;
+  statusBreakdown: FixStatusBreakdown;
+  performanceTrend: FixPerformanceTrendPoint[];
+  recentFixes: FixHistoryItem[];
+  opportunities: FixEngineOpportunity[];
+  regressionAlerts: FixEngineRegressionAlert[];
+}
+
+export interface VisualComparisonData {
+  available: boolean;
+  before: { screenshotUrl: string | null; capturedAt: string | null };
+  after: { screenshotUrl: string | null; capturedAt: string | null };
+  pageUrl: string;
+  message?: string;
+}
+
+export interface ContentDiffItem {
+  field: string;
+  label: string;
+  before: string | null;
+  after: string | null;
+  status: 'UNCHANGED' | 'MODIFIED';
+}
+
+export interface TechnicalMetricComparison {
+  metric: string;
+  before: string | number;
+  after: string | number;
+  status: 'IMPROVED' | 'REGRESSED' | 'UNCHANGED';
+}
+
+export interface CodeComparisonData {
+  pullRequestUrl: string | null;
+  filesChanged: string[];
+  branch: string | null;
+  commitSha: string | null;
+  status: string;
+  diffSummary: string;
+}
+
+export interface SeoImpactWindow {
+  window: string;
+  days: number;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number | null;
+  status: 'OBSERVED' | 'PENDING';
+}
+
+export interface FixDetailData {
+  run: {
+    id: string;
+    status: string;
+    startedAt: string;
+    finishedAt: string | null;
+    pullRequestUrl: string | null;
+    affectedUrl: string;
+  };
+  visual: VisualComparisonData;
+  content: ContentDiffItem[];
+  technical: TechnicalMetricComparison[];
+  code: CodeComparisonData;
+  seoImpact: {
+    baseline: { clicks: number; impressions: number; ctr: number; position: number | null; days: number };
+    windows: SeoImpactWindow[];
+    affectedUrl: string;
+    note: string;
+  };
+  aiImpact: {
+    available: boolean;
+    models: { model: string; beforeScore: number | null; afterScore: number | null; delta: number | null }[];
+    prompts: { promptText: string; pageUrl: string; citedBefore: boolean; citedAfter: boolean }[];
+    note: string;
+  };
+  businessImpact: {
+    available: boolean;
+    message?: string;
+    sessions: number;
+    engagedSessions: number;
+    conversions: number;
+    revenue: number;
+    note: string;
+  };
+  attribution: {
+    level1: { label: string; status: string; detail: string };
+    level2: { label: string; status: string; detail: string };
+    level3: { label: string; status: string; detail: string };
+  };
+  ledger: {
+    id: string;
+    eventType: string;
+    title: string;
+    description: string;
+    actor: string;
+    createdAt: string;
+  }[];
+  regressions: {
+    id: string;
+    severity: string;
+    issueCode: string;
+    title: string;
+    description: string;
+    detectedAt: string;
+  }[];
+  aiSummary: string;
+}
+
+export interface FixLedgerEntry {
+  id: string;
+  automationRunId: string | null;
+  eventType: string;
+  title: string;
+  description: string;
+  actor: string;
+  affectedUrl: string | null;
+  pullRequestUrl: string | null;
+  verificationStatus: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface FixImpactReportData {
+  reportId: string;
+  generatedAt: string;
+  project: { id: string; name: string };
+  scope: string;
+  summary: {
+    totalFixes: number;
+    verifiedFixes: number;
+    openRegressions: number;
+    organicClicksDelta: number;
+  };
+  fixes: Array<{
+    id: string;
+    url: string;
+    title: string;
+    prUrl: string | null;
+    verified: boolean;
+    status: string;
+  }>;
+  evidenceLimitations: string[];
+}
+

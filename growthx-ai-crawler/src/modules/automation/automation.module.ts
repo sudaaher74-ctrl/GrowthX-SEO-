@@ -12,10 +12,12 @@ import { ContentGenerationService } from './content-generation.service';
 import { ContentAgentController } from './content-agent.controller';
 import { ContentAgentService } from './content-agent.service';
 
+import { ProofOfImpactService } from './proof-of-impact.service';
+
 @Module({
   imports: [DatabaseModule, AiSearchModule, AutonomousEngineerModule, SecurityModule, StrategyModule, ImpactModule],
   controllers: [AutomationController, ContentAgentController],
-  providers: [AutomationService, EngineerAgentService, ContentGenerationService, ContentAgentService],
-  exports: [AutomationService, ContentGenerationService, ContentAgentService],
+  providers: [AutomationService, EngineerAgentService, ContentGenerationService, ContentAgentService, ProofOfImpactService],
+  exports: [AutomationService, ContentGenerationService, ContentAgentService, ProofOfImpactService],
 })
 export class AutomationModule {}
