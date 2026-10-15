@@ -365,6 +365,29 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it("lists configured OpenRouter and completes its full workflow when it is the only provider", async () => {
+    const h = harness();
+    h.router.configuredProviders = () => [AiProvider.OPENROUTER];
+    h.router.configuredModels = () => ({ OPENROUTER: "openai/gpt-4o-mini" });
+    h.prisma.aiVisibilityJourney.findFirst = jest.fn(async () => h.row());
+    const data = await h.service.read("project");
+    expect(data.providers).toContainEqual({
+      provider: AiProvider.OPENROUTER,
+      configured: true,
+      model: "openai/gpt-4o-mini",
+    });
+    h.row().brief = null;
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.row().status).toBe("READY");
+    expect(h.row().brief.analysts.map((a: any) => a.provider)).toEqual([AiProvider.OPENROUTER]);
+    h.row().brief.reviewed = true;
+    h.reset();
+    await h.service.process({ id: "journey", phase: "CHECK" });
+    expect(h.responses.size).toBe(10);
+    expect(h.row().analysis).toHaveLength(1);
+    expect(h.row().status).toBe("COMPLETED");
+    expect(h.router.generate.mock.calls.every(([request]: any[]) => request.provider === AiProvider.OPENROUTER)).toBe(true);
+  });
   it("corrects missing locations and branded drafts once before saving ten buyer questions", async () => {
     const h = harness();
     h.row().brief = null;
