@@ -57,7 +57,8 @@ describe('AI visibility dashboard contract', () => {
     ]);
     const mockMetric = {
       scanId: 'scan',
-      visibilityScore: 50,
+      visibilityScore: 10,
+      mentionRate: 50,
       createdAt: new Date('2026-10-14T00:00:00Z'),
       shareOfVoice: [],
       funnelMetrics: { totalAnalyzed: 2 },
@@ -79,5 +80,29 @@ describe('AI visibility dashboard contract', () => {
     const service: any = { runScanForProject: jest.fn().mockResolvedValue(result) };
     const controller = new AiVisibilityController(service, {} as any, {} as any, {} as any);
     await expect(controller.runSweep('project')).resolves.toEqual(result);
+  });
+
+  it('classifies citations by the actual customer domain rather than a brand mention', async () => {
+    const { service, prisma } = create();
+    prisma.aiVisibilityScan.findFirst = jest.fn().mockResolvedValue({ id: 'scan' });
+    prisma.aiVisibilityCitation = { findMany: jest.fn().mockResolvedValue([
+      { domain: 'publisher.test', brandMentioned: true },
+      { domain: 'www.example.com', brandMentioned: false },
+    ]) };
+    await expect(service.getCitationsIntelligence('project')).resolves.toEqual({
+      totalCitations: 2,
+      citationsByDomain: [
+        { domain: 'publisher.test', count: 1, ownCited: false },
+        { domain: 'www.example.com', count: 1, ownCited: true },
+      ],
+    });
+  });
+
+  it('applies the selected date window to measured reports and history', async () => {
+    const { service, prisma } = create();
+    await service.getReport('project', 7);
+    expect(prisma.aiVisibilityMetrics.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectId: 'project', createdAt: { gte: expect.any(Date) } },
+    }));
   });
 });

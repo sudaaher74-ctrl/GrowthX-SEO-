@@ -310,9 +310,9 @@ export function CitationIntelligenceView(props?: {
           sub={hasData ? "Direct links to your website" : "Links to your website"}
         />
         <Kpi
-          label="Competitor domains"
+          label="External domains"
           value={hasData ? competitorCitationsCount.toLocaleString() : "—"}
-          sub={hasData ? "Links to rival & market sources" : "Links to tracked rivals"}
+          sub={hasData ? "Links to other websites" : "Links to tracked rivals"}
         />
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -707,7 +707,7 @@ export function SettingsView({ report }: { report?: VisibilityReport | null }) {
   const active = new Set((report?.measurableAssistants ?? []).map((a) => modelKeyOf(a)));
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title="Monitoring schedule" subtitle="One scheduled scan in each cycle" padded>
+      <Panel title="Monitoring schedule" subtitle="Three monitoring cycles per month" padded>
         <ul className="divide-y text-[12.5px]">
           {windows.map(([k, v], i) => (
             <li key={k} className="flex items-center justify-between py-2">
@@ -719,14 +719,14 @@ export function SettingsView({ report }: { report?: VisibilityReport | null }) {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-[11.5px] text-brand-500">Next scan from {c.nextScan}.</p>
+        <p className="mt-3 text-[11.5px] text-brand-500">Next monitoring window starts {c.nextScan}.</p>
       </Panel>
       <Panel title="Models" subtitle="Credentials are held on the server and never shown here" padded>
         <ul className="divide-y text-[12.5px]">
           {MODEL_DEFS.map((m) => (
             <li key={m.key} className="flex items-center justify-between py-2">
               <span className="font-medium text-brand-950">{m.label}</span>
-              {active.has(m.key) ? <Pill tone="good">Active</Pill> : <Pill>Not reporting</Pill>}
+              {active.has(m.key) ? <Pill tone="info">Configured</Pill> : <Pill>Not reporting</Pill>}
             </li>
           ))}
         </ul>

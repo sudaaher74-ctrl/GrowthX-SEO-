@@ -79,7 +79,7 @@ function Journey({ projectId }: { projectId: string }) {
     ALIASES[requested] ||
     (TABS.some((t) => t.id === requested) ? requested : "overview");
   const setTab = (value: string) =>
-    router.replace(`/ai-visibility?tab=${value}`, { scroll: false });
+    router.replace(`/ai-visibility/journey?tab=${value}`, { scroll: false });
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
   const query = useQuery({

@@ -316,7 +316,7 @@ export class AiVisibilityService {
     const periodEnd = new Date().toISOString();
 
     const latestMetrics = await this.prisma.aiVisibilityMetrics.findFirst({
-      where: { projectId },
+      where: { projectId, createdAt: { gte: new Date(periodStart) } },
       orderBy: { createdAt: 'desc' },
       include: { scan: { include: { runs: true } } },
     });
@@ -364,7 +364,7 @@ export class AiVisibilityService {
     let validCited = 0;
 
     for (const r of responses) {
-      if (r.errorMessage || !r.rawResponse) {
+      if (r.errorMessage || !r.rawResponse || !r.analysis) {
         failedChecks++;
         continue;
       }
@@ -413,7 +413,7 @@ export class AiVisibilityService {
     // Calculate real byAssistant breakdown from responses per scan run
     const byAssistant = latestMetrics.scan.runs.map((r: any) => {
       const runResponses = responses.filter((resp) => resp.scanRunId === r.id);
-      const valid = runResponses.filter((resp) => !resp.errorMessage && resp.rawResponse);
+      const valid = runResponses.filter((resp) => !resp.errorMessage && resp.rawResponse && resp.analysis);
       const checked = valid.length;
       const cited = valid.filter((resp) => resp.analysis?.brandMentioned).length;
       const citationSharePct = checked > 0 ? Math.round((cited / checked) * 100) : 0;
@@ -436,17 +436,17 @@ export class AiVisibilityService {
 
     // Read historical scans for real trend and deltaPt
     const historicalMetrics = await this.prisma.aiVisibilityMetrics.findMany({
-      where: { projectId },
+      where: { projectId, createdAt: { gte: new Date(periodStart) } },
       orderBy: { createdAt: 'desc' },
-      take: 8,
+      take: 100,
     });
 
     let deltaPt: number | null = null;
     let previousCitationSharePct: number | null = null;
 
     if (historicalMetrics.length >= 2) {
-      previousCitationSharePct = Math.round(historicalMetrics[1].visibilityScore);
-      deltaPt = Math.round(latestMetrics.visibilityScore - historicalMetrics[1].visibilityScore);
+      previousCitationSharePct = Math.round(historicalMetrics[1].mentionRate);
+      deltaPt = Math.round(latestMetrics.mentionRate - historicalMetrics[1].mentionRate);
     }
 
     const trend = [...historicalMetrics].reverse().map((m) => {
@@ -454,7 +454,7 @@ export class AiVisibilityService {
       return {
         weekStart: m.createdAt.toISOString(),
         checked: funnel.totalAnalyzed ?? 0,
-        citationSharePct: Math.round(m.visibilityScore),
+        citationSharePct: Math.round(m.mentionRate),
       };
     });
 
@@ -473,7 +473,7 @@ export class AiVisibilityService {
       summary: {
         checked: validChecked,
         cited: validCited,
-        citationSharePct: Math.round(latestMetrics.visibilityScore),
+        citationSharePct: validChecked > 0 ? Math.round(validCited / validChecked * 100) : 0,
         deltaPt,
         previousCitationSharePct,
         averagePosition: latestMetrics.averagePosition ? Number(latestMetrics.averagePosition.toFixed(1)) : null,
@@ -564,6 +564,9 @@ export class AiVisibilityService {
       return { totalCitations: 0, citationsByDomain: [] };
     }
 
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, include: { websites: { where: { scope: 'own' } } } });
+    const canonical = (domain: string) => domain.toLowerCase().replace(/^www\./, '');
+    const ownDomains = new Set((project?.websites ?? []).map(w => canonical(w.domain)));
     const citations = await this.prisma.aiVisibilityCitation.findMany({
       where: { response: { scanRun: { scanId: latestScan.id } } },
       include: { response: { include: { mentions: true } } },
@@ -574,13 +577,12 @@ export class AiVisibilityService {
       const d = c.domain.toLowerCase();
       const existing = domainMap.get(d) || { domain: d, count: 0, ownCited: false };
       existing.count++;
-      if (c.brandMentioned) existing.ownCited = true;
+      if (ownDomains.has(canonical(d))) existing.ownCited = true;
       domainMap.set(d, existing);
     }
 
     const sortedDomains = Array.from(domainMap.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
+      .sort((a, b) => b.count - a.count);
 
     return {
       totalCitations: citations.length,
@@ -607,6 +609,7 @@ export class AiVisibilityService {
     const missedPrompts: Array<{ prompt: string; category: string; winner: string }> = [];
 
     for (const r of responses) {
+      if (r.errorMessage || !r.rawResponse || !r.analysis) continue;
       const customerMentioned = r.mentions.some((m) => m.isCustomer && (m.recommended || m.shortlisted));
       const competitorMentioned = r.mentions.find((m) => !m.isCustomer && (m.recommended || m.shortlisted));
 

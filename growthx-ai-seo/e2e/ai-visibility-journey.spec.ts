@@ -164,7 +164,7 @@ test("reviews local questions before checking and preserves missing-source truth
   await setup(page, data, (body) => {
     sent.brief = (body as { brief: VisibilityBrief }).brief;
   });
-  await page.goto("/ai-visibility");
+  await page.goto("/ai-visibility/journey");
   await expect(
     page.getByRole("heading", {
       name: "What we understand about your business",
@@ -265,7 +265,7 @@ test("shows measured results, failed checks, competitor evidence and action plan
     },
   ];
   await setup(page, data);
-  await page.goto("/ai-visibility?tab=answers");
+  await page.goto("/ai-visibility/journey?tab=answers");
   await expect(page.getByText("Not mentioned", { exact: true })).toBeVisible();
   await expect(page.getByText("Check failed", { exact: true })).toBeVisible();
   await expect(page.getByText("0 / 1", { exact: true })).toHaveCount(2);
@@ -294,7 +294,7 @@ test("shows measured results, failed checks, competitor evidence and action plan
 test("keeps the review usable on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, fixture());
-  await page.goto("/ai-visibility?tab=questions");
+  await page.goto("/ai-visibility/journey?tab=questions");
   await expect(
     page.getByRole("textbox", { name: "Buyer question 20", exact: true }),
   ).toBeVisible();

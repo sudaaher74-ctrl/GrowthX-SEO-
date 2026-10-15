@@ -34,6 +34,12 @@ const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 /** @type {Rule[]} */
 const RULES = [
   {
+    name: 'fixed AI visibility measurements',
+    why: 'Visibility counts and scores must come from saved provider measurements.',
+    files: /components\/ai-visibility\//,
+    pattern: /\b(score|mentions|recommendations|citations|wins)\s*:\s*[1-9]\d*/,
+  },
+  {
     name: 'invented display value',
     why:
       'A `|| 85` or `?? 100` on a figure the client reads turns "we never ' +
@@ -214,6 +220,7 @@ for (const file of sourceFiles(SRC)) {
   const lines = readFileSync(file, 'utf8').split('\n');
   lines.forEach((text, index) => {
     for (const rule of RULES) {
+      if (rule.files && !rule.files.test(relPath.split(sep).join('/'))) continue;
       if (!rule.pattern.test(text)) continue;
       if (rule.except?.test(text)) continue;
       if (allowed(rule, relPath, text)) continue;
