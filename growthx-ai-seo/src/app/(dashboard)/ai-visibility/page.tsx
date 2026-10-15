@@ -18,6 +18,7 @@ import {
 import { useGoogleOverview } from "@/hooks/use-google";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { ActionButton, StatusNote } from "@/components/ui/console";
 import { AiVisibilityDashboard } from "@/components/ai-visibility/ai-visibility-dashboard";
 import { CitationIntelligenceDashboard } from "@/components/ai-visibility/citation-intelligence-dashboard";
 import { AiVisibilityOverview, overviewFigures } from "@/components/ai-visibility/av-overview";
