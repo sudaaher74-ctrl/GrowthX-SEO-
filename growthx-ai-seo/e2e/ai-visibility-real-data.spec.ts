@@ -36,33 +36,41 @@ async function setup(page: Page, options: { empty?: boolean; fail?: boolean } = 
   });
 }
 
-test('all measurement tabs use stored API values and monitoring opens the review workflow', async ({ page }) => {
+test('original dashboards retain their layout and display saved measurements only', async ({ page }) => {
   await setup(page);
   await page.goto('/ai-visibility');
-  await expect(page.getByText('3 of 7 answers mention you')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Review questions & run monitoring' })).toHaveAttribute('href', '/ai-visibility/journey');
-  await page.getByRole('tab', { name: 'Prompt Intelligence', exact: true }).click();
+  await expect(page.getByRole('heading', {name:'Visibility Trends',exact:true})).toBeVisible();
+  await expect(page.getByText('3 of 7 saved answers mention your brand.')).toBeVisible();
+  await expect(page.getByText('A recorded provider answer.', {exact:true})).toBeVisible();
+  await expect(page.locator('.lg\\:grid-cols-5').first()).toBeVisible();
+  await page.getByRole('button',{name:/View (Saved|Full) Response/,exact:true}).click();
   await expect(page.getByText('Stored buyer question')).toBeVisible();
-  await page.getByRole('button', { name: 'Responses', exact: true }).click();
-  await expect(page.getByText('A recorded provider answer.')).toBeVisible();
-  await page.getByRole('tab', { name: 'Citation Intelligence', exact: true }).click();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByRole('button',{name:'Run New AI Visibility Check',exact:true}).click();
+  await expect(page).toHaveURL(/ai-visibility\/journey/);
+  await page.goto('/ai-visibility?tab=citations');
+  await expect(page.getByRole('heading',{name:'Citations Trend',exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByText('recorded-source.test')).toBeVisible();
-  await page.getByRole('tab', { name: 'Competitor Comparison', exact: true }).click();
-  await expect(page.getByText('Measured rival', { exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Root Cause Analysis', exact: true }).click();
+  await page.goto('/ai-visibility?tab=competitors');
+  await expect(page.getByRole('heading',{name:'Competitor Overview',exact:true})).toBeVisible();
+  await expect(page.getByText('measured-rival.test',{exact:true}).first()).toBeVisible();
+  await page.goto('/ai-visibility?tab=root-cause');
+  await expect(page.getByRole('heading',{name:'Root Cause Overview',exact:true})).toBeVisible();
   await expect(page.getByText('Stored missed question')).toBeVisible();
-  await page.getByRole('tab', { name: 'Action Center', exact: true }).click();
-  await expect(page.getByText('Recorded evidence action')).toBeVisible();
-  await page.getByRole('tab', { name: 'Monitoring History', exact: true }).click();
+  for(const [tab,text] of [['prompts','Stored buyer question'],['actions','Recorded evidence action']]) {
+    await page.goto('/ai-visibility?tab='+tab);
+    await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+  }
+  await page.goto('/ai-visibility?tab=history');
   await expect(page.getByRole('table')).toContainText('43%');
-  await expect(page.getByRole('table').getByText('0%', { exact: true })).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Settings', exact: true }).click();
-  await expect(page.getByText('Configured', { exact: true })).toHaveCount(1);
-  await page.getByRole('tab', { name: 'AI Model Visibility', exact: true }).click();
+  await page.goto('/ai-visibility?tab=models');
   await expect(page.getByRole('table')).toContainText('43%');
-  await page.getByRole('tab', { name: 'Unified Intelligence', exact: true }).click();
+  await expect(page.getByRole('table').getByText('0%',{exact:true})).toHaveCount(0);
+  await page.goto('/ai-visibility?tab=settings');
+  await expect(page.getByText('Configured',{exact:true})).toHaveCount(1);
+  await page.goto('/ai-visibility?tab=unified');
   await expect(page.getByText('Could not load this data')).toBeVisible();
-  await expect(page.getByText('Aug 28, 2025', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('Aug 28, 2025',{exact:false})).toHaveCount(0);
 });
 
 test('no project never displays fabricated measurements', async ({ page }) => {

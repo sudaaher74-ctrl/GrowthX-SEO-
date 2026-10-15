@@ -32,7 +32,7 @@ interface OverviewProps {
 export function overviewFigures(report?: VisibilityReport | null) {
   const measured = (report?.summary?.checked ?? 0) > 0;
   const rows = report?.shareOfVoice ?? [];
-  const own = rows.find((r) => r.domain === null)?.mentions ?? 0;
+  const own = rows.find((r) => r.domain === null);
   const all = rows.reduce((s, r) => s + r.mentions, 0);
   const trend = (report?.trend ?? []).filter((t) => t.checked > 0);
   const hasDelta = measured && report?.summary.previousCitationSharePct != null && report?.summary.deltaPt != null;
@@ -42,7 +42,7 @@ export function overviewFigures(report?: VisibilityReport | null) {
     mentions: report?.summary.cited ?? 0,
     checked: report?.summary.checked ?? 0,
     failed: report?.summary.failedChecks ?? 0,
-    shareOfVoice: measured && all > 0 ? Math.round((own / all) * 100) : null,
+    shareOfVoice: measured && own && all > 0 ? Math.round((own.mentions / all) * 100) : null,
     delta: hasDelta ? Math.round(report!.summary.deltaPt! * 10) / 10 : null,
     trend,
   };
