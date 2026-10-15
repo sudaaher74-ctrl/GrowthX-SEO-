@@ -2,14 +2,18 @@
 set -euo pipefail
 source_dir=$(git rev-parse --show-toplevel)
 artifact=$(realpath "$1")
-backup_release=$(realpath "$2")
+backup_release=${2:-}
+if test -n "$backup_release"; then backup_release=$(realpath "$backup_release"); fi
 sha=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["commit"])' "$artifact/revision.json")
 release="/home/growthx/releases/${sha:0:7}-visibility-openrouter"
 live=/home/growthx/GrowthX-SEO
 phase() { python3 "$source_dir/scripts/deploy-compose-release.py" "$1" "$source_dir" "$live" "$live/.env.laptop" "$release" "$sha"; }
 python3 "$source_dir/scripts/build-code-release.py" "$artifact" "$source_dir"
 phase prepare
-# Reuse only a fresh, verified backup for the same stack and unchanged schema.
+# New backups are the default. Reuse is optional and verified for unchanged schemas.
+if test -z "$backup_release"; then
+  phase backup
+else
 for attempt in $(seq 1 180); do test -f "$backup_release/runtime/backup-verified" && break; sleep 5; done
 python3 - "$source_dir" "$backup_release" "$release" "$sha" <<'PY'
 import json,os,subprocess,sys,time
@@ -28,6 +32,7 @@ os.link(dump,current/'runtime/database.dump')
 (current/'runtime/backup-source').write_text(str(previous))
 print('Fresh verified backup retained for final code release.')
 PY
+fi
 phase migrate </dev/null
 watchdogs=$(pgrep -f '^bash /home/growthx/growthx-watchdog.sh$' || true)
 resume() { for pid in $watchdogs; do kill -CONT "$pid" 2>/dev/null || true; done; }
