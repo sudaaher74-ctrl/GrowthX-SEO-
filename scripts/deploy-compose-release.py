@@ -59,6 +59,10 @@ if phase == 'prepare':
     with tarfile.open(archive) as tar:
         tar.extractall(checkout, filter='data')
     config = json.loads(output(['docker', 'compose', '--env-file', env_arg, 'config', '--format', 'json'], cwd=live))
+    source_config = json.loads(output([
+        'docker', 'compose', '--env-file', env_arg, '-f', str(checkout / 'docker-compose.yml'),
+        'config', '--format', 'json',
+    ], cwd=checkout))
     for service in ['api', 'worker']:
         container = json.loads(output(['docker', 'inspect', f"{config['name']}-{service}-1"]))[0]
         config['services'][service].pop('build', None)
@@ -68,6 +72,10 @@ if phase == 'prepare':
     for service in ['api', 'worker']:
         config['services'][service]['image'] = image
         config['services'][service]['stop_grace_period'] = '3m'
+        # Preserve private/runtime variables while applying keys and defaults
+        # declared by this committed release. Otherwise a newly added provider
+        # key stays absent forever because only the old container env is copied.
+        config['services'][service]['environment'].update(source_config['services'][service]['environment'])
         config['services'][service]['environment'].update(GIT_COMMIT=sha, GIT_BRANCH='main', WORKER_MODE=str(service == 'worker').lower())
     (runtime / 'compose.json').write_text(json.dumps(literal_config(config)))
     print(f'Prepared committed release {sha}; private settings preserved.')
