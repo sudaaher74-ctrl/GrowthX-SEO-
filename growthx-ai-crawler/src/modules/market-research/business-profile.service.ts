@@ -207,7 +207,7 @@ export class BusinessProfileService {
       if (cached) return cached;
     }
 
-    const profile = await this.detect(cleanDomain, options?.fallbackName);
+    const profile = await this.detect(cleanDomain, options?.fallbackName, projectId);
     await this.persist(projectId, profile);
     return profile;
   }
@@ -297,11 +297,11 @@ export class BusinessProfileService {
   }
 
   /** Reads the site, then asks the model to name the business; heuristics if it can't. */
-  async detect(domain: string, fallbackName?: string): Promise<DetectedBusinessProfile> {
+  async detect(domain: string, fallbackName?: string, projectId?: string): Promise<DetectedBusinessProfile> {
     const evidence = await this.readSite(domain);
 
     if (this.models?.isConfigured()) {
-      const fromModel = await this.classifyWithModel(evidence, fallbackName);
+      const fromModel = await this.classifyWithModel(evidence, fallbackName, projectId);
       if (fromModel) return fromModel;
     }
 
@@ -428,6 +428,7 @@ export class BusinessProfileService {
   private async classifyWithModel(
     evidence: SiteEvidence,
     fallbackName?: string,
+    projectId?: string,
   ): Promise<DetectedBusinessProfile | null> {
     const input = [
       `Website: ${evidence.domain}`,
@@ -474,6 +475,7 @@ export class BusinessProfileService {
 
     try {
       const result = await this.models!.generate({
+        projectId,
         step: 'detect_business_profile',
         role: ModelRole.WORKER,
         instructions:

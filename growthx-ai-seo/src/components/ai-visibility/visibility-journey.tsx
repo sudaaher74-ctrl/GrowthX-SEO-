@@ -117,7 +117,7 @@ function Journey({ projectId }: { projectId: string }) {
   const run = data?.journey;
   const busy =
     journeyRunning(run?.status) || prepare.isPending || check.isPending;
-  const configured = data?.providers.filter((p) => p.configured) ?? [];
+  const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const error = prepare.error || check.error;
 
   return (
@@ -149,24 +149,29 @@ function Journey({ projectId }: { projectId: string }) {
         {error && <StatusNote tone="bad">{error.message}</StatusNote>}
         {data && !configured.length && (
           <StatusNote tone="bad">
-            Gemini and Sarvam are not configured. Add provider access in the
+            The approved models are unavailable. Check provider access in the
             server settings to begin.
           </StatusNote>
         )}
         {data && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-brand-500">
             {data.providers.map((p) => (
-              <Pill key={p.provider} tone={p.configured ? "good" : "warn"}>
+              <Pill key={p.provider} tone={p.configured && !p.unavailableReason ? "good" : "warn"}>
                 {providerName(p.provider)} ·{" "}
-                {p.configured ? "Configured" : "Not configured"}
+                {p.unavailableReason ? "Unavailable" : p.configured ? "Configured" : "Not configured"}
               </Pill>
             ))}
             <span>
-              Website + Google data + competitors → 10 buyer questions → AI
+              Website + Google data + competitors → 20 buyer questions → AI
               answers → your plan
             </span>
           </div>
         )}
+        {data?.providers.filter((p) => p.configured && p.unavailableReason).map((p) => (
+          <StatusNote key={p.provider} tone="bad">
+            {providerName(p.provider)}: {p.unavailableReason}
+          </StatusNote>
+        ))}
         {!run && (
           <Panel padded>
             <div className="mx-auto max-w-2xl py-10 text-center">
@@ -175,8 +180,8 @@ function Journey({ projectId }: { projectId: string }) {
                 Start with the business behind the website
               </h2>
               <p className="mt-3 text-sm leading-6 text-brand-600">
-                Gemini and Sarvam read your audit, search demand, visitor
-                locations and competitor evidence. Then review ten questions
+                Gemini Flash-Lite reads your audit, search demand, visitor
+                locations and competitor evidence. Then review twenty questions
                 tailored to your products and service areas before checking who
                 AI recommends.
               </p>
@@ -199,7 +204,7 @@ function Journey({ projectId }: { projectId: string }) {
                         : run.status === "PREPARING"
                           ? "Understanding your business and drafting questions"
                           : run.status === "CHECKING"
-                            ? "Asking Gemini and Sarvam your buyer questions"
+                            ? "Asking the approved models your buyer questions"
                             : "Comparing answers and building your action plan"}
                     </span>
                     <span>{run.progress}%</span>
@@ -254,7 +259,7 @@ function Journey({ projectId }: { projectId: string }) {
                         onClick={() => setTab("questions")}
                         icon={<ArrowRight size={13} />}
                       >
-                        Review 10 questions
+                        Review {run.brief.questions.length} questions
                       </ActionButton>
                     }
                   >
@@ -334,7 +339,7 @@ function Journey({ projectId }: { projectId: string }) {
                   key={`${run.id}-${run.updatedAt}`}
                   brief={run.brief}
                   locked={busy || !!run.scanId}
-                  checks={configured.length * 10}
+                  checks={configured.length * run.brief.questions.length}
                   pending={check.isPending}
                   onRun={(brief) => check.mutate({ id: run.id, brief })}
                 />
@@ -535,7 +540,7 @@ function QuestionReview({
         </div>
       </Panel>
       <Panel
-        title="10 questions a real buyer would ask"
+        title={`${draft.questions.length} questions a real buyer would ask`}
         subtitle="Use specific products and locations. Keep your brand name out of the question."
       >
         <ol className="divide-y">
@@ -611,7 +616,7 @@ function QuestionReview({
               icon={<ArrowRight size={14} />}
               onClick={() => onRun(draft)}
             >
-              Confirm & check 10 questions
+              Confirm & check {draft.questions.length} questions
             </ActionButton>
           </div>
         )}

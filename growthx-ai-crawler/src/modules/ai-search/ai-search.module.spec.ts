@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TokensService } from '../tokens/tokens.service';
 import { AiSearchModule } from './ai-search.module';
 import { AiUsageService } from './multi-ai-router/ai-usage.service';
+import { LowCostPolicyService } from './multi-ai-router/low-cost-policy.service';
 import { MultiAiRouterService } from './multi-ai-router/multi-ai-router.service';
 
 /**
@@ -25,5 +26,6 @@ describe('AiSearchModule wiring', () => {
 
     expect(router.usageLedger).toBeInstanceOf(AiUsageService);
     expect(router.tokens).toBeInstanceOf(TokensService);
+    expect(router.costPolicy).toBeInstanceOf(LowCostPolicyService);
   });
 });

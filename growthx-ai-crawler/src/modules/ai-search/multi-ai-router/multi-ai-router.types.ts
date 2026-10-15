@@ -1,4 +1,5 @@
 export enum AiProvider {
+  GROK = 'GROK',
   MAMMOUTH = 'MAMMOUTH',
   SARVAM = 'SARVAM',
   GEMINI = 'GEMINI',
@@ -39,6 +40,7 @@ export enum RoutingProfile {
  * so existing callers keep working unchanged.
  */
 export enum AiTask {
+  VISIBILITY_MEASUREMENT = 'VISIBILITY_MEASUREMENT',
   REASONING = 'REASONING',
   CODE_GEN = 'CODE_GEN',
   FAST = 'FAST',
@@ -70,6 +72,7 @@ export enum AiTask {
  * business.
  */
 export const TASK_PROFILE: Readonly<Record<AiTask, RoutingProfile>> = {
+  [AiTask.VISIBILITY_MEASUREMENT]: RoutingProfile.FAST,
   [AiTask.REASONING]: RoutingProfile.REASONING,
   [AiTask.CODE_GEN]: RoutingProfile.CODE_GEN,
   [AiTask.FAST]: RoutingProfile.FAST,
@@ -93,6 +96,8 @@ export const TASK_PROFILE: Readonly<Record<AiTask, RoutingProfile>> = {
 };
 
 export interface AiRequest {
+  /** Never served from the internal analysis cache; no vendor fallback. */
+  freshMeasurement?: boolean;
   prompt: string;
   systemInstruction?: string;
   task?: AiTask;
@@ -117,6 +122,10 @@ export interface AiRequest {
 }
 
 export interface AiUsage {
+  actualCostUsd?: number | null;
+  searchCostUsd?: number;
+  generationId?: string;
+  cached?: boolean;
   inputTokens: number;
   outputTokens: number;
   /** Null when we have no published rate for the model — never a guessed number. */

@@ -365,6 +365,40 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it("uses twenty questions, cheap internal analysis, and preserves an unavailable Grok as a partial measurement", async () => {
+    const previousPolicy = process.env.AI_LOW_COST_POLICY;
+    process.env.AI_LOW_COST_POLICY = 'true';
+    try {
+      const h = harness();
+      h.router.lowCostEnabled = () => true;
+      h.router.configuredProviders = () => [AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY, AiProvider.GROK];
+      h.router.configuredModels = () => ({ GEMINI: 'gemini-2.5-flash', OPENAI: 'openai/gpt-4.1-mini', ANTHROPIC: 'anthropic/claude-haiku-4.5', PERPLEXITY: 'perplexity/sonar', GROK: 'x-ai/grok-4-fast' });
+      const brief = draft();
+      brief.questions = [...brief.questions, ...brief.questions.map(q => ({ ...q, text: `${q.text} For a household?` }))];
+      const base = h.router.generate.getMockImplementation();
+      h.router.generate.mockImplementation(async (req: any) => {
+        if (req.provider === AiProvider.GROK) throw new Error('Approved model unavailable');
+        if (req.jsonSchema === briefSchema) return { model: 'gemini-3.1-flash-lite', text: JSON.stringify(brief) };
+        return base(req);
+      });
+      h.row().brief = null;
+      await h.service.process({ id: 'journey', phase: 'PREPARE' });
+      expect(h.row().status).toBe('READY');
+      expect(h.row().brief.questions).toHaveLength(20);
+      expect(h.row().brief.analysts).toHaveLength(1);
+      h.row().brief.reviewed = true;
+      h.row().scanId = 'scan';
+      h.reset();
+      h.router.generate.mockClear();
+      await h.service.process({ id: 'journey', phase: 'CHECK' });
+      const calls = h.router.generate.mock.calls.map(([req]: any[]) => req);
+      expect(calls.filter((req: any) => req.freshMeasurement)).toHaveLength(100);
+      expect(calls.filter((req: any) => req.jsonSchema).every((req: any) => req.provider === AiProvider.GEMINI)).toBe(true);
+      expect([...h.responses.values()].filter(a => a.analysis)).toHaveLength(80);
+      expect(h.row().analysis).toHaveLength(1);
+      expect(h.row().status).toBe('PARTIAL');
+    } finally { process.env.AI_LOW_COST_POLICY = previousPolicy; }
+  });
   it("lists configured OpenRouter and completes its full workflow when it is the only provider", async () => {
     const h = harness();
     h.router.configuredProviders = () => [AiProvider.OPENROUTER];
@@ -375,6 +409,7 @@ describe("durable visibility workflow", () => {
       provider: AiProvider.OPENROUTER,
       configured: true,
       model: "openai/gpt-4o-mini",
+      unavailableReason: null,
     });
     h.row().brief = null;
     await h.service.process({ id: "journey", phase: "PREPARE" });

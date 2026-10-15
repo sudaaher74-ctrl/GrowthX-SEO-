@@ -299,6 +299,10 @@ export class AutopilotService {
    * slower answer rather than no answer.
    */
   private async askForCompetitors(request: AiRequest): Promise<{ raw: unknown; model: string | null }> {
+    if (this.router.lowCostEnabled?.()) {
+      const completion = await this.router.generate({ ...request, task: AiTask.COMPETITOR_ANALYSIS, allowFallback: false });
+      return { raw: extractAndParseJson<any>(completion.text), model: completion.model ?? null };
+    }
     try {
       const completion = await this.router.generate({ ...request, provider: AiProvider.SARVAM });
       if (completion.refused) throw new Error('Sarvam declined');

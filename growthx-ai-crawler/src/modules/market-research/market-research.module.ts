@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiSearchModule } from '../ai-search/ai-search.module';
 import { DatabaseModule } from '../../database/database.module';
 import { AiVisibilityModule } from '../ai-visibility/ai-visibility.module';
 import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
@@ -26,7 +27,7 @@ import { CompetitorAutoIdentifyService } from './competitor-auto-identify.servic
  * decides which model serves which role.
  */
 @Module({
-  imports: [DatabaseModule, AiVisibilityModule, ContentIntelligenceModule],
+  imports: [DatabaseModule, AiVisibilityModule, ContentIntelligenceModule, AiSearchModule],
   controllers: [MarketResearchController],
   providers: [
     ModelRouterService,

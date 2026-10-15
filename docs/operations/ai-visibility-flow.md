@@ -1,14 +1,14 @@
 # Business-led AI Visibility
 
-AI Visibility now follows five stages: business evidence, ten buyer questions, independent AI answers, competitor gaps, and a lead action plan.
+AI Visibility now follows five stages: business evidence, twenty buyer questions, independent AI answers, competitor gaps, and a lead action plan.
 
 ## Evidence and measurement
 
 - A run snapshots the latest completed own-site audit, matching saved business profile, the Google section's 28-day Search Console and GA4 facts, and the Competitor Intelligence comparison. It uses bounded page excerpts and labels missing sources, dates and sample limits.
-- Configured Gemini, Sarvam and OpenRouter models independently interpret the evidence. One coherent question set is selected from the first valid interpretation; all configured business assessments are shown. Ten distinct, unbranded questions must refer to actual offerings and evidenced service areas. The operator reviews or corrects them before checks start.
-- Each available provider receives each question in a separate API request with no business context, brand name or competitor list supplied. Ten answers per configured provider are requested, up to thirty when all three are available. API model answers are not measurements of consumer applications or Google AI Overviews; web search is not enabled by this flow.
+- Under the [low-cost policy](low-cost-ai-policy.md), direct Gemini Flash-Lite interprets the evidence and prepares twenty distinct, unbranded buyer questions about actual offerings and evidenced service areas. The operator reviews or corrects them before checks start.
+- Each available provider receives each question in a separate API request with no business context, brand name or competitor list supplied. Twenty answers per approved model are requested, up to one hundred when all five are available. API model answers are not measurements of consumer applications or Google AI Overviews; only Sonar uses native search; paid search plugins are disabled.
 - Separate extraction calls classify saved answers. A recommendation requires a literal supporting quote containing the brand; other brands and links must occur in the answer. Failures and unclassified answers are excluded from rates. Links in model responses are not independently verified citations.
-- Each configured provider receives the evidence plus the combined measured findings to propose actions. Plans retain evidence references, concrete steps, priorities, timeframes and success measures. Rival explanations are hypotheses, not known model ranking causes. Untracked rivals without crawl evidence must be investigated before asserting website advantages.
+- Gemini Flash-Lite receives the evidence plus the combined measured findings to propose actions. Plans retain evidence references, concrete steps, priorities, timeframes and success measures. Rival explanations are hypotheses, not known model ranking causes. Untracked rivals without crawl evidence must be investigated before asserting website advantages.
 - GA4 top-city rows cannot establish the percentage of all visits outside a service area. Parent-city labels can cover nearby neighbourhoods. Search Console is not a city-level visitor source. Missing key events are unknown lead measurement, not zero leads.
 
 ## Persistence and retries
@@ -22,10 +22,10 @@ Provider errors do not trigger hidden fallback to another vendor. Saved business
 ## Deploy the committed version
 
 1. Back up PostgreSQL and preserve the shared Redis state as described in [move-server.md](move-server.md).
-2. Apply the additive `20261014183000_ai_visibility_journey` Prisma migration (`prisma migrate deploy`, also run by the container entrypoint).
-3. Build and deploy API and worker from the same Git commit. Configure Gemini, Sarvam and OpenRouter keys and allowed providers through private environment settings. Ensure a worker consumes the queue.
+2. Apply the additive `20261014183000_ai_visibility_journey` and `20261015143000_low_cost_ai_policy` Prisma migrations (`prisma migrate deploy`, also run by the container entrypoint).
+3. Build and deploy API and worker from the same Git commit. Configure direct Gemini and OpenRouter keys, allowlisted models and shared budgets through private environment settings. Ensure a worker consumes the queue.
 4. Deploy the matching frontend after the API routes and migration are ready.
-5. Check source coverage and provider availability in AI Visibility. Start business understanding, review the ten questions, run the checks and verify saved answers and plans after reloading the page.
+5. Check source coverage and provider availability in AI Visibility. Start business understanding, review the twenty questions, run the checks and verify saved answers and plans after reloading the page.
 
 Rollback can restore the previous API/worker/frontend images while leaving the additive table in place. Do not drop it if saved journeys are needed. No live production migration or paid scan is part of unit/browser fixture tests.
 

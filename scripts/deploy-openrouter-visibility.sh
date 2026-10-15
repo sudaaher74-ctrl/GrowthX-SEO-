@@ -10,7 +10,7 @@ phase() {
 phase prepare
 phase build
 phase backup
-phase migrate
+phase migrate </dev/null
 watchdogs=$(pgrep -f '^bash /home/growthx/growthx-watchdog.sh$' || true)
 resume() { for pid in $watchdogs; do kill -CONT "$pid" 2>/dev/null || true; done; }
 trap resume EXIT

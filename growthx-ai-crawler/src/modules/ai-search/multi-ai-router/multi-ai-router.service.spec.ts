@@ -13,6 +13,9 @@ import { InsufficientTokensException } from '../../tokens/insufficient-tokens.ex
 
 function build(env: Record<string, string> = {}, entitlementOverrides: any = {}) {
   const values: Record<string, string> = {
+    ANTHROPIC_MODEL: 'claude-opus-5',
+    OPENAI_MODEL: 'gpt-4o',
+    OPENROUTER_MODEL: 'openai/gpt-4o-mini',
     GEMINI_API_KEY: 'gem-real',
     OPENAI_API_KEY: 'oai-real',
     ANTHROPIC_API_KEY: 'ant-real',

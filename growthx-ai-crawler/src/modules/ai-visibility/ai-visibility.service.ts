@@ -37,6 +37,9 @@ export class AiVisibilityService {
       this.logger.log(`No active prompts found for project ${projectId}`);
       throw new BadRequestException('Add at least one buyer question in the Questions tab before running AI Visibility.');
     }
+    const lowCost = this.providerAbstraction.lowCostEnabled?.() ?? false;
+    if (lowCost && prompts.length !== 20)
+      throw new BadRequestException('The low-cost monitoring plan requires exactly 20 active buyer questions. Review the questions before running a cycle.');
 
     // 2. Fetch configured providers
     const settings = await this.prisma.aiVisibilitySettings.findUnique({
@@ -44,6 +47,7 @@ export class AiVisibilityService {
     });
     
     let providersStr = settings?.enabledModels || [];
+    if (lowCost) providersStr = [AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY, AiProvider.GROK];
     if (providersStr.length === 0) {
       // Default to GEMINI if none configured
       providersStr = [AiProvider.GEMINI];
@@ -61,13 +65,21 @@ export class AiVisibilityService {
     }
 
     // 3. Create a scan record
-    const scan = await this.prisma.aiVisibilityScan.create({
+    const scanData = {
       data: {
         projectId,
         cycleId: new Date().toISOString(),
         status: 'RUNNING',
       },
-    });
+    };
+    const scan = lowCost ? await this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(734193813)`;
+      const project = await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { organizationId: true } });
+      const now = new Date();
+      const count = await tx.aiVisibilityScan.count({ where: { project: { organizationId: project.organizationId }, createdAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } } });
+      if (count >= 3) throw new BadRequestException('This customer has used its three monthly visibility cycles.');
+      return tx.aiVisibilityScan.create(scanData);
+    }) : await this.prisma.aiVisibilityScan.create(scanData);
 
     let totalCost = 0;
     let completedCount = 0;

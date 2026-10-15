@@ -6,7 +6,7 @@ jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 function config(key?: string) {
-  return { get: jest.fn().mockReturnValue(key) } as any;
+  return { get: jest.fn((name: string) => name === 'TAVILY_API_KEY' ? key : undefined) } as any;
 }
 
 function result(url: string, title: string, content: string, score = 0.8) {
