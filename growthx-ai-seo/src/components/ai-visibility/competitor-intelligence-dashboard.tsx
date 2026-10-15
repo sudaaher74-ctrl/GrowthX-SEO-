@@ -308,7 +308,7 @@ export function CompetitorIntelligenceDashboard({
                     <td className="py-2.5 text-right">
                       <div className="inline-block w-20">
                         <div className="h-1.5 w-full rounded-full bg-brand-100 overflow-hidden">
-                          <div className={`h-full rounded-full ${row.barClass}`} style={{ width: `${row.contentScore ?? "—"}` }} />
+                          <div className={`h-full rounded-full ${row.barClass}`} style={{ width: row.contentScore ?? 0 }} />
                         </div>
                       </div>
                     </td>
