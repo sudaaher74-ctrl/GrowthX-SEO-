@@ -6,7 +6,7 @@ import { resolveReactRoute } from './react-route';
 describe('React Router page resolution', () => {
   let root: string;
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), 'react-routes-'));
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'react-routes-')));
     await fs.mkdir(path.join(root, 'src/pages'), { recursive: true });
     for (const name of ['Home', 'Cart', 'AdminCart', 'Product']) await fs.writeFile(path.join(root, `src/pages/${name}.jsx`), 'export default () => <div />');
     await fs.writeFile(path.join(root, 'src/router.jsx'), `

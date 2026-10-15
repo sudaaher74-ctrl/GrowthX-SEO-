@@ -1,19 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
-export const DEFAULT_PROMPT_CATEGORIES = [
-  'Discovery',
-  'Recommendation',
-  'Problem/Solution',
-  'Comparison',
-  'Purchase Intent',
-  'Competitor Alternative',
-  'Local Intent',
-  'Product/Service Intent',
-  'Trust/Authority',
-  'Final Recommendation',
-];
+export const PROMPT_CATEGORIES_CONFIG = [
+  { name: 'General Discovery', stage: 'DISCOVERY', targetCount: 4 },
+  { name: 'Product/Service Discovery', stage: 'DISCOVERY', targetCount: 4 },
+  { name: 'Local Search Intent', stage: 'CONSIDERATION', targetCount: 4 },
+  { name: 'Competitor Comparison', stage: 'CONSIDERATION', targetCount: 4 },
+  { name: 'Trust and Purchase Decisions', stage: 'RECOMMENDATION', targetCount: 4 },
+] as const;
+
+export type PromptCategoryName = typeof PROMPT_CATEGORIES_CONFIG[number]['name'];
 
 @Injectable()
 export class PromptEngineService {
@@ -24,78 +21,193 @@ export class PromptEngineService {
     private readonly aiRouter: MultiAiRouterService,
   ) {}
 
-  async generatePromptsForProject(projectId: string): Promise<void> {
+  /**
+   * Generates a neutral 20-prompt set (4 in each of 5 categories) using Gemini Flash-Lite.
+   */
+  async generatePromptsForProject(projectId: string, overwrite = false): Promise<{ count: number }> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      include: { websites: true },
+      include: {
+        websites: { where: { scope: 'own' } },
+        competitors: true,
+      },
     });
 
     if (!project) {
-      throw new Error(`Project ${projectId} not found`);
+      throw new NotFoundException(`Project ${projectId} not found`);
     }
 
-    // Determine the website domain
-    const ownWebsite = project.websites.find((w: any) => w.scope === 'own');
-    const domain = ownWebsite?.domain || project.name;
+    // Check if stable active prompts already exist
+    const existingCount = await this.prisma.aiVisibilityPrompt.count({
+      where: { projectId, isActive: true },
+    });
 
-    // Use AI Router to generate prompts based on the project data
-    const systemPrompt = `You are an SEO expert. Generate 10 distinct, highly realistic search prompts that potential customers would ask an AI assistant about a business like ${project.name} (${domain}). 
-Cover these categories: ${DEFAULT_PROMPT_CATEGORIES.join(', ')}.
-Return exactly 10 questions as a JSON array of strings. Do not include any other text.`;
+    if (existingCount >= 20 && !overwrite) {
+      this.logger.log(`Project ${projectId} already has ${existingCount} active prompts. Keeping stable set.`);
+      return { count: existingCount };
+    }
+
+    // Retrieve business profile context if available
+    const profile = await this.prisma.projectBusinessProfile.findUnique({
+      where: { projectId },
+    });
+
+    const ownWebsite = project.websites[0];
+    const domain = ownWebsite?.domain || project.name;
+    const industry = profile?.industry || 'Business Services';
+    const city = profile?.city || '';
+    const offerings = (profile?.offerings || []).join(', ');
+    const competitorNames = project.competitors.map((c) => c.label || c.domain).join(', ');
+
+    const promptContext = `
+Business Type / Industry: ${industry}
+City / Target Geography: ${city || 'Regional & National'}
+Key Offerings / Services: ${offerings || domain}
+Competitors: ${competitorNames || 'Other leading providers in the market'}
+Website: ${domain}
+`;
+
+    const systemPrompt = `You are a neutral AI Search and Search Intent intelligence expert.
+Generate 20 customer-oriented search discovery questions that prospective customers would ask conversational AI models (like ChatGPT, Perplexity, Gemini, Claude).
+You must organize them into exactly 5 categories with 4 prompts each:
+1. "General Discovery" (4 prompts): High-level industry discovery questions where a user explores options.
+2. "Product/Service Discovery" (4 prompts): Questions about specific capabilities, features, packages, or services.
+3. "Local Search Intent" (4 prompts): City or region-oriented discovery (e.g. in ${city || 'local markets'}).
+4. "Competitor Comparison" (4 prompts): Unbiased comparison questions between solutions or top market brands (can mention competitors: ${competitorNames || 'top brands'}).
+5. "Trust and Purchase Decisions" (4 prompts): Questions asking which providers are most reliable, trustworthy, verified, or best to buy from.
+
+CRITICAL REQUIREMENT:
+All prompts must be 100% NEUTRAL buyer queries.
+NEVER insert the customer's brand name ("${project.name}") into generic discovery prompts, as doing so would bias the monitoring. The goal is to see if AI assistants independently discover, cite, and recommend "${project.name}".
+`;
 
     try {
       const completion = await this.aiRouter.generate({
-        prompt: `Generate questions for ${project.name}`,
+        prompt: `Generate the 20 neutral AI discovery questions for this business profile:\n${promptContext}`,
         systemInstruction: systemPrompt,
-        task: 'GENERAL' as any,
+        task: AiTask.FAST,
+        provider: AiProvider.GEMINI,
+        model: 'gemini-2.5-flash-lite',
         organizationId: project.organizationId,
+        projectId,
         jsonSchema: {
-          type: 'array',
-          items: { type: 'string' }
+          type: 'object',
+          properties: {
+            categories: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  category: {
+                    type: 'string',
+                    enum: [
+                      'General Discovery',
+                      'Product/Service Discovery',
+                      'Local Search Intent',
+                      'Competitor Comparison',
+                      'Trust and Purchase Decisions',
+                    ],
+                  },
+                  prompts: {
+                    type: 'array',
+                    items: { type: 'string' },
+                  },
+                },
+                required: ['category', 'prompts'],
+              },
+            },
+          },
+          required: ['categories'],
         },
       });
 
-      const resultText = completion.text || '[]';
-      const questions = JSON.parse(resultText) as string[];
+      const parsed = JSON.parse(completion.text || '{}');
+      const categories = parsed.categories || [];
 
-      if (questions.length !== 10) {
-        this.logger.warn(`Expected 10 questions, but got ${questions.length}`);
+      if (overwrite) {
+        await this.prisma.aiVisibilityPrompt.updateMany({
+          where: { projectId },
+          data: { isActive: false },
+        });
       }
 
-      // Save to database
-      for (let i = 0; i < Math.min(10, questions.length); i++) {
-        const text = questions[i];
-        const category = DEFAULT_PROMPT_CATEGORIES[i] || 'Discovery';
-        let journeyStage = 'DISCOVERY';
-        if (category.includes('Recommendation') || category.includes('Purchase') || category.includes('Final')) {
-          journeyStage = 'RECOMMENDATION';
-        } else if (category.includes('Comparison') || category.includes('Alternative')) {
-          journeyStage = 'CONSIDERATION';
+      let createdCount = 0;
+
+      for (const catConfig of PROMPT_CATEGORIES_CONFIG) {
+        const found = categories.find((c: any) => c.category === catConfig.name);
+        const questions: string[] = found?.prompts || [];
+
+        for (const text of questions.slice(0, catConfig.targetCount)) {
+          if (!text || text.trim().length === 0) continue;
+          
+          const newPrompt = await this.prisma.aiVisibilityPrompt.create({
+            data: {
+              projectId,
+              text: text.trim(),
+              category: catConfig.name,
+              journeyStage: catConfig.stage,
+              isActive: true,
+            },
+          });
+
+          await this.prisma.aiVisibilityPromptVersion.create({
+            data: {
+              promptId: newPrompt.id,
+              text: text.trim(),
+              version: 1,
+            },
+          });
+
+          createdCount++;
         }
-
-        const newPrompt = await this.prisma.aiVisibilityPrompt.create({
-          data: {
-            projectId,
-            text,
-            category,
-            journeyStage,
-          },
-        });
-
-        // Save first version
-        await this.prisma.aiVisibilityPromptVersion.create({
-          data: {
-            promptId: newPrompt.id,
-            text,
-            version: 1,
-          },
-        });
       }
 
-      this.logger.log(`Successfully generated and saved prompts for project ${projectId}`);
-    } catch (error) {
-      this.logger.error('Failed to generate prompts', error);
+      this.logger.log(`Created ${createdCount} prompts across 5 categories for project ${projectId}`);
+      return { count: createdCount };
+    } catch (error: any) {
+      this.logger.error(`Failed to generate 20 prompts for project ${projectId}: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  async updatePrompt(promptId: string, text: string): Promise<any> {
+    const prompt = await this.prisma.aiVisibilityPrompt.findUnique({
+      where: { id: promptId },
+      include: { versions: { orderBy: { version: 'desc' } } },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException(`Prompt ${promptId} not found`);
+    }
+
+    const nextVersion = (prompt.versions[0]?.version || 1) + 1;
+
+    const updated = await this.prisma.aiVisibilityPrompt.update({
+      where: { id: promptId },
+      data: { text },
+    });
+
+    await this.prisma.aiVisibilityPromptVersion.create({
+      data: {
+        promptId,
+        text,
+        version: nextVersion,
+      },
+    });
+
+    return updated;
+  }
+
+  async togglePrompt(promptId: string, isActive: boolean): Promise<any> {
+    return this.prisma.aiVisibilityPrompt.update({
+      where: { id: promptId },
+      data: { isActive },
+    });
+  }
+
+  async deletePrompt(promptId: string): Promise<any> {
+    return this.prisma.aiVisibilityPrompt.delete({
+      where: { id: promptId },
+    });
   }
 }

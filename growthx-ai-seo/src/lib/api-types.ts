@@ -117,6 +117,39 @@ export interface VisibilityReport {
   };
 }
 
+export interface AvAction {
+  id: string;
+  title: string;
+  category: string;
+  priority: number;
+  status: string;
+  identifiedAt?: string;
+  createdAt?: string;
+  recommendedAction?: string;
+  lifecycle?: string;
+}
+
+export interface AvUnifiedIntelligence {
+  domain: string;
+  brandName: string;
+  industry: string;
+  city: string | null;
+  crawlStatus: {
+    lastCrawlAt: string | null;
+    status: string;
+    openIssuesCount: number;
+    healthScore: number | null;
+  };
+  searchConsole: {
+    connected: boolean;
+  };
+  competitorCount: number;
+  activePromptsCount: number;
+  visibilityScore: number | null;
+  cycleId: string;
+  opportunitiesCount: number;
+}
+
 export type InsightLevel = "HIGH" | "MEDIUM" | "LOW";
 
 /** AI-written analysis of measured citation data. Never generated before a sweep. */
