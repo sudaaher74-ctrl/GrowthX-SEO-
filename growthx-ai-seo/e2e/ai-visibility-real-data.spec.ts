@@ -22,7 +22,7 @@ async function setup(page: Page, options: { empty?: boolean; fail?: boolean } = 
     if (path.endsWith('/ai-visibility')) return json({
       periodStart: '2026-10-01T00:00:00Z', periodEnd: '2026-10-15T00:00:00Z',
       summary: { checked: 7, cited: 3, citationSharePct: 43, failedChecks: 2, averagePosition: null, previousCitationSharePct: null, deltaPt: null },
-      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43 }],
+      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }],
       shareOfVoice: [{ domain: null, label: 'Measured business', mentions: 3, sharePct: 60 }, { domain: 'measured-rival.test', label: 'Measured rival', mentions: 2, sharePct: 40 }],
       trend: [{ weekStart: '2026-10-15T00:00:00Z', checked: 7, citationSharePct: 43 }], measurableAssistants: ['GEMINI'],
     });
@@ -46,7 +46,7 @@ test('all measurement tabs use stored API values and monitoring opens the review
   await page.getByRole('button', { name: 'Responses', exact: true }).click();
   await expect(page.getByText('A recorded provider answer.')).toBeVisible();
   await page.getByRole('tab', { name: 'Citation Intelligence', exact: true }).click();
-  await expect(page.getByText('recorded-source.test')).toBeVisible();
+  await expect(page.getByRole('table').getByText('recorded-source.test')).toBeVisible();
   await page.getByRole('tab', { name: 'Competitor Comparison', exact: true }).click();
   await expect(page.getByText('Measured rival', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Root Cause Analysis', exact: true }).click();
@@ -55,6 +55,7 @@ test('all measurement tabs use stored API values and monitoring opens the review
   await expect(page.getByText('Recorded evidence action')).toBeVisible();
   await page.getByRole('tab', { name: 'Monitoring History', exact: true }).click();
   await expect(page.getByRole('table')).toContainText('43%');
+  await expect(page.getByRole('table').getByText('0%', { exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Settings', exact: true }).click();
   await expect(page.getByText('Configured', { exact: true })).toHaveCount(1);
   await page.getByRole('tab', { name: 'AI Model Visibility', exact: true }).click();

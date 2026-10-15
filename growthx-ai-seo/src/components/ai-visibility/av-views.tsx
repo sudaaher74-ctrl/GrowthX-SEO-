@@ -235,7 +235,7 @@ export function ModelVisibilityView({ report }: { report?: VisibilityReport | nu
                 <Tr key={m.key}>
                   <Td className="text-[12.5px] font-medium text-brand-950">{m.label}</Td>
                   <Td align="right"><Mono>{r ? r.checked : "—"}</Mono></Td>
-                  <Td align="right"><Mono>{r ? pct(r.citationSharePct) : "—"}</Mono></Td>
+                  <Td align="right"><Mono>{r && r.checked > 0 ? pct(r.citationSharePct) : "—"}</Mono></Td>
                   <Td align="right"><Mono tone="soft">—</Mono></Td>
                   <Td align="right"><Mono tone="soft">—</Mono></Td>
                 </Tr>
@@ -352,15 +352,15 @@ export function CitationIntelligenceView(props?: {
           )}
         </Panel>
 
-        <Panel title="Citation opportunities" subtitle="Sources cited for competitors but never for you.">
+        <Panel title="Recorded sources" subtitle="Source domains returned in the latest completed monitoring scan.">
           {!hasData ? (
             <EmptyBlock
-              title="No citation gaps detected"
-              body="As scans identify recurring citation sources where competitors are referenced, gaps will appear here with recommended actions."
+              title="No source links recorded"
+              body="Verified source links will appear here after a provider returns citations in a monitoring scan."
             />
           ) : (
             <div className="p-4 text-[12.5px] text-brand-700 space-y-2">
-              <p>Top authorities cited in this category:</p>
+              <p>Most frequently recorded sources:</p>
               <ul className="list-disc pl-5 space-y-1 text-brand-600">
                 {data!.citationsByDomain.slice(0, 5).map((d) => (
                   <li key={d.domain}>

@@ -229,7 +229,7 @@ export function ModelBars({ report }: { report?: VisibilityReport | null }) {
           <li key={m.key}>
             <div className="mb-1 flex items-baseline justify-between text-[12px]">
               <span className="font-medium text-brand-950">{m.label}</span>
-              {row ? (
+              {row && row.checked > 0 ? (
                 <span className="font-mono text-brand-700">
                   {pct(row.citationSharePct)} <span className="text-brand-400">· {row.checked} checked</span>
                 </span>
