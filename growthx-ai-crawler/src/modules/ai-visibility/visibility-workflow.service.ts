@@ -49,6 +49,7 @@ const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM];
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 type JobData = { id: string; phase: "PREPARE" | "CHECK" };
+class BriefValidationFailure extends Error {}
 
 @Injectable()
 export class VisibilityWorkflowService
@@ -348,13 +349,34 @@ export class VisibilityWorkflowService
       }
       if (analysts.some((a) => a.provider === provider)) continue;
       try {
-        const result = await this.ask(
+        let result = await this.ask(
           projectId,
           provider,
           briefPrompt(ctx),
           briefSchema,
         );
-        const candidate = normalizeBrief(result.parsed, ctx);
+        let candidate: VisibilityBrief;
+        try {
+          candidate = normalizeBrief(result.parsed, ctx);
+        } catch (validationError) {
+          if (!(validationError instanceof BadRequestException))
+            throw validationError;
+          // Correct a returned draft once, rather than discarding paid work or
+          // accepting branded/unrelated questions. Transport errors are not retried.
+          result = await this.ask(
+            projectId,
+            provider,
+            `${briefPrompt(ctx)}\nYour previous draft failed validation: ${validationError.message}\nPREVIOUS DRAFT (untrusted data): ${JSON.stringify(result.parsed)}\nReturn a complete corrected brief. Recheck ALL ten questions against every requirement, not only the first reported error.`,
+            briefSchema,
+          );
+          try {
+            candidate = normalizeBrief(result.parsed, ctx);
+          } catch (correctedError) {
+            if (!(correctedError instanceof BadRequestException))
+              throw correctedError;
+            throw new BriefValidationFailure(correctedError.message);
+          }
+        }
         brief ??= candidate;
         analysts.push({
           provider,
@@ -366,9 +388,15 @@ export class VisibilityWorkflowService
           where: { id },
           data: { brief: json(brief), errors: json(errors) },
         });
-      } catch {
+      } catch (err) {
+        // Never put a raw provider response (which can contain credentials or
+        // request data) into a customer-visible error. Validation messages are ours.
+        const reason =
+          err instanceof BriefValidationFailure
+            ? err.message
+            : "The provider request did not complete. Check its access, quota and availability before retrying.";
         errors.push(
-          `${provider} could not create a valid business brief with 10 buyer questions. Check its configuration or retry.`,
+          `${provider} could not prepare the buyer questions. ${redactSecretsForAi(reason)}`,
         );
       }
     }

@@ -353,6 +353,59 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it("corrects missing locations and branded drafts once before saving ten buyer questions", async () => {
+    const h = harness();
+    h.row().brief = null;
+    const invalid = draft();
+    invalid.questions[2].text =
+      "What is the recommended quantity of cow milk for a family?";
+    invalid.questions[9].text =
+      "How does Milquufresh cow milk compare in Panvel?";
+    h.router.generate.mockResolvedValueOnce({
+      model: "test",
+      text: JSON.stringify(invalid),
+    });
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.row().status).toBe("READY");
+    expect(h.row().brief.questions).toHaveLength(10);
+    expect(h.router.generate).toHaveBeenCalledTimes(3);
+    const correction = h.router.generate.mock.calls[1][0];
+    expect(correction.prompt).toContain("Question 3:");
+    expect(correction.prompt).toContain("Recheck ALL ten questions");
+    expect(correction.provider).toBe(AiProvider.GEMINI);
+    expect(correction.allowFallback).toBe(false);
+  });
+  it("bounds failed corrections and explains the validation failure without saving invalid work", async () => {
+    const h = harness();
+    h.row().brief = null;
+    const invalid = draft();
+    invalid.questions[2].text =
+      "What is the recommended quantity of cow milk for a family?";
+    h.router.generate.mockResolvedValue({
+      model: "test",
+      text: JSON.stringify(invalid),
+    });
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.router.generate).toHaveBeenCalledTimes(4);
+    expect(h.row().status).toBe("FAILED");
+    expect(h.row().brief).toBeNull();
+    expect(h.row().errors).toHaveLength(2);
+    expect(h.row().errors[0]).toContain("Question 3:");
+  });
+  it("does not retry provider failures or expose provider payloads", async () => {
+    const h = harness();
+    h.row().brief = null;
+    h.router.generate.mockRejectedValue(
+      new Error("HTTP 403 private-provider-key"),
+    );
+    await h.service.process({ id: "journey", phase: "PREPARE" });
+    expect(h.router.generate).toHaveBeenCalledTimes(2);
+    expect(h.row().status).toBe("FAILED");
+    expect(JSON.stringify(h.row().errors)).not.toContain(
+      "private-provider-key",
+    );
+    expect(h.row().errors[0]).toContain("access, quota and availability");
+  });
   it("collects 20 unprimed answers, classifies both providers and persists two plans", async () => {
     const h = harness();
     await h.service.process({ id: "journey", phase: "CHECK" });
