@@ -294,7 +294,7 @@ export function AiVisibilityDashboard({
               <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
                 <div
                   className={`h-full rounded-full ${platform.barClass}`}
-                  style={{ width: `${platform.score ?? "—"}%` }}
+                  style={{ width: `${platform.score ?? 0}%` }}
                 />
               </div>
 
