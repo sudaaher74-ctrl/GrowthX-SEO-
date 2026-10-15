@@ -1,0 +1,8 @@
+ARG RUNTIME_BASE
+FROM ${RUNTIME_BASE}
+ARG GIT_COMMIT
+LABEL org.opencontainers.image.revision=${GIT_COMMIT}
+# The artifact is built from the clean, committed source by build-code-release.mjs.
+# Runtime dependencies and Prisma schema must match the pinned base release.
+COPY --chown=node:node dist/ /app/dist/
+COPY --chown=node:node revision.json /app/revision.json

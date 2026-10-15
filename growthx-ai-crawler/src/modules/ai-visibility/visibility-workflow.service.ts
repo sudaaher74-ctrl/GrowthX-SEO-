@@ -1,3 +1,4 @@
+import { LOW_COST_CYCLE_PREFIX, monthlyMonitoringCycles } from './monitoring-cycle-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -451,9 +452,9 @@ export class VisibilityWorkflowService
         if (await tx.aiVisibilityScan.findUnique({ where: { id: scanId } })) return;
         const project = await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { organizationId: true } });
         const now = new Date();
-        const count = await tx.aiVisibilityScan.count({ where: { project: { organizationId: project.organizationId }, createdAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } } });
+        const count = await tx.aiVisibilityScan.count({ where: monthlyMonitoringCycles(project.organizationId, now) });
         if (count >= 3) throw new BadRequestException('This customer has used its three monthly visibility cycles.');
-        await tx.aiVisibilityScan.create({ data: { id: scanId, projectId, cycleId: `journey-${id}`, status: 'RUNNING', startedAt: new Date() } });
+        await tx.aiVisibilityScan.create({ data: { id: scanId, projectId, cycleId: `${this.router.lowCostEnabled?.() ? LOW_COST_CYCLE_PREFIX : ''}journey-${id}`, status: 'RUNNING', startedAt: new Date() } });
       });
     }
     await this.prisma.aiVisibilityScan.upsert({

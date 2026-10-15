@@ -1,3 +1,4 @@
+import { LOW_COST_CYCLE_PREFIX, monthlyMonitoringCycles } from './monitoring-cycle-policy';
 import {
   BadRequestException,
   Injectable,
@@ -172,7 +173,7 @@ export class AiVisibilityService {
       throw new ServiceUnavailableException("No selected AI assistant is configured. Enable Gemini or update this project's AI visibility settings.");
     }
 
-    const cycleId = this.getCycleId();
+    const cycleId = (lowCost ? LOW_COST_CYCLE_PREFIX : '') + this.getCycleId();
 
     // 3. Create a scan record
     const scanData = {
@@ -186,7 +187,7 @@ export class AiVisibilityService {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(734193813)`;
       const project = await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { organizationId: true } });
       const now = new Date();
-      const count = await tx.aiVisibilityScan.count({ where: { project: { organizationId: project.organizationId }, createdAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } } });
+      const count = await tx.aiVisibilityScan.count({ where: monthlyMonitoringCycles(project.organizationId, now) });
       if (count >= 3) throw new BadRequestException('This customer has used its three monthly visibility cycles.');
       return tx.aiVisibilityScan.create(scanData);
     }) : await this.prisma.aiVisibilityScan.create(scanData);
