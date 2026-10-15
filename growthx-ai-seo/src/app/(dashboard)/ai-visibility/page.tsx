@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Loader2, Play, RefreshCw } from "lucide-react";
+import { ArrowLeft, Bot, ChevronDown, Crosshair, Layers, Link2, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   useWorkspace,
   useVisibility,
@@ -13,11 +14,16 @@ import {
   useAddCompetitor,
   useLatestCrawl,
   usePortfolio,
+  setActiveProject,
 } from "@/hooks/use-growthx";
 import { useGoogleOverview } from "@/hooks/use-google";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-import { ActionButton, PageHeader, StatusNote, Tabs } from "@/components/ui/console";
+import { ActionButton, StatusNote } from "@/components/ui/console";
+import { AiVisibilityDashboard } from "@/components/ai-visibility/ai-visibility-dashboard";
+import { CitationIntelligenceDashboard } from "@/components/ai-visibility/citation-intelligence-dashboard";
+import { CompetitorIntelligenceDashboard } from "@/components/ai-visibility/competitor-intelligence-dashboard";
+import { RootCauseAnalysisDashboard } from "@/components/ai-visibility/root-cause-analysis-dashboard";
 import { AiVisibilityOverview, overviewFigures } from "@/components/ai-visibility/av-overview";
 import {
   ActionCenterView,
@@ -30,29 +36,34 @@ import {
   SettingsView,
   UnifiedIntelligenceView,
 } from "@/components/ai-visibility/av-views";
-import { type AvPrompt, cycleInfo, pct } from "@/components/ai-visibility/av-shared";
+import { type AvPrompt } from "@/components/ai-visibility/av-shared";
 
-/** Order matches the sidebar's AI Visibility children in `nav-items.tsx`. */
+/** Sister tabs and sub-tabs linked from sidebar or internal controls */
 const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "unified", label: "Unified Intelligence" },
-  { id: "models", label: "AI Model Visibility" },
-  { id: "prompts", label: "Prompt Intelligence" },
-  { id: "citations", label: "Citation Intelligence" },
-  { id: "competitors", label: "Competitor Comparison" },
-  { id: "root-cause", label: "Root Cause Analysis" },
-  { id: "actions", label: "Action Center" },
-  { id: "history", label: "Monitoring History" },
-  { id: "settings", label: "Settings" },
+  { id: "overview", label: "AI Visibility", icon: Bot },
+  { id: "citations", label: "Citation Intelligence", icon: Link2 },
+  { id: "competitors", label: "Competitor Intelligence", icon: Crosshair },
+  { id: "root-cause", label: "Root Cause Analysis", icon: Layers },
+  { id: "unified", label: "Unified Intelligence", icon: Sparkles },
+  { id: "models", label: "AI Model Visibility", icon: Bot },
+  { id: "prompts", label: "Prompt Intelligence", icon: Sparkles },
+  { id: "actions", label: "Action Center", icon: Sparkles },
+  { id: "history", label: "Monitoring History", icon: Sparkles },
+  { id: "settings", label: "Settings", icon: Sparkles },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
-const RANGES = [
-  { days: 7, label: "Last 7 days" },
-  { days: 28, label: "Last 28 days" },
-  { days: 90, label: "Last 90 days" },
-];
+const TAB_ALIASES: Record<string, TabId> = {
+  "citation-intelligence": "citations",
+  "citation": "citations",
+  "competitor-intelligence": "competitors",
+  "competitors": "competitors",
+  "competitor": "competitors",
+  "competitor-comparison": "competitors",
+  "root-cause-analysis": "root-cause",
+  "root-cause": "root-cause",
+};
 
 export default function AiVisibilityPage() {
   return (
@@ -62,19 +73,15 @@ export default function AiVisibilityPage() {
   );
 }
 
-function csvCell(v: string | number) {
-  return `"${String(v).replace(/"/g, '""')}"`;
-}
-
 function AiVisibilityClient() {
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const currentProject = projects?.find((p) => p.id === projectId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const domain = clientRow?.domain ?? "";
-  const brandLabel = currentProject?.name || "Your brand";
+  const brandLabel = currentProject?.name || "Your Brand";
 
-  const [days, setDays] = useState(28);
+  const [days, setDays] = useState(30);
   const visibility = useVisibility(projectId, days);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
@@ -82,14 +89,10 @@ function AiVisibilityClient() {
   const addCompetitor = useAddCompetitor(projectId);
   const crawl = useLatestCrawl(domain || null);
   const google = useGoogleOverview(projectId);
+
   const competitorsQuery = useQuery({
     queryKey: ["competitors", projectId],
     queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
-    enabled: !!projectId,
-  });
-  const citationsQuery = useQuery({
-    queryKey: ["ai-visibility-citations", projectId],
-    queryFn: () => (projectId ? api.getAiVisibilityCitations(projectId) : Promise.resolve(null)),
     enabled: !!projectId,
   });
   const rootCauseQuery = useQuery({
@@ -103,62 +106,39 @@ function AiVisibilityClient() {
     enabled: !!projectId,
   });
 
-  // The sidebar's sub-items link to ?tab=; a click in the page replaces the choice.
   const tabParam = useSearchParams().get("tab");
-  const fromUrl = (TABS.find((t) => t.id === tabParam)?.id ?? "overview") as TabId;
-  const [tabState, setTabState] = useState({ param: tabParam, tab: fromUrl });
-  if (tabState.param !== tabParam) setTabState({ param: tabParam, tab: fromUrl });
+  const resolvedTab = (tabParam && TAB_ALIASES[tabParam]) || (TABS.find((t) => t.id === tabParam)?.id ?? "overview") as TabId;
+  const [tabState, setTabState] = useState({ param: tabParam, tab: resolvedTab });
+  if (tabState.param !== tabParam) setTabState({ param: tabParam, tab: resolvedTab });
   const activeTab = tabState.tab;
-  const setActiveTab = (tab: string) => setTabState({ param: tabParam, tab: tab as TabId });
+
+  const setActiveTab = (tab: string) => {
+    const resolved = (TAB_ALIASES[tab] || TABS.find((t) => t.id === tab)?.id || "overview") as TabId;
+    setTabState({ param: resolved, tab: resolved });
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", resolved);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   const [dialog, setDialog] = useState<"prompt" | "competitor" | null>(null);
   const [text, setText] = useState("");
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
 
   const report = visibility.data;
-  // The API's prompt rows have drifted from the declared type; read what is there.
   const promptList = (prompts.data ?? []) as unknown as AvPrompt[];
   const competitors = competitorsQuery.data ?? [];
-  const cycle = cycleInfo();
-  const refreshing = visibility.isFetching || prompts.isFetching;
-
-  const refresh = () => {
-    void visibility.refetch();
-    void prompts.refetch();
-    void competitorsQuery.refetch();
-    void citationsQuery.refetch();
-    void rootCauseQuery.refetch();
-    void actionsQuery.refetch();
-  };
 
   const runScan = async () => {
     setNote(null);
     try {
       await sweep.mutateAsync();
       await Promise.all([prompts.refetch(), visibility.refetch()]);
-      setNote({ text: "Scan finished. Results below reflect the answers just collected.", ok: true });
+      setNote({ text: "Scan finished. AI responses have been updated.", ok: true });
     } catch (err) {
       setNote({ text: errorMessage(err), ok: false });
     }
-  };
-
-  const exportCsv = () => {
-    const f = overviewFigures(report);
-    const lines = [
-      ["Metric", "Value"],
-      ["Overall visibility", pct(f.visibility)],
-      ["AI share of voice", pct(f.shareOfVoice)],
-      ["Answers checked", f.checked],
-      ["Failed requests", f.failed],
-      [],
-      ["Prompt", "Category"],
-      ...promptList.map((p) => [p.text, p.category ?? p.cluster ?? ""]),
-    ];
-    const csv = lines.map((r) => r.map(csvCell).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const a = Object.assign(document.createElement("a"), { href: url, download: `ai-visibility-${days}d.csv` });
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const submitDialog = async (e: React.FormEvent) => {
@@ -183,68 +163,140 @@ function AiVisibilityClient() {
 
   const busy = addPrompts.isPending || addCompetitor.isPending;
 
-  return (
-    <div className="space-y-4 pb-16">
-      <PageHeader
-        title="AI Visibility"
-        subtitle="Understand how AI models discover, mention, cite, and recommend your brand."
-        actions={
-          <>
-            <label className="sr-only" htmlFor="av-range">Date range</label>
-            <select
-              id="av-range"
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="rounded-lg border bg-white px-2.5 py-1.5 text-[12px] font-medium text-brand-700 focus-visible:outline-2 focus-visible:outline-primary-600"
-            >
-              {RANGES.map((r) => (
-                <option key={r.days} value={r.days}>{r.label}</option>
-              ))}
-            </select>
-            <span
-              className="flex items-center rounded-lg border bg-white px-2.5 py-1.5 text-[12px] text-brand-600"
-              title="Scans run once in each cycle: days 1–10, 11–20 and 21 to month end"
-            >
-              <span className="font-medium text-brand-950">{cycle.label}</span>
-              <span className="ml-1.5 text-brand-400">{cycle.range} · next {cycle.nextScan}</span>
-            </span>
-            <ActionButton
-              onClick={refresh}
-              disabled={refreshing}
-              aria-label="Refresh data"
-              icon={<RefreshCw size={13} className={refreshing ? "animate-spin" : undefined} />}
-            >
-              Refresh
-            </ActionButton>
-            <ActionButton onClick={exportCsv} disabled={!report} icon={<Download size={13} />}>
-              Export
-            </ActionButton>
-            <ActionButton
-              variant="primary"
-              onClick={runScan}
-              disabled={sweep.isPending || !projectId}
-              icon={sweep.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-            >
-              {sweep.isPending ? "Scanning…" : "Run scan"}
-            </ActionButton>
-          </>
-        }
-      />
+  const viewParam = useSearchParams().get("view");
+  const _figures = overviewFigures(report);
 
-      {sweep.isPending && (
-        <div role="status" className="rounded-xl border bg-accent-50 px-4 py-2.5 text-[12px] text-accent-700">
-          Asking each AI model your monitored questions. This can take a few minutes; you can leave this page.
-        </div>
-      )}
+  return (
+    <div className="space-y-4">
       {note && <StatusNote tone={note.ok ? "good" : "bad"}>{note.text}</StatusNote>}
       {visibility.error && !visibility.isLoading && (
         <StatusNote tone="bad">Could not load visibility data: {errorMessage(visibility.error)}</StatusNote>
       )}
 
-      <Tabs tabs={[...TABS]} active={activeTab} onChange={setActiveTab} />
+      {/* ── Sister Tabs Navigation Bar ─────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-2 shadow-xs"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("overview")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              activeTab === "overview"
+                ? "bg-primary-600 text-white shadow-xs"
+                : "text-brand-600 hover:text-brand-950 hover:bg-brand-50"
+            )}
+          >
+            <Bot className="h-4 w-4" />
+            <span>AI Visibility</span>
+          </button>
 
-      <div role="tabpanel" aria-label={TABS.find((t) => t.id === activeTab)?.label}>
-        {activeTab === "overview" && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("citations")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              activeTab === "citations"
+                ? "bg-primary-600 text-white shadow-xs"
+                : "text-brand-600 hover:text-brand-950 hover:bg-brand-50"
+            )}
+          >
+            <Link2 className="h-4 w-4" />
+            <span>Citation Intelligence</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("competitors")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              activeTab === "competitors"
+                ? "bg-primary-600 text-white shadow-xs"
+                : "text-brand-600 hover:text-brand-950 hover:bg-brand-50"
+            )}
+          >
+            <Crosshair className="h-4 w-4" />
+            <span>Competitor Intelligence</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("root-cause")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+              activeTab === "root-cause"
+                ? "bg-primary-600 text-white shadow-xs"
+                : "text-brand-600 hover:text-brand-950 hover:bg-brand-50"
+            )}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Root Cause Analysis</span>
+          </button>
+        </div>
+
+        {/* Secondary Sub-Views Dropdown / Quick Links */}
+        <div className="flex items-center gap-2">
+          {["unified", "models", "prompts", "actions", "history", "settings"].includes(activeTab) && (
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                {TABS.find((t) => t.id === activeTab)?.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("overview")}
+                className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back</span>
+              </button>
+            </div>
+          )}
+
+          <div className="relative group">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-xl border bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950 transition"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <span>More Views</span>
+              <ChevronDown className="h-3.5 w-3.5 text-brand-400" />
+            </button>
+            <div
+              className="absolute right-0 top-full z-20 mt-1 hidden w-48 rounded-xl border bg-white p-1 shadow-lg group-hover:block"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              {[
+                { id: "unified", label: "Unified Intelligence" },
+                { id: "models", label: "AI Model Visibility" },
+                { id: "prompts", label: "Prompt Intelligence" },
+                { id: "actions", label: "Action Center" },
+                { id: "history", label: "Monitoring History" },
+                { id: "settings", label: "Settings" },
+              ].map((sub) => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setActiveTab(sub.id)}
+                  className={cn(
+                    "flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs transition",
+                    activeTab === sub.id
+                      ? "bg-primary-50 font-semibold text-primary-700"
+                      : "text-brand-600 hover:bg-brand-50 hover:text-brand-950"
+                  )}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main Views ────────────────────────────────────────────── */}
+      {activeTab === "overview" && (
+        viewParam === "table" ? (
           <AiVisibilityOverview
             report={report}
             prompts={promptList}
@@ -252,41 +304,108 @@ function AiVisibilityClient() {
             brandLabel={brandLabel}
             onNavigate={setActiveTab}
           />
-        )}
-        {activeTab === "unified" && (
-          <UnifiedIntelligenceView
-            businessName={brandLabel}
+        ) : (
+          <AiVisibilityDashboard
+            report={report}
+            prompts={promptList}
             domain={domain}
-            crawl={crawl.data}
-            google={google.query.data}
-            googleLoading={google.query.isLoading}
-            competitors={competitors}
+            brandLabel={brandLabel}
+            projects={projects}
+            currentProjectId={projectId ?? undefined}
+            onSelectProject={(id) => setActiveProject(id)}
+            days={days}
+            onDaysChange={setDays}
+            onRunScan={runScan}
+            isScanning={sweep.isPending}
+            onNavigateTab={setActiveTab}
           />
-        )}
-        {activeTab === "models" && <ModelVisibilityView report={report} />}
-        {activeTab === "prompts" && (
-          <PromptIntelligenceView prompts={promptList} onAddPrompt={() => setDialog("prompt")} />
-        )}
-        {activeTab === "citations" && <CitationIntelligenceView citations={citationsQuery.data} />}
-        {activeTab === "competitors" && (
+        )
+      )}
+
+      {activeTab === "citations" && (
+        viewParam === "classic" ? (
+          <CitationIntelligenceView citations={null} />
+        ) : (
+          <CitationIntelligenceDashboard
+            domain={domain}
+            brandLabel={brandLabel}
+            projects={projects}
+            currentProjectId={projectId ?? undefined}
+            onSelectProject={(id) => setActiveProject(id)}
+            days={days}
+            onDaysChange={setDays}
+            onRunScan={runScan}
+            isScanning={sweep.isPending}
+          />
+        )
+      )}
+
+      {activeTab === "unified" && (
+        <UnifiedIntelligenceView
+          businessName={brandLabel}
+          domain={domain}
+          crawl={crawl.data}
+          google={google.query.data}
+          googleLoading={google.query.isLoading}
+          competitors={competitors}
+        />
+      )}
+
+      {activeTab === "models" && <ModelVisibilityView report={report} />}
+
+      {activeTab === "prompts" && (
+        <PromptIntelligenceView prompts={promptList} onAddPrompt={() => setDialog("prompt")} />
+      )}
+
+      {activeTab === "competitors" && (
+        viewParam === "classic" ? (
           <CompetitorComparisonView
             report={report}
             competitors={competitors}
             brandLabel={brandLabel}
             onAddCompetitor={() => setDialog("competitor")}
           />
-        )}
-        {activeTab === "root-cause" && <RootCauseView rootCause={rootCauseQuery.data} />}
-        {activeTab === "actions" && <ActionCenterView actions={actionsQuery.data} />}
-        {activeTab === "history" && <MonitoringHistoryView report={report} />}
-        {activeTab === "settings" && <SettingsView report={report} />}
-      </div>
+        ) : (
+          <CompetitorIntelligenceDashboard
+            domain={domain}
+            brandLabel={brandLabel}
+            projects={projects}
+            currentProjectId={projectId ?? undefined}
+            onSelectProject={(id) => setActiveProject(id)}
+            days={days}
+            onDaysChange={setDays}
+            onRunScan={runScan}
+            isScanning={sweep.isPending}
+          />
+        )
+      )}
+
+      {activeTab === "root-cause" && (
+        viewParam === "classic" ? (
+          <RootCauseView rootCause={rootCauseQuery.data} />
+        ) : (
+          <RootCauseAnalysisDashboard
+            domain={domain}
+            brandLabel={brandLabel}
+            projects={projects}
+            currentProjectId={projectId ?? undefined}
+            onSelectProject={(id) => setActiveProject(id)}
+            days={days}
+            onDaysChange={setDays}
+            onRunScan={runScan}
+            isScanning={sweep.isPending}
+          />
+        )
+      )}
+      {activeTab === "actions" && <ActionCenterView actions={actionsQuery.data} />}
+      {activeTab === "history" && <MonitoringHistoryView report={report} />}
+      {activeTab === "settings" && <SettingsView report={report} />}
 
       {dialog && (
         <AddDialog
           title={dialog === "prompt" ? "Add a prompt to monitor" : "Add a competitor"}
           label={dialog === "prompt" ? "Customer question" : "Competitor website"}
-          placeholder={dialog === "prompt" ? "e.g. Which companies deliver fresh milk in Mumbai?" : "e.g. competitor.com"}
+          placeholder={dialog === "prompt" ? "e.g. Which companies provide fresh delivery?" : "e.g. competitor.com"}
           hint={
             dialog === "prompt"
               ? "Keep it neutral — do not include your brand name, or results will be biased."

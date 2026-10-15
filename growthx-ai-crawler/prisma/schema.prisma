@@ -548,6 +548,9 @@ model Project {
   serpSnapshots             SerpSnapshot[]
   keywordGapSnapshots       KeywordGapSnapshot[]
   keywordDiagnoses          KeywordDiagnosis[]
+  fixSnapshots              FixSnapshot[]
+  fixImpactLedgerEvents     FixImpactLedgerEvent[]
+  fixRegressionRecords      FixRegressionRecord[]
 
   aiVisibilityPrompts       AiVisibilityPrompt[]
   aiVisibilityScans         AiVisibilityScan[]
@@ -4090,6 +4093,79 @@ model SeoImpactRecord {
   @@index([projectId, createdAt])
   @@index([projectId, url])
 }
+
+/// Snapshot of website state before fix, proposed in PR, or verified live after deployment.
+model FixSnapshot {
+  id                 String    @id @default(uuid())
+  projectId          String
+  automationRunId    String?
+  url                String
+  /// BEFORE | PROPOSED | VERIFIED_LIVE
+  snapshotType       String
+  pageId             String?
+  title              String?
+  metaDescription    String?
+  h1                 String?
+  canonicalUrl       String?
+  robotsDirectives   String?
+  structuredData     Json?     @default("[]")
+  headings           Json?     @default("[]")
+  internalLinksCount Int?      @default(0)
+  issuesCount        Int?      @default(0)
+  issuesList         Json?     @default("[]")
+  contentSnippet     String?
+  htmlContentHash    String?
+  screenshotUrl      String?
+  capturedAt         DateTime  @default(now())
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, url, snapshotType])
+  @@index([projectId, automationRunId])
+}
+
+/// Append-only audit ledger of every event in a fix's lifecycle.
+model FixImpactLedgerEvent {
+  id                 String    @id @default(uuid())
+  projectId          String
+  automationRunId    String?
+  /// ISSUE_DETECTED | FIX_RECOMMENDED | USER_APPROVED | PR_CREATED | PR_MERGED |
+  /// DEPLOYMENT_VERIFIED | TECHNICAL_FIX_CONFIRMED | DAY_14_REVIEW | DAY_30_IMPACT_REPORT |
+  /// DAY_60_IMPACT_REVIEW | REGRESSION_DETECTED
+  eventType          String
+  title              String
+  description        String
+  actor              String    @default("SYSTEM")
+  affectedUrl        String?
+  evidenceData       Json      @default("{}")
+  pullRequestUrl     String?
+  commitSha          String?
+  verificationStatus String?
+  createdAt          DateTime  @default(now())
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, automationRunId])
+}
+
+/// Issues introduced or detected after deployment verification.
+model FixRegressionRecord {
+  id              String    @id @default(uuid())
+  projectId       String
+  automationRunId String?
+  url             String
+  /// CRITICAL | HIGH | MEDIUM | LOW
+  severity        String
+  issueCode       String
+  title           String
+  description     String
+  detectedAt      DateTime  @default(now())
+  resolvedAt      DateTime?
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, severity])
+  @@index([projectId, detectedAt])
+}
+
 
 // ==========================================
 // AI VISIBILITY MODULE (Reigel)

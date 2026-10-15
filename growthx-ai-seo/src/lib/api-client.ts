@@ -1048,6 +1048,27 @@ export const api = {
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
   listFixChanges: (projectId: string) => get<import('./api-types').FixChangeReport[]>(`/api/projects/${projectId}/automation/changes`),
 
+  // ── Fix Engine 2.0: Proof of Impact
+  getProofOfImpactOverview: (projectId: string) =>
+    get<import('./api-types').FixEngineOverviewData>(`/api/projects/${projectId}/automation/impact/overview`),
+  getFixImpactHistory: (projectId: string) =>
+    get<import('./api-types').FixHistoryItem[]>(`/api/projects/${projectId}/automation/impact/history`),
+  getFixImpactDetail: (projectId: string, runId: string) =>
+    get<import('./api-types').FixDetailData>(`/api/projects/${projectId}/automation/impact/fixes/${runId}`),
+  verifyFixDeployment: (projectId: string, runId: string) =>
+    post<{ success: boolean; verificationStatus: string; liveValue?: string | null; verifiedAt?: string; message?: string }>(
+      `/api/projects/${projectId}/automation/impact/fixes/${runId}/verify`,
+      {},
+    ),
+  getFixImpactLedger: (projectId: string) =>
+    get<import('./api-types').FixLedgerEntry[]>(`/api/projects/${projectId}/automation/impact/ledger`),
+  getFixImpactAnalytics: (projectId: string) =>
+    get<Record<string, unknown>>(`/api/projects/${projectId}/automation/impact/analytics`),
+  getFixImpactReport: (projectId: string, runId?: string) =>
+    get<import('./api-types').FixImpactReportData>(
+      `/api/projects/${projectId}/automation/impact/report${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`,
+    ),
+
   // ── Admin
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
   getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),

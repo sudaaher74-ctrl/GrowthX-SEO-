@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, SearchCheck, Wrench, Store, Bot } from "lucide-react";
+import { Activity, Crosshair, Globe, SearchCheck, Wrench, Store, Bot, Link2, Layers, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -65,9 +65,8 @@ export function useMainNav(): { mainNav: NavItem[] } {
   const googleDone = isConnected("search_console") || isConnected("analytics");
   const profileDone = isConnected("business_profile");
 
-  // The workflow, in the order a client should work through it. AI Visibility,
-  // Business and Design Studio are hidden from the sidebar for now;
-  // their pages still exist and can be restored by adding the entries back.
+  // The workflow, aligned with the agency platform navigation:
+  // Dashboard, Website Audit, AI Visibility, Citation Intelligence, Competitor Intelligence, Root Cause Analysis, Fix Engine, Proof of Impact
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
@@ -92,52 +91,46 @@ export function useMainNav(): { mainNav: NavItem[] } {
       ],
     },
     {
-      label: "Google",
-      href: "/google",
-      icon: SearchCheck,
-      step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
-      children: [
-        { id: "search-console", label: "Search Console", href: "/google/search-console" },
-        { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
-        { id: "insights", label: "Insights & tools", href: "/google" },
-        { id: "report", label: "Improvement report", href: "/google/report" },
-      ],
+      label: "AI Visibility",
+      href: "/ai-visibility?tab=overview",
+      aliases: ["/ai-visibility"],
+      icon: Bot,
+      step: { n: 2, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Understand your business, check Gemini and Sarvam, and build a lead plan" },
+    },
+    {
+      label: "Citation Intelligence",
+      href: "/ai-visibility?tab=citations",
+      icon: Link2,
     },
     {
       label: "Competitor Intelligence",
-      href: "/competitor-intelligence",
+      href: "/ai-visibility?tab=competitors",
+      aliases: ["/competitor-intelligence"],
       icon: Crosshair,
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
-      children: [
-        { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
-        { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
-        { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
-        { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
-        { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
-      ],
     },
     {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Bot,
-      step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Understand your business, check Gemini and Sarvam, and build a lead plan" },
-      children: [
-        { id: "overview", label: "Overview", href: "/ai-visibility?tab=overview", tab: "overview", isDefault: true },
-        { id: "unified", label: "Unified Intelligence", href: "/ai-visibility?tab=unified", tab: "unified" },
-        { id: "models", label: "AI Model Visibility", href: "/ai-visibility?tab=models", tab: "models" },
-        { id: "prompts", label: "Prompt Intelligence", href: "/ai-visibility?tab=prompts", tab: "prompts" },
-        { id: "citations", label: "Citation Intelligence", href: "/ai-visibility?tab=citations", tab: "citations" },
-        { id: "competitors", label: "Competitor Comparison", href: "/ai-visibility?tab=competitors", tab: "competitors" },
-        { id: "root-cause", label: "Root Cause Analysis", href: "/ai-visibility?tab=root-cause", tab: "root-cause" },
-        { id: "actions", label: "Action Center", href: "/ai-visibility?tab=actions", tab: "actions" },
-        { id: "history", label: "Monitoring History", href: "/ai-visibility?tab=history", tab: "history" },
-        { id: "settings", label: "Settings", href: "/ai-visibility?tab=settings", tab: "settings" },
-      ],
+      label: "Root Cause Analysis",
+      href: "/ai-visibility?tab=root-cause",
+      icon: Layers,
     },
     {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
+      children: [
+        { id: "overview", label: "Overview", href: "/fix-engine?tab=overview", tab: "overview", isDefault: true },
+        { id: "history", label: "Fix History", href: "/fix-engine?tab=history", tab: "history" },
+        { id: "before-after", label: "Before & After", href: "/fix-engine?tab=before-after", tab: "before-after" },
+        { id: "impact", label: "Impact Analytics", href: "/fix-engine?tab=impact", tab: "impact" },
+        { id: "ledger", label: "Impact Ledger", href: "/fix-engine?tab=ledger", tab: "ledger" },
+        { id: "reports", label: "Reports", href: "/fix-engine?tab=reports", tab: "reports" },
+      ],
+    },
+    {
+      label: "Proof of Impact",
+      href: "/fix-engine?tab=impact",
+      icon: ShieldCheck,
     },
   ];
 

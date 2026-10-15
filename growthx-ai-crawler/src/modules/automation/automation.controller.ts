@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
 import { EngineerAgentService } from './engineer-agent.service';
+import { ProofOfImpactService } from './proof-of-impact.service';
 import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength } from 'class-validator';
 
 export class ConnectRepoDto {
@@ -50,6 +51,7 @@ export class AutomationController {
     private readonly automation: AutomationService,
     private readonly content: ContentGenerationService,
     private readonly engineer: EngineerAgentService,
+    private readonly proofOfImpact: ProofOfImpactService,
   ) {}
 
   // ── repository
@@ -154,5 +156,65 @@ export class AutomationController {
   @ApiOperation({ summary: 'Saved before/after fix evidence and subsequent crawl measurements' })
   listChanges(@Param('projectId') projectId: string) {
     return this.automation.listChanges(projectId);
+  }
+
+  // ── Proof of Impact (Fix Engine 2.0)
+
+  @Get('impact/overview')
+  @ApiOperation({ summary: 'Fix Engine 2.0 Overview dashboard metrics' })
+  @ApiParam({ name: 'projectId' })
+  getImpactOverview(@Param('projectId') projectId: string) {
+    return this.proofOfImpact.getOverview(projectId);
+  }
+
+  @Get('impact/history')
+  @ApiOperation({ summary: 'Searchable fix history with status and impact' })
+  @ApiParam({ name: 'projectId' })
+  getImpactHistory(@Param('projectId') projectId: string) {
+    return this.proofOfImpact.getFixHistory(projectId);
+  }
+
+  @Get('impact/fixes/:runId')
+  @ApiOperation({ summary: 'Comprehensive before & after fix detail, comparisons, and attribution' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  getFixDetail(@Param('projectId') projectId: string, @Param('runId') runId: string) {
+    return this.proofOfImpact.getFixDetail(projectId, runId);
+  }
+
+  @Post('impact/fixes/:runId/verify')
+  @ApiOperation({ summary: 'Trigger live deployment verification crawl and check for regressions' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  verifyFixDeployment(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.proofOfImpact.verifyDeployment(projectId, runId);
+  }
+
+  @Get('impact/ledger')
+  @ApiOperation({ summary: 'Append-only chronological audit ledger of fix engine events' })
+  @ApiParam({ name: 'projectId' })
+  getImpactLedger(@Param('projectId') projectId: string) {
+    return this.proofOfImpact.getImpactLedger(projectId);
+  }
+
+  @Get('impact/analytics')
+  @ApiOperation({ summary: 'Technical, Search (GSC), AI Visibility, and GA4 Business impact analytics' })
+  @ApiParam({ name: 'projectId' })
+  getImpactAnalytics(@Param('projectId') projectId: string) {
+    return this.proofOfImpact.getImpactAnalytics(projectId);
+  }
+
+  @Get('impact/report')
+  @ApiOperation({ summary: 'Generate structured evidence-based impact report for a fix or monthly summary' })
+  @ApiParam({ name: 'projectId' })
+  getImpactReport(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    const runId = req.query?.runId as string | undefined;
+    return this.proofOfImpact.generateImpactReport(projectId, runId);
   }
 }
