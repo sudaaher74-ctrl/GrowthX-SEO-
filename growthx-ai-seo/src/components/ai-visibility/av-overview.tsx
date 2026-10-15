@@ -348,7 +348,7 @@ export function PromptTable({ prompts }: { prompts: AvPrompt[] }) {
                             <p className="mt-1.5 text-[12px] leading-relaxed text-brand-700">
                               {c.error ? `Request failed: ${c.error}` : c.answerExcerpt}
                             </p>
-                            {c.competitorsCited.length > 0 && (
+                            {(c.competitorsCited?.length ?? 0) > 0 && (
                               <p className="mt-1.5 text-[11px] text-brand-500">
                                 Competitors named: {c.competitorsCited.join(", ")}
                               </p>
