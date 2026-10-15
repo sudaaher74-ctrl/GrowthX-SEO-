@@ -140,7 +140,15 @@ export function UnifiedIntelligenceView(props: {
         </Panel>
       </div>
 
-      <Panel title="Google search performance" subtitle={`Search Console and Analytics, last ${google?.days ?? 28} days`} padded>
+      <Panel
+        title="Google search performance"
+        subtitle={
+          google?.days != null
+            ? `Search Console and Analytics, last ${google.days} days`
+            : "Search Console and Analytics"
+        }
+        padded
+      >
         {props.googleLoading ? (
           <Skeleton className="h-20" />
         ) : scState === "connected" ? (
