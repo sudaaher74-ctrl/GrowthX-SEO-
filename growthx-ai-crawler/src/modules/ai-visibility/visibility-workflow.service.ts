@@ -36,6 +36,7 @@ import {
   normalizeAssessment,
   normalizeBrief,
   object,
+  replaceRepeatedBuyerQuestions,
   str,
 } from "./visibility-workflow.logic";
 import {
@@ -370,7 +371,10 @@ export class VisibilityWorkflowService
             briefSchema,
           );
           try {
-            candidate = normalizeBrief(result.parsed, ctx);
+            candidate = normalizeBrief(
+              replaceRepeatedBuyerQuestions(result.parsed),
+              ctx,
+            );
           } catch (correctedError) {
             if (!(correctedError instanceof BadRequestException))
               throw correctedError;

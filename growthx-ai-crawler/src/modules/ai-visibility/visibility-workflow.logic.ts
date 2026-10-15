@@ -35,6 +35,41 @@ export function evidenceIds(value: unknown, allowed: Set<string>): string[] {
   return strings(value).filter((id) => allowed.has(id));
 }
 
+/** Replace repeated model wording using only its cited offering and location. */
+export function replaceRepeatedBuyerQuestions(raw: unknown): unknown {
+  const draft = object(raw);
+  const questions = list(draft.questions);
+  if (questions.length !== 10) return raw;
+  const allOriginal = new Set(
+    questions.map((q) => normalized(str(q?.text, 300))),
+  );
+  const seen = new Set<string>();
+  const revised = questions.map((question) => {
+    const text = str(question?.text, 300);
+    const key = normalized(text);
+    if (!seen.has(key)) {
+      seen.add(key);
+      return question;
+    }
+    const offering = str(question?.offering, 180);
+    const location = str(question?.location, 180);
+    const area = location ? ` in ${location}` : "";
+    const alternatives = [
+      `Which local suppliers deliver ${offering}${area}?`,
+      `Where can I order ${offering} for home delivery${area}?`,
+      `What options are available for buying ${offering}${area}?`,
+    ];
+    const replacement = alternatives.find((candidate) => {
+      const candidateKey = normalized(candidate);
+      return !seen.has(candidateKey) && !allOriginal.has(candidateKey);
+    });
+    if (!replacement) return question;
+    seen.add(normalized(replacement));
+    return { ...object(question), text: replacement };
+  });
+  return { ...draft, questions: revised };
+}
+
 /** Reject weak, branded or unrelated question sets instead of reporting them as ten buyer checks. */
 export function normalizeBrief(
   raw: unknown,
