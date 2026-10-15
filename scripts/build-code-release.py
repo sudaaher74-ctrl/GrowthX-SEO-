@@ -18,5 +18,5 @@ for name,digest in metadata['files'].items():
 base_image='growthx-crawler:'+base
 info=json.loads(subprocess.check_output(['docker','image','inspect',base_image],text=True))[0]
 if info['Config']['Labels'].get('org.opencontainers.image.revision')!=base: raise SystemExit('Base image revision mismatch.')
-subprocess.run(['docker','build','--pull=false','--build-arg','RUNTIME_BASE='+info['Id'],'--build-arg','GIT_COMMIT='+sha,'-t','growthx-crawler:'+sha,str(artifact)],check=True)
+subprocess.run(['docker','build','--pull=false','--progress=plain','--build-arg','RUNTIME_BASE='+base_image,'--build-arg','GIT_COMMIT='+sha,'-t','growthx-crawler:'+sha,str(artifact)],check=True)
 print('Verified code release image: '+sha)
