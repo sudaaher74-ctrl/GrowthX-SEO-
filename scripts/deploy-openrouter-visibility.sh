@@ -5,7 +5,7 @@ sha=$(git rev-parse HEAD)
 release="/home/growthx/releases/${sha:0:7}-visibility-openrouter"
 live=/home/growthx/GrowthX-SEO
 phase() {
-  python3 "$source_dir/scripts/deploy-compose-release.py" "$1" "$source_dir" "$live" .env.laptop "$release" "$sha"
+  python3 "$source_dir/scripts/deploy-compose-release.py" "$1" "$source_dir" "$live" "$live/.env.laptop" "$release" "$sha"
 }
 phase prepare
 phase build
