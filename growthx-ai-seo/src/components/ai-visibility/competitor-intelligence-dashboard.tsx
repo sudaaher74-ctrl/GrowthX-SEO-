@@ -75,7 +75,19 @@ export function CompetitorIntelligenceDashboard({
   const contentGaps = [] as {topic:string;covering:string;volume:string;level:string;tone:string}[];
 
   // AI Visibility Comparison Table
-  const aiVisibilityMatrix = (report?.shareOfVoice ?? []).map(r=>({domain:r.domain ?? displayDomain,gemini:'—',openai:'—',claude:'—',perplexity:'—',grok:'—',total:r.mentions,isOwn:r.domain===null}));
+  const answers = savedAnswers(prompts);
+  const aiVisibilityMatrix = (report?.shareOfVoice ?? []).map(row => {
+    const counts = Object.fromEntries(['gemini', 'openai', 'claude', 'perplexity', 'grok'].map(platform => {
+      const measured = report?.byAssistant.some(provider => platformKey(provider.assistant) === platform && provider.checked > 0);
+      const matching = answers.filter(answer => answer.platform === platform);
+      const names = [row.domain, row.label].filter(Boolean).map(name => name!.toLowerCase());
+      const count = matching.filter(answer => row.domain === null ? answer.cited :
+        answer.competitorsCited?.some(name => names.includes(name.toLowerCase()))).length;
+      return [platform, measured && matching.length ? count : '—'];
+    })) as Record<'gemini' | 'openai' | 'claude' | 'perplexity' | 'grok', number | string>;
+    const measuredCounts = Object.values(counts).filter((value): value is number => typeof value === 'number');
+    return { domain: row.domain ?? displayDomain, ...counts, total: measuredCounts.length ? measuredCounts.reduce((sum, value) => sum + value, 0) : '—', isOwn: row.domain === null };
+  });
 
   return (
     <div className="space-y-6 pb-12 font-sans text-brand-950">
@@ -498,7 +510,7 @@ export function CompetitorIntelligenceDashboard({
             </span>
             <div>
               <h2 className="text-sm font-bold text-brand-950">AI Visibility Comparison</h2>
-              <p className="text-[11px] text-brand-500">How often AI platforms mention each website.</p>
+              <p className="text-[11px] text-brand-500">Saved answers mentioning each brand, by platform. A dash means no measured answer.</p>
             </div>
           </div>
 

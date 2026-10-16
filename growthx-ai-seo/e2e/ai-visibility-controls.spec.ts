@@ -10,7 +10,7 @@ async function measured(page: Page) {
   await setup(page);
   await page.route(`${API_BASE}/**/ai-visibility/prompts?*`, route => route.fulfill({json:[{
     id:'p1',text:'Stored buyer question',isActive:true,category:'Discovery',latestChecks:providers.map(assistant => ({
-      assistant,checkedAt:'2026-10-16T00:00:00Z',cited:true,model:`${assistant}-model`,error:null,
+      assistant,checkedAt:'2026-10-16T00:00:00Z',cited:true,competitorsCited:['measured-rival.test'],model:`${assistant}-model`,error:null,
       answerExcerpt:`${assistant} saved excerpt.`,fullAnswer:`${assistant} complete saved answer. ${'Complete evidence. '.repeat(15)}END OF FULL ANSWER`,
     })),
   }]}));
@@ -88,6 +88,9 @@ test('citation sources, five model filters, saved answers and CSV report stay in
 test('competitor details and root-cause saved-response buttons open the relevant evidence',async ({page})=>{
   const errors=await measured(page);
   await page.goto('/ai-visibility?tab=competitors');
+  const comparison = page.getByRole('table').filter({has:page.getByRole('columnheader',{name:'Total',exact:true})});
+  const rival = comparison.getByRole('row').filter({hasText:'measured-rival.test'});
+  await expect(rival.getByRole('cell')).toHaveText(['measured-rival.test','1','—','—','—','—','1']);
   await expect(page.getByRole('combobox',{name:'Filter metrics'})).toBeDisabled();
   for(const name of ['View Detailed Analysis →','View Analysis']){
     await page.getByRole('button',{name,exact:true}).click();

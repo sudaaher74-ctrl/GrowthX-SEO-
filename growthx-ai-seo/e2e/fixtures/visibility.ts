@@ -17,7 +17,7 @@ export async function setup(page: Page, options: { empty?: boolean; fail?: boole
     if (path.endsWith('/ai-visibility')) return json({
       periodStart: '2026-10-01T00:00:00Z', periodEnd: '2026-10-15T00:00:00Z',
       summary: { checked: 7, cited: 3, citationSharePct: 43, failedChecks: 2, averagePosition: null, previousCitationSharePct: null, deltaPt: null },
-      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }],
+      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43, citations: 9 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }],
       shareOfVoice: [{ domain: null, label: 'Measured business', mentions: 3, sharePct: 60 }, { domain: 'measured-rival.test', label: 'Measured rival', mentions: 2, sharePct: 40 }],
       trend: [{ weekStart: '2026-10-15T00:00:00Z', checked: 7, citationSharePct: 43 }], measurableAssistants: ['GEMINI'],
     });

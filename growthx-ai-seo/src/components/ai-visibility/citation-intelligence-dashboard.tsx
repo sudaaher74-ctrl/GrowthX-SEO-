@@ -66,7 +66,9 @@ export function CitationIntelligenceDashboard({
   const trendData = [] as {date:string;citations:number;domains:number}[];
 
   // Bar Data: Citations by AI Platform
-  const platformCitations = [] as {platform:string;yourBrand:number;competitors:number}[];
+  const platformCitations = (report?.byAssistant ?? [])
+    .filter(provider => provider.checked > 0 && provider.citations !== undefined)
+    .map(provider => ({ platform: provider.assistant, recordedSources: provider.citations }));
 
   // Pie Data: Citation Types
   const citationTypes = [] as {name:string;value:number;color:string}[];
@@ -295,10 +297,7 @@ export function CitationIntelligenceDashboard({
             </div>
             <div className="flex items-center gap-3 text-xs font-medium text-brand-600">
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-xs bg-accent-600" /> Your Brand
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-xs bg-accent-200" /> Top Competitors
+                <span className="h-2.5 w-2.5 rounded-xs bg-accent-600" /> Recorded sources
               </span>
             </div>
           </div>
@@ -318,8 +317,7 @@ export function CitationIntelligenceDashboard({
                     fontSize: "12px",
                   }}
                 />
-                <Bar dataKey="yourBrand" fill="var(--color-accent-600)" radius={[4, 4, 0, 0]} barSize={16} />
-                <Bar dataKey="competitors" fill="var(--color-accent-200)" radius={[4, 4, 0, 0]} barSize={16} />
+                <Bar dataKey="recordedSources" name="Recorded sources" fill="var(--color-accent-600)" radius={[4, 4, 0, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>) : <NoMeasurement />}
           </div>
