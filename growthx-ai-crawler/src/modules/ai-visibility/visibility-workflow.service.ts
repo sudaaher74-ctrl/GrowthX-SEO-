@@ -32,6 +32,7 @@ import {
 } from "./visibility-workflow.types";
 import {
   briefPrompt,
+  assessmentInput,
   classifyAnswer,
   CONTEXT_INSTRUCTION,
   list,
@@ -52,7 +53,7 @@ const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.OPENROUTER];
 const MONITORING_PROVIDERS = [AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY, AiProvider.GROK];
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
-type JobData = { id: string; phase: "PREPARE" | "CHECK" };
+type JobData = { id: string; phase: "PREPARE" | "CHECK" | "PLAN" };
 class BriefValidationFailure extends Error {}
 
 @Injectable()
@@ -168,7 +169,7 @@ export class VisibilityWorkflowService
     return { id: journey.id, status: "QUEUED" };
   }
 
-  async check(projectId: string, id: string, rawBrief?: unknown) {
+  async check(projectId: string, id: string, rawBrief?: unknown, planOnly = false) {
     await this.ready();
     if (!this.providers().length)
       throw new ServiceUnavailableException(
@@ -178,6 +179,9 @@ export class VisibilityWorkflowService
       where: { id, projectId },
     });
     if (!journey) throw new NotFoundException("AI Visibility run not found");
+    if (typeof planOnly !== 'boolean' || (planOnly && (!journey.scanId || rawBrief)))
+      throw new BadRequestException('Rebuilding a plan requires saved answers and unchanged questions.');
+    const phase = planOnly ? 'PLAN' : 'CHECK';
     if (
       !journey.brief ||
       !journey.context ||
@@ -209,7 +213,7 @@ export class VisibilityWorkflowService
         },
         data: {
           status: "QUEUED",
-          phase: "CHECK",
+          phase,
           brief: json(brief),
           errors: [],
         },
@@ -226,7 +230,7 @@ export class VisibilityWorkflowService
         throw new ConflictException("Another run is already in progress.");
       throw err;
     }
-    await this.enqueue({ id, phase: "CHECK" });
+    await this.enqueue({ id, phase });
     return { id, status: "QUEUED" };
   }
 
@@ -277,7 +281,7 @@ export class VisibilityWorkflowService
       take: 20,
     });
     for (const row of rows) {
-      const phase = row.phase === "CHECK" ? "CHECK" : "PREPARE";
+      const phase = row.phase === "PLAN" ? "PLAN" : row.phase === "CHECK" ? "CHECK" : "PREPARE";
       if (!(await this.jobs.getJob(`${row.id}-${phase}`)))
         await this.enqueue({ id: row.id, phase });
     }
@@ -295,7 +299,7 @@ export class VisibilityWorkflowService
     if (!row || !ACTIVE.includes(row.status)) return;
     try {
       if (job.phase === "PREPARE") await this.buildBrief(row.id, row.projectId);
-      else await this.runChecks(row.id, row.projectId);
+      else await this.runChecks(row.id, row.projectId, job.phase === 'PLAN');
     } catch (err) {
       this.logger.error(
         `AI Visibility ${row.id}: ${redactSecretsForAi(str((err as Error)?.message))}`,
@@ -438,7 +442,7 @@ export class VisibilityWorkflowService
     });
   }
 
-  private async runChecks(id: string, projectId: string) {
+  private async runChecks(id: string, projectId: string, planOnly = false) {
     let journey = await this.prisma.aiVisibilityJourney.findUniqueOrThrow({
       where: { id },
     });
@@ -481,7 +485,7 @@ export class VisibilityWorkflowService
       if (unavailable) errors.push(`${provider}: ${unavailable}`);
       else availableProviders.push(provider);
     }
-    for (const provider of availableProviders) {
+    for (const provider of planOnly ? [] : availableProviders) {
       const runId = `${id}-${provider}`;
       await this.prisma.aiVisibilityScanRun.upsert({
         where: { id: runId },
@@ -526,11 +530,14 @@ export class VisibilityWorkflowService
               task: AiTask.AI_VISIBILITY_ANALYSIS,
               freshMeasurement: true,
               prompt: question.text,
+              systemInstruction: "Answer the buyer's question directly in no more than 200 words. Keep the answer concise and finish within the output limit. Include source links only when available.",
               maxTokens: 1200,
               timeoutMs: 90_000,
             });
-            if (result.refused || !result.text.trim())
-              failure = `${provider} returned no usable answer.`;
+            if (result.refused)
+              failure = `${provider} reached the output limit. Partial text is retained but is not counted as a complete measurement.`;
+            else if (!result.text.trim())
+              failure = `${provider} returned an empty answer.`;
           } catch (error) {
             failure = `${provider} could not answer this question. ${providerFailureReason(error)}`;
           }
@@ -716,7 +723,7 @@ If a named rival has no crawl evidence, say its website has not been investigate
 Prioritize service-area pages, local discovery, conversion paths and measurable lead events according to facts. Use GSC and GA4 evidence where available, distinguishing missing data from zero.
 Return {summary,localDemand,gaps:[{competitor,observation,hypothesis,evidenceIds:string[]}],actions:[{title,priority,timeframe,steps:string[],measureBy,evidenceIds:string[]}]}.
 Every action and gap must cite supplied fact IDs or answer IDs. Supply concrete next steps and success measures; do not guarantee lead growth.
-BUSINESS: ${JSON.stringify(brief)}\nEVIDENCE: ${JSON.stringify(ctx)}\nFINDINGS: ${JSON.stringify(findings)}`,
+SAVED INPUT: ${assessmentInput(brief, ctx, findings)}`,
           assessmentSchema,
         );
         assessments.push({
@@ -733,9 +740,9 @@ BUSINESS: ${JSON.stringify(brief)}\nEVIDENCE: ${JSON.stringify(ctx)}\nFINDINGS: 
           where: { id },
           data: { analysis: json(assessments), progress: 90 },
         });
-      } catch {
+      } catch (error) {
         errors.push(
-          `${provider} could not finish its action-plan assessment. Saved answers remain available.`,
+          `${provider} could not finish its action-plan assessment. ${providerFailureReason(error)} Saved answers remain available.`,
         );
       }
     }

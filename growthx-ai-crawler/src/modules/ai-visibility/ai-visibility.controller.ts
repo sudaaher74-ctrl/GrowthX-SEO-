@@ -37,8 +37,8 @@ export class AiVisibilityController {
   }
 
   @Post('journey/:journeyId/check')
-  checkJourney(@Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
-    return this.workflow.check(projectId, journeyId, brief);
+  checkJourney(@Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown, @Body('planOnly') planOnly?: boolean) {
+    return this.workflow.check(projectId, journeyId, brief, planOnly);
   }
 
   @Get()

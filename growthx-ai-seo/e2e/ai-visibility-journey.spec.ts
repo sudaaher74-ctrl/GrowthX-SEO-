@@ -157,6 +157,20 @@ async function setup(
   });
 }
 
+test('rebuilding a partial plan requests saved-answer analysis without resubmitting questions', async ({page}) => {
+  const data=fixture();
+  data.journey!.status='PARTIAL'; data.journey!.scanId='scan_test';
+  data.journey!.errors=['Action-plan context exceeded the limit.'];
+  let submitted:unknown;
+  await setup(page,data,body=>{submitted=body;});
+  await page.goto('/ai-visibility?tab=overview&workflow=open');
+  const dialog=page.getByRole('dialog',{name:'Run AI Visibility check'});
+  await dialog.getByRole('button',{name:'Rebuild plan from saved answers',exact:true}).click();
+  await expect.poll(()=>submitted).toEqual({planOnly:true});
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/tab=overview&workflow=open/);
+});
+
 test("reviews local questions before checking and preserves missing-source truth", async ({
   page,
 }) => {

@@ -435,8 +435,8 @@ const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
 export const visibilityJourneyApi = {
   read: (projectId: string) => get<VisibilityJourneyResponse>(`/api/projects/${projectId}/ai-visibility/journey`),
   prepare: (projectId: string) => post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey`, {}),
-  check: (projectId: string, id: string, brief?: VisibilityBrief) =>
-    post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey/${id}/check`, { brief }),
+  check: (projectId: string, id: string, brief?: VisibilityBrief, planOnly = false) =>
+    post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey/${id}/check`, { brief, planOnly }),
 };
 
 export const api = {

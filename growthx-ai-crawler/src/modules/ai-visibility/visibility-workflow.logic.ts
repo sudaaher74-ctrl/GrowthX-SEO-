@@ -23,6 +23,34 @@ export const strings = (v: unknown, max = 20): string[] =>
         .filter(Boolean),
     ),
   ].slice(0, max);
+const utf8Excerpt = (value: string, maxBytes: number) => {
+  let text = '', bytes = 0;
+  for (const character of value) {
+    const size = Buffer.byteLength(character);
+    if (bytes + size > maxBytes) break;
+    text += character; bytes += size;
+  }
+  return text;
+};
+/** Keep every answer/fact identity, without repeating full extraction quotes in the plan. */
+export function assessmentInput(brief: VisibilityBrief, context: VisibilityContext, findings: { id: string; provider: string; error: unknown; measured: boolean; finding: unknown }[]) {
+  const compact = findings.map(answer => {
+    const finding = object(answer.finding);
+    return { id: answer.id, provider: answer.provider, failed: !!answer.error, measured: answer.measured,
+      brandMentioned: finding.brandMentioned === true, recommended: finding.recommended === true,
+      rivals: list(finding.rivals).slice(0, 3).map(rival => utf8Excerpt(str(rival.name), 80)) };
+  });
+  let limit = 1200;
+  for (;;) {
+    const payload = JSON.stringify({ business: brief, evidence: { ...context,
+      facts: context.facts.map(fact => ({ ...fact, text: utf8Excerpt(fact.text, limit) })),
+      limitations: [...context.limitations, 'Fact text is excerpted and answer findings are summarized for this plan. Full evidence and exact quotes remain saved; do not infer missing details.'],
+    }, findings: compact });
+    if (Buffer.byteLength(payload) <= 80_000) return payload;
+    if (!limit) throw new BadRequestException('The saved plan metadata exceeds the AI context budget. Reduce the evidence supplied.');
+    limit = Math.floor(limit / 2);
+  }
+}
 export const normalized = (s: string) =>
   s
     .toLocaleLowerCase()

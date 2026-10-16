@@ -105,8 +105,8 @@ function Journey({ projectId, embedded }: { projectId: string; embedded: boolean
     },
   });
   const check = useMutation({
-    mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) =>
-      visibilityJourneyApi.check(projectId, id, brief),
+    mutationFn: ({ id, brief, planOnly }: { id: string; brief?: VisibilityBrief; planOnly?: boolean }) =>
+      visibilityJourneyApi.check(projectId, id, brief, planOnly),
     retry: false,
     onSuccess: () => {
       void refresh();
@@ -247,6 +247,14 @@ function Journey({ projectId, embedded }: { projectId: string; embedded: boolean
                     Retry unfinished checks
                   </ActionButton>
                 )}
+                  {["PARTIAL", "FAILED"].includes(run.status) && run.scanId && (
+                    <div className="mt-3">
+                      <ActionButton disabled={busy} onClick={() => check.mutate({ id: run.id, planOnly: true })}>
+                        Rebuild plan from saved answers
+                      </ActionButton>
+                      <p className="mt-2 text-xs text-brand-500">Uses analysis credits. Does not repeat provider questions.</p>
+                    </div>
+                  )}
               </Panel>
             )}
             {run.context && <SourceCards context={run.context} />}
