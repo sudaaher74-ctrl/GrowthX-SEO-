@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, SearchCheck, Wrench, Store, Bot, Link2, Layers, ShieldCheck } from "lucide-react";
+import { Activity, Globe, SearchCheck, Wrench, Bot, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -36,14 +36,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
   // connect the Business Profile, then ask the AI assistants — each step feeds the next (AI Visibility matches questions to
   // audited pages and explains a rival's win from its crawled page). Every
   // tick is read from real state, never from having visited the page.
-  const competitorsQuery = useQuery({
-    queryKey: ["action-engine-competitors", projectId],
-    queryFn: () => api.actionEngineCompetitors(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
   const auditDone = Boolean(issueCounts.data?.crawledAt);
-  const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
 
   // Done once at least one AI assistant has really been asked about the business.
   const visibilityQuery = useQuery({
@@ -63,10 +56,9 @@ export function useMainNav(): { mainNav: NavItem[] } {
   const googleProviders = googleQuery.data?.providers ?? [];
   const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
   const googleDone = isConnected("search_console") || isConnected("analytics");
-  const profileDone = isConnected("business_profile");
 
   // The workflow, aligned with the agency platform navigation:
-  // Dashboard, Website Audit, AI Visibility, Citation Intelligence, Competitor Intelligence, Root Cause Analysis, Fix Engine, Proof of Impact
+  // Detail views belong to the AI Visibility page's main tabs.
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
@@ -106,23 +98,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       aliases: ["/ai-visibility"],
       icon: Bot,
       step: { n: 2, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Understand your business, check Gemini and Sarvam, and build a lead plan" },
-    },
-    {
-      label: "Citation Intelligence",
-      href: "/ai-visibility?tab=citations",
-      icon: Link2,
-    },
-    {
-      label: "Competitor Intelligence",
-      href: "/ai-visibility?tab=competitors",
-      aliases: ["/competitor-intelligence"],
-      icon: Crosshair,
-      step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
-    },
-    {
-      label: "Root Cause Analysis",
-      href: "/ai-visibility?tab=root-cause",
-      icon: Layers,
     },
     {
       label: "Fix Engine",

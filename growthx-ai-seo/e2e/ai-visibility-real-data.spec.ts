@@ -55,6 +55,10 @@ test('original dashboards retain their layout and display saved measurements onl
   await page.getByRole('button', {name:'AI Model Visibility',exact:true}).click();
   await expect(page).toHaveURL(/tab=models/);
   await expect(page.getByRole('link', {name:'Google',exact:true})).toBeVisible();
+  for (const name of ['Citation Intelligence', 'Competitor Intelligence', 'Root Cause Analysis']) {
+    await expect(page.getByRole('link', {name,exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button', {name,exact:true})).toBeVisible();
+  }
   await page.goto('/ai-visibility?tab=citations');
   await expect(page.getByRole('heading',{name:'Citations Trend',exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByText('recorded-source.test')).toBeVisible();
