@@ -1,7 +1,7 @@
 "use client";
 
-import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
-import { useRouter } from "next/navigation";
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement, navigateVisibilityTab } from './live-dashboard-data';
+import { VisibilityDetails } from './visibility-details';
 import React, { useState } from "react";
 import {
   Link as LinkIcon,
@@ -57,7 +57,7 @@ export function CitationIntelligenceDashboard({
   onRunScan,
   isScanning = false,
 }: CitationIntelligenceDashboardProps) {
-  const router = useRouter();
+  const [detail, setDetail] = useState<"sources" | "response" | "competitors" | "evidence" | null>(null);
   const [selectedModel, setSelectedModel] = useState<"gemini" | "openai" | "claude" | "perplexity" | "grok">("gemini");
   const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
@@ -66,7 +66,9 @@ export function CitationIntelligenceDashboard({
   const trendData = [] as {date:string;citations:number;domains:number}[];
 
   // Bar Data: Citations by AI Platform
-  const platformCitations = [] as {platform:string;yourBrand:number;competitors:number}[];
+  const platformCitations = (report?.byAssistant ?? [])
+    .filter(provider => provider.checked > 0 && provider.citations !== undefined)
+    .map(provider => ({ platform: provider.assistant, recordedSources: provider.citations }));
 
   // Pie Data: Citation Types
   const citationTypes = [] as {name:string;value:number;color:string}[];
@@ -149,7 +151,7 @@ export function CitationIntelligenceDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning || !currentProjectId}
+            disabled={!currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -295,10 +297,7 @@ export function CitationIntelligenceDashboard({
             </div>
             <div className="flex items-center gap-3 text-xs font-medium text-brand-600">
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-xs bg-accent-600" /> Your Brand
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-xs bg-accent-200" /> Top Competitors
+                <span className="h-2.5 w-2.5 rounded-xs bg-accent-600" /> Recorded sources
               </span>
             </div>
           </div>
@@ -318,8 +317,7 @@ export function CitationIntelligenceDashboard({
                     fontSize: "12px",
                   }}
                 />
-                <Bar dataKey="yourBrand" fill="var(--color-accent-600)" radius={[4, 4, 0, 0]} barSize={16} />
-                <Bar dataKey="competitors" fill="var(--color-accent-200)" radius={[4, 4, 0, 0]} barSize={16} />
+                <Bar dataKey="recordedSources" name="Recorded sources" fill="var(--color-accent-600)" radius={[4, 4, 0, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>) : <NoMeasurement />}
           </div>
@@ -337,7 +335,7 @@ export function CitationIntelligenceDashboard({
                 Domains linked in the latest saved monitoring run.
               </p>
             </div>
-            <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=actions")}> 
+            <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => setDetail('sources')}>
               View All Sources →
             </button>
           </div>
@@ -403,7 +401,7 @@ export function CitationIntelligenceDashboard({
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>) : <NoMeasurement />}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <div className="mt-2 flex flex-col items-center justify-center">
                 <span className="text-xl font-bold text-brand-950">{citations?.totalCitations ?? "—"}</span>
                 <span className="text-[10px] text-brand-400 font-medium">Citations</span>
               </div>
@@ -466,7 +464,7 @@ export function CitationIntelligenceDashboard({
               <span className="flex items-center gap-1 font-semibold text-accent-700">
                 Source: {savedAnswers(prompts).find(a=>a.platform===selectedModel)?.citedUrl ?? 'No verified source link'} <ExternalLink className="h-3 w-3" />
               </span>
-              <button type="button" className="font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=prompts")}> 
+              <button type="button" className="font-semibold text-primary-600 hover:underline" onClick={() => setDetail('response')}>
                 View Saved Response
               </button>
             </div>
@@ -513,7 +511,7 @@ export function CitationIntelligenceDashboard({
                       <button
                         type="button"
                         className="rounded-lg border bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 shadow-2xs hover:bg-primary-100"
-                       onClick={() => router.push("/ai-visibility?tab=actions")}> 
+                       onClick={() => navigateVisibilityTab("actions")}>
                         Get Mentioned
                       </button>
                     </td>
@@ -524,6 +522,8 @@ export function CitationIntelligenceDashboard({
           </div>
         </div>
       </div>
+      {detail && <VisibilityDetails kind={detail} model={selectedModel} onClose={() => setDetail(null)} prompts={prompts} citations={citations} competitors={competitors} rootCause={rootCause} />}
+
     </div>
   );
 }

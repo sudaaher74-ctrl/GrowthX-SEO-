@@ -1,5 +1,6 @@
 import {
   classifyAnswer,
+  assessmentInput,
   normalizeAssessment,
   normalizeBrief,
   replaceRepeatedBuyerQuestions,
@@ -365,6 +366,17 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it('bounds a full multi-model plan while preserving every source and answer identity', () => {
+    const full = { ...context, facts: Array.from({length:45}, (_, index) => ({ id:`fact-${index}`, source:['website','gsc','ga4','competitors'][index%4], text:'Evidence तथ्य '.repeat(1000) })) };
+    const findings = Array.from({length:100}, (_, index) => ({ id:`answer-${index}`, provider:['GEMINI','OPENAI','ANTHROPIC','PERPLEXITY','GROK'][index%5], error:null, measured:true, finding:{ brandMentioned:index===0, recommended:false, rivals:[{name:'Local Dairy',quote:'Long exact quote '.repeat(1000)}] } }));
+    const payload = assessmentInput(draft(), full, findings);
+    expect(Buffer.byteLength(payload)).toBeLessThanOrEqual(80_000);
+    const parsed = JSON.parse(payload);
+    expect(parsed.evidence.facts.map((fact:any)=>fact.id)).toEqual(full.facts.map(fact=>fact.id));
+    expect(parsed.findings.map((answer:any)=>answer.id)).toEqual(findings.map(answer=>answer.id));
+    expect(parsed.findings[0]).toMatchObject({brandMentioned:true,rivals:['Local Dairy']});
+    expect(full.facts[0].text).toContain('Evidence तथ्य '.repeat(1000));
+  });
   it("uses twenty questions, cheap internal analysis, and preserves an unavailable Grok as a partial measurement", async () => {
     const previousPolicy = process.env.AI_LOW_COST_POLICY;
     process.env.AI_LOW_COST_POLICY = 'true';
@@ -512,7 +524,8 @@ describe("durable visibility workflow", () => {
       .filter((r: any) => !r.jsonSchema);
     expect(probes).toHaveLength(20);
     for (const p of probes) {
-      expect(p.systemInstruction).toBeUndefined();
+      expect(p.systemInstruction).toContain('no more than 200 words');
+      expect(p.systemInstruction).not.toMatch(/Milquufresh|Panvel|Local Dairy/i);
       expect(p.prompt).not.toContain("Milquufresh");
       expect(p.allowFallback).toBe(false);
     }
@@ -520,6 +533,21 @@ describe("durable visibility workflow", () => {
       "journey",
       "project",
     );
+  });
+  it("retains truncated text, explains the output limit, and excludes it from measurements", async () => {
+    const h = harness();
+    const base = h.router.generate.getMockImplementation();
+    h.router.generate.mockImplementation(async (request: any) => {
+      const result = await base(request);
+      return request.freshMeasurement && request.provider === AiProvider.GEMINI
+        ? { ...result, refused: true, text: 'Saved partial answer', usage: { ...result.usage, outputTokens: 800 } }
+        : result;
+    });
+    await h.service.process({ id: 'journey', phase: 'CHECK' });
+    const truncated = [...h.responses.values()].filter(answer => answer.provider === AiProvider.GEMINI);
+    expect(truncated).toHaveLength(10);
+    expect(truncated.every(answer => answer.rawResponse === 'Saved partial answer' && answer.errorMessage.includes('output limit') && !answer.analysis)).toBe(true);
+    expect(h.row().status).toBe('PARTIAL');
   });
   it("resumes from saved answers without spending on successful probes again", async () => {
     const h = harness();
@@ -529,6 +557,17 @@ describe("durable visibility workflow", () => {
     await h.service.process({ id: "journey", phase: "CHECK" });
     expect(h.router.generate).not.toHaveBeenCalled();
     expect(h.responses.size).toBe(20);
+  });
+  it('rebuilds only the plan without rebilling successful or failed provider questions', async () => {
+    const h = harness(true);
+    await h.service.process({ id:'journey', phase:'CHECK' });
+    h.row().analysis=[];
+    h.router.generate.mockClear();
+    await h.service.check('project','journey',undefined,true);
+    await h.service.process({ id:'journey',phase:'PLAN' });
+    expect(h.router.generate.mock.calls.every(([request]:any[])=>!request.freshMeasurement)).toBe(true);
+    expect(h.responses.size).toBe(20);
+    expect(h.row().analysis).toHaveLength(1);
   });
   it("retains one provider’s evidence when the other fails and reports partial completion", async () => {
     const h = harness(true);

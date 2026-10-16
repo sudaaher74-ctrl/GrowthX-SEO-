@@ -1,16 +1,19 @@
 "use client";
 
+import { VisibilityDialog } from "@/components/ai-visibility/visibility-dialog";
+import { ModelCoverage } from "@/components/ai-visibility/model-coverage";
+import { journeyRunning } from "@/lib/visibility-workflow";
 import { QueryState } from "@/components/ui/query-state";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { VisibilityJourneyPage } from "@/components/ai-visibility/visibility-journey";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bot, ChevronDown, Crosshair, Layers, Link2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useWorkspace,
   useVisibility,
   useTrackedPrompts,
-  useRunSweep,
   useAddPrompts,
   useAddCompetitor,
   useLatestCrawl,
@@ -18,22 +21,18 @@ import {
   setActiveProject,
 } from "@/hooks/use-growthx";
 import { useGoogleOverview } from "@/hooks/use-google";
-import { api } from "@/lib/api-client";
+import { api, visibilityJourneyApi } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { ActionButton, StatusNote } from "@/components/ui/console";
 import { AiVisibilityDashboard } from "@/components/ai-visibility/ai-visibility-dashboard";
 import { CitationIntelligenceDashboard } from "@/components/ai-visibility/citation-intelligence-dashboard";
 import { CompetitorIntelligenceDashboard } from "@/components/ai-visibility/competitor-intelligence-dashboard";
 import { RootCauseAnalysisDashboard } from "@/components/ai-visibility/root-cause-analysis-dashboard";
-import { AiVisibilityOverview, overviewFigures } from "@/components/ai-visibility/av-overview";
 import {
   ActionCenterView,
-  CitationIntelligenceView,
-  CompetitorComparisonView,
   ModelVisibilityView,
   MonitoringHistoryView,
   PromptIntelligenceView,
-  RootCauseView,
   SettingsView,
   UnifiedIntelligenceView,
 } from "@/components/ai-visibility/av-views";
@@ -76,7 +75,7 @@ export default function AiVisibilityPage() {
 
 function AiVisibilityClient() {
   const { orgId, projectId, projects, isLoading: workspaceLoading, error: workspaceError } = useWorkspace();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const portfolio = usePortfolio(orgId);
   const currentProject = projects?.find((p) => p.id === projectId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
@@ -85,7 +84,7 @@ function AiVisibilityClient() {
 
   const [days, setDays] = useState(30);
   const visibility = useVisibility(projectId, days);
-  const prompts = useTrackedPrompts(projectId);
+  const prompts = useTrackedPrompts(projectId, days);
 
   const addPrompts = useAddPrompts(projectId);
   const addCompetitor = useAddCompetitor(projectId);
@@ -97,10 +96,10 @@ function AiVisibilityClient() {
     queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
     enabled: !!projectId,
   });
-  const citationsQuery = useQuery({ queryKey:['ai-visibility-citations',projectId],queryFn:()=>api.getAiVisibilityCitations(projectId!),enabled:!!projectId });
+  const citationsQuery = useQuery({ queryKey:['ai-visibility-citations',projectId,days],queryFn:()=>api.getAiVisibilityCitations(projectId!, days),enabled:!!projectId });
   const rootCauseQuery = useQuery({
-    queryKey: ["ai-visibility-root-cause", projectId],
-    queryFn: () => (projectId ? api.getAiVisibilityRootCause(projectId) : Promise.resolve(null)),
+    queryKey: ["ai-visibility-root-cause", projectId, days],
+    queryFn: () => (projectId ? api.getAiVisibilityRootCause(projectId, days) : Promise.resolve(null)),
     enabled: !!projectId,
   });
   const actionsQuery = useQuery({
@@ -108,6 +107,21 @@ function AiVisibilityClient() {
     queryFn: () => (projectId ? api.getAiVisibilityActions(projectId) : Promise.resolve([])),
     enabled: !!projectId,
   });
+
+  const journey = useQuery({
+    queryKey: ["visibility-journey", projectId],
+    queryFn: () => visibilityJourneyApi.read(projectId!),
+    enabled: !!projectId,
+    retry: false,
+    refetchInterval: query => journeyRunning(query.state.data?.journey?.status) ? 4000 : false,
+  });
+  const completedAt = journey.data?.journey?.scanId && !journeyRunning(journey.data.journey.status) ? journey.data.journey.updatedAt : null;
+  useEffect(() => {
+    if (!completedAt) return;
+    for (const key of ["visibility", "tracked-prompts", "ai-visibility-citations", "ai-visibility-root-cause", "ai-visibility-actions"]) {
+      void queryClient.invalidateQueries({ queryKey: [key, projectId] });
+    }
+  }, [completedAt, projectId, queryClient]);
 
   const tabParam = useSearchParams().get("tab");
   const resolvedTab = (tabParam && TAB_ALIASES[tabParam]) || (TABS.find((t) => t.id === tabParam)?.id ?? "overview") as TabId;
@@ -121,6 +135,9 @@ function AiVisibilityClient() {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", resolved);
+      url.searchParams.delete("view");
+      url.searchParams.delete("workflow");
+      url.searchParams.delete("workflowTab");
       window.history.replaceState(null, "", url.toString());
     }
   };
@@ -133,7 +150,10 @@ function AiVisibilityClient() {
   const promptList = (prompts.data ?? []) as unknown as AvPrompt[];
   const competitors = competitorsQuery.data ?? [];
 
-  const runScan = async () => { router.push('/ai-visibility/journey'); };
+  const workflowOpen = useSearchParams().get("workflow") === "open";
+  const runScan = async () => {
+    window.history.pushState(null, "", `/ai-visibility?tab=${activeTab}&workflow=open`);
+  };
 
   const submitDialog = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,8 +177,6 @@ function AiVisibilityClient() {
 
   const busy = addPrompts.isPending || addCompetitor.isPending;
 
-  const viewParam = useSearchParams().get("view");
-  const _figures = overviewFigures(report);
   const dependentQueries = activeTab === 'unified' ? [portfolio, crawl, google.query, competitorsQuery] : activeTab === 'competitors' ? [competitorsQuery] : activeTab === 'overview' ? [citationsQuery, actionsQuery] : [];
 
   return (
@@ -177,6 +195,7 @@ function AiVisibilityClient() {
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
+            aria-pressed={activeTab === "overview"}
             className={cn(
               "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
               activeTab === "overview"
@@ -191,6 +210,7 @@ function AiVisibilityClient() {
           <button
             type="button"
             onClick={() => setActiveTab("citations")}
+            aria-pressed={activeTab === "citations"}
             className={cn(
               "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
               activeTab === "citations"
@@ -205,6 +225,7 @@ function AiVisibilityClient() {
           <button
             type="button"
             onClick={() => setActiveTab("competitors")}
+            aria-pressed={activeTab === "competitors"}
             className={cn(
               "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
               activeTab === "competitors"
@@ -219,6 +240,7 @@ function AiVisibilityClient() {
           <button
             type="button"
             onClick={() => setActiveTab("root-cause")}
+            aria-pressed={activeTab === "root-cause"}
             className={cn(
               "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
               activeTab === "root-cause"
@@ -249,17 +271,16 @@ function AiVisibilityClient() {
             </div>
           )}
 
-          <div className="relative group">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-xl border bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950 transition"
+          <details className="relative group">
+            <summary
+              className="flex cursor-pointer list-none items-center gap-1.5 rounded-xl border bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950 transition"
               style={{ borderColor: "var(--border-color)" }}
             >
               <span>More Views</span>
               <ChevronDown className="h-3.5 w-3.5 text-brand-400" />
-            </button>
+            </summary>
             <div
-              className="absolute right-0 top-full z-20 mt-1 hidden w-48 rounded-xl border bg-white p-1 shadow-lg group-hover:block"
+              className="absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border bg-white p-1 shadow-lg"
               style={{ borderColor: "var(--border-color)" }}
             >
               {[
@@ -273,7 +294,10 @@ function AiVisibilityClient() {
                 <button
                   key={sub.id}
                   type="button"
-                  onClick={() => setActiveTab(sub.id)}
+                  onClick={(event) => {
+                    setActiveTab(sub.id);
+                    event.currentTarget.closest("details")?.removeAttribute("open");
+                  }}
                   className={cn(
                     "flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs transition",
                     activeTab === sub.id
@@ -285,23 +309,30 @@ function AiVisibilityClient() {
                 </button>
               ))}
             </div>
-          </div>
+          </details>
         </div>
       </div>
 
+      {workflowOpen && (
+        <VisibilityDialog title="Run AI Visibility check" closeLabel="Close scan" onClose={() => window.history.replaceState(null, "", `/ai-visibility?tab=${activeTab}`)}>
+          <VisibilityJourneyPage embedded />
+        </VisibilityDialog>
+      )}
+      {projectId && <ModelCoverage data={journey.data} report={report} loading={journey.isLoading} error={journey.error} />}
+      {!["overview", "citations", "competitors", "root-cause"].includes(activeTab) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-bold text-brand-950">{TABS.find(tab => tab.id === activeTab)?.label}</h1>
+          <div className="flex flex-wrap gap-2">
+            <select aria-label="Select project" className="rounded-lg border bg-white p-2 text-xs" value={projectId ?? ""} onChange={event => setActiveProject(event.target.value)}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+            <select aria-label="Select date range" className="rounded-lg border bg-white p-2 text-xs" value={days} onChange={event => setDays(Number(event.target.value))}>{[7,14,30,90].map(days => <option key={days} value={days}>Last {days} Days</option>)}</select>
+            <ActionButton disabled={!projectId} variant="primary" onClick={runScan}>Run New AI Visibility Check</ActionButton>
+          </div>
+        </div>
+      )}
       <QueryState isLoading={workspaceLoading} error={workspaceError} isEmpty={!projectId} emptyTitle="Choose a project to view real measurements" emptyBody="Add your website to begin monitoring.">
       <QueryState isLoading={visibility.isLoading || prompts.isLoading || dependentQueries.some(q=>q.isLoading) || (activeTab === 'citations' && citationsQuery.isLoading) || (activeTab === 'root-cause' && rootCauseQuery.isLoading)} error={visibility.error || prompts.error || dependentQueries.find(q=>q.error)?.error || (activeTab === 'citations' ? citationsQuery.error : activeTab === 'root-cause' ? rootCauseQuery.error : activeTab === 'actions' ? actionsQuery.error : null)}>
       {/* ── Main Views ────────────────────────────────────────────── */}
       {activeTab === "overview" && (
-        viewParam === "table" ? (
-          <AiVisibilityOverview
-            report={report}
-            prompts={promptList}
-            loading={visibility.isLoading || prompts.isLoading}
-            brandLabel={brandLabel}
-            onNavigate={setActiveTab}
-          />
-        ) : (
           <AiVisibilityDashboard
             report={report}
             prompts={promptList}
@@ -317,16 +348,13 @@ function AiVisibilityClient() {
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={false}
+            isScanning={journeyRunning(journey.data?.journey?.status)}
             onNavigateTab={setActiveTab}
           />
-        )
+
       )}
 
       {activeTab === "citations" && (
-        viewParam === "classic" ? (
-          <CitationIntelligenceView citations={citationsQuery.data} />
-        ) : (
           <CitationIntelligenceDashboard
             domain={domain}
             brandLabel={brandLabel}
@@ -342,9 +370,9 @@ function AiVisibilityClient() {
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={false}
+            isScanning={journeyRunning(journey.data?.journey?.status)}
           />
-        )
+
       )}
 
       {activeTab === "unified" && (
@@ -365,14 +393,6 @@ function AiVisibilityClient() {
       )}
 
       {activeTab === "competitors" && (
-        viewParam === "classic" ? (
-          <CompetitorComparisonView
-            report={report}
-            competitors={competitors}
-            brandLabel={brandLabel}
-            onAddCompetitor={() => setDialog("competitor")}
-          />
-        ) : (
           <CompetitorIntelligenceDashboard
             domain={domain}
             brandLabel={brandLabel}
@@ -388,15 +408,12 @@ function AiVisibilityClient() {
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={false}
+            isScanning={journeyRunning(journey.data?.journey?.status)}
           />
-        )
+
       )}
 
       {activeTab === "root-cause" && (
-        viewParam === "classic" ? (
-          <RootCauseView rootCause={rootCauseQuery.data} />
-        ) : (
           <RootCauseAnalysisDashboard
             domain={domain}
             brandLabel={brandLabel}
@@ -412,13 +429,13 @@ function AiVisibilityClient() {
             days={days}
             onDaysChange={setDays}
             onRunScan={runScan}
-            isScanning={false}
+            isScanning={journeyRunning(journey.data?.journey?.status)}
           />
-        )
+
       )}
       {activeTab === "actions" && <ActionCenterView actions={actionsQuery.data} />}
       {activeTab === "history" && <MonitoringHistoryView report={report} />}
-      {activeTab === "settings" && <SettingsView report={report} />}
+      {activeTab === "settings" && <SettingsView report={report} providers={journey.data?.providers} />}
 
       </QueryState></QueryState>
       {dialog && (
@@ -453,31 +470,19 @@ function AddDialog(props: {
   onClose: () => void;
   busy: boolean;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [props]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4" onClick={props.onClose}>
+    <VisibilityDialog title={props.title} onClose={props.onClose}>
       <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="av-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onSubmit={props.onSubmit}
         className="w-full max-w-md rounded-xl border bg-white p-5 shadow-card-hover"
       >
-        <h2 id="av-dialog-title" className="text-[14px] font-semibold text-brand-950">{props.title}</h2>
         <label htmlFor="av-dialog-input" className="mt-4 block text-[12px] font-medium text-brand-700">
           {props.label}
         </label>
         <input
           id="av-dialog-input"
-          ref={ref}
+          autoFocus
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           placeholder={props.placeholder}
@@ -491,6 +496,6 @@ function AddDialog(props: {
           </ActionButton>
         </div>
       </form>
-    </div>
+    </VisibilityDialog>
   );
 }

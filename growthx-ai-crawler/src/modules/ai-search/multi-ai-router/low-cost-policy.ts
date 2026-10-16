@@ -35,7 +35,9 @@ export function policyModel(request: AiRequest): ApprovedModel {
   }
   // Legacy product services pinned Sarvam/Mammouth. The operator's current
   // policy supersedes those defaults; internal work always uses direct Gemini.
-  return costBucket(request) === 'FIX_ENGINE' || request.task === AiTask.COMPETITOR_ANALYSIS || request.task === AiTask.REASONING
+  // Owner approved Flash for visibility preparation/classification on 2026-10-16:
+  // the configured Flash-Lite identity returns 404. Keep the same INTERNAL budget.
+  return costBucket(request) === 'FIX_ENGINE' || request.task === AiTask.AI_VISIBILITY_ANALYSIS || request.task === AiTask.COMPETITOR_ANALYSIS || request.task === AiTask.REASONING
     ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite';
 }
 export function policyTokens(request: AiRequest): number {

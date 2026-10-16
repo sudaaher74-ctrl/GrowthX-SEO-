@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { API_BASE } from "./api-base";
+test.setTimeout(120_000);
 import type {
   VisibilityBrief,
   VisibilityJourneyResponse,
@@ -156,6 +157,20 @@ async function setup(
   });
 }
 
+test('rebuilding a partial plan requests saved-answer analysis without resubmitting questions', async ({page}) => {
+  const data=fixture();
+  data.journey!.status='PARTIAL'; data.journey!.scanId='scan_test';
+  data.journey!.errors=['Action-plan context exceeded the limit.'];
+  let submitted:unknown;
+  await setup(page,data,body=>{submitted=body;});
+  await page.goto('/ai-visibility?tab=overview&workflow=open');
+  const dialog=page.getByRole('dialog',{name:'Run AI Visibility check'});
+  await dialog.getByRole('button',{name:'Rebuild plan from saved answers',exact:true}).click();
+  await expect.poll(()=>submitted).toEqual({planOnly:true});
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/tab=overview&workflow=open/);
+});
+
 test("reviews local questions before checking and preserves missing-source truth", async ({
   page,
 }) => {
@@ -165,6 +180,7 @@ test("reviews local questions before checking and preserves missing-source truth
     sent.brief = (body as { brief: VisibilityBrief }).brief;
   });
   await page.goto("/ai-visibility/journey");
+  await expect(page).toHaveURL(/ai-visibility\?tab=overview&workflow=open/);
   await expect(
     page.getByRole("heading", {
       name: "What we understand about your business",
@@ -180,6 +196,7 @@ test("reviews local questions before checking and preserves missing-source truth
     page.getByText("Connect and sync Search Console.", { exact: true }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "2. Buyer questions" }).click();
+  await expect(page).toHaveURL(/workflowTab=questions/);
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
   ).toHaveCount(20);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -54,7 +54,7 @@ const ALIASES: Record<string, string> = {
   sandbox: "questions",
 };
 
-export function VisibilityJourneyPage() {
+export function VisibilityJourneyPage({ embedded = false }: { embedded?: boolean }) {
   const workspace = useWorkspace();
   return (
     <QueryState
@@ -65,21 +65,24 @@ export function VisibilityJourneyPage() {
       emptyBody="Select a workspace to build its AI Visibility plan."
     >
       {workspace.projectId && (
-        <Journey key={workspace.projectId} projectId={workspace.projectId} />
+        <Journey key={workspace.projectId} projectId={workspace.projectId} embedded={embedded} />
       )}
     </QueryState>
   );
 }
 
-function Journey({ projectId }: { projectId: string }) {
-  const router = useRouter();
+function Journey({ projectId, embedded }: { projectId: string; embedded: boolean }) {
   const params = useSearchParams();
-  const requested = params.get("tab") || "overview";
+  const requested = params.get("workflowTab") || "overview";
   const tab =
     ALIASES[requested] ||
     (TABS.some((t) => t.id === requested) ? requested : "overview");
-  const setTab = (value: string) =>
-    router.replace(`/ai-visibility/journey?tab=${value}`, { scroll: false });
+  const setTab = (value: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("workflow", "open");
+    url.searchParams.set("workflowTab", value);
+    window.history.replaceState(null, "", url.toString());
+  };
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
   const query = useQuery({
@@ -102,8 +105,8 @@ function Journey({ projectId }: { projectId: string }) {
     },
   });
   const check = useMutation({
-    mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) =>
-      visibilityJourneyApi.check(projectId, id, brief),
+    mutationFn: ({ id, brief, planOnly }: { id: string; brief?: VisibilityBrief; planOnly?: boolean }) =>
+      visibilityJourneyApi.check(projectId, id, brief, planOnly),
     retry: false,
     onSuccess: () => {
       void refresh();
@@ -123,7 +126,7 @@ function Journey({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-5 pb-12">
       <PageHeader
-        title="AI Visibility"
+        title={embedded ? "Review questions & run monitoring" : "AI Visibility"}
         subtitle="Turn what we know about your business into questions buyers ask — and a plan to earn their next enquiry."
         actions={
           <>
@@ -180,7 +183,7 @@ function Journey({ projectId }: { projectId: string }) {
                 Start with the business behind the website
               </h2>
               <p className="mt-3 text-sm leading-6 text-brand-600">
-                Gemini Flash-Lite reads your audit, search demand, visitor
+                The configured analysis model reads your audit, search demand, visitor
                 locations and competitor evidence. Then review twenty questions
                 tailored to your products and service areas before checking who
                 AI recommends.
@@ -244,6 +247,14 @@ function Journey({ projectId }: { projectId: string }) {
                     Retry unfinished checks
                   </ActionButton>
                 )}
+                  {["PARTIAL", "FAILED"].includes(run.status) && run.scanId && (
+                    <div className="mt-3">
+                      <ActionButton disabled={busy} onClick={() => check.mutate({ id: run.id, planOnly: true })}>
+                        Rebuild plan from saved answers
+                      </ActionButton>
+                      <p className="mt-2 text-xs text-brand-500">Uses analysis credits. Does not repeat provider questions.</p>
+                    </div>
+                  )}
               </Panel>
             )}
             {run.context && <SourceCards context={run.context} />}
@@ -383,7 +394,7 @@ function SourceCards({ context }: { context: VisibilityContext }) {
           </p>
           <Link
             className="mt-3 inline-block text-xs font-semibold text-primary-700"
-            href={s.href}
+            href={s.id === "competitors" ? "/ai-visibility?tab=competitors" : s.href}
           >
             {s.available ? "Open source" : "Complete this source"} →
           </Link>

@@ -46,7 +46,7 @@ const sections = [
   {
     title: "Improvement Report",
     description: "Track recommended improvements and the expected impact of each fix.",
-    href: "/google/improvement-report",
+    href: "/google/report",
     source: "Reigel",
   },
 ];

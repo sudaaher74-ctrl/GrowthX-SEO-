@@ -104,7 +104,7 @@ export interface VisibilityReport {
     deltaPt: number | null;
     failedChecks: number;
   };
-  byAssistant: { assistant: string; checked: number; cited: number; citationSharePct: number }[];
+  byAssistant: { assistant: string; checked: number; cited: number; citationSharePct: number; recommended?: number; citations?: number; failedChecks?: number }[];
   shareOfVoice: { domain: string | null; label: string; mentions: number; sharePct: number }[];
   trend: { weekStart: string; checked: number; citationSharePct: number }[];
   measurableAssistants: string[];
@@ -124,6 +124,7 @@ export interface AvAction {
   priority: number;
   status: string;
   identifiedAt?: string;
+  detectedAt?: string;
   createdAt?: string;
   recommendedAction?: string;
   lifecycle?: string;
@@ -271,6 +272,7 @@ export interface TrackedPromptRow {
     error: string | null;
     model: string | null;
     answerExcerpt: string | null;
+    fullAnswer?: string | null;
   }[];
 }
 

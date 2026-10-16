@@ -1,7 +1,7 @@
 "use client";
 
-import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
-import { useRouter } from "next/navigation";
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement, navigateVisibilityTab } from './live-dashboard-data';
+import { VisibilityDetails } from './visibility-details';
 import React, { useState } from "react";
 import {
   Crosshair,
@@ -54,7 +54,7 @@ export function CompetitorIntelligenceDashboard({
   onRunScan,
   isScanning = false,
 }: CompetitorIntelligenceDashboardProps) {
-  const router = useRouter();
+  const [detail, setDetail] = useState<"sources" | "response" | "competitors" | "evidence" | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<"all" | "keywords" | "traffic" | "backlinks">("all");
   const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
@@ -69,13 +69,25 @@ export function CompetitorIntelligenceDashboard({
   const topicalCoverageData = [] as {topic:string;yourSite:number;competitorsAvg:number}[];
 
   // Competitor Profiles
-  const competitorProfiles = competitors.map(c=>({name:c.label ?? c.name ?? c.domain,domain:c.domain,da:'—',keywords:'—',tag:'Tracked competitor',tagTone:'brand',desc:c.lastAnalyzedAt ? 'Last analysed '+recordedDate(c.lastAnalyzedAt) : 'Not analysed yet'}));
+  const competitorProfiles = competitors.map(c=>({name:c.label?.trim() || c.name?.trim() || c.domain || 'Tracked competitor',domain:c.domain,da:'—',keywords:'—',tag:'Tracked competitor',tagTone:'brand',desc:c.lastAnalyzedAt ? 'Last analysed '+recordedDate(c.lastAnalyzedAt) : 'Not analysed yet'}));
 
   // Content Gap Opportunities
   const contentGaps = [] as {topic:string;covering:string;volume:string;level:string;tone:string}[];
 
   // AI Visibility Comparison Table
-  const aiVisibilityMatrix = (report?.shareOfVoice ?? []).map(r=>({domain:r.domain ?? displayDomain,gemini:'—',openai:'—',claude:'—',perplexity:'—',grok:'—',total:r.mentions,isOwn:r.domain===null}));
+  const answers = savedAnswers(prompts);
+  const aiVisibilityMatrix = (report?.shareOfVoice ?? []).map(row => {
+    const counts = Object.fromEntries(['gemini', 'openai', 'claude', 'perplexity', 'grok'].map(platform => {
+      const measured = report?.byAssistant.some(provider => platformKey(provider.assistant) === platform && provider.checked > 0);
+      const matching = answers.filter(answer => answer.platform === platform);
+      const names = [row.domain, row.label].filter(Boolean).map(name => name!.toLowerCase());
+      const count = matching.filter(answer => row.domain === null ? answer.cited :
+        answer.competitorsCited?.some(name => names.includes(name.toLowerCase()))).length;
+      return [platform, measured && matching.length ? count : '—'];
+    })) as Record<'gemini' | 'openai' | 'claude' | 'perplexity' | 'grok', number | string>;
+    const measuredCounts = Object.values(counts).filter((value): value is number => typeof value === 'number');
+    return { domain: row.domain ?? displayDomain, ...counts, total: measuredCounts.length ? measuredCounts.reduce((sum, value) => sum + value, 0) : '—', isOwn: row.domain === null };
+  });
 
   return (
     <div className="space-y-6 pb-12 font-sans text-brand-950">
@@ -141,7 +153,7 @@ export function CompetitorIntelligenceDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning || !currentProjectId}
+            disabled={!currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -261,15 +273,12 @@ export function CompetitorIntelligenceDashboard({
               <span className="text-xs text-brand-400 font-medium">Select Metrics</span>
               <div className="relative">
                 <select
-                  aria-label="Filter metrics"
+                  aria-label="Filter metrics" disabled title="Only saved AI mentions are available; search and backlink metrics have not been collected."
                   value={selectedMetric}
                   onChange={(e) => setSelectedMetric(e.target.value as typeof selectedMetric)}
                   className="appearance-none rounded-lg border bg-white py-1 pl-2.5 pr-7 text-xs font-semibold text-brand-800 shadow-xs focus:outline-none"
                 >
-                  <option value="all">All Metrics</option>
-                  <option value="keywords">Keywords</option>
-                  <option value="traffic">Top Rankings</option>
-                  <option value="backlinks">Backlinks</option>
+                  <option value="all">AI Mentions (available)</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-brand-400" />
               </div>
@@ -403,7 +412,7 @@ export function CompetitorIntelligenceDashboard({
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Competitor Profiles</h2>
             <p className="mt-0.5 text-xs text-brand-500">Quick overview of each competitor&apos;s strengths and positioning.</p>
           </div>
-          <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=actions")}> 
+          <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => setDetail('competitors')}>
             View Detailed Analysis →
           </button>
         </div>
@@ -434,7 +443,7 @@ export function CompetitorIntelligenceDashboard({
               <button
                 type="button"
                 className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:underline"
-               onClick={() => router.push("/ai-visibility?tab=actions")}> 
+               onClick={() => setDetail('competitors')}>
                 <span>View Analysis</span>
                 <ArrowRight className="h-3 w-3" />
               </button>
@@ -501,7 +510,7 @@ export function CompetitorIntelligenceDashboard({
             </span>
             <div>
               <h2 className="text-sm font-bold text-brand-950">AI Visibility Comparison</h2>
-              <p className="text-[11px] text-brand-500">How often AI platforms mention each website.</p>
+              <p className="text-[11px] text-brand-500">Saved answers mentioning each brand, by platform. A dash means no measured answer.</p>
             </div>
           </div>
 
@@ -552,13 +561,15 @@ export function CompetitorIntelligenceDashboard({
             <button
               type="button"
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
-             onClick={() => router.push("/ai-visibility?tab=actions")}> 
+             onClick={() => navigateVisibilityTab("actions")}>
               <Sparkles className="h-3.5 w-3.5" />
               <span>Review Recorded Action Plan</span>
             </button>
           </div>
         </div>
       </div>
+      {detail && <VisibilityDetails kind={detail} model={undefined} onClose={() => setDetail(null)} prompts={prompts} citations={citations} competitors={competitors} rootCause={rootCause} />}
+
     </div>
   );
 }
