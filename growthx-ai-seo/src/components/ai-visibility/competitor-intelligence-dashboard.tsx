@@ -69,7 +69,7 @@ export function CompetitorIntelligenceDashboard({
   const topicalCoverageData = [] as {topic:string;yourSite:number;competitorsAvg:number}[];
 
   // Competitor Profiles
-  const competitorProfiles = competitors.map(c=>({name:c.label ?? c.name ?? c.domain,domain:c.domain,da:'—',keywords:'—',tag:'Tracked competitor',tagTone:'brand',desc:c.lastAnalyzedAt ? 'Last analysed '+recordedDate(c.lastAnalyzedAt) : 'Not analysed yet'}));
+  const competitorProfiles = competitors.map(c=>({name:c.label?.trim() || c.name?.trim() || c.domain || 'Tracked competitor',domain:c.domain,da:'—',keywords:'—',tag:'Tracked competitor',tagTone:'brand',desc:c.lastAnalyzedAt ? 'Last analysed '+recordedDate(c.lastAnalyzedAt) : 'Not analysed yet'}));
 
   // Content Gap Opportunities
   const contentGaps = [] as {topic:string;covering:string;volume:string;level:string;tone:string}[];
