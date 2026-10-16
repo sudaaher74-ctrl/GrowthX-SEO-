@@ -1,4 +1,5 @@
 "use client";
+import { providerName, type VisibilityJourneyResponse } from "@/lib/visibility-workflow";
 import React, { useState } from "react";
 import Link from "next/link";
 import type { CrawlJob, GoogleOverview, TrackedCompetitor, VisibilityReport } from "@/lib/api-types";
@@ -184,7 +185,7 @@ export function UnifiedIntelligenceView(props: {
                   </li>
                 ))}
               </ul>
-              <Link href="/competitor-intelligence" className="mt-3 inline-block text-[12px] font-medium text-primary-700 hover:underline">
+              <Link href="/ai-visibility?tab=competitors" className="mt-3 inline-block text-[12px] font-medium text-primary-700 hover:underline">
                 View gaps and technical differences
               </Link>
             </>
@@ -650,7 +651,7 @@ export function ActionCenterView({ actions }: { actions?: AvAction[] | null }) {
                   <Td className="text-[12px] text-brand-500">{a.category}</Td>
                   <Td align="right"><Mono>{a.priority ?? 0}</Mono></Td>
                   <Td><Pill tone={a.status === 'OPEN' || a.lifecycle === 'QUEUED' ? 'warn' : 'good'}>{a.status || a.lifecycle}</Pill></Td>
-                  <Td align="right"><Mono tone="soft">{relativeTime(a.createdAt || a.identifiedAt)}</Mono></Td>
+                  <Td align="right"><Mono tone="soft">{relativeTime(a.createdAt || a.identifiedAt || a.detectedAt)}</Mono></Td>
                 </Tr>
               ))}
             </tbody>
@@ -695,7 +696,7 @@ export function MonitoringHistoryView({ report }: { report?: VisibilityReport | 
 
 /* ── Settings ────────────────────────────────────────────────────── */
 
-export function SettingsView({ report }: { report?: VisibilityReport | null }) {
+export function SettingsView({ report, providers }: { report?: VisibilityReport | null; providers?: VisibilityJourneyResponse["providers"] }) {
   const c = cycleInfo();
   const month = new Date().toLocaleDateString("en", { month: "long" });
   const last = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
@@ -707,7 +708,7 @@ export function SettingsView({ report }: { report?: VisibilityReport | null }) {
   const active = new Set((report?.measurableAssistants ?? []).map((a) => modelKeyOf(a)));
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title="Monitoring schedule" subtitle="Three monitoring cycles per month" padded>
+      <Panel title="Monitoring limits" subtitle="Up to three user-started cycles per month" padded>
         <ul className="divide-y text-[12.5px]">
           {windows.map(([k, v], i) => (
             <li key={k} className="flex items-center justify-between py-2">
@@ -719,16 +720,17 @@ export function SettingsView({ report }: { report?: VisibilityReport | null }) {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-[11.5px] text-brand-500">Next monitoring window starts {c.nextScan}.</p>
+        <p className="mt-3 text-[11.5px] text-brand-500">No automatic scan is scheduled. Review the questions and start each cycle explicitly.</p>
       </Panel>
       <Panel title="Models" subtitle="Credentials are held on the server and never shown here" padded>
         <ul className="divide-y text-[12.5px]">
-          {MODEL_DEFS.map((m) => (
-            <li key={m.key} className="flex items-center justify-between py-2">
-              <span className="font-medium text-brand-950">{m.label}</span>
-              {active.has(m.key) ? <Pill tone="info">Configured</Pill> : <Pill>Not reporting</Pill>}
+          {providers?.map(provider => (
+            <li key={provider.provider} className="space-y-1 py-2">
+              <div className="flex justify-between gap-2"><span>{providerName(provider.provider)}</span><Pill tone={!provider.configured || provider.unavailableReason ? "warn" : "info"}>{provider.unavailableReason ? "Unavailable" : provider.configured ? "Configured" : "Not configured"}</Pill></div>
+              <p className="text-xs text-brand-500">{provider.unavailableReason || provider.model}</p>
             </li>
           ))}
+          {!providers && <li className="py-2 text-brand-500">Model configuration is not available.</li>}
         </ul>
       </Panel>
       <Panel className="lg:col-span-2" title="Measurement notes" padded>

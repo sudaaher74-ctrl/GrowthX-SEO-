@@ -2,6 +2,7 @@
 
 import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
 import { useRouter } from "next/navigation";
+import { VisibilityDetails } from './visibility-details';
 import React, { useState } from "react";
 import {
   Sparkles,
@@ -167,7 +168,7 @@ export function AiVisibilityDashboard({
   const currentQuotes = modelQuotes[selectedModel] || modelQuotes.gemini;
   const currentQuote = currentQuotes[activeResponseIndex % (currentQuotes.length || 1)] ?? 'No saved response for this model yet.';
   const answer = savedAnswers(prompts).filter(a => a.platform === selectedModel)[activeResponseIndex % (currentQuotes.length || 1)];
-  const platforms: PlatformData[] = PLATFORMS.map(p => { const measured=report?.byAssistant.find(r=>platformKey(r.assistant)===p.id); return {...p,score:measured && measured.checked>0?measured.citationSharePct:null,delta:'—',mentions:measured && measured.checked>0?measured.cited:null,recommendations:null,citations:null}; });
+  const platforms: PlatformData[] = PLATFORMS.map(p => { const measured=report?.byAssistant.find(r=>platformKey(r.assistant)===p.id); return {...p,score:measured && measured.checked>0?measured.citationSharePct:null,delta:'—',mentions:measured && measured.checked>0?measured.cited:null,recommendations:measured && measured.checked>0 ? measured.recommended ?? null : null,citations:measured && measured.checked>0 ? measured.citations ?? null : null}; });
   const trendPoints = (report?.trend ?? []).filter(r=>r.checked>0).map(r=>({date:new Date(r.weekStart).toLocaleDateString(),overall:r.citationSharePct}));
   const mentionComparisons = platforms.filter(p=>p.mentions!==null).map(p=>({platform:p.name,yourBrand:p.mentions,competitors:null,id:p.id}));
 
@@ -246,7 +247,7 @@ export function AiVisibilityDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning || !currentProjectId}
+            disabled={!currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -529,6 +530,7 @@ export function AiVisibilityDashboard({
                   <button
                     type="button"
                     aria-label="Previous response"
+                    disabled={currentQuotes.length < 2}
                     onClick={handlePrevQuote}
                     className="flex h-6 w-6 items-center justify-center rounded-md border bg-white text-brand-500 hover:text-brand-900 shadow-2xs"
                   >
@@ -537,6 +539,7 @@ export function AiVisibilityDashboard({
                   <button
                     type="button"
                     aria-label="Next response"
+                    disabled={currentQuotes.length < 2}
                     onClick={handleNextQuote}
                     className="flex h-6 w-6 items-center justify-center rounded-md border bg-white text-brand-500 hover:text-brand-900 shadow-2xs"
                   >
@@ -555,7 +558,7 @@ export function AiVisibilityDashboard({
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <button
                 type="button"
-                onClick={() => setIsModalOpen(true)}
+                disabled={!answer} onClick={() => setIsModalOpen(true)}
                 className="text-xs font-semibold text-accent-600 hover:text-accent-700 hover:underline"
               >
                 View Saved Response
@@ -684,62 +687,8 @@ export function AiVisibilityDashboard({
         </div>
       </div>
 
-      {/* ── View Saved Response Modal ─────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl rounded-2xl border bg-white p-6 shadow-xl">
-            <button
-              type="button"
-              aria-label="Close dialog"
-              onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-brand-400 hover:bg-brand-50 hover:text-brand-900"
-            >
-              <X className="h-4 w-4" />
-            </button>
+      {isModalOpen && <VisibilityDetails kind="response" model={selectedModel} checkedAt={answer?.checkedAt} prompts={prompts} onClose={() => setIsModalOpen(false)} />}
 
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
-                <Sparkles className="h-4 w-4 fill-primary-600 text-primary-600" />
-              </span>
-              <div>
-                <h3 className="text-base font-bold text-brand-950">
-                  Saved AI Response ({PLATFORMS.find((p) => p.id === selectedModel)?.name})
-                </h3>
-                <p className="text-xs text-brand-500">{recordedDate(answer?.checkedAt)}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border bg-brand-50/60 p-4 text-xs leading-relaxed text-brand-800 md:text-sm">
-              <p className="font-medium text-brand-900 mb-2">Monitored Query:</p>
-              <p className="italic text-brand-600 mb-4 border-l-2 border-primary-400 pl-3">
-                {answer?.question ?? "No saved question"}
-              </p>
-              <p className="font-medium text-brand-900 mb-2">Recorded answer excerpt:</p>
-              <p className="text-brand-800 leading-relaxed">
-                {currentQuote}
-              </p>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between text-xs">
-              <div className="flex gap-2">
-                <span className="rounded-full bg-success-50 px-2.5 py-0.5 font-semibold text-success-700">
-                  {answer ? (answer.cited ? "Brand mentioned" : "Brand absent") : "Not measured"}
-                </span>
-                <span className="rounded-full bg-accent-50 px-2.5 py-0.5 font-semibold text-accent-700">
-                  Classification unavailable
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-lg bg-brand-900 px-4 py-2 font-semibold text-white hover:bg-brand-950"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { LOW_COST_CYCLE_PREFIX, monthlyMonitoringCycles } from './monitoring-cycle-policy';
+import { providerFailureReason } from '../security/provider-failure.util';
 import {
   BadRequestException,
   ConflictException,
@@ -404,7 +405,7 @@ export class VisibilityWorkflowService
         const reason =
           err instanceof BriefValidationFailure
             ? err.message
-            : "The provider request did not complete. Check its access, quota and availability before retrying.";
+            : providerFailureReason(err);
         errors.push(
           `${provider} could not prepare the buyer questions. ${redactSecretsForAi(reason)}`,
         );
@@ -474,7 +475,13 @@ export class VisibilityWorkflowService
     });
     const errors: string[] = [];
     let finished = 0;
+    const availableProviders: AiProvider[] = [];
     for (const provider of this.providers()) {
+      const unavailable = await this.router.providerAvailability?.(provider);
+      if (unavailable) errors.push(`${provider}: ${unavailable}`);
+      else availableProviders.push(provider);
+    }
+    for (const provider of availableProviders) {
       const runId = `${id}-${provider}`;
       await this.prisma.aiVisibilityScanRun.upsert({
         where: { id: runId },
@@ -524,8 +531,8 @@ export class VisibilityWorkflowService
             });
             if (result.refused || !result.text.trim())
               failure = `${provider} returned no usable answer.`;
-          } catch {
-            failure = `${provider} could not answer this question. Check provider availability, limits and account access.`;
+          } catch (error) {
+            failure = `${provider} could not answer this question. ${providerFailureReason(error)}`;
           }
           const data = {
             scanRunId: runId,
@@ -561,7 +568,7 @@ export class VisibilityWorkflowService
           where: { id },
           data: {
             progress:
-              25 + Math.round((finished / (this.providers().length * brief.questions.length)) * 45),
+              25 + Math.round((finished / (availableProviders.length * brief.questions.length)) * 45),
           },
         });
       }

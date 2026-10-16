@@ -10,6 +10,10 @@ export interface LiveDashboardData {
   competitors?: TrackedCompetitor[];
 }
 export const platformKey = (provider: string) => { const key = modelKeyOf(provider); return key === 'gpt' ? 'openai' : key; };
+export function navigateVisibilityTab(tab: string) {
+  const query = new URLSearchParams({ tab });
+  window.history.pushState(null, '', `/ai-visibility?${query}`);
+}
 export function savedAnswers(prompts: AvPrompt[] = []) {
   return prompts.flatMap(p => (p.latestChecks ?? []).filter(c => !c.error && c.answerExcerpt).map(c => ({ ...c, question: p.text, platform: platformKey(c.assistant) }))).sort((a,b) => b.checkedAt.localeCompare(a.checkedAt));
 }

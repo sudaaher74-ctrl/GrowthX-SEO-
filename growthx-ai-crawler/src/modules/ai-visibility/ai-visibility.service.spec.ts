@@ -69,8 +69,8 @@ describe('AI visibility dashboard contract', () => {
     const report = await service.getReport('project', 28);
     expect(report.summary).toMatchObject({ checked: 2, cited: 1, citationSharePct: 50, failedChecks: 1 });
     expect(report.byAssistant).toEqual([
-      { assistant: 'GEMINI', model: 'gemini-model', checked: 2, cited: 1, citationSharePct: 50 },
-      { assistant: 'OPENAI', model: 'openai-model', checked: 0, cited: 0, citationSharePct: 0 },
+      { assistant: 'GEMINI', model: 'gemini-model', checked: 2, cited: 1, citationSharePct: 50, recommended: 0, citations: 0, failedChecks: 0 },
+      { assistant: 'OPENAI', model: 'openai-model', checked: 0, cited: 0, citationSharePct: 0, recommended: 0, citations: 0, failedChecks: 1 },
     ]);
     expect(report.trend[0]).toMatchObject({ checked: 2, citationSharePct: 50 });
   });
@@ -104,6 +104,27 @@ describe('AI visibility dashboard contract', () => {
     expect(prisma.aiVisibilityMetrics.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId: 'project', createdAt: { gte: expect.any(Date) } },
     }));
+  });
+  it('retains partial-scan answers, complete text and source links within the selected period', async () => {
+    const { service, prisma } = create();
+    prisma.aiVisibilityScan.findFirst = jest.fn().mockResolvedValue({ id: 'partial-scan' });
+    prisma.aiVisibilityCitation = { findMany: jest.fn().mockResolvedValue([]) };
+    const longAnswer = 'Saved complete answer. '.repeat(30);
+    prisma.aiVisibilityResponse.findMany.mockResolvedValue([{
+      promptId: 'prompt', provider: 'OPENAI', model: 'openai/gpt-4.1-mini',
+      createdAt: new Date(), rawResponse: longAnswer, mentions: [], analysis: { brandMentioned: true },
+      scanRun: { provider: 'OPENAI' }, citations: [{ url: 'https://example.com/source' }], errorMessage: null,
+    }]);
+    const controller = new AiVisibilityController(service, {} as any, prisma, {} as any);
+    const prompts = await controller.listPrompts('project', '7');
+    expect(prompts[0].latestChecks[0]).toMatchObject({ fullAnswer: longAnswer, citedUrl: 'https://example.com/source' });
+    expect(prompts[0].latestChecks[0].answerExcerpt).toHaveLength(160);
+    await service.getCitationsIntelligence('project', 7);
+    await service.getRootCauseAnalysis('project', 7);
+    for (const [query] of prisma.aiVisibilityScan.findFirst.mock.calls) {
+      expect(query.where).toMatchObject({ projectId: 'project', status: { in: ['COMPLETED', 'PARTIAL'] }, createdAt: { gte: expect.any(Date) } });
+      expect(Date.now() - query.where.createdAt.gte.getTime()).toBeLessThan(7 * 86400000 + 10000);
+    }
   });
   it('allows the five-model plan after legacy single-model scans and marks the new planned cycle', async () => {
     const { service, prisma, providers } = create();

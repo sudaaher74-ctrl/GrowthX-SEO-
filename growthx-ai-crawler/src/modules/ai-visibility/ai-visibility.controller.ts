@@ -61,13 +61,13 @@ export class AiVisibilityController {
   }
 
   @Get('citations')
-  async getCitations(@Param('projectId') projectId: string) {
-    return this.aiVisibilityService.getCitationsIntelligence(projectId);
+  async getCitations(@Param('projectId') projectId: string, @Query('days') days?: string) {
+    return this.aiVisibilityService.getCitationsIntelligence(projectId, Number(days) || 28);
   }
 
   @Get('root-cause')
-  async getRootCause(@Param('projectId') projectId: string) {
-    return this.aiVisibilityService.getRootCauseAnalysis(projectId);
+  async getRootCause(@Param('projectId') projectId: string, @Query('days') days?: string) {
+    return this.aiVisibilityService.getRootCauseAnalysis(projectId, Number(days) || 28);
   }
 
   @Get('actions')
@@ -76,21 +76,21 @@ export class AiVisibilityController {
   }
 
   @Get('prompts')
-  async listPrompts(@Param('projectId') projectId: string) {
+  async listPrompts(@Param('projectId') projectId: string, @Query('days') days?: string) {
     const prompts = await this.prisma.aiVisibilityPrompt.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
 
     const latestScan = await this.prisma.aiVisibilityScan.findFirst({
-      where: { projectId, status: 'COMPLETED' },
+      where: { projectId, status: { in: ['COMPLETED', 'PARTIAL'] }, createdAt: { gte: new Date(Date.now() - Math.min(90, Math.max(1, Number(days) || 28)) * 86400000) } },
       orderBy: { createdAt: 'desc' },
     });
 
     const responses = latestScan
       ? await this.prisma.aiVisibilityResponse.findMany({
           where: { scanRun: { scanId: latestScan.id } },
-          include: { analysis: true, mentions: true, scanRun: true },
+          include: { analysis: true, mentions: true, scanRun: true, citations: true },
         })
       : [];
 
@@ -114,11 +114,12 @@ export class AiVisibilityController {
           checkedAt: r.createdAt.toISOString(),
           cited: Boolean(r.analysis?.brandMentioned),
           position: r.analysis?.brandPosition || null,
-          citedUrl: null,
+          citedUrl: r.citations[0]?.url ?? null,
           competitorsCited: competitors,
           error: r.errorMessage,
           model: r.model,
           answerExcerpt: r.rawResponse ? r.rawResponse.slice(0, 160) : null,
+          fullAnswer: r.rawResponse,
         };
       });
 

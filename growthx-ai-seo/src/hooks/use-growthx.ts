@@ -266,10 +266,10 @@ export function useVisibility(projectId: string | null, days?: number) {
   });
 }
 
-export function useTrackedPrompts(projectId: string | null) {
+export function useTrackedPrompts(projectId: string | null, days = 28) {
   return useQuery({
-    queryKey: ["tracked-prompts", projectId],
-    queryFn: () => api.listTrackedPrompts(projectId!),
+    queryKey: ["tracked-prompts", projectId, days],
+    queryFn: () => api.listTrackedPrompts(projectId!, days),
     enabled: Boolean(projectId),
     retry: false,
   });

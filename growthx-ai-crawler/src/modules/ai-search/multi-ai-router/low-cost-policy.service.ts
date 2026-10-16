@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
 import { AiCompletion, AiRequest } from './multi-ai-router.types';
 import { APPROVED_MODELS, ApprovedModel, costBucket, policyTokens } from './low-cost-policy';
+import { providerFailureReason } from '../../security/provider-failure.util';
 
 @Injectable()
 export class LowCostPolicyService {
@@ -110,7 +111,8 @@ export class LowCostPolicyService {
     } catch (error) {
       // A timeout may have been billed. Keep its reservation until reconciled;
       // never turn unknown vendor charges into zero or silently retry.
-      await this.prisma.$executeRaw`UPDATE "AiUsageRecord" SET "status"='ERROR',"latencyMs"=${Date.now()-started},"error"='Provider request failed; worst-case reservation retained pending reconciliation.' WHERE "id"=${id}`;
+      const reason = `${providerFailureReason(error)} Worst-case reservation retained pending reconciliation.`;
+      await this.prisma.$executeRaw`UPDATE "AiUsageRecord" SET "status"='ERROR',"latencyMs"=${Date.now()-started},"error"=${reason} WHERE "id"=${id}`;
       throw error;
     }
     const actual = result.usage.actualCostUsd;

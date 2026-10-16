@@ -1,14 +1,24 @@
 # Reigel low-cost AI policy
 
+## Owner-approved visibility preparation update — 16 October 2026
+
+The live Gemini API returns HTTP 404 for `gemini-2.5-flash-lite`, stating it is
+no longer available to new users. The owner explicitly approved using the already
+allowed `gemini-2.5-flash` for AI Visibility preparation. Accordingly,
+`AI_VISIBILITY_ANALYSIS` (business preparation, answer classification and the
+visibility action plan) now uses that exact model through the existing INTERNAL
+budget and spend reservations. The INR 1,000 monthly cap, all category limits,
+fresh visibility identities, and prohibition on automatic upgrades stay in force.
+Other routine-analysis tasks retain their existing route; this is a scoped change.
+
 Owner policy received and public tariffs inspected on 15 October 2026. Platform
 monthly limit confirmed by the owner: **INR 1,000**. INR 100 per customer per month
 is an initial operating target, not a guaranteed cost or entitlement to unlimited
 requests. Existing integrations and application flows are retained.
 
-Rollout status: implementation is prepared in source and validated locally.
-Production activation is pending Vercel project access: the connected account
-returned HTTP 403 for `growth-x-seo`, and no authenticated local CLI fallback was
-available. The live API and frontend have not been changed for this policy.
+The low-cost policy is active in production. Read `/health` for the running API
+revision and the Vercel production deployment for the frontend revision. Earlier
+connector access failures were resolved through the authenticated dashboard.
 
 ## Inspection findings
 

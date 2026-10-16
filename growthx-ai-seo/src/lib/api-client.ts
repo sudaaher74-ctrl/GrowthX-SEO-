@@ -675,8 +675,8 @@ export const api = {
   // ── AI visibility
   getVisibility: (projectId: string, days = 28) =>
     get<VisibilityReport>(`/api/projects/${projectId}/ai-visibility?days=${days}`),
-  listTrackedPrompts: (projectId: string) =>
-    get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
+  listTrackedPrompts: (projectId: string, days = 28) =>
+    get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts?days=${days}`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   getQuestionAnalysis: (projectId: string) =>
@@ -692,13 +692,13 @@ export const api = {
       : get<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`),
   getAiVisibilityUnified: (projectId: string) =>
     get<AvUnifiedIntelligence>(`/api/projects/${projectId}/ai-visibility/unified`),
-  getAiVisibilityCitations: (projectId: string) =>
+  getAiVisibilityCitations: (projectId: string, days = 28) =>
     get<{ totalCitations: number; citationsByDomain: { domain: string; count: number; ownCited: boolean }[] }>(
-      `/api/projects/${projectId}/ai-visibility/citations`,
+      `/api/projects/${projectId}/ai-visibility/citations?days=${days}`,
     ),
-  getAiVisibilityRootCause: (projectId: string) =>
+  getAiVisibilityRootCause: (projectId: string, days = 28) =>
     get<{ rivalsWinning: { brand: string; wins: number }[]; missedPrompts: { prompt: string; category: string; winner: string }[] }>(
-      `/api/projects/${projectId}/ai-visibility/root-cause`,
+      `/api/projects/${projectId}/ai-visibility/root-cause?days=${days}`,
     ),
   getAiVisibilityActions: (projectId: string) =>
     get<AvAction[]>(`/api/projects/${projectId}/ai-visibility/actions`),

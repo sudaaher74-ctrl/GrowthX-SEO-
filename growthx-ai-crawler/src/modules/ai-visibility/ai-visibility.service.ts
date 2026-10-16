@@ -349,7 +349,7 @@ export class AiVisibilityService {
 
     const responses = await this.prisma.aiVisibilityResponse.findMany({
       where: { scanRun: { scanId: latestMetrics.scanId } },
-      include: { prompt: true, analysis: true, scanRun: true },
+      include: { prompt: true, analysis: true, scanRun: true, citations: true },
     });
 
     let positive = 0;
@@ -422,6 +422,9 @@ export class AiVisibilityService {
       return {
         assistant: r.provider,
         model: r.model,
+        recommended: valid.filter(response => response.analysis?.recommended).length,
+        citations: valid.reduce((sum, response) => sum + (response.citations?.length ?? 0), 0),
+        failedChecks: runResponses.length - checked,
         checked,
         cited,
         citationSharePct,
@@ -555,9 +558,9 @@ export class AiVisibilityService {
     };
   }
 
-  async getCitationsIntelligence(projectId: string) {
+  async getCitationsIntelligence(projectId: string, days = 28) {
     const latestScan = await this.prisma.aiVisibilityScan.findFirst({
-      where: { projectId, status: 'COMPLETED' },
+      where: { projectId, status: { in: ['COMPLETED', 'PARTIAL'] }, createdAt: { gte: new Date(Date.now() - Math.min(90, Math.max(1, days)) * 86400000) } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -591,9 +594,9 @@ export class AiVisibilityService {
     };
   }
 
-  async getRootCauseAnalysis(projectId: string) {
+  async getRootCauseAnalysis(projectId: string, days = 28) {
     const latestScan = await this.prisma.aiVisibilityScan.findFirst({
-      where: { projectId, status: 'COMPLETED' },
+      where: { projectId, status: { in: ['COMPLETED', 'PARTIAL'] }, createdAt: { gte: new Date(Date.now() - Math.min(90, Math.max(1, days)) * 86400000) } },
       orderBy: { createdAt: 'desc' },
     });
 

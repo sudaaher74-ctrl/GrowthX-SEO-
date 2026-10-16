@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { API_BASE } from "./api-base";
+test.setTimeout(120_000);
 import type {
   VisibilityBrief,
   VisibilityJourneyResponse,

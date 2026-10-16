@@ -1,7 +1,7 @@
 "use client";
 
-import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
-import { useRouter } from "next/navigation";
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement, navigateVisibilityTab } from './live-dashboard-data';
+import { VisibilityDetails } from './visibility-details';
 import React, { useState } from "react";
 import {
   Sparkles,
@@ -50,7 +50,7 @@ export function RootCauseAnalysisDashboard({
   onRunScan,
   isScanning = false,
 }: RootCauseAnalysisDashboardProps) {
-  const router = useRouter();
+  const [detail, setDetail] = useState<"sources" | "response" | "competitors" | "evidence" | null>(null);
   const [selectedResponsePlatform, setSelectedResponsePlatform] = useState<
     "gemini" | "openai" | "claude" | "perplexity" | "grok"
   >("gemini");
@@ -149,7 +149,7 @@ export function RootCauseAnalysisDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning || !currentProjectId}
+            disabled={!currentProjectId}
             className="flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60"
           >
             {isScanning ? (
@@ -384,7 +384,7 @@ export function RootCauseAnalysisDashboard({
           </div>
           <div className="relative">
             <select
-              aria-label="Filter severity levels"
+              aria-label="Filter severity levels" disabled={!detailedCauses.length}
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value as "all" | "high" | "medium")}
               className="appearance-none rounded-lg border bg-white py-1 pl-3 pr-7 text-xs font-medium text-brand-700 shadow-xs focus:outline-none"
@@ -422,7 +422,7 @@ export function RootCauseAnalysisDashboard({
                   <button
                     type="button"
                     className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-                   onClick={() => router.push("/ai-visibility?tab=actions")}> 
+                   onClick={() => setDetail('evidence')}>
                     <span>View Evidence</span>
                     <span>↓</span>
                   </button>
@@ -504,7 +504,7 @@ export function RootCauseAnalysisDashboard({
             <button
               type="button"
               className="flex items-center gap-1 font-semibold text-primary-600 hover:text-primary-700"
-             onClick={() => router.push("/ai-visibility?tab=actions")}> 
+             onClick={() => setDetail('response')}>
               <span>View Saved Response</span>
               <ArrowRight className="h-3 w-3" />
             </button>
@@ -561,7 +561,7 @@ export function RootCauseAnalysisDashboard({
               <button
                 type="button"
                 className="text-xs font-semibold text-primary-600 hover:text-primary-700"
-               onClick={() => router.push("/ai-visibility?tab=actions")}> 
+               onClick={() => navigateVisibilityTab("actions")}>
                 View All Actions →
               </button>
             </div>
@@ -587,7 +587,7 @@ export function RootCauseAnalysisDashboard({
                   <button
                     type="button"
                     className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${action.buttonColor}`}
-                   onClick={() => router.push("/ai-visibility?tab=actions")}> 
+                   onClick={() => navigateVisibilityTab("actions")}>
                     {action.buttonText}
                   </button>
                 </div>
@@ -596,6 +596,8 @@ export function RootCauseAnalysisDashboard({
           </div>
         </div>
       </div>
+      {detail && <VisibilityDetails kind={detail} model={selectedResponsePlatform} onClose={() => setDetail(null)} prompts={prompts} citations={citations} competitors={competitors} rootCause={rootCause} />}
+
     </div>
   );
 }

@@ -52,6 +52,8 @@ describe('low-cost production policy', () => {
   });
   it('assigns routine work, competitor work, code, and monitoring to the approved identities', () => {
     expect(policyModel(request)).toBe('gemini-2.5-flash-lite');
+    expect(policyModel({ ...request, task: AiTask.AI_VISIBILITY_ANALYSIS })).toBe('gemini-2.5-flash');
+    expect(costBucket({ ...request, task: AiTask.AI_VISIBILITY_ANALYSIS })).toBe('INTERNAL');
     expect(policyModel({ ...request, task: AiTask.COMPETITOR_ANALYSIS })).toBe('gemini-2.5-flash');
     expect(policyModel({ ...request, task: AiTask.CODE_GENERATION })).toBe('gemini-2.5-flash');
     expect(policyModel({ ...request, task: AiTask.VISIBILITY_MEASUREMENT, provider: AiProvider.ANTHROPIC })).toBe('anthropic/claude-haiku-4.5');

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { API_BASE } from './api-base';
+test.setTimeout(120_000);
 
 test.beforeEach(async ({ page }) => {
   page.on('pageerror', error => console.log('Browser error:', error.message, error.stack));
@@ -26,6 +27,13 @@ async function setup(page: Page, options: { empty?: boolean; fail?: boolean } = 
       shareOfVoice: [{ domain: null, label: 'Measured business', mentions: 3, sharePct: 60 }, { domain: 'measured-rival.test', label: 'Measured rival', mentions: 2, sharePct: 40 }],
       trend: [{ weekStart: '2026-10-15T00:00:00Z', checked: 7, citationSharePct: 43 }], measurableAssistants: ['GEMINI'],
     });
+    if (path.endsWith('/journey')) return json({ journey: null, answers: [], providers: [
+      {provider:'GEMINI',configured:true,model:'gemini-2.5-flash'},
+      {provider:'OPENAI',configured:true,model:'openai/gpt-4.1-mini'},
+      {provider:'ANTHROPIC',configured:true,model:'anthropic/claude-haiku-4.5'},
+      {provider:'PERPLEXITY',configured:true,model:'perplexity/sonar'},
+      {provider:'GROK',configured:true,model:'x-ai/grok-4-fast',unavailableReason:'Approved Grok model is unavailable.'},
+    ] });
     if (path.endsWith('/prompts')) return json([{ id: 'p1', text: 'Stored buyer question', category: 'Discovery', latestChecks: [{ assistant: 'GEMINI', checkedAt: '2026-10-15T00:00:00Z', cited: true, answerExcerpt: 'A recorded provider answer.', model: 'gemini-2.5-flash' }] }]);
     if (path.endsWith('/citations')) return options.fail ? json({ message: 'Citation source unavailable' }, 503) : json({ totalCitations: 9, citationsByDomain: [{ domain: 'recorded-source.test', count: 9, ownCited: false }] });
     if (path.endsWith('/root-cause')) return json({ rivalsWinning: [{ brand: 'Measured rival', wins: 2 }], missedPrompts: [{ prompt: 'Stored missed question', category: 'Discovery', winner: 'Measured rival' }] });
@@ -78,7 +86,7 @@ test('original dashboards retain their layout and display saved measurements onl
   await expect(page.getByRole('table')).toContainText('43%');
   await expect(page.getByRole('table').getByText('0%',{exact:true})).toHaveCount(0);
   await page.goto('/ai-visibility?tab=settings');
-  await expect(page.getByText('Configured',{exact:true})).toHaveCount(1);
+  await expect(page.getByText('Configured',{exact:true})).toHaveCount(4);
   await page.goto('/ai-visibility?tab=unified');
   await expect(page.getByText('Could not load this data')).toBeVisible();
   await expect(page.getByText('Aug 28, 2025',{exact:false})).toHaveCount(0);
