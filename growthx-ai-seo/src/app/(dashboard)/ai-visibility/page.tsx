@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryState } from "@/components/ui/query-state";
+import { VisibilityJourneyPage } from "@/components/ai-visibility/visibility-journey";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -20,7 +21,7 @@ import {
 import { useGoogleOverview } from "@/hooks/use-google";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-import { ActionButton, StatusNote } from "@/components/ui/console";
+import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
 import { AiVisibilityDashboard } from "@/components/ai-visibility/ai-visibility-dashboard";
 import { CitationIntelligenceDashboard } from "@/components/ai-visibility/citation-intelligence-dashboard";
 import { CompetitorIntelligenceDashboard } from "@/components/ai-visibility/competitor-intelligence-dashboard";
@@ -133,7 +134,10 @@ function AiVisibilityClient() {
   const promptList = (prompts.data ?? []) as unknown as AvPrompt[];
   const competitors = competitorsQuery.data ?? [];
 
-  const runScan = async () => { router.push('/ai-visibility/journey'); };
+  const workflowOpen = useSearchParams().get("workflow") === "open";
+  const runScan = async () => {
+    router.push(`/ai-visibility?tab=${activeTab}&workflow=open`, { scroll: false });
+  };
 
   const submitDialog = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,17 +253,16 @@ function AiVisibilityClient() {
             </div>
           )}
 
-          <div className="relative group">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-xl border bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950 transition"
+          <details className="relative group">
+            <summary
+              className="flex cursor-pointer list-none items-center gap-1.5 rounded-xl border bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950 transition"
               style={{ borderColor: "var(--border-color)" }}
             >
               <span>More Views</span>
               <ChevronDown className="h-3.5 w-3.5 text-brand-400" />
-            </button>
+            </summary>
             <div
-              className="absolute right-0 top-full z-20 mt-1 hidden w-48 rounded-xl border bg-white p-1 shadow-lg group-hover:block"
+              className="absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border bg-white p-1 shadow-lg"
               style={{ borderColor: "var(--border-color)" }}
             >
               {[
@@ -273,7 +276,10 @@ function AiVisibilityClient() {
                 <button
                   key={sub.id}
                   type="button"
-                  onClick={() => setActiveTab(sub.id)}
+                  onClick={(event) => {
+                    setActiveTab(sub.id);
+                    event.currentTarget.closest("details")?.removeAttribute("open");
+                  }}
                   className={cn(
                     "flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs transition",
                     activeTab === sub.id
@@ -285,10 +291,18 @@ function AiVisibilityClient() {
                 </button>
               ))}
             </div>
-          </div>
+          </details>
         </div>
       </div>
 
+      {workflowOpen && (
+        <Panel padded>
+          <div className="mb-4 flex justify-end">
+            <ActionButton onClick={() => router.replace(`/ai-visibility?tab=${activeTab}`, { scroll: false })}>Close scan</ActionButton>
+          </div>
+          <VisibilityJourneyPage />
+        </Panel>
+      )}
       <QueryState isLoading={workspaceLoading} error={workspaceError} isEmpty={!projectId} emptyTitle="Choose a project to view real measurements" emptyBody="Add your website to begin monitoring.">
       <QueryState isLoading={visibility.isLoading || prompts.isLoading || dependentQueries.some(q=>q.isLoading) || (activeTab === 'citations' && citationsQuery.isLoading) || (activeTab === 'root-cause' && rootCauseQuery.isLoading)} error={visibility.error || prompts.error || dependentQueries.find(q=>q.error)?.error || (activeTab === 'citations' ? citationsQuery.error : activeTab === 'root-cause' ? rootCauseQuery.error : activeTab === 'actions' ? actionsQuery.error : null)}>
       {/* ── Main Views ────────────────────────────────────────────── */}

@@ -1,10 +1,12 @@
-import { Suspense } from 'react';
-import { VisibilityJourneyPage } from '@/components/ai-visibility/visibility-journey';
+import { redirect } from "next/navigation";
 
-export default function AiVisibilityJourneyRoute() {
-  return (
-    <Suspense fallback={<p className="p-6 text-sm text-brand-500">Loading AI Visibility Journey…</p>}>
-      <VisibilityJourneyPage />
-    </Suspense>
-  );
+export default async function AiVisibilityJourneyRoute({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const query = new URLSearchParams({ tab: "overview", workflow: "open" });
+  if (tab) query.set("workflowTab", tab);
+  redirect(`/ai-visibility?${query}`);
 }

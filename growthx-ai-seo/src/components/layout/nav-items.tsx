@@ -91,6 +91,16 @@ export function useMainNav(): { mainNav: NavItem[] } {
       ],
     },
     {
+      label: "Google",
+      href: "/google",
+      icon: SearchCheck,
+      tag: googleDone ? "Connected" : undefined,
+      children: [
+        { id: "search-console", label: "Google Search Console", href: "/google/search-console" },
+        { id: "analytics", label: "Google Analytics 4", href: "/google/analytics" },
+      ],
+    },
+    {
       label: "AI Visibility",
       href: "/ai-visibility?tab=overview",
       aliases: ["/ai-visibility"],

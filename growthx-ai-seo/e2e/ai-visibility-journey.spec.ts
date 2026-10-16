@@ -165,6 +165,7 @@ test("reviews local questions before checking and preserves missing-source truth
     sent.brief = (body as { brief: VisibilityBrief }).brief;
   });
   await page.goto("/ai-visibility/journey");
+  await expect(page).toHaveURL(/ai-visibility\?tab=overview&workflow=open/);
   await expect(
     page.getByRole("heading", {
       name: "What we understand about your business",
@@ -180,6 +181,7 @@ test("reviews local questions before checking and preserves missing-source truth
     page.getByText("Connect and sync Search Console.", { exact: true }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "2. Buyer questions" }).click();
+  await expect(page).toHaveURL(/workflowTab=questions/);
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
   ).toHaveCount(20);

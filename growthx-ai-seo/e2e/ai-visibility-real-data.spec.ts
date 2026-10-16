@@ -47,7 +47,14 @@ test('original dashboards retain their layout and display saved measurements onl
   await expect(page.getByText('Stored buyer question')).toBeVisible();
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.getByRole('button',{name:'Run New AI Visibility Check',exact:true}).click();
-  await expect(page).toHaveURL(/ai-visibility\/journey/);
+  await expect(page).toHaveURL(/ai-visibility\?tab=overview&workflow=open/);
+  await expect(page.getByRole('heading', {name:'Visibility Trends',exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'Close scan',exact:true}).click();
+  await expect(page).toHaveURL(/ai-visibility\?tab=overview$/);
+  await page.getByText('More Views', {exact:true}).click();
+  await page.getByRole('button', {name:'AI Model Visibility',exact:true}).click();
+  await expect(page).toHaveURL(/tab=models/);
+  await expect(page.getByRole('link', {name:'Google',exact:true})).toBeVisible();
   await page.goto('/ai-visibility?tab=citations');
   await expect(page.getByRole('heading',{name:'Citations Trend',exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByText('recorded-source.test')).toBeVisible();

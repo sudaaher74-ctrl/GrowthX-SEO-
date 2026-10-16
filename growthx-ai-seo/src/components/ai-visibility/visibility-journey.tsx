@@ -74,12 +74,12 @@ export function VisibilityJourneyPage() {
 function Journey({ projectId }: { projectId: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const requested = params.get("tab") || "overview";
+  const requested = params.get("workflowTab") || "overview";
   const tab =
     ALIASES[requested] ||
     (TABS.some((t) => t.id === requested) ? requested : "overview");
   const setTab = (value: string) =>
-    router.replace(`/ai-visibility/journey?tab=${value}`, { scroll: false });
+    router.replace(`/ai-visibility?tab=${params.get("tab") || "overview"}&workflow=open&workflowTab=${value}`, { scroll: false });
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
   const query = useQuery({
