@@ -27,7 +27,7 @@ async function setup(page: Page, options: { empty?: boolean; fail?: boolean } = 
       trend: [{ weekStart: '2026-10-15T00:00:00Z', checked: 7, citationSharePct: 43 }], measurableAssistants: ['GEMINI'],
     });
     if (path.endsWith('/prompts')) return json([{ id: 'p1', text: 'Stored buyer question', category: 'Discovery', latestChecks: [{ assistant: 'GEMINI', checkedAt: '2026-10-15T00:00:00Z', cited: true, answerExcerpt: 'A recorded provider answer.', model: 'gemini-2.5-flash' }] }]);
-    if (path.endsWith('/questions')) return json({questions:[]});
+    if (path.endsWith('/questions')) return json({questions:[{id:'pending',text:'Saved pending buyer question',group:'BUYER',outcome:'NOT_MEASURED',answer:null,failure:null,verdict:'NOT_APPLICABLE',ownPage:null,rivals:[],comparison:[]}]});
     if (path.endsWith('/prompts/generate')) return json({message:'Monitoring provider is temporarily unavailable'},503);
     if (path.endsWith('/citations')) return options.fail ? json({ message: 'Citation source unavailable' }, 503) : json({ totalCitations: 9, citationsByDomain: [{ domain: 'recorded-source.test', count: 9, ownCited: false }] });
     if (path.endsWith('/root-cause')) return json({ rivalsWinning: [{ brand: 'Measured rival', wins: 2 }], missedPrompts: [{ prompt: 'Stored missed question', category: 'Discovery', winner: 'Measured rival' }] });
@@ -77,3 +77,12 @@ test('question generation failures are visible and retryable', async ({ page }) 
   await expect(page.getByText('Monitoring provider is temporarily unavailable')).toBeVisible();
   await expect(generate).toBeEnabled();
 });
+
+test('unchecked questions are not counted as missed opportunities', async ({ page }) => {
+  await setup(page);
+  await page.goto('/ai-visibility');
+  await expect(page.getByText('Saved pending buyer question',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Gaps (Uncited)',exact:true}).click();
+  await expect(page.getByText('Saved pending buyer question',{exact:true})).toHaveCount(0);
+});
+

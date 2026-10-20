@@ -126,7 +126,7 @@ const PLATFORM_METAS: PlatformMeta[] = [
   },
   {
     id: "openai",
-    name: "ChatGPT (GPT-4o)",
+    name: "OpenAI API",
     badge: "Direct Answers",
     iconColor: "text-success-700",
     bgTint: "bg-success-50",
@@ -264,6 +264,7 @@ export function AiVisibilityDashboard({
       group: q.group,
       outcome: q.outcome,
       isCited: q.outcome === "CITED",
+      statusLabel: q.outcome === "CITED" ? "Cited" : q.outcome === "NOT_CITED" ? "Uncited" : q.outcome === "FAILED" ? "Check failed" : "Not measured",
       answerExcerpt: q.answer?.answerExcerpt || null,
       assistant: q.answer?.assistant || null,
       competitorsCited: q.answer?.competitorsCited || [],
@@ -280,7 +281,7 @@ export function AiVisibilityDashboard({
       if (intentFilter === "BUYER") return q.group === "BUYER";
       if (intentFilter === "REPUTATION") return q.group === "REPUTATION";
       if (intentFilter === "CITED") return q.isCited;
-      if (intentFilter === "MISSED") return !q.isCited;
+      if (intentFilter === "MISSED") return q.outcome === "NOT_CITED";
       return true;
     });
   }, [questionsList, searchQuery, intentFilter]);
@@ -298,8 +299,8 @@ export function AiVisibilityDashboard({
     return raw.map((c) => ({
       domain: c.domain,
       mentions: c.count,
-      isOwnDomain: c.ownCited || (displayDomain ? c.domain.includes(displayDomain) : false),
-      authorityTier: c.count > 10 ? "Primary Citation Source" : "Supporting Reference",
+      isOwnDomain: c.ownCited,
+      authorityTier: "Recorded source",
     }));
   }, [citationsQuery.data, displayDomain]);
 
@@ -632,11 +633,11 @@ export function AiVisibilityDashboard({
               </span>
             </div>
             <p className="mt-1 text-xs text-brand-500">
-              Simulated commercial questions tested across the 5 models.
+              Saved buyer questions; results appear after a successful model check.
             </p>
             <div className="mt-3.5 flex items-center justify-between text-[11px] font-semibold text-brand-600">
               <span>{questionsList.filter((q) => q.isCited).length} Won</span>
-              <span>{questionsList.filter((q) => !q.isCited).length} Opportunity Gaps</span>
+              <span>{questionsList.filter((q) => q.outcome === "NOT_CITED").length} Opportunity Gaps</span>
             </div>
           </div>
 
@@ -654,11 +655,11 @@ export function AiVisibilityDashboard({
               </span>
             </div>
             <p className="mt-1 text-xs text-brand-500">
-              Verified footnotes & link cards pointing back to reference pages.
+              Source links recorded in saved AI responses.
             </p>
             <div className="mt-3.5 flex items-center justify-between text-[11px] font-semibold text-brand-600">
               <span>{citationSources.filter((c) => c.isOwnDomain).length} Owned Domains</span>
-              <span>{citationSources.filter((c) => !c.isOwnDomain).length} Digital PR Sites</span>
+              <span>{citationSources.filter((c) => !c.isOwnDomain).length} External Domains</span>
             </div>
           </div>
         </div>
@@ -906,7 +907,7 @@ export function AiVisibilityDashboard({
                           )}
                         >
                           {q.isCited ? <Check className="h-2.5 w-2.5 stroke-[3]" /> : <AlertCircle className="h-2.5 w-2.5" />}
-                          {q.isCited ? "Cited" : "Uncited"}
+                          {q.statusLabel}
                         </span>
 
                         <span className="rounded-md bg-brand-100 px-2 py-0.5 text-[10px] font-medium text-brand-600">
@@ -952,7 +953,7 @@ export function AiVisibilityDashboard({
                       activeQuestion.isCited ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
                     )}
                   >
-                    {activeQuestion.isCited ? "Brand Recommended & Cited" : "Opportunity: Competitor Cited Instead"}
+                    {activeQuestion.statusLabel}
                   </span>
                 </div>
 
@@ -996,9 +997,7 @@ export function AiVisibilityDashboard({
                       <ExternalLink className="h-3 w-3" />
                     </a>
                     <p className="mt-1.5 text-brand-500">
-                      {activeQuestion.isCited
-                        ? "This page has sufficient topical relevance and semantic entity structure to earn direct AI citation."
-                        : "Content gap detected: Adding comparison schema and direct-answer definitions to this page will capture this query."}
+                      Matched against your saved website audit. Review recorded answers and page issues before changing content.
                     </p>
                   </div>
                 )}
@@ -1243,5 +1242,3 @@ export function AiVisibilityDashboard({
     </div>
   );
 }
-
-
