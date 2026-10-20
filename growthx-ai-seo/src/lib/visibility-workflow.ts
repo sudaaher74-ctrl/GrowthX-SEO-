@@ -97,8 +97,4 @@ export interface VisibilityJourneyResponse {
 export const journeyRunning = (status?: string) =>
   !!status && ["QUEUED", "PREPARING", "CHECKING", "PLANNING"].includes(status);
 export const providerName = (provider: string) =>
-  provider === "GEMINI"
-    ? "Gemini"
-    : provider === "SARVAM"
-      ? "Sarvam"
-      : provider;
+  ({ GEMINI: "Gemini", OPENAI: "OpenAI", ANTHROPIC: "Claude", PERPLEXITY: "Perplexity", GROK: "Grok", SARVAM: "Sarvam", OPENROUTER: "OpenRouter" } as Record<string, string>)[provider] ?? provider;

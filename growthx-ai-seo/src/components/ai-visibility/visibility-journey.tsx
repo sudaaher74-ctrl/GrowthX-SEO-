@@ -118,6 +118,7 @@ function Journey({ projectId }: { projectId: string }) {
   const busy =
     journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
+  const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
   const error = prepare.error || check.error;
 
   return (
@@ -175,7 +176,7 @@ function Journey({ projectId }: { projectId: string }) {
                 Start with the business behind the website
               </h2>
               <p className="mt-3 text-sm leading-6 text-brand-600">
-                Gemini and Sarvam read your audit, search demand, visitor
+                AI analysis uses your saved audit, search demand, visitor
                 locations and competitor evidence. Then review ten questions
                 tailored to your products and service areas before checking who
                 AI recommends.
@@ -199,7 +200,7 @@ function Journey({ projectId }: { projectId: string }) {
                         : run.status === "PREPARING"
                           ? "Understanding your business and drafting questions"
                           : run.status === "CHECKING"
-                            ? "Asking Gemini and Sarvam your buyer questions"
+                            ? `Asking ${assistantNames} your buyer questions`
                             : "Comparing answers and building your action plan"}
                     </span>
                     <span>{run.progress}%</span>
