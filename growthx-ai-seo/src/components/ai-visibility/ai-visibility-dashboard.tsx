@@ -39,6 +39,7 @@ import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/error-message";
 import { StatusNote } from "@/components/ui/console";
+import { platformKey } from "./live-dashboard-data";
 import type { VisibilityReport } from "@/lib/api-types";
 import type { AvPrompt } from "./av-shared";
 
@@ -242,7 +243,7 @@ export function AiVisibilityDashboard({
   const platformData = useMemo(() => {
     const byAssistant = report?.byAssistant || [];
     return PLATFORM_METAS.map((p) => {
-      const match = byAssistant.find((a) => a.assistant.toLowerCase().includes(p.id));
+      const match = byAssistant.find((a) => platformKey(a.assistant) === p.id);
       const score = match && match.checked > 0 ? match.citationSharePct : null;
       const mentions = match ? match.cited : 0;
       const checked = match ? match.checked : 0;

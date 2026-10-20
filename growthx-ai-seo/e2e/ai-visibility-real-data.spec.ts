@@ -22,7 +22,7 @@ async function setup(page: Page, options: { empty?: boolean; fail?: boolean } = 
     if (path.endsWith('/ai-visibility')) return json({
       periodStart: '2026-10-01T00:00:00Z', periodEnd: '2026-10-15T00:00:00Z',
       summary: { checked: 7, cited: 3, citationSharePct: 43, failedChecks: 2, averagePosition: null, previousCitationSharePct: null, deltaPt: null },
-      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }],
+      byAssistant: [{ assistant: 'GEMINI', checked: 7, cited: 3, citationSharePct: 43 }, { assistant: 'OPENAI', checked: 0, cited: 0, citationSharePct: 0 }, { assistant: 'ANTHROPIC', checked: 17, cited: 13, citationSharePct: 76 }],
       shareOfVoice: [{ domain: null, label: 'Measured business', mentions: 3, sharePct: 60 }, { domain: 'measured-rival.test', label: 'Measured rival', mentions: 2, sharePct: 40 }],
       trend: [{ weekStart: '2026-10-15T00:00:00Z', checked: 7, citationSharePct: 43 }], measurableAssistants: ['GEMINI'],
     });
@@ -84,5 +84,11 @@ test('unchecked questions are not counted as missed opportunities', async ({ pag
   await expect(page.getByText('Saved pending buyer question',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Gaps (Uncited)',exact:true}).click();
   await expect(page.getByText('Saved pending buyer question',{exact:true})).toHaveCount(0);
+});
+
+test('Claude cards use measured ANTHROPIC API records', async ({ page }) => {
+  await setup(page);
+  await page.goto('/ai-visibility');
+  await expect(page.getByText('13 mentions',{exact:true})).toBeVisible();
 });
 
