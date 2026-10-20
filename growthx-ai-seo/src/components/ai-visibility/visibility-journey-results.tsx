@@ -128,6 +128,7 @@ export function EvidenceLinks({
 
 export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
   const [filter, setFilter] = useState("ALL");
+  const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
   const measured = data.answers.filter((a) => !a.errorMessage && a.analysis);
   const mentions = measured.filter((a) => a.analysis?.brandMentioned).length;
   const recommended = measured.filter((a) => a.analysis?.recommended).length;
@@ -165,11 +166,11 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
       </div>
       <Panel
         title="What did each assistant actually say?"
-        subtitle="Independent API answers to your ten questions. Consumer apps and Google AI Overviews are not measured here."
+        subtitle="Saved API answers to your reviewed buyer questions. Consumer apps and Google AI Overviews are not measured here."
         padded
       >
         <div className="mb-4 flex flex-wrap gap-2">
-          {["ALL", "GEMINI", "SARVAM"].map((p) => (
+          {["ALL", ...assistants].map((p) => (
             <ActionButton
               key={p}
               aria-pressed={filter === p}
@@ -183,7 +184,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
         <QueryState
           isEmpty={!visible.length}
           emptyTitle="No answers saved yet"
-          emptyBody="Review the ten buyer questions and start the checks. Answers appear here as they are saved."
+          emptyBody="Review the buyer questions and start the checks. Answers appear here as they are saved."
         >
           <div className="divide-y">
             {visible.map((a) => (
@@ -277,6 +278,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
 
 export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
   const assessments = data.journey?.analysis ?? [];
+  const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
   const measured = data.answers.filter((a) => a.analysis && !a.errorMessage);
   const rivals = new Map<string, number>();
   for (const a of measured)

@@ -92,7 +92,7 @@ export interface VisibilityJourney {
 export interface VisibilityJourneyResponse {
   journey: VisibilityJourney | null;
   answers: VisibilityAnswer[];
-  providers: { provider: string; configured: boolean; model: string | null }[];
+  providers: { provider: string; configured: boolean; model: string | null; unavailableReason?: string | null }[];
 }
 export const journeyRunning = (status?: string) =>
   !!status && ["QUEUED", "PREPARING", "CHECKING", "PLANNING"].includes(status);

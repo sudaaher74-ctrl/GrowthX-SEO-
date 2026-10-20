@@ -79,7 +79,7 @@ function Journey({ projectId }: { projectId: string }) {
     ALIASES[requested] ||
     (TABS.some((t) => t.id === requested) ? requested : "overview");
   const setTab = (value: string) =>
-    router.replace(`/ai-visibility?tab=${value}`, { scroll: false });
+    router.replace(`/ai-visibility/journey?tab=${value}`, { scroll: false });
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
   const query = useQuery({
@@ -117,7 +117,7 @@ function Journey({ projectId }: { projectId: string }) {
   const run = data?.journey;
   const busy =
     journeyRunning(run?.status) || prepare.isPending || check.isPending;
-  const configured = data?.providers.filter((p) => p.configured) ?? [];
+  const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const error = prepare.error || check.error;
 
   return (
@@ -149,20 +149,20 @@ function Journey({ projectId }: { projectId: string }) {
         {error && <StatusNote tone="bad">{error.message}</StatusNote>}
         {data && !configured.length && (
           <StatusNote tone="bad">
-            Gemini and Sarvam are not configured. Add provider access in the
+            No monitoring model is configured. Add provider access in the
             server settings to begin.
           </StatusNote>
         )}
         {data && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-brand-500">
             {data.providers.map((p) => (
-              <Pill key={p.provider} tone={p.configured ? "good" : "warn"}>
+              <Pill key={p.provider} tone={p.configured && !p.unavailableReason ? "good" : "warn"}>
                 {providerName(p.provider)} ·{" "}
-                {p.configured ? "Configured" : "Not configured"}
+                {p.unavailableReason || (p.configured ? p.model || "Configured" : "Not configured")}
               </Pill>
             ))}
             <span>
-              Website + Google data + competitors → 10 buyer questions → AI
+              Website + Google data + competitors → reviewed buyer questions → AI
               answers → your plan
             </span>
           </div>
@@ -254,7 +254,7 @@ function Journey({ projectId }: { projectId: string }) {
                         onClick={() => setTab("questions")}
                         icon={<ArrowRight size={13} />}
                       >
-                        Review 10 questions
+                        Review {run.brief.questions.length} questions
                       </ActionButton>
                     }
                   >
@@ -334,7 +334,7 @@ function Journey({ projectId }: { projectId: string }) {
                   key={`${run.id}-${run.updatedAt}`}
                   brief={run.brief}
                   locked={busy || !!run.scanId}
-                  checks={configured.length * 10}
+                  checks={configured.length * run.brief.questions.length}
                   pending={check.isPending}
                   onRun={(brief) => check.mutate({ id: run.id, brief })}
                 />
@@ -535,7 +535,7 @@ function QuestionReview({
         </div>
       </Panel>
       <Panel
-        title="10 questions a real buyer would ask"
+        title={`${draft.questions.length} questions a real buyer would ask`}
         subtitle="Use specific products and locations. Keep your brand name out of the question."
       >
         <ol className="divide-y">
@@ -611,7 +611,7 @@ function QuestionReview({
               icon={<ArrowRight size={14} />}
               onClick={() => onRun(draft)}
             >
-              Confirm & check 10 questions
+              Confirm & check {draft.questions.length} questions
             </ActionButton>
           </div>
         )}
