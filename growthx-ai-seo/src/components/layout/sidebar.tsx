@@ -237,7 +237,7 @@ function NavLink({
         title={`${item.label} is disabled`}
       >
         <item.icon size={15} className="text-brand-400" />
-        <span className="flex-1 truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 leading-snug">{item.label}</span>
         {item.tag && (
           <span className="shrink-0 rounded-full px-[6px] py-px font-mono text-[9px] font-semibold leading-[14px] bg-brand-100 text-brand-500 border">
             {item.tag}
@@ -298,7 +298,7 @@ function NavLinkEnabled({
         className="flex min-w-0 flex-1 items-center gap-[9px] px-2.5 py-[7px]"
       >
         <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-400"} />
-        <span className="flex-1 truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 leading-snug">{item.label}</span>
         {item.step && (
           <span
             title={`Step ${item.step.n}: ${item.step.hint}`}

@@ -237,7 +237,7 @@ export function CompetitorIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">{report?.shareOfVoice?.reduce((sum,r)=>sum+r.mentions,0) ?? "—"}</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{(report?.summary.checked ?? 0) > 0 ? report?.shareOfVoice?.reduce((sum,r)=>sum+r.mentions,0) ?? "—" : "—"}</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
               —
             </span>

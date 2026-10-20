@@ -37,6 +37,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/error-message";
+import { StatusNote } from "@/components/ui/console";
 import type { VisibilityReport } from "@/lib/api-types";
 import type { AvPrompt } from "./av-shared";
 
@@ -185,6 +187,7 @@ export function AiVisibilityDashboard({
   const [showAddPromptModal, setShowAddPromptModal] = useState(false);
   const [newPromptText, setNewPromptText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   const displayDomain = domain || "";
   const displayBrand = brandLabel || (displayDomain ? displayDomain.replace(/^www\./, "").split(".")[0] : "Your Brand");
@@ -328,22 +331,27 @@ export function AiVisibilityDashboard({
   const handleAddPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPromptText.trim() || !currentProjectId) return;
+    setRequestError(null);
     try {
       await api.addTrackedPrompts(currentProjectId, [{ text: newPromptText.trim(), cluster: "Custom" }]);
       qc.invalidateQueries({ queryKey: ["ai-visibility-questions", currentProjectId] });
       setNewPromptText("");
       setShowAddPromptModal(false);
-    } catch {
-      // handled
+    } catch (error) {
+      setRequestError(errorMessage(error));
     }
   };
 
   const handleGeneratePrompts = async () => {
     if (!currentProjectId) return;
+    setRequestError(null);
     setIsGenerating(true);
     try {
       await api.generateAiVisibilityPrompts(currentProjectId, false);
       await qc.invalidateQueries({ queryKey: ["ai-visibility-questions", currentProjectId] });
+      await qc.invalidateQueries({ queryKey: ["tracked-prompts", currentProjectId] });
+    } catch (error) {
+      setRequestError(errorMessage(error));
     } finally {
       setIsGenerating(false);
     }
@@ -359,6 +367,7 @@ export function AiVisibilityDashboard({
 
   return (
     <div className="space-y-6 pb-16 font-sans text-brand-950">
+      {requestError && <StatusNote tone="bad">{requestError}</StatusNote>}
       {/* ── Top Executive Header Bar (Linear-Inspired) ──────────────── */}
       <header className="relative overflow-hidden rounded-2xl border bg-gradient-to-b from-white via-white to-brand-50/50 p-6 shadow-xs">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
