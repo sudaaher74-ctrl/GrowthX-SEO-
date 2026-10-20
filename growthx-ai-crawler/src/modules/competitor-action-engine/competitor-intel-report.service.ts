@@ -338,16 +338,15 @@ export class CompetitorIntelReportService {
           'and what those competitors have that the business does not. Use only the facts given. ' +
           'Never invent rankings, traffic, revenue or numbers not in the facts. Reply with valid JSON only.',
         task: AiTask.COMPETITOR_ANALYSIS,
-        provider: AiProvider.SARVAM,
-        // The customer asked for Sarvam; a different vendor's analysis would
-        // be presented under the wrong name.
+        provider: AiProvider.GEMINI,
+        // Use the configured Gemini competitor-analysis route.
         allowFallback: false,
         organizationId,
         projectId,
         maxTokens: 6000,
       });
       if (completion.refused || !completion.text.trim()) {
-        return { ...base, analysis: null, model: completion.model, analysisError: 'Sarvam returned no analysis. Try again.' };
+        return { ...base, analysis: null, model: completion.model, analysisError: 'The analysis returned no usable report. Try again.' };
       }
       return {
         ...base,

@@ -141,16 +141,15 @@ export class ContentIdeasService {
         'You suggest search phrases and blog posts for a small business whose owner knows nothing about SEO. ' +
         'Base everything on what their website says. Never invent numbers. Reply with valid JSON only.',
       task: AiTask.SEO_OPPORTUNITY_GENERATION,
-      provider: AiProvider.SARVAM,
-      // Shown as "Suggested by sarvam-105b"; another vendor's text would be
-      // presented under the wrong name.
+      provider: AiProvider.GEMINI,
+      // The response stores the actual configured model identity.
       allowFallback: false,
       jsonSchema: SCHEMA,
       organizationId,
       projectId,
       maxTokens: 3000,
     });
-    if (completion.refused || !completion.text.trim()) throw new Error('Sarvam returned no suggestions. Try again.');
+    if (completion.refused || !completion.text.trim()) throw new Error('The analysis returned no suggestions. Try again.');
 
     const raw = extractAndParseJson<Record<string, unknown>>(completion.text);
     const ideas: ContentIdeas = {

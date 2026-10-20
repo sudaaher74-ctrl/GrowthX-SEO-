@@ -79,10 +79,10 @@ function setup(router: { generate: jest.Mock }) {
 }
 
 describe('CompetitorIntelReportService.generate', () => {
-  it('asks Sarvam only, and returns its analysis alongside the facts', async () => {
+  it('uses the configured Gemini route, and returns its analysis alongside the facts', async () => {
     const router = {
       generate: jest.fn().mockResolvedValue({
-        model: 'sarvam-105b',
+        model: 'gemini-2.5-flash',
         refused: false,
         text:
           '```json\n{"executiveSummary":"Country Delight covers more.","gaps":[{"title":"Location pages","priority":"low"},' +
@@ -93,9 +93,9 @@ describe('CompetitorIntelReportService.generate', () => {
     const report = await setup(router).generate('p1', 'org1');
 
     expect(router.generate).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: AiProvider.SARVAM, allowFallback: false, organizationId: 'org1', projectId: 'p1' }),
+      expect.objectContaining({ provider: AiProvider.GEMINI, allowFallback: false, organizationId: 'org1', projectId: 'p1' }),
     );
-    expect(report.model).toBe('sarvam-105b');
+    expect(report.model).toBe('gemini-2.5-flash');
     expect(report.analysisError).toBeNull();
     expect(report.analysis?.gaps.map((g) => g.priority)).toEqual(['high', 'low']);
     expect(report.analysis?.whyTheyRank[0]).toMatchObject({ competitor: 'Country Delight', threat: 'medium' });
@@ -123,8 +123,8 @@ describe('CompetitorIntelReportService.generate', () => {
 
 describe('CompetitorIntelReportService keyword and blog ideas', () => {
   it("passes the rivals' topics and questions to the suggestions, and attaches them to the report", async () => {
-    const service = setup({ generate: jest.fn().mockResolvedValue({ text: '{}', refused: false, model: 'sarvam-105b' }) });
-    const ideas = { keywords: [], blogIdeas: [{ title: 'Why A2 milk?', covers: 'x', keyword: 'a2 milk' }], model: 'sarvam-105b' };
+    const service = setup({ generate: jest.fn().mockResolvedValue({ text: '{}', refused: false, model: 'gemini-2.5-flash' }) });
+    const ideas = { keywords: [], blogIdeas: [{ title: 'Why A2 milk?', covers: 'x', keyword: 'a2 milk' }], model: 'gemini-2.5-flash' };
     const contentIdeas = { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) };
     (service as any).contentIdeas = contentIdeas;
 

@@ -212,11 +212,33 @@ export class AiVisibilityController {
 
   @Get('competitors')
   async listCompetitors(@Param('projectId') projectId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      include: { competitors: true },
+    const competitors = await this.prisma.competitorDomain.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      include: { website: { select: { id: true, crawlJobs: {
+        orderBy: { createdAt: 'desc' }, take: 1,
+        select: { status: true, errorMessage: true },
+      } } } },
     });
-    return project?.competitors || [];
+    return Promise.all(competitors.map(async ({ website, ...competitor }) => {
+      const latest = website?.crawlJobs[0];
+      // A queued, failed or partial recrawl must not replace the last completed
+      // measurements. Do not limit this lookup to the latest few attempts.
+      const completed = website ? await this.prisma.crawlJob.findFirst({
+        where: { websiteId: website.id, status: 'COMPLETED', finishedAt: { not: null } },
+        orderBy: { finishedAt: 'desc' },
+        select: { id: true, healthScore: true, finishedAt: true, _count: { select: { pages: true } } },
+      }) : null;
+      return { ...competitor,
+        pagesCrawled: completed?._count.pages,
+        healthScore: completed?.healthScore ?? null,
+        crawlStatus: latest?.status,
+        crawlError: latest?.status === 'FAILED' ? latest.errorMessage : null,
+        lastAnalyzedAt: completed?.finishedAt ?? competitor.lastAnalyzedAt,
+        rating: competitor.localRating,
+        reviewCount: competitor.localReviewCount,
+      };
+    }));
   }
 
   /**

@@ -82,12 +82,12 @@ describe('ContentIdeasService', () => {
       crawlJob: { findFirst: jest.fn().mockResolvedValue({ id: 'job1' }) },
       page: { findMany: jest.fn().mockResolvedValue([row('https://milquufresh.in/products/a2-cow-milk', 'A2 Cow Milk')]) },
     };
-    const router = { generate: jest.fn().mockResolvedValue({ text, refused: false, model: 'sarvam-105b' }) };
+    const router = { generate: jest.fn().mockResolvedValue({ text, refused: false, model: 'gemini-3.5-flash-lite' }) };
     const search = demand ? { forProject: jest.fn().mockResolvedValue(demand) } : undefined;
     return { prisma, router, service: new ContentIdeasService(prisma as any, router as any, search as any) };
   }
 
-  it('asks Sarvam by name, with no other vendor standing in, and says which model wrote them', async () => {
+  it('uses the configured Gemini route, and says which model wrote them', async () => {
     const { service, router } = build(
       JSON.stringify({
         keywords: [{ phrase: 'a2 milk delivery', why: 'Home delivery searches.', usePage: '/products/a2-cow-milk' }],
@@ -97,11 +97,11 @@ describe('ContentIdeasService', () => {
 
     const ideas = await service.suggest('p1', 'org1');
 
-    expect(router.generate.mock.calls[0][0]).toMatchObject({ provider: 'SARVAM', allowFallback: false, jsonSchema: expect.any(Object) });
+    expect(router.generate.mock.calls[0][0]).toMatchObject({ provider: 'GEMINI', allowFallback: false, jsonSchema: expect.any(Object) });
     expect(ideas).toEqual({
       keywords: [{ phrase: 'a2 milk delivery', why: 'Home delivery searches.', usePage: '/products/a2-cow-milk' }],
       blogIdeas: [{ title: 'Is A2 milk better for kids?', covers: 'What A2 milk is.', keyword: 'a2 milk for kids' }],
-      model: 'sarvam-105b',
+      model: 'gemini-3.5-flash-lite',
       // Without Search Console, the ideas say so rather than carry numbers.
       search: { status: 'NOT_CONNECTED', days: 28, range: null, almostWinning: [] },
     });
