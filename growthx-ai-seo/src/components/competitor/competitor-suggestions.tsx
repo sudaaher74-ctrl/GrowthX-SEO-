@@ -41,7 +41,7 @@ export function CompetitorSuggestions({ projectId, auditedAt, tracked }: {
   return <Panel padded title="Choose your competitors" subtitle="We suggest up to five businesses from your audited website, then verify their websites. Select which ones to audit and track.">
     {!auditedAt ? <p className="text-sm text-brand-500">Complete your <Link href="/website" className="underline">Website Audit</Link> to find competitors automatically.</p> : <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-brand-500">Gemini business suggestions with live website checks. Google ranking positions are not measured yet.</p>
+        <p className="text-xs text-brand-500">AI business discovery with live website checks. Google ranking positions are not measured yet.</p>
         <ActionButton icon={<RotateCw size={13} />} disabled={suggestions.isFetching || add.isPending} onClick={() => { setSavedCount(null); void suggestions.refetch(); }}>Find again</ActionButton>
       </div>
       {suggestions.isFetching && <p role="status" className="flex items-center gap-2 text-sm text-brand-500"><Loader2 size={15} className="animate-spin" />Finding businesses and checking their websites…</p>}
