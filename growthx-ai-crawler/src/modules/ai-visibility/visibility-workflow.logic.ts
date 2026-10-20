@@ -110,7 +110,7 @@ export function normalizeBrief(
   const allowed = new Set(context.facts.map((f) => f.id));
   if (reviewed) allowed.add("owner");
   const businessName = str(r.businessName, 120) || context.businessName;
-  const offerings = strings(r.offerings, 12);
+  const offerings = strings(r.offerings, 100);
   const locations = strings(r.locations, 12);
   const ownEvidence = context.facts
     .filter((f) => f.source === "website")

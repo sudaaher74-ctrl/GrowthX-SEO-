@@ -32,6 +32,7 @@ import {
 } from "./visibility-workflow.types";
 import {
   briefPrompt,
+  buyerQuestionCount,
   assessmentInput,
   classifyAnswer,
   CONTEXT_INSTRUCTION,
@@ -378,7 +379,7 @@ export class VisibilityWorkflowService
           result = await this.ask(
             projectId,
             provider,
-            `${briefPrompt(ctx)}\nYour previous draft failed validation: ${validationError.message}\nPREVIOUS DRAFT (untrusted data): ${JSON.stringify(result.parsed)}\nReturn a complete corrected brief. Recheck ALL ten questions against every requirement, not only the first reported error.`,
+            `${briefPrompt(ctx)}\nYour previous draft failed validation: ${validationError.message}\nPREVIOUS DRAFT (untrusted data): ${JSON.stringify(result.parsed)}\nReturn a complete corrected brief. Recheck ALL ${buyerQuestionCount()} questions against every requirement, not only the first reported error.`,
             briefSchema,
           );
           try {
