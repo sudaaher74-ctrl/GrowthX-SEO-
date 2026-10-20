@@ -111,11 +111,19 @@ export function normalizeBrief(
   if (reviewed) allowed.add("owner");
   const businessName = str(r.businessName, 120) || context.businessName;
   const offerings = strings(r.offerings, 100);
-  const locations = strings(r.locations, 12);
   const ownEvidence = context.facts
     .filter((f) => f.source === "website")
     .map((f) => f.text)
     .join(" ");
+  // Models can name a website-supported service area in a question but omit
+  // it from the summary list. Keep that evidence-backed area rather than
+  // rejecting the whole draft. Owner-reviewed lists remain authoritative.
+  const locations = strings([
+    ...list(r.locations),
+    ...(!reviewed ? list(r.questions)
+      .map((q) => str(q?.location, 180))
+      .filter((location) => location && hasName(ownEvidence, location)) : []),
+  ], 100);
   if (
     !reviewed &&
     locations.some((location) => !hasName(ownEvidence, location))
