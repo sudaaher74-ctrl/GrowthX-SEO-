@@ -25,7 +25,7 @@ export const KIND_LABEL: Record<RivalMove["kind"], string> = {
   EXPANDED: "Bigger pages",
   RETITLED: "New headlines",
   SCHEMA_ADDED: "New Google details",
-  PAGE_GONE: "Removed pages",
+  PAGE_GONE: "Pages not seen",
   AI_NAMED: "AI recommendations",
 };
 
@@ -79,7 +79,7 @@ export function toRadarItem(m: RivalMove): RadarItem {
     case "NEW_PAGE":
       return {
         ...common,
-        headline: `${m.rival} published a new page: ${quote(m.title)}`,
+        headline: `Newly observed on ${m.rival}: ${quote(m.title)}`,
         why: "A new page usually means they want to be found for a new search. If it matters to your customers, you should have a page on it too.",
         steps: [
           `Open their new page and see what it offers${m.url ? `: ${m.url}` : "."}`,
@@ -126,9 +126,10 @@ export function toRadarItem(m: RivalMove): RadarItem {
     case "PAGE_GONE":
       return {
         ...common,
-        headline: `${m.rival}'s page ${quote(m.title)} has disappeared`,
-        why: "People may still search for this, and other websites may still link to it. If you have a good page on the same topic, you can pick up those visitors.",
+        headline: `${m.rival}'s page ${quote(m.title)} was not seen in the latest check`,
+        why: "A missing page may reflect crawl coverage or a temporary error. Open the source URL to verify its status before treating it as removed. Traffic impact has not been measured.",
         steps: [
+          "Open the competitor's source URL and confirm whether it is still available.",
           "Check whether your website has a page on this topic.",
           "If not, write one. If yes, make sure it is up to date and easy to find.",
           "Optional: find websites that linked to their old page and ask them to link to yours instead.",

@@ -96,7 +96,6 @@ export function CompetitorWebsitesPanel({
 
   const handleRecrawl = (competitorId: string, domain: string) => {
     recrawlMutation.mutate({ competitorId, domain });
-    onRecrawl?.(competitorId, domain);
   };
 
   const sites = query.data?.sites ?? [];

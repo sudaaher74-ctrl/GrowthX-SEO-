@@ -303,6 +303,15 @@ function CompetitorIntelligenceClient() {
   });
 
   const competitorsList = competitorsQuery.data ?? [];
+  const crawlRevision = competitorsList.map((c) => `${c.id}:${c.crawlStatus}:${c.lastAnalyzedAt}`).join("|");
+  useEffect(() => {
+    if (!projectId) return;
+    // Refresh dependent tabs when a crawl finishes, even if they were opened
+    // earlier and still have a cached empty response.
+    for (const key of ["competitor-websites", "competitor-pages", "rival-advantages", "rival-moves", "competitor-programmatic-matrix", "competitor-report-latest"]) {
+      void qc.invalidateQueries({ queryKey: [key, projectId] });
+    }
+  }, [qc, projectId, crawlRevision]);
 
   const crawlCompetitorMutation = useMutation({
     mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
@@ -445,7 +454,7 @@ function CompetitorIntelligenceClient() {
         </div>
       </div>
 
-      {projectId && clientRow && <CompetitorSuggestions key={projectId} projectId={projectId} auditedAt={clientRow.lastCrawledAt} tracked={competitorsList} />}
+      {projectId && clientRow && competitorsQuery.isSuccess && competitorsList.length === 0 && <CompetitorSuggestions key={projectId} projectId={projectId} auditedAt={clientRow.lastCrawledAt} tracked={competitorsList} />}
 
       <CrawlStatusStrip
         competitors={competitorsList}
@@ -459,6 +468,7 @@ function CompetitorIntelligenceClient() {
 
       {activeTab === "battleground" && (
         <BattlegroundTab
+          key={projectId}
           projectId={projectId || ""}
           domain={customerDomain}
           brand={clientRow?.name || customerDomain}

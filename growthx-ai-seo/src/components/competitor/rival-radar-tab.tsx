@@ -56,13 +56,11 @@ export function RivalRadarTab({
       const match = competitors?.find((c) => c.domain === focusDomain);
       if (match) {
         await api.crawlCompetitorSite(projectId, match.id, { force: true });
-        onRecrawlCompetitor?.(match.id, focusDomain);
       } else {
         const list = await api.listCompetitors(projectId);
         const comp = list.find((c) => c.domain === focusDomain);
         if (comp) {
           await api.crawlCompetitorSite(projectId, comp.id, { force: true });
-          onRecrawlCompetitor?.(comp.id, focusDomain);
         }
       }
       qc.invalidateQueries({ queryKey: ["rival-moves", projectId] });
@@ -193,7 +191,7 @@ export function RivalRadarTab({
             <Kpi label={`Changes in ${period}`} value={String(items.length)} sub={focus ? focus.name : "across all competitors"} />
             <Kpi label="New pages" value={String(countOf("NEW_PAGE"))} sub="they started targeting new searches" />
             <Kpi label="AI recommended them" value={String(countOf("AI_NAMED"))} sub="competitors named instead of you" />
-            <Kpi label="Pages they removed" value={String(countOf("PAGE_GONE"))} sub="visitors you could pick up" />
+            <Kpi label="Pages not seen" value={String(countOf("PAGE_GONE"))} sub="verify source URLs; traffic impact unknown" />
           </div>
 
           <Panel

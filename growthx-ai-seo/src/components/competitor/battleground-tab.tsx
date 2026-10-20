@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { allCrawlRows } from "@/lib/all-crawl-rows";
 import { ClipboardList, Loader2, Plus, RotateCw, Swords, X } from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { useCrawlPages, useLatestCrawl, useLocalSeo, useVisibility } from "@/hooks/use-growthx";
+import { useLatestCrawl } from "@/hooks/use-growthx";
 import { buildKeywordProfiles, titleCase } from "@/lib/keyword-extractor";
 import { stagingEngine } from "@/lib/staging-engine";
 import {
@@ -100,12 +101,11 @@ export function BattlegroundTab({
   // While a recrawl of your site runs, compare with the last completed one;
   // the running crawl has read only part of the site.
   const ourFigures = ourCrawl.data?.lastCompleted ?? ourCrawl.data ?? null;
-  const ourPages = useCrawlPages(
-    ourFigures?.id ?? null,
-    ourCrawl.data?.lastCompleted ? "COMPLETED" : ourCrawl.data?.status,
-  );
-  const visibility = useVisibility(projectId || null);
-  const localSeo = useLocalSeo(projectId || null);
+  const ourPages = useQuery({
+    queryKey: ["audit-all-pages", ourFigures?.id],
+    queryFn: () => allCrawlRows((page) => api.getCrawlPages(ourFigures!.id, { page, limit: 200 })),
+    enabled: Boolean(ourFigures?.id),
+  });
 
   const [selected, setSelected] = useState<string[] | null>(null);
   const selectedIds = selected ?? competitors.slice(0, MAX_RIVALS).map((c) => c.id);
@@ -124,7 +124,7 @@ export function BattlegroundTab({
   // Gaps are read against the first selected rival that has been crawled.
   const gapRival = rivals.find((c) => (c.pagesCrawled ?? 0) > 0) ?? null;
   const rivalPages = useQuery({
-    queryKey: ["competitor-pages", projectId, gapRival?.id],
+    queryKey: ["competitor-pages", projectId, gapRival?.id, gapRival?.lastAnalyzedAt],
     queryFn: () => api.listCompetitorPages(projectId, gapRival!.id),
     enabled: Boolean(projectId && gapRival?.id),
     staleTime: 60_000,
@@ -147,7 +147,6 @@ export function BattlegroundTab({
     [rivals],
   );
 
-  const summary = visibility.data?.summary;
   const metrics = useMemo(
     () =>
       buildMetrics(
@@ -155,23 +154,23 @@ export function BattlegroundTab({
           domain,
           pagesCrawled: ourFigures?.pagesCrawled ?? null,
           healthScore: ourFigures?.healthScore ?? null,
-          aiSharePct: summary?.citationSharePct ?? null,
-          aiChecked: summary?.checked ?? null,
-          // Google gives no rating to a listing without reviews; 0.0 is not a score.
-          rating: localSeo.data?.reviewCount ? localSeo.data.rating : null,
-          reviewCount: localSeo.data?.reviewCount ?? null,
+          aiSharePct: null,
+          aiChecked: null,
+          rating: null,
+          reviewCount: null,
         },
         rivalInputs,
       ),
-    [domain, ourFigures, summary, localSeo.data, rivalInputs],
+    [domain, ourFigures, rivalInputs],
   );
 
   const gaps = useMemo(() => {
     const content: GapCandidate[] = [];
     const keyword: GapCandidate[] = [];
-    if (!gapRival || !rivalPages.data) return { content, keyword };
+    if (!gapRival || !rivalPages.data || !ourPages.isSuccess) return { content, keyword };
     const rivalName = gapRival.name || gapRival.label || gapRival.domain;
     const ours = ourPages.data?.data ?? [];
+    if (!ours.length) return { content, keyword };
     const ourText = ours.map((p) => `${p.title ?? ""} ${p.url}`.toLowerCase());
 
     for (const p of rivalPages.data) {
@@ -189,7 +188,7 @@ export function BattlegroundTab({
       if (!ourProfiles.has(kw)) keyword.push({ rival: rivalName, rivalDomain: gapRival.domain, topic: titleCase(kw) });
     });
     return { content, keyword };
-  }, [gapRival, rivalPages.data, ourPages.data]);
+  }, [gapRival, rivalPages.data, ourPages.data, ourPages.isSuccess]);
 
   const moves = useMemo(() => buildMoves(metrics, gaps, ignored), [metrics, gaps, ignored]);
   const threats = useMemo(() => buildThreats(metrics, rivalInputs), [metrics, rivalInputs]);
@@ -201,7 +200,9 @@ export function BattlegroundTab({
     if (rival?.crawlError && rival.crawlStatus !== "PENDING" && rival.crawlStatus !== "RUNNING") {
       return `Couldn't read their website: ${rival.crawlError} We'll try again automatically.`;
     }
-    return "Still reading their website";
+    if (rival?.crawlStatus === "RUNNING" || rival?.crawlStatus === "PENDING") return "Still reading their website";
+    if (rival?.crawlStatus === "COMPLETED") return "Crawl complete. Your completed website audit is needed for comparison.";
+    return "No completed crawl available. Re-crawl this competitor to compare.";
   };
   const columns = measuredColumns(metrics);
   const hiddenColumns = metrics.filter((m) => !columns.includes(m)).map((m) => m.label);
@@ -329,9 +330,7 @@ export function BattlegroundTab({
           );
         })}
       </div>
-      <p className="text-[11px] text-brand-400">
-        Your Google ranking positions aren&apos;t shown yet: connect Google Search Console in Integrations to add them.
-      </p>
+      <p className="text-[11px] text-brand-400">These comparisons use audited URLs and website health. They do not measure competitor Google rankings or market share.</p>
 
       <CompetitorWebsitesPanel projectId={projectId} onRecrawl={onRecrawlCompetitor} />
 

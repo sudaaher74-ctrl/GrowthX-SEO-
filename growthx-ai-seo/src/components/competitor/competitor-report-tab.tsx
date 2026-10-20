@@ -58,7 +58,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
     <div className="space-y-4">
       <Panel
         title="Full competitor report"
-        subtitle={`Why your ${rivalCount} rival${rivalCount === 1 ? "" : "s"} rank, what they have that you don't (topics, page types, structured data, depth, AI answers, reviews), how to beat them, and a 4-week plan. Written by Sarvam 105B from measured data only.`}
+        subtitle={`Compare your ${rivalCount} rival${rivalCount === 1 ? "" : "s"} using saved website audits: topics, page types, structured data and content depth, with a 4-week action plan. Unmeasured rankings and traffic are excluded.`}
         actions={
           <ActionButton
             variant="primary"
@@ -73,7 +73,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
       >
         {report.isFetching ? (
           <p className="py-6 text-center text-[12px] text-brand-500">
-            Sarvam is comparing your site with {rivalCount} rival{rivalCount === 1 ? "" : "s"}. This can take up to a minute.
+            Comparing your site with {rivalCount} rival{rivalCount === 1 ? "" : "s"}. This can take up to a minute.
           </p>
         ) : report.error ? (
           <p className="py-4 text-center text-[12px] text-error-600">{(report.error as Error).message}</p>
@@ -118,7 +118,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
           </Panel>
 
           {data.analysis.whyTheyRank.length > 0 && (
-            <Panel title="Why they rank" subtitle="Inferred from what each rival's site has; actual positions need Search Console" padded>
+            <Panel title="Why they rank" subtitle="Suggested ranking factors from crawl evidence; competitor Google positions are not measured" padded>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {data.analysis.whyTheyRank.map((c) => (
                   <div key={c.competitor} className="rounded-xl border p-4">

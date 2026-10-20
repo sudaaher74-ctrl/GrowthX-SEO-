@@ -46,7 +46,9 @@ test('automatically suggests five verified businesses and audits only selected w
   await page.getByRole('checkbox',{name:'Select rival-2.test',exact:true}).check();
   await page.getByRole('checkbox',{name:'Select rival-4.test',exact:true}).check();
   await page.getByRole('button',{name:'Audit 2 competitors',exact:true}).click();
-  await expect(page.getByText('2 competitors selected.',{exact:false})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Choose your competitors',exact:true})).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Choose your competitors',exact:true})).toHaveCount(0);
   expect(state.selected).toEqual([{competitors:[
     {domain:'rival-2.test',name:'Verified rival 2',industry:'Fruit export',description:'Business website checked'},
     {domain:'rival-4.test',name:'Verified rival 4',industry:'Fruit export',description:'Business website checked'},

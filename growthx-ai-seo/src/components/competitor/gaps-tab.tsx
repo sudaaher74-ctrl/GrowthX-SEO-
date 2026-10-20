@@ -207,7 +207,7 @@ export function GapsTab({
                 What your competitors have that you don&apos;t
               </h1>
               <p className="mt-0.5 text-[12px] text-brand-400">
-                We read every page of your website and your competitors&apos; websites. Below is everything they offer that your website doesn&apos;t have yet.
+                Compare pages saved in your completed website audits. These are suggested content gaps from crawl evidence; Google rankings and traffic are not measured here.
               </p>
             </div>
           </div>

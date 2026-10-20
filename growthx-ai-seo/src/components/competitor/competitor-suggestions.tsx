@@ -38,6 +38,10 @@ export function CompetitorSuggestions({ projectId, auditedAt, tracked }: {
     },
   });
 
+  // Close immediately after the save succeeds, including the brief interval
+  // before the refreshed tracked-competitor query returns.
+  if (tracked.length > 0 || savedCount !== null) return null;
+
   return <Panel padded title="Choose your competitors" subtitle="We suggest up to five businesses from your audited website, then verify their websites. Select which ones to audit and track.">
     {!auditedAt ? <p className="text-sm text-brand-500">Complete your <Link href="/website" className="underline">Website Audit</Link> to find competitors automatically.</p> : <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
