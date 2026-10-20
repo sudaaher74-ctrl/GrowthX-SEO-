@@ -73,7 +73,7 @@ function Journey({ projectId }: { projectId: string }) {
       </Panel>}
       {run && <>
         {busy && <Panel padded><div role="status" aria-live="polite" className="space-y-3">
-          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.status === "PREPARING" || (run.phase === "PREPARE" && run.status === "QUEUED") ? "Understanding your business and preparing questions" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer questions` : "Analysing saved answers and preparing your action plan"}</span><span>{run.progress}%</span></div>
+          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.phase === "PREPARE" ? "Understanding your business and preparing questions" : run.status === "QUEUED" ? "Starting your AI checks" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer questions` : "Analysing saved answers and preparing your action plan"}</span><span>{run.progress}%</span></div>
           <progress aria-label="AI Visibility progress" max={100} value={run.progress} className="h-2 w-full accent-primary-600" />
           <p className="text-xs text-brand-500">Progress is saved. You can leave and return without starting again.</p>
         </div></Panel>}
