@@ -1,5 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
+import { CompetitorAutoIdentifyService } from './competitor-auto-identify.service';
+import { AiProvider, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.types';
 
 describe('MarketResearchService — auto-identify & add selected competitors', () => {
   let prisma: any;
@@ -106,6 +108,16 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
   });
 
   describe('autoIdentifyCompetitors', () => {
+    it('verifies live-search candidates from existing OpenRouter and keeps an exporter worldwide', async () => {
+      businessProfiles.getProfile.mockResolvedValue({businessName:'Aiva',industry:'Fruit pulp export',summary:'Exports fruit pulp to global markets',suggestedRegion:'maharashtra',offerings:['Mango pulp']});
+      const router: any = {configuredProviders:()=>[AiProvider.PERPLEXITY],generate:jest.fn().mockResolvedValue({model:'perplexity/sonar',refused:false,text:JSON.stringify({competitors:[{domain:'real-exporter.test',name:'Export company',description:'Fruit pulp exporter'}]})})};
+      const subject = new CompetitorAutoIdentifyService(prisma,models,socialDiscovery,businessProfiles,verification,discovery,competitorCrawl,router);
+      const result = await subject.autoIdentifyCompetitors('org1','p1');
+      expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({task:AiTask.COMPETITOR_DISCOVERY,provider:AiProvider.PERPLEXITY,allowFallback:false,organizationId:'org1',projectId:'p1'}));
+      expect(verification.verify).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({domain:'real-exporter.test'})]),'growthx.ai',expect.any(String),'worldwide');
+      expect(result.topCompetitors[0]).toMatchObject({domain:'real-exporter.test',verified:true,overlapScore:null});
+      expect(prisma.competitorDomain.upsert).not.toHaveBeenCalled();
+    });
     it('returns no competitors from a built-in list when neither search nor a model is available', async () => {
       const result = await service.autoIdentifyCompetitors('org1', 'p1', {
         industry: 'SEO, Performance Marketing & Digital Growth Agency',
@@ -157,7 +169,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       });
 
       expect(result.industry).toBe('Fruit Pulp, Purees, Concentrates & IQF Agro Processing');
-      expect(result.region).toBe('maharashtra');
+      expect(result.region).toBe('worldwide');
       expect(result.industryWasDetected).toBe(true);
       expect(result.regionWasDetected).toBe(true);
       expect(result.businessProfile?.businessName).toBe('AIVA Enterprises');
@@ -165,7 +177,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(discovery.discover).toHaveBeenCalledWith(
         expect.objectContaining({
           subject: 'Fruit Pulp, Purees, Concentrates & IQF Agro Processing',
-          region: 'maharashtra',
+          region: 'worldwide',
         }),
       );
     });

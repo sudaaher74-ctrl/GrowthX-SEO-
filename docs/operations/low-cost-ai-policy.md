@@ -1,5 +1,16 @@
 # Reigel low-cost AI policy
 
+## Owner-approved competitor discovery — 20 October 2026
+
+The owner requested automatic competitor suggestions after the website audit,
+using the existing Gemini and OpenRouter keys until DataForSEO is connected.
+`COMPETITOR_DISCOVERY` uses the already approved `perplexity/sonar` through the
+shared INTERNAL usage ledger and provider checks, with a 2,000-token ceiling.
+Gemini supplies business interpretation and supplementary candidates. Every
+candidate still passes live website verification before it can be selected.
+These suggestions do not claim measured Google ranking positions. Tracking and
+competitor website crawls begin only after the customer selects businesses.
+
 ## Owner-approved visibility preparation update — 16 October 2026
 
 The live Gemini API returns HTTP 404 for `gemini-2.5-flash-lite`, stating it is

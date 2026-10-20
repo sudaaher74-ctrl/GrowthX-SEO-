@@ -28,6 +28,8 @@ export function costBucket(request: AiRequest): CostBucket {
   return 'INTERNAL';
 }
 export function policyModel(request: AiRequest): ApprovedModel {
+  // Owner requested existing OpenRouter search for competitor discovery on 20 October.
+  if (request.task === AiTask.COMPETITOR_DISCOVERY) return 'perplexity/sonar';
   if (costBucket(request) === 'VISIBILITY') {
     const model = VISIBILITY_MODELS[request.provider ?? AiProvider.GEMINI];
     if (!model) throw new ForbiddenException('This assistant is not approved for visibility monitoring.');

@@ -41,22 +41,22 @@ export const measurementSchema = obj({
 export const assessmentSchema = obj({
   summary: text,
   localDemand: text,
-  gaps: array(
+  gaps: { ...array(
     obj({
       competitor: text,
       observation: text,
       hypothesis: text,
-      evidenceIds: texts,
+      evidenceIds: { ...texts, minItems: 1, maxItems: 4 },
     }),
-  ),
-  actions: array(
+  ), maxItems: 5 },
+  actions: { ...array(
     obj({
       title: text,
       priority: { type: "string", enum: ["high", "medium", "low"] },
       timeframe: text,
-      steps: texts,
+      steps: { ...texts, minItems: 1, maxItems: 4 },
       measureBy: text,
-      evidenceIds: texts,
+      evidenceIds: { ...texts, minItems: 1, maxItems: 4 },
     }),
-  ),
+  ), maxItems: 6 },
 });

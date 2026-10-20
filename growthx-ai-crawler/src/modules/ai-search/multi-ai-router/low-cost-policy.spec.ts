@@ -17,6 +17,17 @@ function harness(totals = { platform: 0, customer: 0, bucket: 0, measurements: 0
 }
 
 describe('low-cost production policy', () => {
+  it('uses the existing exact Sonar model for search-backed competitor discovery through the shared ledger', async () => {
+    const env: Record<string,string>={AI_LOW_COST_POLICY:'true',OPENROUTER_API_KEY:'or-real'};
+    const guard: any={run:jest.fn((_request,_model,invoke)=>invoke())};
+    const router=new MultiAiRouterService({get:(key:string)=>env[key]} as ConfigService,undefined,undefined,guard);
+    const create=jest.fn().mockResolvedValue({id:'search',model:'perplexity/sonar',choices:[{message:{content:'{"competitors":[]}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.005}});
+    (router as any).openrouter={chat:{completions:{create}}};
+    await router.generate({...request,task:AiTask.COMPETITOR_DISCOVERY,provider:AiProvider.PERPLEXITY,maxTokens:2000,allowFallback:false});
+    expect(guard.run).toHaveBeenCalledWith(expect.objectContaining({organizationId:'org',task:AiTask.COMPETITOR_DISCOVERY}),'perplexity/sonar',expect.any(Function));
+    expect(create.mock.calls[0][0]).toMatchObject({model:'perplexity/sonar',max_tokens:2000,provider:{allow_fallbacks:false}});
+    expect(costBucket({...request,task:AiTask.COMPETITOR_DISCOVERY})).toBe('INTERNAL');
+  });
   it('uses exact approved transports, token caps, and reported costs without premium fallback', async () => {
     const env: Record<string,string> = { AI_LOW_COST_POLICY: 'true', GEMINI_API_KEY: 'gem-real', OPENROUTER_API_KEY: 'or-real', GEMINI_MODEL: 'gemini-pro', OPENROUTER_MODEL: 'anthropic/claude-opus-5' };
     const guard: any = { run: jest.fn((_request, _model, invoke) => invoke()) };

@@ -262,7 +262,7 @@ export class MultiAiRouterService {
     if (this.lowCostEnabled()) {
       if (!this.costPolicy) throw new ServiceUnavailableException('AI spending controls are unavailable; paid requests stopped.');
       const model = policyModel(scoped);
-      const provider = costBucket(scoped) === 'VISIBILITY' ? scoped.provider ?? AiProvider.GEMINI : AiProvider.GEMINI;
+      const provider = scoped.task === AiTask.COMPETITOR_DISCOVERY ? AiProvider.PERPLEXITY : costBucket(scoped) === 'VISIBILITY' ? scoped.provider ?? AiProvider.GEMINI : AiProvider.GEMINI;
       if (!this.configuredProviders().includes(provider)) throw new ServiceUnavailableException(`${provider} is not configured under the low-cost policy.`);
       const bounded = { ...scoped, provider, maxTokens: policyTokens(scoped), task };
       completion = await this.costPolicy.run(bounded, model, () =>

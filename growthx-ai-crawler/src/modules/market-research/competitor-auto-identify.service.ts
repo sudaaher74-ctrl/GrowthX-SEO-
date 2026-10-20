@@ -16,6 +16,7 @@ import { BusinessProfileService, DetectedBusinessProfile } from './business-prof
 import { CompetitorVerificationService, RejectedCompetitor, VerifiableCompetitor } from './competitor-verification.service';
 import { CompetitorDiscoveryService } from './competitor-discovery.service';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
+import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
 export interface AutoIdentifiedCompetitor {
   domain: string;
@@ -136,6 +137,7 @@ export class CompetitorAutoIdentifyService {
     @Optional() private readonly verification?: CompetitorVerificationService,
     @Optional() private readonly discovery?: CompetitorDiscoveryService,
     @Optional() private readonly competitorCrawl?: CompetitorCrawlService,
+    @Optional() private readonly aiRouter?: MultiAiRouterService,
   ) {}
 
   /**
@@ -283,7 +285,9 @@ export class CompetitorAutoIdentifyService {
 
     // 3. Resolve geographic region — from the caller, else from where the
     // detected business is actually located.
-    const requestedRegion = (options?.region || profile?.suggestedRegion || '').toLowerCase().trim();
+    // A headquarters address does not restrict an exporter's customer market.
+    const exportMarket = /\b(export(?:er|ers|ing|s)?|worldwide|global markets?|international markets?)\b/i.test(`${profile?.summary ?? ''} ${profile?.industry ?? ''}`);
+    const requestedRegion = (options?.region || (exportMarket ? 'worldwide' : profile?.suggestedRegion) || '').toLowerCase().trim();
     const normalizedRegion: 'worldwide' | 'india' | 'maharashtra' = requestedRegion.includes('maha')
       ? 'maharashtra'
       : requestedRegion.includes('india')
@@ -376,6 +380,28 @@ export class CompetitorAutoIdentifyService {
       this.logger.warn(
         `No web search provider configured (TAVILY_API_KEY); competitors for ${domain} come from model recall only.`,
       );
+    }
+
+    // Search-backed names from the owner's existing OpenRouter connection.
+    // This is web discovery, never a measurement of Google ranking positions.
+    let webCandidates: AutoIdentifiedCompetitor[] = [];
+    if (this.aiRouter?.configuredProviders().includes(AiProvider.PERPLEXITY)) {
+      try {
+        const found = await this.aiRouter.generate({
+          organizationId, projectId, task: AiTask.COMPETITOR_DISCOVERY,
+          provider: AiProvider.PERPLEXITY, allowFallback: false, maxTokens: 2000,
+          systemInstruction: 'Search the live web for real direct business competitors. Return only JSON. Never guess a domain. Do not claim Google ranking positions.',
+          prompt: `Find up to 12 direct competitors for ${businessName} (${domain}), selling ${subject} in ${regionLabel}. Business evidence: ${profile?.summary ?? ''}. Products: ${(profile?.offerings ?? []).join(', ')}. Find actual official company websites using live search, exclude directories, marketplaces and the client. Return {"competitors":[{"name":"company","domain":"official domain","description":"one short sentence about its matching products"}]}. Only include domains supported by your search; omit uncertain ones.`,
+        });
+        if (!found.refused) {
+          const parsed = parseModelJson<{competitors?: unknown[]}>(found.text, 'Competitor web discovery');
+          webCandidates = (parsed.competitors ?? []).map((c) => this.sanitizeCompetitor(c, domain, normalizedRegion)).filter((c): c is AutoIdentifiedCompetitor => Boolean(c));
+          identifiedBy = found.model;
+        }
+      } catch (error) {
+        this.logger.warn(`Search-backed competitor discovery unavailable for ${domain}; website-verified suggestions remain available.`);
+        notes.push('Live web discovery did not complete; suggestions are limited to businesses whose websites could be verified.');
+      }
     }
 
     // 5. Ask the model as well, and merge.
@@ -474,7 +500,7 @@ export class CompetitorAutoIdentifyService {
         const parsed = parseModelJson<Record<string, unknown>>(result.text, 'Market research') as { competitors?: unknown[] };
         if (Array.isArray(parsed?.competitors) && parsed.competitors.length > 0) {
           // Attribution only: a missing usage block must never cost the answer.
-          identifiedBy = result.usage?.model ?? null;
+          identifiedBy = identifiedBy || result.usage?.model || null;
           candidates = parsed.competitors
             .map((raw: any) => this.sanitizeCompetitor(raw, domain, normalizedRegion))
             .filter((c): c is AutoIdentifiedCompetitor => c !== null);
@@ -496,7 +522,8 @@ export class CompetitorAutoIdentifyService {
     const searchDomains = new Set(searchCandidates.map((c) => normalizeDomain(c.domain)));
     const merged: VerifiableCompetitor[] = [
       ...searchCandidates,
-      ...candidates.filter((c) => !searchDomains.has(normalizeDomain(c.domain))),
+      ...webCandidates.filter((c) => !searchDomains.has(normalizeDomain(c.domain))),
+      ...candidates.filter((c) => !searchDomains.has(normalizeDomain(c.domain)) && !webCandidates.some((w) => w.domain === c.domain)),
     ];
     const sourceOf = new Map<string, 'search' | 'ai'>();
     for (const candidate of merged) {

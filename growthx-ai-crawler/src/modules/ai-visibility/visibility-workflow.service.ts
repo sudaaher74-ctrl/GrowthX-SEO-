@@ -724,6 +724,7 @@ If a named rival has no crawl evidence, say its website has not been investigate
 Prioritize service-area pages, local discovery, conversion paths and measurable lead events according to facts. Use GSC and GA4 evidence where available, distinguishing missing data from zero.
 Return {summary,localDemand,gaps:[{competitor,observation,hypothesis,evidenceIds:string[]}],actions:[{title,priority,timeframe,steps:string[],measureBy,evidenceIds:string[]}]}.
 Every action and gap must cite supplied fact IDs or answer IDs. Supply concrete next steps and success measures; do not guarantee lead growth.
+Keep this a concise prioritized plan: at most 5 competitor gaps and 6 actions, at most 4 short steps per action, and 1–4 representative evidence IDs per item. Do not repeat every matching answer ID. Keep summary and localDemand under 100 words each, each observation and hypothesis under 50 words, and each step under 30 words.
 SAVED INPUT: ${assessmentInput(brief, ctx, findings)}`,
           assessmentSchema,
         );
