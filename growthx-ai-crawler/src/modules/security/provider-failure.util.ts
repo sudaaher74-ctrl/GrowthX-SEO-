@@ -4,7 +4,7 @@ export function providerFailureReason(error: unknown): string {
   const status = value?.status ?? value?.code;
   const text = value?.message?.toLowerCase() ?? '';
   if (text.includes('budget') || text.includes('spending') || text.includes('limit is reached'))
-    return 'The configured spending limit was reached. Review usage before retrying.';
+    return 'Analysis is temporarily unavailable. Please try again or contact support.';
   if (status === 404 || text.includes('no longer available') || text.includes('model is unavailable'))
     return 'The configured model is unavailable. Check the approved model routing before retrying.';
   if (status === 401 || status === 403)

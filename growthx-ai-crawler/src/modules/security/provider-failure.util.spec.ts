@@ -9,8 +9,10 @@ describe('safe provider failure reasons', () => {
   it('distinguishes access, quota, budget and timeout failures', () => {
     expect(providerFailureReason({ status: 403 })).toContain('account access');
     expect(providerFailureReason({ status: 429 })).toContain('quota');
-    expect(providerFailureReason(new Error('budget limit is reached'))).toContain('spending limit');
-    expect(providerFailureReason({ status: 403, message: 'The internal AI spending limit is reached. No paid request was sent.' })).toContain('spending limit');
+    expect(providerFailureReason(new Error('budget limit is reached'))).toContain('Analysis is temporarily unavailable');
+    const internalLimit = providerFailureReason({ status: 403, message: 'The internal AI spending limit is reached. No paid request was sent.' });
+    expect(internalLimit).toContain('Analysis is temporarily unavailable');
+    expect(internalLimit).not.toMatch(/budget|spending|credentials|account access/i);
     expect(providerFailureReason(new Error('timeout'))).toContain('timed out');
   });
 });
