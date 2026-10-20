@@ -43,9 +43,9 @@ export type ResearchProvider = 'gemini' | 'sarvam' | 'openai' | 'openrouter' | '
  */
 const MODELS: Record<ResearchProvider, Record<ModelRole, string>> = {
   gemini: {
-    [ModelRole.ANALYST]: 'gemini-2.5-flash-lite',
-    [ModelRole.WORKER]: 'gemini-2.5-flash-lite',
-    [ModelRole.DEEP]: 'gemini-2.5-flash-lite',
+    [ModelRole.ANALYST]: 'gemini-3.5-flash-lite',
+    [ModelRole.WORKER]: 'gemini-3.5-flash-lite',
+    [ModelRole.DEEP]: 'gemini-3.5-flash-lite',
     [ModelRole.EMBEDDING]: 'local-keyword-retrieval',
   },
   sarvam: {
@@ -186,7 +186,7 @@ export class ModelRouterService {
 
   /** The configured id for a role, so callers record what actually ran. */
   modelFor(role: ModelRole): string {
-    if (this.lowCostEnabled()) return role === ModelRole.EMBEDDING ? 'local-keyword-retrieval' : 'gemini-2.5-flash-lite';
+    if (this.lowCostEnabled()) return role === ModelRole.EMBEDDING ? 'local-keyword-retrieval' : 'gemini-3.5-flash-lite';
     const configured = this.config.get<string>(ENV_KEYS[role]) || MODELS[this.provider()][role];
 
     // Sarvam retired its earlier model generation; an inherited id that the
@@ -467,3 +467,4 @@ export class ModelRouterService {
     }
   }
 }
+

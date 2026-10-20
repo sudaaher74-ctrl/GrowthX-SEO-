@@ -170,3 +170,14 @@ isolated PostgreSQL database before production. Back up the production database;
 deploy the committed API and worker together, then deploy the matching frontend.
 Existing secrets stay outside Git. Preserve the previous image/runtime config
 for rollback; the additive ledger/cache columns can remain on rollback.
+
+## Model availability repair, 20 October 2026
+
+The owner authorized replacing unavailable Gemini Flash-Lite for the investor
+presentation. Production Gemini 2.5 Flash-Lite returned HTTP 404. Verified a real
+JSON response from `gemini-3.5-flash-lite` and from `gemini-2.5-flash` using the
+existing Google integration. Routine analysis now explicitly selects 3.5
+Flash-Lite; competitor reasoning and visibility retain the verified 2.5 Flash.
+The 3.5 Flash-Lite standard text tariff is USD 0.30 input / 2.50 output per
+million tokens, verified at https://ai.google.dev/gemini-api/docs/pricing.md.
+Existing customer attribution, platform caps and fresh measurement rules remain.

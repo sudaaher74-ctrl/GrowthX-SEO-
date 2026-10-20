@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
@@ -87,7 +87,7 @@ NEVER insert the customer's brand name ("${project.name}") into generic discover
         systemInstruction: systemPrompt,
         task: AiTask.FAST,
         provider: AiProvider.GEMINI,
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-3.5-flash-lite',
         organizationId: project.organizationId,
         projectId,
         jsonSchema: {
@@ -166,7 +166,7 @@ NEVER insert the customer's brand name ("${project.name}") into generic discover
       return { count: createdCount };
     } catch (error: any) {
       this.logger.error(`Failed to generate 20 prompts for project ${projectId}: ${error.message}`, error.stack);
-      throw error;
+      throw new ServiceUnavailableException('AI visibility could not generate monitoring questions. The configured AI provider may be unavailable. Check its model configuration and try again; no visibility results were generated.');
     }
   }
 
@@ -211,3 +211,5 @@ NEVER insert the customer's brand name ("${project.name}") into generic discover
     });
   }
 }
+
+

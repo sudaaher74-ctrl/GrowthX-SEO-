@@ -3,10 +3,10 @@ import { AiProvider, AiRequest, AiTask } from './multi-ai-router.types';
 
 export type CostBucket = 'VISIBILITY' | 'INTERNAL' | 'FIX_ENGINE';
 export const MONITORING = { questions: 20, models: 5, cycles: 3, requests: 300 } as const;
-// Price ceilings, USD per million text tokens; verified 2026-10-15. These are
+// Price ceilings, USD per million text tokens; verified 2026-10-20. These are
 // limits, never a substitute for the live OpenRouter price check.
 export const APPROVED_MODELS = {
-  'gemini-2.5-flash-lite': { input: 0.10, output: 0.40, search: 0 },
+  'gemini-3.5-flash-lite': { input: 0.30, output: 2.50, search: 0 },
   'gemini-2.5-flash': { input: 0.30, output: 2.5, search: 0 },
   'openai/gpt-4.1-mini': { input: 0.40, output: 1.6, search: 0 },
   'anthropic/claude-haiku-4.5': { input: 1, output: 5, search: 0 },
@@ -38,7 +38,7 @@ export function policyModel(request: AiRequest): ApprovedModel {
   // Owner approved Flash for visibility preparation/classification on 2026-10-16:
   // the configured Flash-Lite identity returns 404. Keep the same INTERNAL budget.
   return costBucket(request) === 'FIX_ENGINE' || request.task === AiTask.AI_VISIBILITY_ANALYSIS || request.task === AiTask.COMPETITOR_ANALYSIS || request.task === AiTask.REASONING
-    ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite';
+    ? 'gemini-2.5-flash' : 'gemini-3.5-flash-lite';
 }
 export function policyTokens(request: AiRequest): number {
   const cap = costBucket(request) === 'VISIBILITY' ? 800 : costBucket(request) === 'FIX_ENGINE' ? 4000 : request.jsonSchema ? 6500 : 2000;
@@ -46,3 +46,5 @@ export function policyTokens(request: AiRequest): number {
     throw new ForbiddenException('Invalid AI output-token limit.');
   return Math.max(1, Math.min(Math.floor(request.maxTokens ?? cap), cap));
 }
+
+

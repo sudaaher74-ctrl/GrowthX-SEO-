@@ -6,7 +6,7 @@ import { MultiAiRouterService } from './multi-ai-router.service';
 import { WebSearchService } from '../../market-research/web-search.service';
 import { ModelRouterService, ModelRole } from '../../market-research/model-router.service';
 
-const answer: AiCompletion = { provider: AiProvider.GEMINI, model: 'gemini-2.5-flash-lite', text: 'Saved analysis', refused: false, usage: { inputTokens: 100, outputTokens: 30, estimatedCostUsd: 0.00007, actualCostUsd: null } };
+const answer: AiCompletion = { provider: AiProvider.GEMINI, model: 'gemini-3.5-flash-lite', text: 'Saved analysis', refused: false, usage: { inputTokens: 100, outputTokens: 30, estimatedCostUsd: 0.00007, actualCostUsd: null } };
 const request = { organizationId: 'org', projectId: 'project', prompt: 'Analyse this website.', task: AiTask.SUMMARY_GENERATION };
 function harness(totals = { platform: 0, customer: 0, bucket: 0, measurements: 0 }, env: Record<string,string> = {}) {
   const execute = jest.fn().mockResolvedValue(1);
@@ -33,7 +33,7 @@ describe('low-cost production policy', () => {
     const generateContent = jest.fn().mockResolvedValue({ text: 'internal summary', usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 } });
     (router as any).gemini = { models: { generateContent } };
     await router.generate({ ...request, provider: AiProvider.SARVAM });
-    expect(generateContent.mock.calls[0][0]).toMatchObject({ model: 'gemini-2.5-flash-lite', config: { maxOutputTokens: 2000, thinkingConfig: { thinkingBudget: 0 } } });
+    expect(generateContent.mock.calls[0][0]).toMatchObject({ model: 'gemini-3.5-flash-lite', config: { maxOutputTokens: 2000, thinkingConfig: { thinkingLevel: 'minimal' } } });
     expect(create).toHaveBeenCalledTimes(1);
   });
   it('routes Market Research through the shared ledger with customer attribution and local retrieval', async () => {
@@ -51,7 +51,7 @@ describe('low-cost production policy', () => {
     expect((await search.search(['test query'])).sources).toEqual([]);
   });
   it('assigns routine work, competitor work, code, and monitoring to the approved identities', () => {
-    expect(policyModel(request)).toBe('gemini-2.5-flash-lite');
+    expect(policyModel(request)).toBe('gemini-3.5-flash-lite');
     expect(policyModel({ ...request, task: AiTask.AI_VISIBILITY_ANALYSIS })).toBe('gemini-2.5-flash');
     expect(costBucket({ ...request, task: AiTask.AI_VISIBILITY_ANALYSIS })).toBe('INTERNAL');
     expect(policyModel({ ...request, task: AiTask.COMPETITOR_ANALYSIS })).toBe('gemini-2.5-flash');
@@ -85,7 +85,7 @@ describe('low-cost production policy', () => {
     const h = harness(totals);
     jest.spyOn(h.service, 'verifyPrice').mockResolvedValue();
     const invoke = jest.fn().mockResolvedValue(answer);
-    await expect(h.service.run(request, 'gemini-2.5-flash-lite', invoke)).rejects.toThrow('limit is reached');
+    await expect(h.service.run(request, 'gemini-3.5-flash-lite', invoke)).rejects.toThrow('limit is reached');
     expect(invoke).not.toHaveBeenCalled();
     expect(h.execute.mock.calls.some(([sql]) => sql.join('').includes('INSERT INTO'))).toBe(false);
   });
@@ -94,7 +94,7 @@ describe('low-cost production policy', () => {
     const h = harness({ platform: 9.99999, customer: 0, bucket: 0, measurements: 0 });
     jest.spyOn(h.service, 'verifyPrice').mockResolvedValue();
     const invoke = jest.fn();
-    await expect(h.service.run(request, 'gemini-2.5-flash-lite', invoke)).rejects.toThrow('limit');
+    await expect(h.service.run(request, 'gemini-3.5-flash-lite', invoke)).rejects.toThrow('limit');
     expect(invoke).not.toHaveBeenCalled();
   });
 
@@ -102,7 +102,7 @@ describe('low-cost production policy', () => {
     const h = harness({ platform: 0, customer: 0, bucket: 0, measurements: 300 });
     jest.spyOn(h.service, 'verifyPrice').mockResolvedValue();
     const invoke = jest.fn();
-    await expect(h.service.run({ ...request, organizationId: undefined }, 'gemini-2.5-flash-lite', invoke)).rejects.toThrow('attribution');
+    await expect(h.service.run({ ...request, organizationId: undefined }, 'gemini-3.5-flash-lite', invoke)).rejects.toThrow('attribution');
     await expect(h.service.run({ ...request, task: AiTask.VISIBILITY_MEASUREMENT }, 'openai/gpt-4.1-mini', invoke)).rejects.toThrow('300');
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -112,7 +112,7 @@ describe('low-cost production policy', () => {
     h.prisma.$queryRaw.mockResolvedValue([{ completion: answer }]);
     jest.spyOn(h.service, 'verifyPrice').mockResolvedValue();
     const invoke = jest.fn().mockResolvedValue(answer);
-    expect((await h.service.run(request, 'gemini-2.5-flash-lite', invoke)).usage.cached).toBe(true);
+    expect((await h.service.run(request, 'gemini-3.5-flash-lite', invoke)).usage.cached).toBe(true);
     expect(invoke).not.toHaveBeenCalled();
     await h.service.run({ ...request, task: AiTask.VISIBILITY_MEASUREMENT }, 'openai/gpt-4.1-mini', invoke);
     expect(invoke).toHaveBeenCalledTimes(1);
@@ -123,7 +123,7 @@ describe('low-cost production policy', () => {
     const h = harness();
     jest.spyOn(h.service, 'verifyPrice').mockResolvedValue();
     const invoke = jest.fn().mockRejectedValue(new Error('timeout'));
-    await expect(h.service.run(request, 'gemini-2.5-flash-lite', invoke)).rejects.toThrow('timeout');
+    await expect(h.service.run(request, 'gemini-3.5-flash-lite', invoke)).rejects.toThrow('timeout');
     expect(invoke).toHaveBeenCalledTimes(1);
     const failure = h.execute.mock.calls.find(([sql]) => sql.join('').includes("'ERROR'"));
     expect(failure?.[0].join('')).not.toContain('"reservedCostUsd"=');
@@ -150,7 +150,7 @@ describe('low-cost production policy', () => {
       await expect(harness().service.verifyPrice('openai/gpt-4.1-mini')).rejects.toThrow('could not be verified');
     });
     it('rejects an expired Google tariff review', async () => {
-      await expect(harness(undefined, { AI_GOOGLE_PRICES_VERIFIED_AT: '2020-01-01' }).service.verifyPrice('gemini-2.5-flash-lite')).rejects.toThrow('review expired');
+      await expect(harness(undefined, { AI_GOOGLE_PRICES_VERIFIED_AT: '2020-01-01' }).service.verifyPrice('gemini-3.5-flash-lite')).rejects.toThrow('review expired');
     });
     it('accepts the live approved tariff and caches the catalog, not measurements', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ id: 'openai/gpt-4.1-mini', pricing: { prompt: '0.0000004', completion: '0.0000016' } }] }) });
@@ -161,3 +161,5 @@ describe('low-cost production policy', () => {
     });
   });
 });
+
+
