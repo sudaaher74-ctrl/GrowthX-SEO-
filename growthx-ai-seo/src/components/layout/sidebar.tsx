@@ -227,6 +227,9 @@ function NavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
+
   if (item.disabled) {
     return (
       <div
@@ -243,9 +246,6 @@ function NavLink({
       </div>
     );
   }
-
-  const searchParams = useSearchParams();
-  const currentTab = searchParams.get("tab");
 
   const [itemPath, itemQuery] = item.href.split("?");
   const itemTab = itemQuery ? new URLSearchParams(itemQuery).get("tab") : null;
