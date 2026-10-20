@@ -1,4 +1,5 @@
 import { AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { policyTokens } from '../ai-search/multi-ai-router/low-cost-policy';
 import { CompetitorIntelReportService, buildPrompt, normaliseAnalysis } from './competitor-intel-report.service';
 import { AdvantagePage, computeAdvantages } from './rival-advantages';
 
@@ -95,6 +96,10 @@ describe('CompetitorIntelReportService.generate', () => {
     expect(router.generate).toHaveBeenCalledWith(
       expect.objectContaining({ provider: AiProvider.GEMINI, allowFallback: false, organizationId: 'org1', projectId: 'p1' }),
     );
+    const request = router.generate.mock.calls[0][0];
+    expect(request.jsonSchema.required).toContain('plan');
+    expect(request.jsonSchema.properties.gaps.maxItems).toBe(5);
+    expect(policyTokens(request)).toBe(6000);
     expect(report.model).toBe('gemini-2.5-flash');
     expect(report.analysisError).toBeNull();
     expect(report.analysis?.gaps.map((g) => g.priority)).toEqual(['high', 'low']);

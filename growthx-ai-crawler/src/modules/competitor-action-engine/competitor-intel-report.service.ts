@@ -11,6 +11,26 @@ import { ContentIdeas, ContentIdeasService } from '../content-ideas/content-idea
 /** Rivals read into one report; the rest are named as not included. */
 export const MAX_RIVALS = 7;
 
+const textField = { type: 'string' };
+const textList = { type: 'array', items: textField };
+const reportObject = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties) });
+// Structured reports use the router's existing structured-output allowance.
+// The previous unstructured request was truncated before it could close JSON.
+export const REPORT_SCHEMA = reportObject({
+  executiveSummary: textField,
+  whyTheyRank: { type: 'array', maxItems: MAX_RIVALS, items: reportObject({
+    competitor: textField, threat: textField,
+    reasons: { type: 'array', maxItems: 3, items: reportObject({ factor: textField, evidence: textField }) },
+  }) },
+  gaps: { type: 'array', maxItems: 5, items: reportObject({
+    title: textField, priority: textField, rivals: textList, evidence: textField,
+    whyItHelpsThemRank: textField, howToBeatIt: textList, effort: textField,
+  }) },
+  whereYouLead: textList,
+  plan: { type: 'array', maxItems: 4, items: reportObject({ week: textField, actions: textList }) },
+  dataGaps: textList,
+});
+
 /**
  * Comparison rows that measure what a site has. The report's other rows count
  * problems, and a rival's problems are not something the customer can act on.
@@ -341,6 +361,7 @@ export class CompetitorIntelReportService {
         provider: AiProvider.GEMINI,
         // Use the configured Gemini competitor-analysis route.
         allowFallback: false,
+        jsonSchema: REPORT_SCHEMA,
         organizationId,
         projectId,
         maxTokens: 6000,
@@ -453,9 +474,9 @@ Return JSON exactly in this shape:
 
 Rules:
 - Focus on their strengths and my gaps. Do not list their technical SEO problems or mine.
-- One whyTheyRank entry per rival that has been crawled, 2-5 reasons each, strongest first.
+- One whyTheyRank entry per rival that has been crawled, 2-3 concise reasons each, strongest first.
 - Group the gaps across rivals: a topic or page type several rivals share is one gap naming all of them. Highest priority first.
-- Name the specific missing topics and URLs to build pages for. Give 3-5 concrete steps per gap to match and then beat them.
+- Include at most 5 priority gaps. Name specific missing topics and URLs to build pages for, with 3 concise steps per gap.
 - The plan is 4 weeks, highest impact first.
 - These facts come from crawling the sites, not from search rankings. Say that actual rankings need Search Console or rank tracking, and list it in dataGaps.
 - Use only the facts above. If something is "unknown", "never" or "not measured", say it is not measured instead of guessing.`;
