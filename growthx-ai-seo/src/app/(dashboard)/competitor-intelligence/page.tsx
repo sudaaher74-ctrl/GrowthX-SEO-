@@ -13,6 +13,7 @@ import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
 import { GapsTab } from "@/components/competitor/gaps-tab";
 import { RivalRadarTab } from "@/components/competitor/rival-radar-tab";
+import { CompetitorSuggestions } from "@/components/competitor/competitor-suggestions";
 
 const TABS = [
   { id: "battleground", label: "Battleground", icon: Swords },
@@ -443,6 +444,8 @@ function CompetitorIntelligenceClient() {
           })}
         </div>
       </div>
+
+      {projectId && clientRow && <CompetitorSuggestions key={projectId} projectId={projectId} auditedAt={clientRow.lastCrawledAt} tracked={competitorsList} />}
 
       <CrawlStatusStrip
         competitors={competitorsList}

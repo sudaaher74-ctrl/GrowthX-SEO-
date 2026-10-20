@@ -439,6 +439,27 @@ export const visibilityJourneyApi = {
     post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey/${id}/check`, { brief }),
 };
 
+export interface CompetitorSuggestion {
+  domain: string;
+  name: string;
+  industry: string;
+  description: string;
+  location?: string;
+  sampleKeywords: string[];
+  verified?: boolean;
+  verificationLevel?: 'content' | 'reachable';
+  verifiedAt?: string;
+  isAlreadyAdded?: boolean;
+}
+
+export interface CompetitorSuggestions {
+  businessName: string;
+  industry: string;
+  identifiedAt: string;
+  topCompetitors: CompetitorSuggestion[];
+  notes?: string[];
+}
+
 export const api = {
   // Mammouth AI Orchestration
   mammouth: {
@@ -999,6 +1020,12 @@ export const api = {
 
   
   /** Tracked competitors, whether or not any prompt has cited them yet. */
+  discoverCompetitors: (projectId: string) =>
+    post<CompetitorSuggestions>(`/api/projects/${projectId}/market-research/auto-identify-competitors`, {}),
+  addSelectedCompetitors: (projectId: string, competitors: CompetitorSuggestion[]) =>
+    post<{ success: boolean; count: number }>(`/api/projects/${projectId}/market-research/add-selected-competitors`, {
+      competitors: competitors.map(({ domain, name, industry, description, location }) => ({ domain, name, industry, description, location })),
+    }),
   listCompetitors: (projectId: string) =>
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
   /** Your website and each competitor's: read status, pages, kinds of pages, health and rating. */
