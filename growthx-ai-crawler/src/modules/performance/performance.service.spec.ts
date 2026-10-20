@@ -51,6 +51,7 @@ describe('PerformanceService', () => {
     mockedAxios.get.mockResolvedValueOnce({
       status: 200,
       data: {
+        loadingExperience: { metrics: { INTERACTION_TO_NEXT_PAINT: { percentile: 85.7 } } },
         lighthouseResult: {
           categories: {
             performance: { score: 0.884 },
@@ -105,6 +106,20 @@ describe('PerformanceService', () => {
         clsScore: 0.023,
       }),
     });
+  });
+
+  it('preserves zero CLS and leaves INP missing without field data', async () => {
+    mockedAxios.get.mockResolvedValueOnce({ status: 200, data: {
+      lighthouseResult: { categories: { performance: { score: 0 } }, audits: {
+        'largest-contentful-paint': { numericValue: 1200 },
+        'cumulative-layout-shift': { numericValue: 0 },
+        'interaction-to-next-paint': { numericValue: 180 },
+      } },
+    } } as any);
+    const result = await service.fetchPageSpeedMetrics('zero-cls', 'https://example.com');
+    expect(result.clsScore).toBe(0);
+    expect(result.inpMs).toBeUndefined();
+    expect(result.performanceScore).toBe(0);
   });
 
   it('should pass DESKTOP strategy parameter in API request', async () => {

@@ -118,6 +118,19 @@ describe('CrawlController — crawl history', () => {
     expect(prisma.crawlJob.findMany.mock.calls[0][0].where.websiteId).toBe('w1');
   });
 
+  it('averages recorded measurements and retains zero and missing values', async () => {
+    prisma.crawlJob.findMany.mockResolvedValue([
+      { ...run('measured', '2026-08-20T00:00:00Z', 2, 0), pages: [
+        { performance: { lcpMs: 1000, inpMs: null, clsScore: 0, performanceScore: 80 } },
+        { performance: { lcpMs: 2000, inpMs: 200, clsScore: 0, performanceScore: 100 } },
+      ] },
+      run('missing', '2026-08-13T00:00:00Z', 2, 0),
+    ]);
+    const result = await controller.getCrawlHistory(REQ, 'milquufresh.in');
+    expect(result[0].performance).toEqual({ pagesMeasured: 0, lcpMs: null, inpMs: null, clsScore: null, performanceScore: null });
+    expect(result[1].performance).toEqual({ pagesMeasured: 2, lcpMs: 1500, inpMs: 200, clsScore: 0, performanceScore: 90 });
+  });
+
   it('clamps the window so a long-lived site cannot return thousands', async () => {
     await controller.getCrawlHistory(REQ, 'milquufresh.in', '5000');
     expect(prisma.crawlJob.findMany.mock.calls[0][0].take).toBe(60);

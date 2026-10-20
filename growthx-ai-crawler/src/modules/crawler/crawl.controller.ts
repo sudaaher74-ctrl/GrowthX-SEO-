@@ -446,10 +446,19 @@ export class CrawlController {
       where: { websiteId: website.id, status: JobStatus.COMPLETED, finishedAt: { not: null } },
       orderBy: { finishedAt: 'desc' },
       take,
-      select: { id: true, pagesCrawled: true, issuesFound: true, startedAt: true, finishedAt: true },
+      select: { id: true, pagesCrawled: true, issuesFound: true, startedAt: true, finishedAt: true,
+        pages: { where: { performance: { isNot: null } }, select: { performance: { select: { lcpMs: true, inpMs: true, clsScore: true, performanceScore: true } } } },
+      },
     });
 
-    return runs.reverse();
+    return runs.reverse().map(({pages, ...run}) => {
+      const measurements = (pages ?? []).flatMap((page) => page.performance ? [page.performance] : []);
+      const average = (field: 'lcpMs' | 'inpMs' | 'clsScore' | 'performanceScore') => {
+        const values = measurements.map((m) => m[field]).filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0);
+        return values.length ? values.reduce((sum, n) => sum + n, 0) / values.length : null;
+      };
+      return {...run, performance: {pagesMeasured:measurements.length,lcpMs:average('lcpMs'),inpMs:average('inpMs'),clsScore:average('clsScore'),performanceScore:average('performanceScore')}};
+    });
   }
 
   @Get('crawls/:id/issues')

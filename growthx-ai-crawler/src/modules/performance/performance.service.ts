@@ -68,13 +68,13 @@ export class PerformanceService {
           const audits = response.data.lighthouseResult?.audits || {};
 
           metrics = {
-            performanceScore: lighthouse.performance?.score !== undefined ? Math.round(lighthouse.performance.score * 100) : undefined,
-            accessibilityScore: lighthouse.accessibility?.score !== undefined ? Math.round(lighthouse.accessibility.score * 100) : undefined,
-            bestPracticesScore: lighthouse['best-practices']?.score !== undefined ? Math.round(lighthouse['best-practices'].score * 100) : undefined,
-            seoScore: lighthouse.seo?.score !== undefined ? Math.round(lighthouse.seo.score * 100) : undefined,
-            lcpMs: audits['largest-contentful-paint']?.numericValue ? parseFloat((audits['largest-contentful-paint'].numericValue).toFixed(1)) : undefined,
-            inpMs: audits['interaction-to-next-paint']?.numericValue ? parseFloat((audits['interaction-to-next-paint'].numericValue).toFixed(1)) : undefined,
-            clsScore: audits['cumulative-layout-shift']?.numericValue ? parseFloat((audits['cumulative-layout-shift'].numericValue).toFixed(3)) : undefined,
+            performanceScore: typeof lighthouse.performance?.score === 'number' ? Math.round(lighthouse.performance.score * 100) : undefined,
+            accessibilityScore: typeof lighthouse.accessibility?.score === 'number' ? Math.round(lighthouse.accessibility.score * 100) : undefined,
+            bestPracticesScore: typeof lighthouse['best-practices']?.score === 'number' ? Math.round(lighthouse['best-practices'].score * 100) : undefined,
+            seoScore: typeof lighthouse.seo?.score === 'number' ? Math.round(lighthouse.seo.score * 100) : undefined,
+            lcpMs: typeof audits['largest-contentful-paint']?.numericValue === 'number' ? parseFloat((audits['largest-contentful-paint'].numericValue).toFixed(1)) : undefined,
+            inpMs: typeof response.data.loadingExperience?.metrics?.INTERACTION_TO_NEXT_PAINT?.percentile === 'number' ? response.data.loadingExperience.metrics.INTERACTION_TO_NEXT_PAINT.percentile : undefined,
+            clsScore: typeof audits['cumulative-layout-shift']?.numericValue === 'number' ? parseFloat((audits['cumulative-layout-shift'].numericValue).toFixed(3)) : undefined,
             isSimulated: false,
           };
         }
