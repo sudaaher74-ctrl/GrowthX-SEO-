@@ -256,7 +256,7 @@ function NavLink({
       (pathname === itemPath || (item.aliases?.includes(pathname) ?? false)) &&
       currentTab === itemTab;
   } else if (itemPath === "/ai-visibility") {
-    active = pathname === "/ai-visibility" && (!currentTab || currentTab === "overview");
+    active = pathname === "/ai-visibility" || pathname.startsWith("/ai-visibility/");
   } else if (itemPath === "/fix-engine") {
     active = pathname === "/fix-engine" && (!currentTab || currentTab === "overview");
   } else {
@@ -337,4 +337,5 @@ function NavLinkEnabled({
     </div>
   );
 }
+
 

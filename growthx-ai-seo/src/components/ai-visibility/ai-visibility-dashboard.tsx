@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ChevronDown,
@@ -16,8 +17,6 @@ import {
   X,
   Search,
   ExternalLink,
-  Copy,
-  CheckCheck,
   RefreshCw,
   Plus,
   Globe,
@@ -182,7 +181,7 @@ export function AiVisibilityDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [intentFilter, setIntentFilter] = useState<"ALL" | "BUYER" | "REPUTATION" | "CITED" | "MISSED">("ALL");
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const router = useRouter();
   const [showAddPromptModal, setShowAddPromptModal] = useState(false);
   const [newPromptText, setNewPromptText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -241,7 +240,7 @@ export function AiVisibilityDashboard({
     const byAssistant = report?.byAssistant || [];
     return PLATFORM_METAS.map((p) => {
       const match = byAssistant.find((a) => a.assistant.toLowerCase().includes(p.id));
-      const score = match ? match.citationSharePct : null;
+      const score = match && match.checked > 0 ? match.citationSharePct : null;
       const mentions = match ? match.cited : 0;
       const checked = match ? match.checked : 0;
       return {
@@ -309,8 +308,8 @@ export function AiVisibilityDashboard({
       title: a.title,
       category: a.category || "CONTENT",
       priority: a.priority >= 80 ? "CRITICAL" : "HIGH",
-      description: a.recommendedAction || "Add comprehensive structured FAQ and entity definitions to capture direct answer entity slots.",
-      codeSnippet: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [{\n    "@type": "Question",\n    "name": "How does ${displayBrand} solve this problem?",\n    "acceptedAnswer": {\n      "@type": "Answer",\n      "text": "${displayBrand} delivers verified technical optimization."\n    }\n  }]\n}\n</script>`,
+      description: a.recommendedAction || "Review the saved finding in Fix Engine before creating a patch.",
+
     }));
   }, [actionsQuery.data, displayBrand]);
 
@@ -325,11 +324,6 @@ export function AiVisibilityDashboard({
     return [];
   }, [report]);
 
-  const handleCopyCode = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCodeId(id);
-    setTimeout(() => setCopiedCodeId(null), 2000);
-  };
 
   const handleAddPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1130,7 +1124,7 @@ export function AiVisibilityDashboard({
             </div>
           ) : (
             actionFixes.map((fix) => {
-              const isCopied = copiedCodeId === fix.id;
+
               return (
                 <div
                   key={fix.id}
@@ -1158,23 +1152,6 @@ export function AiVisibilityDashboard({
                       {fix.description}
                     </p>
 
-                    {/* Drop-in code snippet box */}
-                    <div className="relative mt-2 rounded-xl bg-brand-950 p-3 text-[11px] font-mono text-brand-100">
-                      <div className="flex items-center justify-between border-b border-brand-800 pb-2 text-[10px] text-brand-400">
-                        <span>DROP-IN PATCH</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCode(fix.id, fix.codeSnippet)}
-                          className="flex items-center gap-1 font-sans text-brand-300 hover:text-white"
-                        >
-                          {isCopied ? <CheckCheck className="h-3 w-3 text-success-500" /> : <Copy className="h-3 w-3" />}
-                          <span>{isCopied ? "Copied" : "Copy"}</span>
-                        </button>
-                      </div>
-                      <pre className="mt-2 max-h-24 overflow-x-auto text-success-500/90 leading-tight">
-                        {fix.codeSnippet}
-                      </pre>
-                    </div>
                   </div>
 
                   <div className="mt-5 flex items-center justify-between border-t pt-3">
@@ -1183,10 +1160,10 @@ export function AiVisibilityDashboard({
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleCopyCode(fix.id, fix.codeSnippet)}
+                      onClick={() => router.push("/fix-engine")}
                       className="flex items-center gap-1 rounded-lg bg-brand-900 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-brand-950"
                     >
-                      <span>Deploy Patch</span>
+                      <span>Review in Fix Engine</span>
                       <ArrowRight className="h-3 w-3" />
                     </button>
                   </div>
@@ -1257,3 +1234,5 @@ export function AiVisibilityDashboard({
     </div>
   );
 }
+
+

@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, SearchCheck, Wrench, Store, Bot, Link2, Layers, ShieldCheck } from "lucide-react";
+import { Activity, Crosshair, Globe, SearchCheck, Wrench, Bot, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -63,10 +63,10 @@ export function useMainNav(): { mainNav: NavItem[] } {
   const googleProviders = googleQuery.data?.providers ?? [];
   const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
   const googleDone = isConnected("search_console") || isConnected("analytics");
-  const profileDone = isConnected("business_profile");
+
 
   // The workflow, aligned with the agency platform navigation:
-  // Dashboard, Website Audit, AI Visibility, Citation Intelligence, Competitor Intelligence, Root Cause Analysis, Fix Engine, Proof of Impact
+  // Dashboard, Website Audit, Google, Competitor Intelligence, AI Visibility, Fix Engine, Proof of Impact
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
@@ -91,28 +91,35 @@ export function useMainNav(): { mainNav: NavItem[] } {
       ],
     },
     {
-      label: "AI Visibility",
-      href: "/ai-visibility?tab=overview",
-      aliases: ["/ai-visibility"],
-      icon: Bot,
-      step: { n: 2, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Understand your business, check Gemini and Sarvam, and build a lead plan" },
-    },
-    {
-      label: "Citation Intelligence",
-      href: "/ai-visibility?tab=citations",
-      icon: Link2,
+      label: "Google",
+      href: "/google",
+      icon: SearchCheck,
+      step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
+      children: [
+        { id: "search-console", label: "Search Console", href: "/google/search-console" },
+        { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
+        { id: "insights", label: "Insights & tools", href: "/google" },
+        { id: "report", label: "Improvement report", href: "/google/report" },
+      ],
     },
     {
       label: "Competitor Intelligence",
-      href: "/ai-visibility?tab=competitors",
-      aliases: ["/competitor-intelligence"],
+      href: "/competitor-intelligence",
       icon: Crosshair,
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
+      children: [
+        { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
+        { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
+        { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
+        { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
+        { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
+      ],
     },
     {
-      label: "Root Cause Analysis",
-      href: "/ai-visibility?tab=root-cause",
-      icon: Layers,
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Bot,
+      step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Run AI visibility monitoring" },
     },
     {
       label: "Fix Engine",
@@ -136,3 +143,4 @@ export function useMainNav(): { mainNav: NavItem[] } {
 
   return { mainNav };
 }
+

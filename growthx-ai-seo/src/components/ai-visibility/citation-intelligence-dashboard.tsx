@@ -1,5 +1,7 @@
 "use client";
 
+import { type LiveDashboardData, platformKey, savedAnswers, recordedDate, NoMeasurement } from './live-dashboard-data';
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import {
   Link as LinkIcon,
@@ -31,7 +33,7 @@ import {
 } from "recharts";
 import { GeminiIcon, OpenAiIcon, ClaudeIcon, PerplexityIcon } from "./ai-visibility-dashboard";
 
-export interface CitationIntelligenceDashboardProps {
+export interface CitationIntelligenceDashboardProps extends LiveDashboardData {
   domain: string;
   brandLabel: string;
   projects?: Array<{ id: string; name: string }>;
@@ -44,6 +46,7 @@ export interface CitationIntelligenceDashboardProps {
 }
 
 export function CitationIntelligenceDashboard({
+  report, prompts = [], citations, rootCause, actions = [], competitors = [],
   domain,
   brandLabel,
   projects = [],
@@ -54,102 +57,25 @@ export function CitationIntelligenceDashboard({
   onRunScan,
   isScanning = false,
 }: CitationIntelligenceDashboardProps) {
+  const router = useRouter();
   const [selectedModel, setSelectedModel] = useState<"gemini" | "openai" | "claude" | "perplexity" | "grok">("gemini");
-  const displayDomain = domain || "your-domain.com";
+  const displayDomain = domain || "No website selected";
   const displayBrand = brandLabel || displayDomain.replace(/^www\./, "").split(".")[0] || "Your Brand";
 
   // Trend Data for Citations vs Unique Domains
-  const trendData = [
-    { date: "Aug 1", citations: 18, domains: 8 },
-    { date: "Aug 5", citations: 16, domains: 9 },
-    { date: "Aug 10", citations: 21, domains: 11 },
-    { date: "Aug 15", citations: 20, domains: 10 },
-    { date: "Aug 20", citations: 23, domains: 12 },
-    { date: "Aug 25", citations: 28, domains: 15 },
-    { date: "Aug 30", citations: 34, domains: 18 },
-  ];
+  const trendData = [] as {date:string;citations:number;domains:number}[];
 
   // Bar Data: Citations by AI Platform
-  const platformCitations = [
-    { platform: "Gemini", yourBrand: 32, competitors: 18 },
-    { platform: "OpenAI", yourBrand: 24, competitors: 16 },
-    { platform: "Claude", yourBrand: 18, competitors: 14 },
-    { platform: "Perplexity", yourBrand: 38, competitors: 28 },
-    { platform: "Grok", yourBrand: 14, competitors: 18 },
-  ];
+  const platformCitations = [] as {platform:string;yourBrand:number;competitors:number}[];
 
   // Pie Data: Citation Types
-  const citationTypes = [
-    { name: "Direct Brand Link", value: 48, color: "var(--color-series-1)" },
-    { name: "Product/Service Link", value: 22, color: "var(--color-series-3)" },
-    { name: "Mention with Source", value: 18, color: "var(--color-series-6)" },
-    { name: "Competitor Comparison", value: 8, color: "var(--color-series-7)" },
-    { name: "Other", value: 4, color: "var(--color-brand-400)" },
-  ];
+  const citationTypes = [] as {name:string;value:number;color:string}[];
 
   // Top Citing Domains
-  const topCitingDomains = [
-    {
-      domain: displayDomain,
-      dr: 91,
-      citations: 12,
-      platforms: ["gemini", "openai", "perplexity"] as const,
-      topic: "Health & Wellness",
-      trend: "+100%",
-    },
-    {
-      domain: "timesofindia.indiatimes.com",
-      dr: 89,
-      citations: 7,
-      platforms: ["claude", "perplexity"] as const,
-      topic: "Dairy Products",
-      trend: "+75%",
-    },
-    {
-      domain: "healthline.com",
-      dr: 87,
-      citations: 5,
-      platforms: ["openai", "perplexity"] as const,
-      topic: "Nutrition",
-      trend: "+25%",
-    },
-    {
-      domain: "webmd.com",
-      dr: 85,
-      citations: 4,
-      platforms: ["gemini", "claude"] as const,
-      topic: "Health Benefits",
-      trend: "+33%",
-    },
-  ];
+  const topCitingDomains = (citations?.citationsByDomain ?? []).map(c=>({domain:c.domain,dr:'—',citations:c.count,platforms:[] as string[],topic:'—',trend:'—'}));
 
   // Citation Opportunities
-  const citationOpportunities = [
-    {
-      domain: "bbc.com",
-      dr: 92,
-      platforms: ["gemini", "openai"] as const,
-      reason: "Cites competitors",
-    },
-    {
-      domain: "forbes.com",
-      dr: 91,
-      platforms: ["claude", "perplexity"] as const,
-      reason: "Covers industry leaders",
-    },
-    {
-      domain: "health.com",
-      dr: 89,
-      platforms: ["gemini", "openai"] as const,
-      reason: "Cites similar brands",
-    },
-    {
-      domain: "foodandwine.com",
-      dr: 86,
-      platforms: ["claude", "openai"] as const,
-      reason: "Food and nutrition guides",
-    },
-  ];
+  const citationOpportunities = [] as {domain:string;dr:string;platforms:string[];reason:string}[];
 
   return (
     <div className="space-y-6 pb-12 font-sans text-brand-950">
@@ -165,7 +91,7 @@ export function CitationIntelligenceDashboard({
             </h1>
           </div>
           <p className="mt-1 text-xs text-brand-500 md:text-sm">
-            Track, analyze and optimize where AI platforms cite your brand and related content.
+            Track recorded source links from real AI monitoring responses.
           </p>
         </div>
 
@@ -215,7 +141,7 @@ export function CitationIntelligenceDashboard({
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 shadow-xs hover:bg-brand-50"
-          >
+           onClick={() => { const csv=['Domain,Citations',...(citations?.citationsByDomain ?? []).map(c=>JSON.stringify(c.domain)+','+c.count)].join('\n'); const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); const a=document.createElement('a');a.href=url;a.download='recorded-citations.csv';a.click();URL.revokeObjectURL(url); }}>
             <Download className="h-3.5 w-3.5" />
             <span>Download Report</span>
           </button>
@@ -223,7 +149,7 @@ export function CitationIntelligenceDashboard({
           <button
             type="button"
             onClick={onRunScan}
-            disabled={isScanning}
+            disabled={isScanning || !currentProjectId}
             className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary-700 disabled:opacity-60 md:text-sm"
           >
             {isScanning ? (
@@ -246,9 +172,9 @@ export function CitationIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">126</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{citations?.totalCitations ?? "—"}</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 32%
+              —
             </span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">Mentions with links to external sources.</p>
@@ -262,12 +188,12 @@ export function CitationIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">48</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">{citations?.citationsByDomain.length ?? "—"}</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 28%
+              —
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Different websites citing your brand.</p>
+          <p className="mt-1 text-[11px] text-brand-400">Unique domains in recorded source links.</p>
         </div>
 
         {/* High Authority Sources */}
@@ -278,9 +204,9 @@ export function CitationIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">12</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 50%
+              —
             </span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">Citations from DR 70+ domains.</p>
@@ -294,15 +220,15 @@ export function CitationIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">68%</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
             <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700">
-              ↗ 14%
+              —
             </span>
           </div>
           <p className="mt-1 text-[11px] text-brand-400">of brand mentions include a source link.</p>
         </div>
 
-        {/* Competitor Citations */}
+        {/* External Citations */}
         <div className="rounded-2xl border bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
@@ -310,9 +236,9 @@ export function CitationIntelligenceDashboard({
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-brand-950">94</span>
+            <span className="text-2xl font-bold tracking-tight text-brand-950">—</span>
           </div>
-          <p className="mt-1 text-[11px] text-brand-400">Citations for your top competitors.</p>
+          <p className="mt-1 text-[11px] text-brand-400">Publisher ownership is not competitor evidence.</p>
         </div>
       </div>
 
@@ -338,7 +264,7 @@ export function CitationIntelligenceDashboard({
           </div>
 
           <div className="mt-5 h-[230px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            {trendData.length ? (<ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "var(--color-brand-400)" }} />
@@ -354,7 +280,7 @@ export function CitationIntelligenceDashboard({
                 <Line type="monotone" dataKey="citations" stroke="var(--color-series-1)" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="domains" stroke="var(--color-series-6)" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>) : <NoMeasurement />}
           </div>
         </div>
 
@@ -378,7 +304,7 @@ export function CitationIntelligenceDashboard({
           </div>
 
           <div className="mt-5 h-[230px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            {platformCitations.length ? (<ResponsiveContainer width="100%" height="100%">
               <BarChart data={platformCitations} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                 <XAxis dataKey="platform" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "var(--color-brand-600)" }} />
@@ -395,7 +321,7 @@ export function CitationIntelligenceDashboard({
                 <Bar dataKey="yourBrand" fill="var(--color-accent-600)" radius={[4, 4, 0, 0]} barSize={16} />
                 <Bar dataKey="competitors" fill="var(--color-accent-200)" radius={[4, 4, 0, 0]} barSize={16} />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>) : <NoMeasurement />}
           </div>
         </div>
       </div>
@@ -408,10 +334,10 @@ export function CitationIntelligenceDashboard({
             <div>
               <h2 className="text-sm font-bold text-brand-950 md:text-base">Top Citing Domains</h2>
               <p className="mt-0.5 text-xs text-brand-500">
-                Websites most frequently cited by AI platforms when mentioning your brand.
+                Domains linked in the latest saved monitoring run.
               </p>
             </div>
-            <button type="button" className="text-xs font-semibold text-primary-600 hover:underline">
+            <button type="button" className="text-xs font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=actions")}> 
               View All Sources →
             </button>
           </div>
@@ -428,7 +354,7 @@ export function CitationIntelligenceDashboard({
                   <th className="pb-2 font-medium text-right">Trend</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!topCitingDomains.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {topCitingDomains.map((row) => (
                   <tr key={row.domain} className="hover:bg-brand-50/50">
                     <td className="py-2.5 font-semibold text-brand-900">{row.domain}</td>
@@ -457,12 +383,12 @@ export function CitationIntelligenceDashboard({
         <div className="rounded-2xl border bg-white p-5 shadow-xs lg:col-span-5">
           <div>
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Citation Types</h2>
-            <p className="mt-0.5 text-xs text-brand-500">How AI platforms reference your brand.</p>
+            <p className="mt-0.5 text-xs text-brand-500">Citation types have not been classified yet.</p>
           </div>
 
           <div className="mt-4 flex flex-col items-center sm:flex-row sm:justify-between">
             <div className="relative h-[180px] w-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {citationTypes.length ? (<ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={citationTypes}
@@ -476,9 +402,9 @@ export function CitationIntelligenceDashboard({
                     ))}
                   </Pie>
                 </PieChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer>) : <NoMeasurement />}
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-brand-950">126</span>
+                <span className="text-xl font-bold text-brand-950">{citations?.totalCitations ?? "—"}</span>
                 <span className="text-[10px] text-brand-400 font-medium">Citations</span>
               </div>
             </div>
@@ -498,7 +424,7 @@ export function CitationIntelligenceDashboard({
         </div>
       </div>
 
-      {/* ── Bottom Row: Example AI Responses with Citations & Opportunities ── */}
+      {/* ── Bottom Row: AI Responses with Citations & Opportunities ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Left: Example AI Responses with Citations */}
         <div className="rounded-2xl border bg-white p-5 shadow-xs lg:col-span-6">
@@ -531,17 +457,17 @@ export function CitationIntelligenceDashboard({
               <span className="flex items-center gap-1 font-bold text-brand-900">
                 <Sparkles className="h-3 w-3 text-primary-600" /> {selectedModel.toUpperCase()} Response
               </span>
-              <span>Aug 28, 2025 | 10:14 AM</span>
+              <span>{recordedDate(savedAnswers(prompts).find(a=>a.platform===selectedModel)?.checkedAt)}</span>
             </div>
             <p className="mt-2.5 text-xs leading-relaxed text-brand-700">
-              &ldquo;{displayBrand} is a popular choice for quality products, offering direct delivery and trusted customer support with exceptional attention to product standards.&rdquo;
+              {savedAnswers(prompts).find(a=>a.platform===selectedModel)?.answerExcerpt ?? 'No saved response for this model yet.'}
             </p>
             <div className="mt-3 flex items-center justify-between border-t pt-2.5 text-xs">
               <span className="flex items-center gap-1 font-semibold text-accent-700">
-                Source: {displayDomain} <ExternalLink className="h-3 w-3" />
+                Source: {savedAnswers(prompts).find(a=>a.platform===selectedModel)?.citedUrl ?? 'No verified source link'} <ExternalLink className="h-3 w-3" />
               </span>
-              <button type="button" className="font-semibold text-primary-600 hover:underline">
-                View Full Response
+              <button type="button" className="font-semibold text-primary-600 hover:underline" onClick={() => router.push("/ai-visibility?tab=prompts")}> 
+                View Saved Response
               </button>
             </div>
           </div>
@@ -552,7 +478,7 @@ export function CitationIntelligenceDashboard({
           <div>
             <h2 className="text-sm font-bold text-brand-950 md:text-base">Citation Opportunities</h2>
             <p className="mt-0.5 text-xs text-brand-500">
-              Relevant websites that frequently appear in AI responses for your industry but don&apos;t yet cite you.
+              Opportunities appear when saved evidence identifies a relevant citation gap.
             </p>
           </div>
 
@@ -567,7 +493,7 @@ export function CitationIntelligenceDashboard({
                   <th className="pb-2 font-medium text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-100/50">
+              <tbody className="divide-y divide-brand-100/50">{!citationOpportunities.length && <tr><td colSpan={8}><NoMeasurement /></td></tr>}
                 {citationOpportunities.map((opp) => (
                   <tr key={opp.domain} className="hover:bg-brand-50/50">
                     <td className="py-2.5 font-semibold text-brand-900">{opp.domain}</td>
@@ -587,7 +513,7 @@ export function CitationIntelligenceDashboard({
                       <button
                         type="button"
                         className="rounded-lg border bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 shadow-2xs hover:bg-primary-100"
-                      >
+                       onClick={() => router.push("/ai-visibility?tab=actions")}> 
                         Get Mentioned
                       </button>
                     </td>
