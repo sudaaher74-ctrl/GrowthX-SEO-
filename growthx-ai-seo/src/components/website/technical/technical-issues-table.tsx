@@ -60,7 +60,7 @@ export function TechnicalIssuesTable({
         <div>
           <h3 className="text-base font-bold text-brand-950">Technical SEO Issues</h3>
           <p className="text-xs text-brand-400 mt-0.5">
-            {totalIssuesCount} unique issues across {totalPagesCount} pages. Fix these to improve your technical health score.
+            {totalIssuesCount} findings across {totalPagesCount} audited URLs. One problem type can affect many URLs.
           </p>
         </div>
         <span className="inline-flex items-center rounded-full bg-brand-100 border border-brand-200/50 px-2.5 py-0.5 text-[11px] font-mono font-bold text-brand-950 self-start sm:self-center">

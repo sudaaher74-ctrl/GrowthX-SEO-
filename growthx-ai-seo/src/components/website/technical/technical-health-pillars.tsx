@@ -127,13 +127,13 @@ export function TechnicalHealthPillars({
               <div className="rounded-lg bg-surface-2 p-2 border" style={{ borderColor: "var(--border-color)" }}>
                 <span className="text-brand-400 block text-[10px] uppercase font-mono">High impact</span>
                 <span className="font-mono font-bold text-error-600">
-                  {severityCounts.HIGH} issues ({summary.health.penalties.find((p) => p.severity === "HIGH")?.penalty ? `-${summary.health.penalties.find((p) => p.severity === "HIGH")?.penalty}` : "0"})
+                  {severityCounts.HIGH} findings · -{((summary.health.penalties.find((p) => p.severity === "HIGH")?.penalty ?? 0) / Math.max(summary.health.pagesScored, 1)).toFixed(1)} points
                 </span>
               </div>
               <div className="rounded-lg bg-surface-2 p-2 border" style={{ borderColor: "var(--border-color)" }}>
                 <span className="text-brand-400 block text-[10px] uppercase font-mono">Medium impact</span>
                 <span className="font-mono font-bold text-warning-600">
-                  {severityCounts.MEDIUM} issues ({summary.health.penalties.find((p) => p.severity === "MEDIUM")?.penalty ? `-${summary.health.penalties.find((p) => p.severity === "MEDIUM")?.penalty}` : "0"})
+                  {severityCounts.MEDIUM} findings · -{((summary.health.penalties.find((p) => p.severity === "MEDIUM")?.penalty ?? 0) / Math.max(summary.health.pagesScored, 1)).toFixed(1)} points
                 </span>
               </div>
             </div>
@@ -200,7 +200,7 @@ export function TechnicalHealthPillars({
                 <span>Indexability</span>
               </div>
               <span className="rounded-full border border-accent-200/50 bg-accent-50/50 text-accent-700 px-2 py-0.5 text-[10px] font-mono font-bold">
-                {indexabilityPercent}% Indexed
+                {indexabilityPercent}% eligible
               </span>
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
@@ -216,7 +216,7 @@ export function TechnicalHealthPillars({
 
           <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border-color)" }}>
             <div className="flex items-center justify-between text-[11px] text-brand-400 mb-1.5 font-mono">
-              <span>Search index status</span>
+              <span>Crawl-based eligibility · not Google index status</span>
               <span className="font-bold text-brand-950">{indexabilityPercent}% eligible</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
@@ -271,7 +271,7 @@ export function TechnicalHealthPillars({
           </div>
 
           <div className="mt-3 pt-2.5 border-t flex items-center justify-between text-right" style={{ borderColor: "var(--border-color)" }}>
-            <span className="text-[10.5px] text-brand-400 font-mono">Real user speeds</span>
+            <span className="text-[10.5px] text-brand-400 font-mono">Recorded performance measurements</span>
             <button
               type="button"
               onClick={() => onSwitchTab("performance")}

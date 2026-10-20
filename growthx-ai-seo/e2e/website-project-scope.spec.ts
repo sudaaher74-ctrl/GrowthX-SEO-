@@ -39,7 +39,7 @@ test("a domain-specific audit reads counts and reports from that domain's projec
   });
 
   await page.goto("/website?domain=b.example&tab=report", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("tab", { name: /9 problems/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /9 problem types/ })).toBeVisible();
   await expect(page.getByText("Press \"Write my report\".", { exact: false })).toBeVisible();
 
   expect(requested).toContain("/api/projects/project_b/issues/counts");

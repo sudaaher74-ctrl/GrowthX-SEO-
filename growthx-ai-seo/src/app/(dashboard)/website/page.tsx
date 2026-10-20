@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { allCrawlRows } from "@/lib/all-crawl-rows";
 import Link from "next/link";
 import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, Square, X, Zap } from "lucide-react";
 
@@ -10,8 +12,6 @@ import { api } from "@/lib/api-client";
 import { crawlPageTotal } from "@/lib/crawl-page-total";
 import {
   useCrawlHistory,
-  useCrawlIssues,
-  useCrawlPages,
   useCancelCrawl,
   useIssueCounts,
   useIssueGroups,
@@ -51,8 +51,8 @@ function WebsiteAuditClient() {
   const crawl = useLatestCrawl(client?.domain ?? null);
   const crawlInProgress = crawl.data?.status === "PENDING" || crawl.data?.status === "RUNNING";
   const cancelCrawl = useCancelCrawl(client?.domain ?? null);
-  const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
-  const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
+  const issues = useQuery({queryKey:["audit-all-issues",crawl.data?.id],queryFn:()=>allCrawlRows((page)=>api.getCrawlIssues(crawl.data!.id,{page,limit:200})),enabled:!!crawl.data?.id,refetchInterval:crawlInProgress?4000:false});
+  const pages = useQuery({queryKey:["audit-all-pages",crawl.data?.id],queryFn:()=>allCrawlRows((page)=>api.getCrawlPages(crawl.data!.id,{page,limit:200})),enabled:!!crawl.data?.id,refetchInterval:crawlInProgress?4000:false});
   const history = useCrawlHistory(client?.domain ?? null, 12);
   // Counts come from the one endpoint every screen shares. The lists below are
   // fetched a page at a time — 100 rows — so their length is a page size, not a
@@ -180,7 +180,7 @@ function WebsiteAuditClient() {
       // The number of distinct problems, labelled as such. A bare "100" beside
       // a heading reads as a score out of 100, which it never was.
       badge: counts && counts.openGroups > 0
-        ? `${counts.openGroups} problem${counts.openGroups === 1 ? "" : "s"}`
+        ? `${counts.openGroups} problem type${counts.openGroups === 1 ? "" : "s"}`
         : undefined,
       badgeTone: "danger",
     },
@@ -264,7 +264,7 @@ function WebsiteAuditClient() {
                 <span className="text-brand-400">·</span>
                 <span>
                   {counts
-                    ? `${counts.openGroups} problem${counts.openGroups === 1 ? "" : "s"} found`
+                    ? `${counts.openGroups} problem type${counts.openGroups === 1 ? "" : "s"} · ${issues.data?.meta.total ?? counts.openFindings} findings`
                     : "counting…"}
                 </span>
                 {crawlDuration && (

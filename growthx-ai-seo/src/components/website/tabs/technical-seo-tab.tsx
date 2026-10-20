@@ -44,7 +44,7 @@ export function TechnicalSeoTab({
   // 1. Health Score
   const healthScore = crawl?.healthScore != null ? Math.round(crawl.healthScore) : null;
 
-  const summary = useMemo(
+  const computedSummary = useMemo(
     () =>
       computeCrawlSummary({
         pages: pages.map((p) => ({
@@ -70,14 +70,11 @@ export function TechnicalSeoTab({
       }),
     [pages, issues]
   );
+  const summary = {...computedSummary, health: qualityDiagnostics?.summary?.health ?? computedSummary.health};
 
   // Delta vs last crawl
-  const lastRun = historyRuns.length >= 2 ? historyRuns[historyRuns.length - 2] : null;
-  const currentRun = historyRuns.length >= 1 ? historyRuns[historyRuns.length - 1] : null;
-  const crawlabilityDelta =
-    lastRun && currentRun && lastRun.pagesCrawled > 0
-      ? Math.round(((currentRun.pagesCrawled - lastRun.pagesCrawled) / lastRun.pagesCrawled) * 100)
-      : null;
+  // Page-count growth is not a change in crawler accessibility.
+  const crawlabilityDelta = null;
 
   const canonicalIssues = issues.filter(
     (i) =>

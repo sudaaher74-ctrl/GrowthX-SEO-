@@ -356,6 +356,7 @@ export interface CrawlHistoryPoint {
   issuesFound: number;
   startedAt: string | null;
   finishedAt: string | null;
+  performance?: {pagesMeasured:number;lcpMs:number|null;inpMs:number|null;clsScore:number|null;performanceScore:number|null};
 }
 
 export interface CrawlPage {
