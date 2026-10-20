@@ -10,6 +10,7 @@ describe('safe provider failure reasons', () => {
     expect(providerFailureReason({ status: 403 })).toContain('account access');
     expect(providerFailureReason({ status: 429 })).toContain('quota');
     expect(providerFailureReason(new Error('budget limit is reached'))).toContain('spending limit');
+    expect(providerFailureReason({ status: 403, message: 'The internal AI spending limit is reached. No paid request was sent.' })).toContain('spending limit');
     expect(providerFailureReason(new Error('timeout'))).toContain('timed out');
   });
 });
