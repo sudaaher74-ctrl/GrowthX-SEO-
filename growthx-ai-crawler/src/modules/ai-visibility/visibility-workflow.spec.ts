@@ -453,7 +453,7 @@ describe("durable visibility workflow", () => {
     expect(h.router.generate).toHaveBeenCalledTimes(3);
     const correction = h.router.generate.mock.calls[1][0];
     expect(correction.prompt).toContain("Question 3:");
-    expect(correction.prompt).toContain("Recheck ALL ten questions");
+    expect(correction.prompt).toContain("Recheck ALL 10 questions");
     expect(correction.provider).toBe(AiProvider.GEMINI);
     expect(correction.allowFallback).toBe(false);
   });
