@@ -128,6 +128,7 @@ export function EvidenceLinks({
 
 export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
   const [filter, setFilter] = useState("ALL");
+  const [showAll, setShowAll] = useState(false);
   const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
   const measured = data.answers.filter((a) => !a.errorMessage && a.analysis);
   const mentions = measured.filter((a) => a.analysis?.brandMentioned).length;
@@ -169,25 +170,18 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
         subtitle="Saved API answers to your reviewed buyer questions. Consumer apps and Google AI Overviews are not measured here."
         padded
       >
-        <div className="mb-4 flex flex-wrap gap-2">
-          {["ALL", ...assistants].map((p) => (
-            <ActionButton
-              key={p}
-              aria-pressed={filter === p}
-              variant={filter === p ? "primary" : "secondary"}
-              onClick={() => setFilter(p)}
-            >
-              {p === "ALL" ? "All answers" : providerName(p)}
-            </ActionButton>
-          ))}
-        </div>
+        <label className="mb-4 flex flex-wrap items-center gap-3 text-xs text-brand-600">Assistant
+          <select aria-label="Filter answers by assistant" value={filter} onChange={(e) => {setFilter(e.target.value); setShowAll(false);}} className="rounded-lg border bg-white px-3 py-2 text-sm text-brand-950">
+            {["ALL", ...assistants].map((p) => <option key={p} value={p}>{p === "ALL" ? "All assistants" : providerName(p)}</option>)}
+          </select><span>{visible.length} saved answer{visible.length === 1 ? "" : "s"}</span>
+        </label>
         <QueryState
           isEmpty={!visible.length}
           emptyTitle="No answers saved yet"
           emptyBody="Review the buyer questions and start the checks. Answers appear here as they are saved."
         >
           <div className="divide-y">
-            {visible.map((a) => (
+            {(showAll ? visible : visible.slice(0, 5)).map((a) => (
               <article key={a.id} className="space-y-3 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill>{providerName(a.provider)}</Pill>
@@ -247,10 +241,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                   </details>
                 )}
                 {!!a.citations.length && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-brand-500">
-                      Links included in the answer (not independently verified)
-                    </p>
+                  <details className="space-y-1"><summary className="cursor-pointer text-xs text-brand-500">Sources in this answer ({a.citations.length}) · not independently verified</summary>
                     {a.citations.map(
                       (c) =>
                         safeUrl(c.url) && (
@@ -265,11 +256,12 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                           </a>
                         ),
                     )}
-                  </div>
+                  </details>
                 )}
               </article>
             ))}
           </div>
+          {visible.length > 5 && <ActionButton onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer answers" : `Show all ${visible.length} answers`}</ActionButton>}
         </QueryState>
       </Panel>
     </div>

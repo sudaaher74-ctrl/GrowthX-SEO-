@@ -4,356 +4,112 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Check,
-  Database,
-  MapPin,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, Database, RefreshCw, Sparkles } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { visibilityJourneyApi } from "@/lib/api-client";
-import {
-  journeyRunning,
-  providerName,
-  type VisibilityBrief,
-  type VisibilityContext,
-} from "@/lib/visibility-workflow";
-import {
-  ActionButton,
-  PageHeader,
-  Panel,
-  Pill,
-  StatusNote,
-  Tabs,
-  Table,
-  Th,
-  Tr,
-  Td,
-} from "@/components/ui/console";
+import { journeyRunning, providerName, type VisibilityBrief, type VisibilityContext } from "@/lib/visibility-workflow";
+import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
-import {
-  EvidenceLinks,
-  AnswerResults,
-  GapResults,
-  ActionPlan,
-} from "./visibility-journey-results";
+import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibility-journey-results";
 
-const TABS = [
-  { id: "overview", label: "1. Business & evidence" },
-  { id: "questions", label: "2. Buyer questions" },
-  { id: "answers", label: "3. AI answers" },
-  { id: "competitors", label: "4. Competitor gaps" },
-  { id: "recommendations", label: "5. Lead action plan" },
+const STEPS = [
+  { id: "review", label: "1. Review questions" },
+  { id: "results", label: "2. See results" },
+  { id: "plan", label: "3. Take action" },
 ];
 const ALIASES: Record<string, string> = {
-  insights: "recommendations",
-  gaps: "competitors",
-  citations: "answers",
-  sandbox: "questions",
+  overview: "review", questions: "review", prompts: "review", sandbox: "review", settings: "review", unified: "review",
+  answers: "results", citations: "results", models: "results", history: "results", competitors: "results", "competitor-intelligence": "results", "competitor-comparison": "results",
+  recommendations: "plan", insights: "plan", actions: "plan", gaps: "plan", "root-cause": "plan", "root-cause-analysis": "plan",
 };
 
 export function VisibilityJourneyPage() {
   const workspace = useWorkspace();
-  return (
-    <QueryState
-      isLoading={workspace.isLoading}
-      error={workspace.error}
-      isEmpty={!workspace.projectId}
-      emptyTitle="Choose a business"
-      emptyBody="Select a workspace to build its AI Visibility plan."
-    >
-      {workspace.projectId && (
-        <Journey key={workspace.projectId} projectId={workspace.projectId} />
-      )}
-    </QueryState>
-  );
+  return <QueryState isLoading={workspace.isLoading} error={workspace.error} isEmpty={!workspace.projectId} emptyTitle="Choose a business" emptyBody="Select a workspace to check its AI visibility.">
+    {workspace.projectId && <Journey key={workspace.projectId} projectId={workspace.projectId} />}
+  </QueryState>;
 }
 
 function Journey({ projectId }: { projectId: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const requested = params.get("tab") || "overview";
-  const tab =
-    ALIASES[requested] ||
-    (TABS.some((t) => t.id === requested) ? requested : "overview");
-  const setTab = (value: string) =>
-    router.replace(`/ai-visibility/journey?tab=${value}`, { scroll: false });
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
-  const query = useQuery({
-    queryKey: key,
-    queryFn: () => visibilityJourneyApi.read(projectId),
-    retry: false,
-    refetchInterval: (q) =>
-      journeyRunning(q.state.data?.journey?.status) ? 4000 : false,
-  });
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
-  const prepare = useMutation({
-    mutationFn: () => visibilityJourneyApi.prepare(projectId),
-    retry: false,
-    onSuccess: () => {
-      void refresh();
-      setTab("overview");
-    },
-    onError: () => {
-      void refresh();
-    },
-  });
-  const check = useMutation({
-    mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) =>
-      visibilityJourneyApi.check(projectId, id, brief),
-    retry: false,
-    onSuccess: () => {
-      void refresh();
-      setTab("answers");
-    },
-    onError: () => {
-      void refresh();
-    },
-  });
+  const query = useQuery({ queryKey: key, queryFn: () => visibilityJourneyApi.read(projectId), retry: false,
+    refetchInterval: (q) => journeyRunning(q.state.data?.journey?.status) ? 4000 : false });
   const data = query.data;
   const run = data?.journey;
-  const busy =
-    journeyRunning(run?.status) || prepare.isPending || check.isPending;
+  const requested = params.get("tab");
+  const tab = requested ? ALIASES[requested] || (STEPS.some((s) => s.id === requested) ? requested : "review") : run?.scanId ? "results" : "review";
+  const setTab = (value: string) => router.replace(`/ai-visibility?tab=${value}`, { scroll: false });
+  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const prepare = useMutation({ mutationFn: () => visibilityJourneyApi.prepare(projectId), retry: false,
+    onSuccess: () => { void refresh(); setTab("review"); }, onError: () => { void refresh(); } });
+  const check = useMutation({ mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) => visibilityJourneyApi.check(projectId, id, brief), retry: false,
+    onSuccess: () => { void refresh(); setTab("results"); }, onError: () => { void refresh(); } });
+  const busy = journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
   const error = prepare.error || check.error;
+  const hasPlan = Boolean(run?.analysis?.length);
 
-  return (
-    <div className="space-y-5 pb-12">
-      <PageHeader
-        title="AI Visibility"
-        subtitle="Turn what we know about your business into questions buyers ask — and a plan to earn their next enquiry."
-        actions={
-          <>
-            <ActionButton
-              disabled={busy || !configured.length || query.isLoading}
-              variant="primary"
-              icon={<Sparkles size={14} />}
-              onClick={() => prepare.mutate()}
-            >
-              {run ? "Refresh business & questions" : "Understand my business"}
-            </ActionButton>
-            <ActionButton
-              aria-label="Refresh AI Visibility status"
-              icon={<RefreshCw size={14} />}
-              onClick={() => void refresh()}
-            >
-              Refresh
-            </ActionButton>
-          </>
-        }
-      />
-      <QueryState isLoading={query.isLoading} error={query.error}>
-        {error && <StatusNote tone="bad">{error.message}</StatusNote>}
-        {data && !configured.length && (
-          <StatusNote tone="bad">
-            No monitoring model is configured. Add provider access in the
-            server settings to begin.
-          </StatusNote>
-        )}
-        {data && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-brand-500">
-            {data.providers.map((p) => (
-              <Pill key={p.provider} tone={p.configured && !p.unavailableReason ? "good" : "warn"}>
-                {providerName(p.provider)} ·{" "}
-                {p.unavailableReason || (p.configured ? p.model || "Configured" : "Not configured")}
-              </Pill>
-            ))}
-            <span>
-              Website + Google data + competitors → reviewed buyer questions → AI
-              answers → your plan
-            </span>
-          </div>
-        )}
-        {!run && (
-          <Panel padded>
-            <div className="mx-auto max-w-2xl py-10 text-center">
-              <Sparkles className="mx-auto mb-4 text-primary-600" size={32} />
-              <h2 className="text-xl font-semibold text-brand-950">
-                Start with the business behind the website
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-brand-600">
-                AI analysis uses your saved audit, search demand, visitor
-                locations and competitor evidence. Then review ten questions
-                tailored to your products and service areas before checking who
-                AI recommends.
-              </p>
-              <p className="mt-3 text-xs text-brand-500">
-                Uses your saved data and AI credits. Missing sources will be
-                identified so you can connect them.
-              </p>
-            </div>
+  return <div className="space-y-5 pb-12">
+    <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
+      {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Sparkles size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
+      <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
+    </>} />
+    <QueryState isLoading={query.isLoading} error={query.error}>
+      {error && <StatusNote tone="bad">{error.message}</StatusNote>}
+      {data && !configured.length && <StatusNote tone="bad">AI checks are temporarily unavailable. Please contact support.</StatusNote>}
+      <Tabs tabs={STEPS} active={tab} onChange={setTab} />
+      {!run && <Panel padded>
+        <div className="mx-auto max-w-xl space-y-4 py-8 text-center">
+          <Sparkles className="mx-auto text-primary-600" size={28} />
+          <h2 className="text-xl font-semibold text-brand-950">See your business through your buyers’ questions</h2>
+          <p className="text-sm leading-6 text-brand-600">We use your website audit to draft relevant questions. You review them, we ask the available AI assistants, and you get real answers with a practical action plan.</p>
+          <ActionButton variant="primary" disabled={busy || !configured.length || query.isLoading} onClick={() => prepare.mutate()}>{prepare.isPending ? "Preparing your questions…" : "Prepare my questions"}</ActionButton>
+          <p className="text-xs text-brand-500">Your Website Audit is the starting point. Connected Google data and audited competitors add context.</p>
+        </div>
+      </Panel>}
+      {run && <>
+        {busy && <Panel padded><div role="status" aria-live="polite" className="space-y-3">
+          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.status === "PREPARING" || (run.phase === "PREPARE" && run.status === "QUEUED") ? "Understanding your business and preparing questions" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer questions` : "Analysing saved answers and preparing your action plan"}</span><span>{run.progress}%</span></div>
+          <progress aria-label="AI Visibility progress" max={100} value={run.progress} className="h-2 w-full accent-primary-600" />
+          <p className="text-xs text-brand-500">Progress is saved. You can leave and return without starting again.</p>
+        </div></Panel>}
+        {run.status === "FAILED" && <StatusNote tone="bad">This analysis needs attention. Open Analysis details below to see what happened and retry.</StatusNote>}
+        {tab === "review" && <>
+          <Panel title={run.scanId ? "Questions used in this analysis" : "Review before you run"} subtitle={run.scanId ? "These questions are saved with the answers. Start a new analysis to change them." : "Check your products, service areas and buyer questions. Then confirm to start the AI checks."} padded>
+            {run.brief ? <><p className="font-semibold text-brand-950">{run.brief.businessName}</p><p className="mt-2 text-sm leading-6 text-brand-600">{run.brief.summary}</p>{run.scanId && <ActionButton className="mt-4" onClick={() => setTab("results")} icon={<ArrowRight size={14} />}>View saved results</ActionButton>}</> : <p className="text-sm text-brand-500">{busy ? "Your business details and questions will appear here when ready." : "Complete your Website Audit, then start a new analysis."}</p>}
           </Panel>
-        )}
-        {run && (
-          <>
-            {busy && (
-              <Panel padded>
-                <div role="status" aria-live="polite" className="space-y-3">
-                  <div className="flex justify-between gap-3 text-sm">
-                    <span className="font-semibold text-brand-950">
-                      {run.status === "QUEUED"
-                        ? "Waiting for the background worker"
-                        : run.status === "PREPARING"
-                          ? "Understanding your business and drafting questions"
-                          : run.status === "CHECKING"
-                            ? `Asking ${assistantNames} your buyer questions`
-                            : "Comparing answers and building your action plan"}
-                    </span>
-                    <span>{run.progress}%</span>
-                  </div>
-                  <progress
-                    aria-label="AI Visibility progress"
-                    max={100}
-                    value={run.progress}
-                    className="h-2 w-full accent-primary-600"
-                  />
-                  <p className="text-xs text-brand-500">
-                    Your progress is saved. You can leave this page and return.
-                  </p>
-                </div>
-              </Panel>
-            )}
-            {run.errors.length > 0 && (
-              <Panel
-                title={
-                  run.status === "FAILED"
-                    ? "This run needs attention"
-                    : "Coverage notes"
-                }
-                padded
-              >
-                <ul className="list-disc space-y-1 pl-4 text-xs text-brand-600">
-                  {run.errors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-                {["PARTIAL", "FAILED"].includes(run.status) && run.brief && (
-                  <ActionButton
-                    className="mt-3"
-                    disabled={busy}
-                    onClick={() => check.mutate({ id: run.id })}
-                  >
-                    Retry unfinished checks
-                  </ActionButton>
-                )}
-              </Panel>
-            )}
-            {run.context && <SourceCards context={run.context} />}
-            <Tabs tabs={TABS} active={tab} onChange={setTab} />
-            {tab === "overview" && (
-              <>
-                {run.brief ? (
-                  <Panel
-                    title="What we understand about your business"
-                    padded
-                    actions={
-                      <ActionButton
-                        onClick={() => setTab("questions")}
-                        icon={<ArrowRight size={13} />}
-                      >
-                        Review {run.brief.questions.length} questions
-                      </ActionButton>
-                    }
-                  >
-                    <h3 className="text-xl font-semibold text-brand-950">
-                      {run.brief.businessName}
-                    </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-brand-600">
-                      {run.brief.summary}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {run.brief.offerings.map((o) => (
-                        <Pill key={o}>{o}</Pill>
-                      ))}
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-brand-600">
-                      <MapPin size={15} />
-                      {run.brief.locations.join(" · ") ||
-                        "No local service areas identified; review before checking."}
-                    </div>
-                    <p className="mt-3 text-xs text-brand-500">
-                      {run.brief.reviewed
-                        ? "Business and question set reviewed for this run."
-                        : "AI interpretation from saved evidence. Confirm offerings and service areas in Buyer questions."}
-                    </p>
-                    {run.brief.analysts.map((a) => (
-                      <details key={a.provider} className="mt-4 border-t pt-3">
-                        <summary className="cursor-pointer text-xs font-semibold text-brand-700">
-                          {providerName(a.provider)} business assessment ·{" "}
-                          {a.model}
-                        </summary>
-                        <p className="mt-2 whitespace-pre-line text-sm text-brand-600">
-                          {a.summary}
-                        </p>
-                      </details>
-                    ))}
-                  </Panel>
-                ) : (
-                  !busy && (
-                    <QueryState
-                      isEmpty
-                      emptyTitle="Business context is not ready"
-                      emptyBody="Complete the Website Audit, then refresh business and questions."
-                    />
-                  )
-                )}
-                {run.context && (
-                  <>
-                    <LocalDemand
-                      context={run.context}
-                      locations={run.brief?.locations ?? []}
-                    />
-                    <Panel title="Evidence and limits" padded>
-                      <p className="mb-3 text-xs text-brand-500">
-                        Snapshot created{" "}
-                        {new Date(run.context.gatheredAt).toLocaleString()}.
-                        Refresh business and questions after updating source
-                        data.
-                      </p>
-                      <ul className="list-disc space-y-1 pl-4 text-xs text-brand-600">
-                        {run.context.limitations.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ul>
-                      <EvidenceLinks
-                        ids={run.context.facts.map((f) => f.id)}
-                        context={run.context}
-                        answers={data?.answers ?? []}
-                      />
-                    </Panel>
-                  </>
-                )}
-              </>
-            )}
-            {tab === "questions" &&
-              (run.brief ? (
-                <QuestionReview
-                  key={`${run.id}-${run.updatedAt}`}
-                  brief={run.brief}
-                  locked={busy || !!run.scanId}
-                  checks={configured.length * run.brief.questions.length}
-                  pending={check.isPending}
-                  onRun={(brief) => check.mutate({ id: run.id, brief })}
-                />
-              ) : (
-                <QueryState
-                  isEmpty
-                  emptyTitle="Questions are not ready yet"
-                  emptyBody="Start by understanding your business from the saved sources."
-                />
-              ))}
-            {tab === "answers" && data && <AnswerResults data={data} />}
-            {tab === "competitors" && data && <GapResults data={data} />}
-            {tab === "recommendations" && data && <ActionPlan data={data} />}
-          </>
-        )}
-      </QueryState>
-    </div>
-  );
+          {run.brief && <QuestionReview key={`${run.id}-${run.updatedAt}`} brief={run.brief} locked={busy || !!run.scanId} checks={configured.length * run.brief.questions.length} pending={check.isPending} onRun={(brief) => check.mutate({ id: run.id, brief })} />}
+        </>}
+        {tab === "results" && data && <>
+          <Panel padded title="Do AI assistants recommend your business?" subtitle="Read the actual answers, compare assistants, and see where your business appears." actions={<ActionButton variant="primary" disabled={!hasPlan} onClick={() => setTab("plan")} icon={<ArrowRight size={14} />}>View action plan</ActionButton>}>
+            <p className="text-xs text-brand-500">{run.brief?.questions.length ?? 0} buyer questions · {assistantNames || "No available assistants"} · {busy ? "Analysis in progress" : "Saved analysis"}</p>
+          </Panel>
+          <AnswerResults data={data} />
+          <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-semibold text-brand-950">Compare competitors mentioned in the answers</summary><div className="mt-4"><GapResults data={data} /></div></details>
+          {!run.scanId && <ActionButton onClick={() => setTab("review")}>Review questions to begin</ActionButton>}
+        </>}
+        {tab === "plan" && data && <>
+          <Panel padded title="Your next steps" subtitle="Prioritized actions based on your website evidence and the AI answers we saved."><p className="text-xs text-brand-500">Review the supporting evidence for each action. Changes can be prepared in Fix Engine.</p></Panel>
+          <ActionPlan data={data} />
+          <ActionButton onClick={() => setTab(hasPlan ? "results" : "review")}>{hasPlan ? "Back to results" : "Review questions to begin"}</ActionButton>
+        </>}
+        <details className="rounded-xl border p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-brand-700">Analysis details{run.errors.length ? ` · ${run.errors.length} coverage note${run.errors.length === 1 ? "" : "s"}` : " · sources and assistants"}</summary>
+          <div className="mt-4 space-y-4">
+            <p className="text-xs text-brand-500">Saved {new Date(run.createdAt).toLocaleString()}. API answers do not measure consumer apps or Google AI Overviews.</p>
+            <div className="flex flex-wrap gap-2">{data?.providers.map((p) => <Pill key={p.provider} tone={p.configured && !p.unavailableReason ? "good" : "warn"}>{providerName(p.provider)} · {p.unavailableReason || (p.configured ? p.model : "Not connected")}</Pill>)}</div>
+            {run.errors.length > 0 && <ul className="list-disc space-y-1 pl-4 text-xs text-brand-600">{run.errors.map((e,i) => <li key={i}>{e}</li>)}</ul>}
+            {["PARTIAL", "FAILED"].includes(run.status) && run.brief && <ActionButton disabled={busy} onClick={() => check.mutate({id:run.id})}>Retry unfinished checks</ActionButton>}
+            {run.context && <><SourceCards context={run.context} /><LocalDemand context={run.context} locations={run.brief?.locations ?? []} /><ul className="list-disc space-y-1 pl-4 text-xs text-brand-500">{run.context.limitations.map((s,i)=><li key={i}>{s}</li>)}</ul><EvidenceLinks ids={run.context.facts.map((f)=>f.id)} context={run.context} answers={data?.answers ?? []} /></>}
+          </div>
+        </details>
+      </>}
+    </QueryState>
+  </div>;
 }
 
 function SourceCards({ context }: { context: VisibilityContext }) {
@@ -470,6 +226,7 @@ function QuestionReview({
   onRun: (brief: VisibilityBrief) => void;
 }) {
   const [draft, setDraft] = useState(brief);
+  const [showAll, setShowAll] = useState(false);
   const input =
     "w-full rounded-lg border bg-white px-3 py-2 text-sm text-brand-950 disabled:bg-brand-50";
   const changeQuestion = (
@@ -485,7 +242,9 @@ function QuestionReview({
     }));
   return (
     <div className="space-y-4">
-      <Panel
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-brand-700">Business details · edit products and service areas</summary>
+      <div className="mt-4"><Panel
         title="Confirm your business and service areas"
         subtitle="These details guide the plan. Buyer questions are asked independently, without supplying your brand."
         padded
@@ -534,13 +293,15 @@ function QuestionReview({
             />
           </label>
         </div>
-      </Panel>
+      </Panel></div>
+      </details>
       <Panel
         title={`${draft.questions.length} questions a real buyer would ask`}
-        subtitle="Use specific products and locations. Keep your brand name out of the question."
+        subtitle="Review the questions below. You can edit the wording before starting."
+        actions={!locked && <ActionButton variant="primary" disabled={pending || !checks} onClick={() => onRun(draft)}>Confirm & check {draft.questions.length} questions</ActionButton>}
       >
         <ol className="divide-y">
-          {draft.questions.map((q, index) => (
+          {(showAll ? draft.questions : draft.questions.slice(0, 5)).map((q, index) => (
             <li key={index} className="space-y-3 p-4">
               <div className="flex gap-3">
                 <span className="mt-2 font-mono text-xs text-brand-400">
@@ -557,12 +318,11 @@ function QuestionReview({
                       changeQuestion(index, "text", e.target.value)
                     }
                   />
-                  <p className="mt-1 text-xs leading-5 text-brand-500">
-                    {q.rationale}
-                  </p>
                 </div>
               </div>
-              <div className="ml-7 flex flex-wrap items-center gap-2">
+              <details className="ml-7 text-xs text-brand-500"><summary className="cursor-pointer">{q.offering}{q.location ? ` · ${q.location}` : ""} · Edit details</summary>
+              <p className="mt-2 leading-5">{q.rationale}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <select
                   aria-label={`Offering for question ${index + 1}`}
                   className="rounded border p-1.5 text-xs"
@@ -596,24 +356,17 @@ function QuestionReview({
                 </select>
                 <Pill>{q.intent}</Pill>
               </div>
+              </details>
             </li>
           ))}
         </ol>
+        {draft.questions.length > 5 && <div className="border-t p-4"><ActionButton onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer questions" : `Show all ${draft.questions.length} questions`}</ActionButton></div>}
         {!locked && (
           <div className="space-y-3 border-t p-4">
             <p className="text-xs text-brand-500">
-              Runs {checks} provider answers, then analyses the results to
-              create a plan. Uses AI credits. Verify the service areas and
-              questions before starting.
+              We will collect {checks} AI answers and create your action plan.
+              Questions are asked without supplying your business name.
             </p>
-            <ActionButton
-              variant="primary"
-              disabled={pending || !checks}
-              icon={<ArrowRight size={14} />}
-              onClick={() => onRun(draft)}
-            >
-              Confirm & check {draft.questions.length} questions
-            </ActionButton>
           </div>
         )}
       </Panel>

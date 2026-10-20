@@ -164,9 +164,10 @@ test("reviews local questions before checking and preserves missing-source truth
   await page.goto("/ai-visibility/journey");
   await expect(
     page.getByRole("heading", {
-      name: "What we understand about your business",
+      name: "Review before you run",
     }),
   ).toBeVisible();
+  await page.getByText("Analysis details", {exact:false}).click();
   await expect(
     page.getByText("Lead measurement is unknown", { exact: false }),
   ).toBeVisible();
@@ -176,7 +177,7 @@ test("reviews local questions before checking and preserves missing-source truth
   await expect(
     page.getByText("Connect and sync Search Console.", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "2. Buyer questions" }).click();
+  await page.getByRole("button", {name:"Show all 20 questions"}).click();
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
   ).toHaveCount(20);
@@ -196,7 +197,7 @@ test("reviews local questions before checking and preserves missing-source truth
     "Asking Gemini and OpenAI",
   );
   await expect(
-    page.getByRole("button", { name: "Refresh business & questions" }),
+    page.getByRole("button", { name: "Start a new analysis" }),
   ).toBeDisabled();
 });
 
@@ -266,13 +267,13 @@ test("shows measured results, failed checks, competitor evidence and action plan
   await expect(page.getByText("Not mentioned", { exact: true })).toBeVisible();
   await expect(page.getByText("Check failed", { exact: true })).toBeVisible();
   await expect(page.getByText("0 / 1", { exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "OpenAI", exact: true }).click();
+  await page.getByRole("combobox", {name:"Filter answers by assistant"}).selectOption("OPENAI");
   await expect(page.getByText("Not mentioned", { exact: true })).toHaveCount(0);
-  await page.getByRole("tab", { name: "4. Competitor gaps" }).click();
+  await page.getByText("Compare competitors mentioned in the answers",{exact:true}).click();
   await expect(
     page.getByText("Possible explanation:", { exact: false }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "5. Lead action plan" }).click();
+  await page.getByRole("tab", { name: "3. Take action" }).click();
   await expect(
     page.getByRole("heading", { name: "Create a Panvel delivery page" }),
   ).toBeVisible();
@@ -292,6 +293,7 @@ test("keeps the review usable on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, fixture());
   await page.goto("/ai-visibility/journey?tab=questions");
+  await page.getByRole("button",{name:"Show all 20 questions"}).click();
   await expect(
     page.getByRole("textbox", { name: "Buyer question 10", exact: true }),
   ).toBeVisible();
