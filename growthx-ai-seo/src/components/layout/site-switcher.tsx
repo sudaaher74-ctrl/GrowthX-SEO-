@@ -31,6 +31,13 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
       // the project for it and begins reading the site. A bare project with no
       // website behind it leaves every audit page empty.
       const run = await api.autopilot.start(domain, null);
+      // Register the returned project before selecting it. Otherwise the still
+      // cached directory rejects the new ID and switches back to its first site.
+      queryClient.setQueryData<{ id: string; name: string }[]>(["projects", orgId], (current = []) =>
+        current.some((project) => project.id === run.projectId)
+          ? current
+          : [...current, { id: run.projectId, name: domain.replace(/^https?:\/\//, "").replace(/\/$/, "") }],
+      );
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
       queryClient.setQueryData(["autopilot", run.projectId], run);

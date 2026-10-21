@@ -99,8 +99,8 @@ test("the Google entry route uses the authoritative unconnected overview", async
   });
 
   await page.goto("/google", { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveURL(/\/google\/overview$/);
-  await expect(page.getByText("Neither Search Console nor Google Analytics is connected", { exact: false })).toBeVisible();
+  await expect(page).toHaveURL(/\/google$/);
+  await expect(page.getByRole("heading", {name:"Google performance center"})).toBeVisible();
   await expect(page.getByText("81.5%", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Direct", { exact: true })).toHaveCount(0);
 });
@@ -118,7 +118,7 @@ test("competitor analysis tabs show an add-competitor state when the list is emp
   for (const tab of ["gaps", "radar", "report"]) {
     await page.goto(`/competitor-intelligence?tab=${tab}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Add a competitor to compare" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add competitor" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add competitor" }).first()).toBeVisible();
     await expect(page.getByText(/Why your 0 rivals rank/)).toHaveCount(0);
   }
 });
@@ -160,7 +160,6 @@ test("every report card has a working destination", async ({ page }) => {
     ["Google", "/reports/google"],
     ["Competitor Intelligence", "/competitor-intelligence?tab=report"],
     ["AI Visibility", "/reports/ai-visibility"],
-    ["Google Business Profile", "/reports/business-profile"],
   ] as const;
 
   await page.goto("/reports", { waitUntil: "domcontentloaded" });

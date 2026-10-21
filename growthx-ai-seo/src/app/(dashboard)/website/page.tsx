@@ -380,13 +380,14 @@ function WebsiteAuditClient() {
       )}
 
       {/* Main Tab View Router with Real Query State */}
+      {crawlInProgress && <div role="status"><StatusNote>Reading your website: {totalPages.toLocaleString()} URLs audited so far. Results update as the crawl finishes; you can leave and return.</StatusNote></div>}
       <QueryState
         isLoading={
           portfolio.isLoading ||
           (Boolean(client?.domain) &&
             (crawl.isLoading || pages.isLoading || issues.isLoading || issueCounts.isLoading))
         }
-        error={portfolio.error || crawl.error}
+        error={portfolio.error || crawl.error || pages.error || issues.error || issueCounts.error}
         isEmpty={!client?.domain}
         emptyTitle={queryDomain ? "Website not found in this workspace" : "No website registered"}
         emptyBody={queryDomain ? "Choose a website from your workspace to view its audit." : "This workspace has no website attached yet. Add one from the dashboard and we will read it and build your audit."}
@@ -399,6 +400,9 @@ function WebsiteAuditClient() {
           </Link>
         }
       >
+        {qualityDiagnostics?.crawlStatus && qualityDiagnostics.crawlStatus !== "COMPLETED" && (
+          <StatusNote>This is a partial website audit. The findings cover the URLs successfully audited, not every page on the website.</StatusNote>
+        )}
         {totalPages > allPages.length && (
           <StatusNote>Loaded {allPages.length.toLocaleString()} of {totalPages.toLocaleString()} crawled pages. Page details and breakdowns use this sample; the crawl total covers the whole job.</StatusNote>
         )}

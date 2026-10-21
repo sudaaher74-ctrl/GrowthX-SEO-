@@ -146,6 +146,7 @@ async function setup(
     if (path === `${endpoint}/run_test/check`) {
       onCheck?.(req.postDataJSON());
       data.journey!.status = "CHECKING";
+      data.journey!.phase = "CHECK";
       data.journey!.progress = 30;
       return json({ id: "run_test", status: "QUEUED" });
     }

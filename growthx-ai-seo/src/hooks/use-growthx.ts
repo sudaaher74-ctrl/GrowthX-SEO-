@@ -79,6 +79,7 @@ export function setActiveProject(id: string) {
  * caches the ids locally instead of every page re-deriving them.
  */
 export function useWorkspace() {
+  const workspaceQueries = useQueryClient();
   const storedOrgId = useSyncExternalStore(
     subscribeToOrgChange,
     () => auth.getOrgId(),
@@ -123,17 +124,26 @@ export function useWorkspace() {
 
   const projectList = projects.data ?? [];
   const isStoredProjectValid = projectList.some((p) => p.id === storedProjectId);
-  const projectId = projects.isSuccess
-    ? (isStoredProjectValid ? storedProjectId : (projectList[0]?.id ?? null))
-    : storedProjectId;
+  // Another tab may have just created this project. A cached directory cannot
+  // prove the selected ID was deleted; keep it while verifying with the server.
+  const projectId = storedProjectId || (projects.isSuccess ? projectList[0]?.id ?? null : null);
 
   useEffect(() => {
+    if (storedProjectId && projects.isSuccess && !isStoredProjectValid && orgId) {
+      let stale = false;
+      void api.listProjects(orgId).then((fresh) => {
+        if (stale || auth.getProjectId() !== storedProjectId) return;
+        workspaceQueries.setQueryData(["projects", orgId], fresh);
+        if (!fresh.some((project) => project.id === storedProjectId)) setActiveProject(fresh[0]?.id ?? "");
+      }).catch(() => {}); // Preserve selection when the directory cannot be checked.
+      return () => { stale = true; };
+    }
     if (projectId && projectId !== auth.getProjectId()) {
       setActiveProject(projectId);
     } else if (!projectId && auth.getProjectId() && projects.isSuccess) {
       setActiveProject("");
     }
-  }, [projectId, projects.isSuccess]);
+  }, [projectId, storedProjectId, projects.isSuccess, isStoredProjectValid, orgId, workspaceQueries]);
 
   return {
     orgId,

@@ -13,7 +13,7 @@
 import { test, expect, type Route } from "@playwright/test";
 
 test.describe("Google sign-in callback", () => {
-  test("successful exchange stores tokens and redirects to dashboard", async ({ page }) => {
+  test("successful exchange marks a cookie session and redirects to dashboard", async ({ page }) => {
     let exchangeCalled = false;
     let exchangedCode: string | null = null;
 
@@ -65,7 +65,8 @@ test.describe("Google sign-in callback", () => {
     const storedToken = await page.evaluate(() => window.localStorage.getItem("growthx.token"));
     const storedOrg = await page.evaluate(() => window.localStorage.getItem("growthx.org"));
 
-    expect(storedToken).toBe("jwt-test-access-token");
+    expect(storedToken).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem("growthx.session"))).toBe("1");
     expect(storedOrg).toBe("org_test_123");
   });
 

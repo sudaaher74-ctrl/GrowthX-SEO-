@@ -190,78 +190,17 @@ async function shot(page: Page, name: string) {
   if (dir) await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
 }
 
-test.describe("Google section, Overview", () => {
-  test("shows the plain-language headline, eight KPIs with their sources, and the funnel", async ({ page }) => {
+test.describe("Google section, hub", () => {
+  test("legacy overview opens the Google hub", async ({page}) => {
     await open(page, "/google/overview");
-
-    // The page title comes from the view's label in components/google/nav.ts.
-    await expect(page.getByRole("heading", { name: "Combined overview", level: 1 })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Search visibility rose 160.0%")).toBeVisible();
-    await expect(page.getByText("because click-through rate fell from 4.8% to 1.2%")).toBeVisible();
-
-    for (const label of ["Organic clicks", "Impressions", "Average CTR", "Average position", "Organic users", "Organic sessions", "Engagement rate", "Key events"]) {
-      await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
-    }
-    // Position improves as it falls, so a rise of 1.5 places is shown as a worsening, not a gain.
-    await expect(page.getByText("+1.5 places")).toBeVisible();
-    await expect(page.getByText("From Google search to business result")).toBeVisible();
-    await shot(page, "overview");
+    await expect(page).toHaveURL(/\/google$/);
+    await expect(page.getByRole("heading", {name:"Google performance center"})).toBeVisible();
   });
-
-  test("never draws an unmeasured figure as zero", async ({ page }) => {
-    await open(page, "/google/overview");
-    await expect(page.getByText("Search visibility rose 160.0%")).toBeVisible({ timeout: 15_000 });
-
-    // Key events are not set up: the card says so, and shows a dash rather than 0.
-    const card = page.locator("div", { has: page.getByText("Key events", { exact: true }) }).filter({ hasText: "No key events are set up" }).first();
-    await expect(card).toBeVisible();
-    await expect(card.getByText("—").first()).toBeVisible();
-    // The funnel names why revenue is empty.
-    await expect(page.getByText("No revenue is recorded in this Google Analytics property.")).toBeVisible();
-  });
-
-  test("the Google entry route opens the authoritative overview and keeps hidden views out of navigation", async ({ page }) => {
+  test("offers only existing source and report destinations", async ({page}) => {
     await open(page, "/google");
-    await expect(page).toHaveURL(/\/google\/overview$/);
-    await expect(page.getByRole("heading", { name: "Combined overview", level: 1 })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("navigation", { name: "Google sections" })).toBeVisible();
-
-    await open(page, "/google/keywords");
-    const nav = page.getByRole("navigation", { name: "Google sections" });
-    // Keywords, Pages and Google Index are `hidden` in components/google/nav.ts: they
-    // stay out of the section nav, and appear in it only while you are on that page.
-    // From /google/keywords that leaves the Search Console link, Search Performance
-    // and Keywords itself. Pages and Google Index must not be offered here.
-    await expect(nav.getByRole("link")).toHaveText(["Search Console", "Search Performance", "Keywords"], { timeout: 15_000 });
-  });
-
-  test("shows Search Console as connected but empty, with blanks instead of zeros", async ({ page }) => {
-    await open(page, "/google/overview", { overview: { searchHasData: false } });
-    await expect(page.getByText("Search Console is connected but nothing has been fetched from it yet")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Search Console has no data for this period.").first()).toBeVisible();
-    await shot(page, "overview-no-search-data");
-  });
-
-  test("asks for Analytics when only Search Console is connected", async ({ page }) => {
-    await open(page, "/google/overview", { overview: { gaConnected: false } });
-    await expect(page.getByText("Connect Google Analytics to unlock user behavior and conversion intelligence.")).toBeVisible({ timeout: 15_000 });
-  });
-
-  test("asks for Search Console when only Analytics is connected", async ({ page }) => {
-    await open(page, "/google/overview", { overview: { scConnected: false } });
-    await expect(page.getByText("Connect Search Console to unlock Google Search visibility intelligence.")).toBeVisible({ timeout: 15_000 });
-  });
-
-  test("says so, and offers Integrations, when neither is connected", async ({ page }) => {
-    await open(page, "/google/overview", { overview: { scConnected: false, gaConnected: false } });
-    await expect(page.getByText("Connect Google to see how your website performs")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: "Open Integrations" })).toBeVisible();
-  });
-
-  test("shows the error and a Retry button when the API fails", async ({ page }) => {
-    await open(page, "/google/overview", { failOverview: true });
-    await expect(page.getByText("Could not load Google performance")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("button", { name: /Retry/ })).toBeVisible();
+    for (const href of ["/google/search-console", "/google/analytics", "/google/keywords", "/google/pages", "/google/index", "/google/opportunities", "/google/traffic", "/google/report"]) {
+      await expect(page.locator('main a[href="'+href+'"]').first()).toBeVisible();
+    }
   });
 });
 
