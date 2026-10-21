@@ -134,6 +134,48 @@ export function repairBrandedBuyerQuestions(raw: unknown, context: VisibilityCon
   return {...draft, questions};
 }
 
+/** Repair model-invented geography before validation; never promote analytics cities. */
+export function repairUnsupportedServiceAreas(raw: unknown, context: VisibilityContext): unknown {
+  const draft = object(raw);
+  const questions = list(draft.questions);
+  const facts = context.facts.filter(fact => fact.source === 'website');
+  const ownEvidence = facts.map(fact => fact.text).join(' ');
+  const proposed = strings([...list(draft.locations), ...questions.map(q => q?.location)], 100);
+  if (!proposed.some(location => !hasName(ownEvidence, location))) return raw;
+  const locations = proposed.filter(location => hasName(ownEvidence, location));
+  const used = new Set(questions.filter(q => !str(q?.location) || locations.includes(str(q.location)))
+    .map(q => normalized(str(q?.text))));
+  const templates = [
+    'Which providers offer', 'Where can I find', 'How do I compare providers for',
+    'Which companies should I shortlist for', 'Where can I request quotes for',
+    'How can I choose a supplier for', 'Which specialists can help with',
+    'Who provides', 'Which providers should I consider for', 'Where can I book a consultation for',
+    'How do I find reliable providers for', 'Which firms handle',
+    'Who can provide pricing for', 'Where can I compare options for',
+    'Which providers can quote for', 'How do I select a company for',
+    'Where should I look for providers of', 'Who can help me plan',
+    'Which companies can deliver', 'Where can I get proposals for',
+  ];
+  return {...draft, locations, questions:questions.map((question, index) => {
+    const location = str(question?.location);
+    if (!location || locations.includes(location)) return question;
+    const offering = str(question?.offering, 180);
+    const offeringFacts = facts.filter(fact => hasName(fact.text, offering));
+    // Unsupported products remain rejected by strict validation; this is geography repair only.
+    if (!offering || !offeringFacts.length) return question;
+    const area = locations.length ? locations[index % locations.length] : '';
+    const suffix = area ? ` in ${area}` : '';
+    const text = templates.map(template => `${template} ${offering}${suffix}?`)
+      .find(candidate => !used.has(normalized(candidate)));
+    if (!text) return question;
+    used.add(normalized(text));
+    return {...object(question),text,location:area,
+      evidenceIds:strings([...offeringFacts.slice(0,2).map(fact=>fact.id),
+        ...facts.filter(fact=>area && hasName(fact.text,area)).slice(0,1).map(fact=>fact.id)]),
+      rationale:'Website-supported buyer question. An unsupported proposed service area was removed; review the service areas before running checks.'};
+  })};
+}
+
 /** Reject weak, branded or unrelated question sets instead of reporting them as buyer checks. */
 export function normalizeBrief(
   raw: unknown,
