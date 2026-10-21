@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ActionButton, Kpi, Panel, Pill } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
+import { AnswerDocument, FormattedAnswer } from "./formatted-answer";
 import {
   providerName,
   type VisibilityAnswer,
@@ -116,7 +117,7 @@ export function EvidenceLinks({
               {fact ? (
                 <FactValue value={value} />
               ) : (
-                <p className="whitespace-pre-wrap">{answer?.rawResponse}</p>
+                <FormattedAnswer text={answer?.rawResponse || ""} />
               )}
             </div>
           );
@@ -210,20 +211,19 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                             : "Not mentioned"}
                   </Pill>
                 </div>
-                <h3 className="text-sm font-semibold text-brand-950">
+                <h3 className="text-base font-semibold leading-7 text-brand-950">
                   {a.promptText}
                 </h3>
                 {a.errorMessage && (
                   <p className="text-sm text-error-700">{a.errorMessage}</p>
                 )}
                 {!!a.mentions.filter((m) => !m.isCustomer).length && (
-                  <p className="text-xs text-brand-600">
-                    Other brands named:{" "}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-brand-600">
+                    <span>Other brands named:</span>
                     {a.mentions
                       .filter((m) => !m.isCustomer)
-                      .map((m) => m.brandName)
-                      .join(", ")}
-                  </p>
+                      .map((m) => <Pill key={m.brandName}>{m.brandName}</Pill>)}
+                  </div>
                 )}
                 {a.analysis?.parsedJson?.recommendationQuote && (
                   <blockquote className="border-l-2 pl-3 text-sm text-brand-700">
@@ -232,12 +232,10 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                 )}
                 {a.rawResponse && (
                   <details>
-                    <summary className="cursor-pointer text-xs font-semibold text-primary-700">
+                    <summary className="cursor-pointer rounded-sm py-1 text-sm font-semibold text-primary-700 focus-visible:outline-2 focus-visible:outline-offset-4">
                       Read complete answer
                     </summary>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-brand-600">
-                      {a.rawResponse}
-                    </p>
+                    <AnswerDocument text={a.rawResponse} assistant={providerName(a.provider)} />
                   </details>
                 )}
                 {!!a.citations.length && (
