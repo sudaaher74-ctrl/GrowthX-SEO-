@@ -9,6 +9,7 @@ import {
   type VisibilityAnswer,
   type VisibilityContext,
   type VisibilityJourneyResponse,
+  type VisibilityFact,
 } from "@/lib/visibility-workflow";
 
 const safeUrl = (value: string) => {
@@ -21,9 +22,56 @@ const safeUrl = (value: string) => {
 };
 const label = (value: string) =>
   value
-    .replace(/([A-Z])/g, " $1")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
+    .toLowerCase()
     .replace(/^./, (s) => s.toUpperCase());
+
+const objectValue = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+const textValue = (value: unknown) => typeof value === "string" ? value : "";
+function factValue(fact: VisibilityFact): unknown {
+  try { return JSON.parse(fact.text); } catch { return fact.text; }
+}
+
+const issueNames: Record<string, string> = {
+  ORPHAN_PAGE: "No incoming internal links",
+  THIN_CONTENT: "Limited page content",
+  MULTIPLE_H1: "Multiple main headings",
+  SHORT_TITLE: "Short page title",
+  SCHEMA_PRODUCT_OFFERS: "Product offer information missing",
+  SCHEMA_PRODUCT_AGGREGATERATING: "Optional product reviews or ratings missing",
+};
+
+function WebsiteEvidence({ value }: { value: Record<string, unknown> }) {
+  const issues = Array.isArray(value.issues) ? value.issues : [];
+  return (
+    <div className="space-y-3">
+      {textValue(value.title) && <h4 className="text-sm font-semibold text-brand-950">{textValue(value.title)}</h4>}
+      {textValue(value.description) && <p className="text-sm leading-6 text-brand-600">{textValue(value.description)}</p>}
+      {issues.length > 0 ? <div>
+        <p className="mb-2 text-xs font-semibold text-brand-950">Recorded page findings</p>
+        <ul className="space-y-3">
+          {issues.map((item, i) => {
+            const issue = objectValue(item);
+            if (!issue) return null;
+            const code = textValue(issue.issueType);
+            const severity = textValue(issue.severity).toLowerCase();
+            return <li key={i} className="border-l-2 pl-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-brand-950">{issueNames[code] || label(code) || "Page finding"}</span>
+                {severity && <Pill tone={severity === "high" || severity === "critical" ? "warn" : "default"}>{label(severity)} severity</Pill>}
+              </div>
+              {textValue(issue.description) && <p className="mt-1 text-xs leading-5 text-brand-600">{textValue(issue.description)}</p>}
+            </li>;
+          })}
+        </ul>
+      </div> : <p className="text-xs text-brand-500">No page findings were included in this saved source.</p>}
+    </div>
+  );
+}
 
 function FactValue({
   value,
@@ -72,13 +120,15 @@ export function EvidenceLinks({
   context: VisibilityContext | null;
   answers: VisibilityAnswer[];
 }) {
+  const evidenceIds = [...new Set(ids)];
+  if (!evidenceIds.length) return <p className="mt-3 text-xs text-brand-500">No supporting sources were linked to this item.</p>;
   return (
     <details className="mt-3 text-xs">
       <summary className="cursor-pointer font-semibold text-primary-700">
-        Supporting evidence ({ids.length})
+        Supporting evidence ({evidenceIds.length})
       </summary>
       <div className="mt-2 space-y-3">
-        {ids.map((id) => {
+        {evidenceIds.map((id) => {
           if (id === "owner")
             return (
               <p key={id} className="text-brand-600">
@@ -88,16 +138,13 @@ export function EvidenceLinks({
             );
           const fact = context?.facts.find((f) => f.id === id);
           const answer = answers.find((a) => a.id === id);
-          if (!fact && !answer) return null;
-          let value: unknown = fact?.text;
-          try {
-            if (fact) value = JSON.parse(fact.text);
-          } catch {
-            /* Plain-text facts remain readable. */
-          }
+          if (!fact && !answer) return <p key={id} className="text-brand-500">This referenced source is unavailable in the saved analysis.</p>;
+          const value = fact ? factValue(fact) : null;
+          const page = fact?.source === "website" ? objectValue(value) : null;
+          const isPage = page && (typeof page.title === "string" || Array.isArray(page.issues));
           const url = fact?.url ? safeUrl(fact.url) : null;
           return (
-            <div key={id} className="border-l-2 pl-3 text-brand-600">
+            <Panel key={id} padded>
               <p className="mb-1 font-semibold text-brand-950">
                 {fact
                   ? context?.sources.find((s) => s.id === fact.source)?.label ||
@@ -115,11 +162,21 @@ export function EvidenceLinks({
                 </a>
               )}
               {fact ? (
-                <FactValue value={value} />
+                isPage ? <>
+                  <WebsiteEvidence value={page!} />
+                  <details className="mt-4 border-t pt-3 text-xs text-brand-500">
+                    <summary className="cursor-pointer font-semibold">Technical details · original source</summary>
+                    <div className="mt-3 max-h-80 overflow-auto pr-2"><FactValue value={value} /></div>
+                  </details>
+                </> : typeof value === "string" ? <FormattedAnswer text={value} /> : <FactValue value={value} />
               ) : (
-                <FormattedAnswer text={answer?.rawResponse || ""} />
+                <>
+                  <p className="mb-2 text-sm font-semibold text-brand-950">{answer!.promptText}</p>
+                  <Pill>Answer result: {answer!.errorMessage ? "Check failed" : !answer!.analysis ? "Awaiting analysis" : answer!.analysis.recommended ? "Recommended" : answer!.analysis.brandMentioned ? "Mentioned only" : "Not mentioned"}</Pill>
+                  {answer!.rawResponse ? <div className="mt-3"><FormattedAnswer text={answer!.rawResponse} /></div> : <p className="mt-2 text-brand-500">No answer text was saved.</p>}
+                </>
               )}
-            </div>
+            </Panel>
           );
         })}
       </div>
@@ -351,6 +408,10 @@ export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
 
 export function ActionPlan({ data }: { data: VisibilityJourneyResponse }) {
   const assessments = data.journey?.analysis ?? [];
+  const measured = data.answers.filter((answer) => !answer.errorMessage && answer.analysis);
+  const mentioned = measured.filter((answer) => answer.analysis!.brandMentioned).length;
+  const recommended = measured.filter((answer) => answer.analysis!.recommended).length;
+  const context = data.journey?.context ?? null;
   return (
     <QueryState
       isEmpty={!assessments.length}
@@ -358,59 +419,76 @@ export function ActionPlan({ data }: { data: VisibilityJourneyResponse }) {
       emptyBody="The plan combines your service areas, Google performance, website gaps and actual AI answers. Missing data will be stated."
     >
       <div className="space-y-5">
+        {assessments.length > 0 && <Panel padded title="What the saved answers show" subtitle="Uses the same classified answers as See results.">
+          <p className="text-sm font-semibold leading-6 text-brand-950">
+            {measured.length ? `${recommended} ${recommended === 1 ? "recommendation" : "recommendations"} across ${measured.length} measured ${measured.length === 1 ? "answer" : "answers"}. Your business was mentioned ${mentioned} ${mentioned === 1 ? "time" : "times"}.` : "No successfully classified answers are available yet."}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-brand-600">These results measure saved AI answers. They do not establish search demand, enquiries, or sales.</p>
+          {context && <p className="mt-2 text-xs text-brand-500">{context.keyEvents == null ? "Lead measurement is unavailable in this run." : `${context.keyEvents} key events recorded in the saved analytics data; these are not necessarily leads.`}</p>}
+        </Panel>}
         {assessments.map((a) => (
           <Panel
             key={a.provider}
-            title={`${providerName(a.provider)} · Your lead and GEO plan`}
-            subtitle={`Based on this run’s saved evidence · ${a.model}`}
+            title={`${providerName(a.provider)} · Action plan`}
+            subtitle={`${a.actions.length} suggested actions · Review evidence before making changes`}
             padded
           >
-            <p className="text-sm leading-6 text-brand-700">{a.summary}</p>
-            <div className="my-4 border-l-2 pl-4">
-              <h3 className="text-xs font-semibold text-brand-950">
-                Local demand and conversion opportunity
-              </h3>
-              <p className="mt-1 text-sm leading-6 text-brand-600">
-                {a.localDemand ||
-                  "No local-demand conclusion was available from this evidence."}
-              </p>
-            </div>
+            <details className="mb-5 border-b pb-4 text-sm">
+              <summary className="cursor-pointer font-semibold text-primary-700">Original assistant commentary · unverified interpretation</summary>
+              <p className="my-3 text-xs leading-5 text-brand-600">The measured results above take precedence over this generated interpretation. Verify any recommendation or demand claim against its saved evidence.</p>
+              <FormattedAnswer text={a.summary} />
+              {a.localDemand && <div className="mt-4"><h3 className="mb-2 text-sm font-semibold text-brand-950">Assistant view on local opportunity</h3><FormattedAnswer text={a.localDemand} /></div>}
+              <p className="mt-3 break-words text-xs text-brand-500">Model: {a.model}</p>
+            </details>
+            {a.actions.length === 0 && <p className="text-sm text-brand-600">No actions were included in this assistant’s saved plan.</p>}
             <ol className="space-y-5">
-              {a.actions.map((action, i) => (
-                <li key={i} className="border-t pt-4">
+              {a.actions.map((action, i) => {
+                const pages = [...new Set(action.evidenceIds)].flatMap((id) => {
+                  const fact = context?.facts.find((item) => item.id === id);
+                  if (!fact || fact.source !== "website" || !fact.url) return [];
+                  const value = objectValue(factValue(fact));
+                  const url = safeUrl(fact.url);
+                  return url && value && (typeof value.title === "string" || Array.isArray(value.issues)) ? [{ url, title: textValue(value.title) || url }] : [];
+                });
+                return <li key={i} className="border-t pt-5 first:border-0 first:pt-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-brand-400">
-                      {i + 1}
+                      Action {i + 1}
                     </span>
-                    <h3 className="text-sm font-semibold text-brand-950">
-                      {action.title}
-                    </h3>
                     <Pill
                       tone={action.priority === "high" ? "warn" : "default"}
                     >
-                      {action.priority} priority
+                      {label(action.priority)} priority
                     </Pill>
                     <span className="text-xs text-brand-500">
-                      {action.timeframe}
+                      {label(action.timeframe).replace(/-/g, " ")}
                     </span>
                   </div>
-                  <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-brand-600">
+                  <h3 className="mt-2 text-base font-semibold leading-7 text-brand-950">{action.title}</h3>
+                  <div className="mt-4">
+                    <h4 className="mb-2 text-xs font-semibold text-brand-950">Pages in supporting evidence</h4>
+                    {pages.length ? <ul className="space-y-2">{pages.map((page) => <li key={page.url}><a href={page.url} target="_blank" rel="noopener noreferrer" className="block break-words text-sm text-primary-700 underline underline-offset-4">{page.title}</a><span className="block break-all text-xs text-brand-500">{page.url}</span></li>)}</ul> : <p className="text-xs text-brand-500">No specific website page was linked to this action. Review the evidence to choose where it applies.</p>}
+                  </div>
+                  <h4 className="mt-5 text-xs font-semibold text-brand-950">What to do</h4>
+                  <ol className="mt-2 list-decimal space-y-3 pl-5 text-sm text-brand-600">
                     {action.steps.map((step, j) => (
-                      <li key={j}>{step}</li>
+                      <li key={j}><FormattedAnswer text={step} /></li>
                     ))}
                   </ol>
-                  <p className="mt-3 text-xs leading-5 text-brand-600">
-                    <strong>How to measure progress: </strong>
-                    {action.measureBy}
-                  </p>
+                  {action.steps.length === 0 && <p className="mt-2 text-xs text-brand-500">No implementation steps were included in this saved action.</p>}
+                  <div className="mt-4 border-l-2 pl-3">
+                    <h4 className="mb-1 text-xs font-semibold text-brand-950">How to measure progress</h4>
+                    <FormattedAnswer text={action.measureBy || "No progress measure was provided. Define one before starting."} />
+                  </div>
                   <EvidenceLinks
                     ids={action.evidenceIds}
                     context={data.journey?.context ?? null}
                     answers={data.answers}
                   />
-                </li>
-              ))}
+                </li>;
+              })}
             </ol>
+            <div className="mt-5 border-t pt-4"><a href="/fix-engine" className="text-sm font-semibold text-primary-700 underline underline-offset-4">Review the improvement plan in Fix Engine →</a></div>
           </Panel>
         ))}
       </div>

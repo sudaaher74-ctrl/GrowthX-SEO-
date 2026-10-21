@@ -290,6 +290,54 @@ test("shows measured results, failed checks, competitor evidence and action plan
   }
 });
 
+test("presents an evidence-led action plan without treating model claims as measurements", async ({page}) => {
+  const data = fixture();
+  data.journey!.status = "COMPLETE";
+  data.journey!.scanId = "scan_test";
+  const rawPageText = "HEADERNavigationProductsFooterJoinedRawText";
+  data.journey!.context!.facts = [{id:"page-product", source:"website", url:"https://example.test/products/milk", text:JSON.stringify({title:"Fresh milk delivery", description:"Daily delivery information.", text:rawPageText, type:"PRODUCT", issues:[{issueType:"ORPHAN_PAGE", severity:"MEDIUM", description:"Page has zero incoming internal links from crawlable HTML pages."}]})}];
+  data.answers = [
+    {id:"answer-plan", provider:"GEMINI", model:"fixture-gemini", promptText:"Which milk delivery is best?", rawResponse:"Other Dairy is an option.", errorMessage:null, createdAt:"2026-10-14T10:05:00Z", analysis:{brandMentioned:false,recommended:false}, mentions:[],citations:[]},
+    {id:"failed-plan", provider:"OPENAI", model:"fixture-openai", promptText:"Which milk delivery is best?",rawResponse:null,errorMessage:"Provider unavailable", createdAt:"2026-10-14T10:05:00Z",analysis:{brandMentioned:true,recommended:true},mentions:[],citations:[]},
+  ];
+  data.journey!.analysis = [{provider:"GEMINI", model:"fixture-gemini", summary:"AI recommends this business.",localDemand:"Strong buying demand is proven.",gaps:[],actions:[{title:"Connect product pages",priority:"high",timeframe:"short-term",steps:["Add **relevant internal links**.","Review navigation."],measureBy:"Reduction in orphan pages.",evidenceIds:["page-product","page-product","missing-source"]},{title:"Review service coverage",priority:"medium",timeframe:"Week 2",steps:[],measureBy:"",evidenceIds:[]}]}];
+  await setup(page,data);
+  await page.goto("/ai-visibility?tab=plan");
+  await expect(page.getByText("0 recommendations across 1 measured answer. Your business was mentioned 0 times.")).toBeVisible();
+  await expect(page.getByText("No supporting sources were linked to this item.",{exact:true})).toBeVisible();
+  await expect(page.getByText("AI recommends this business.",{exact:true})).toBeHidden();
+  await expect(page.getByText("Strong buying demand is proven.",{exact:true})).toBeHidden();
+  await expect(page.getByText("Lead measurement is unavailable in this run.")).toBeVisible();
+  await expect(page.getByRole("link",{name:"Fresh milk delivery",exact:true})).toHaveCount(1);
+  await expect(page.locator("strong",{hasText:"relevant internal links"})).toBeVisible();
+  await expect(page.getByText("No specific website page was linked to this action.",{exact:false})).toBeVisible();
+  await expect(page.getByText("No implementation steps were included in this saved action.")).toBeVisible();
+  await page.getByText("Supporting evidence (2)",{exact:true}).click();
+  const actionEvidence = page.getByText("Supporting evidence (2)",{exact:true}).locator("..");
+  await expect(actionEvidence.getByText("No incoming internal links",{exact:true})).toBeVisible();
+  await expect(actionEvidence.getByText("Medium severity",{exact:true})).toBeVisible();
+  await expect(actionEvidence.getByText("This referenced source is unavailable in the saved analysis.")).toBeVisible();
+  await expect(actionEvidence.getByText(rawPageText,{exact:true})).toBeHidden();
+  await actionEvidence.getByText("Technical details · original source",{exact:true}).click();
+  await expect(actionEvidence.getByText(rawPageText,{exact:true})).toBeVisible();
+  await actionEvidence.getByText("Technical details · original source",{exact:true}).click();
+  await page.getByText("Original assistant commentary · unverified interpretation",{exact:true}).click();
+  await expect(page.getByText("AI recommends this business.",{exact:true})).toBeVisible();
+  await expect(page.getByText("The measured results above take precedence",{exact:false})).toBeVisible();
+  await page.getByText("Original assistant commentary · unverified interpretation",{exact:true}).click();
+  if (process.env.ACTION_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.ACTION_SCREENSHOT_DIR}/action-desktop.png`,fullPage:true});
+  for (const theme of ["light","dark"]) {
+    await page.getByTitle(theme === "dark" ? "Switch to Night mode" : "Switch to Day mode",{exact:true}).click();
+    await page.setViewportSize({width:390,height:844});
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.getByRole("link",{name:"Review the improvement plan in Fix Engine →"})).toHaveAttribute("href","/fix-engine");
+    if (process.env.ACTION_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.ACTION_SCREENSHOT_DIR}/action-${theme}.png`,fullPage:true});
+  }
+  data.answers = [];
+  await page.reload();
+  await expect(page.getByText("No successfully classified answers are available yet.",{exact:true})).toBeVisible();
+});
+
 test("formats assistant answers safely on desktop and mobile", async ({ page, context }) => {
   const data = fixture();
   const text = "# Supplier overview\n\nChoose **verified suppliers**.\n\n## Search methods\n\n1. Trade platforms\n   - IndiaMART\n   - Alibaba\n\n[APEDA](https://apeda.gov.in)\n\n| Supplier | Location |\n| --- | --- |\n| Example supplier | Navi Mumbai |\n\n[Unsafe](javascript:alert(1))\n\n<script>alert(1)</script>";
