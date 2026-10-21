@@ -91,7 +91,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           <Sidebar
             collapsed={collapsed}
-            onToggle={() => toggleCollapsed()}
             mobileOpen={mobileOpen}
             setMobileOpen={setMobileOpen}
           />

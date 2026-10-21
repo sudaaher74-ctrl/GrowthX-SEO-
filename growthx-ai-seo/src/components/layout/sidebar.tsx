@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, LayoutGrid, LogOut, Moon, MoreHorizontal, PanelLeftClose, Settings, Sun, FileText } from "lucide-react";
+import { Check, LayoutGrid, LogOut, Moon, MoreHorizontal, Settings, Sun, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -23,12 +23,10 @@ import { useMainNav, type NavItem } from "@/components/layout/nav-items";
 
 export function Sidebar({
   collapsed = false,
-  onToggle,
   mobileOpen,
   setMobileOpen,
 }: {
   collapsed?: boolean;
-  onToggle?: () => void;
   mobileOpen?: boolean;
   setMobileOpen?: (open: boolean) => void;
 }) {
@@ -57,19 +55,7 @@ export function Sidebar({
       >
         {/* Brand */}
         <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--border-color)" }}>
-          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-signal-400 text-signal-ink shadow-xs">
-            <LayoutGrid size={13} className="text-signal-ink" />
-          </div>
           <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">Reigel</span>
-          <span className="rounded-full bg-signal-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-signal-400">AI SEO</span>
-          
-          <button
-            onClick={onToggle}
-            title="Collapse sidebar"
-            className="hidden md:flex ml-auto items-center justify-center h-6 w-6 rounded-md text-brand-400 hover:text-brand-950 hover:bg-brand-100/40 transition"
-          >
-            <PanelLeftClose size={13} />
-          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
