@@ -115,21 +115,8 @@ export function ActiveUsersBySource({ data }: ActiveUsersBySourceProps) {
   // Process rows
   const allRows = useMemo<SourceRow[]>(() => {
     if (!data.sources || data.sources.length === 0) {
-      // Fallback synthetic view derived from channels if sources not populated
-      return (data.channels || []).map((c) => {
-        const cls = classifySource(c.channel, "organic", c.channel);
-        return {
-          source: c.channel.toLowerCase(),
-          medium: "organic",
-          channel: c.channel,
-          sessions: c.sessions,
-          users: c.users,
-          engagementRate: c.engagementRate ?? 0,
-          keyEvents: c.keyEvents ?? null,
-          platform: cls.platform,
-          platformLabel: cls.platformLabel,
-        };
-      });
+      // Channel totals cannot establish a traffic source or medium.
+      return [];
     }
 
     return data.sources.map((s) => {
@@ -140,7 +127,7 @@ export function ActiveUsersBySource({ data }: ActiveUsersBySourceProps) {
         platformLabel: cls.platformLabel,
       };
     });
-  }, [data.sources, data.channels]);
+  }, [data.sources]);
 
   // Filtered rows
   const filteredRows = useMemo(() => {
@@ -369,7 +356,7 @@ export function ActiveUsersBySource({ data }: ActiveUsersBySourceProps) {
       <div className="overflow-x-auto rounded-xl border border-brand-200/40 bg-brand-50">
         {filteredRows.length === 0 ? (
           <div className="py-10 text-center text-xs text-brand-400">
-            No traffic sources match the current filter. Try clearing your search or selecting &ldquo;All&rdquo;.
+            {allRows.length === 0 ? "Source-level traffic data is unavailable for this period." : "No traffic sources match the current filter. Try clearing your search or selecting All."}
           </div>
         ) : (
           <div className="divide-y divide-brand-200/30">

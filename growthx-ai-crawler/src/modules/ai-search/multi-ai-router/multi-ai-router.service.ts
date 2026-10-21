@@ -476,7 +476,7 @@ export class MultiAiRouterService {
       case AiProvider.PERPLEXITY:
         return this.callPerplexity(request, modelOverride);
       case AiProvider.GROK:
-        return this.callOpenRouter(request, 'x-ai/grok-4-fast', AiProvider.GROK);
+        return this.callOpenRouter(request, 'x-ai/grok-4.3', AiProvider.GROK);
     }
   }
 
