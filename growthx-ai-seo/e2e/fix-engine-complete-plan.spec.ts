@@ -37,7 +37,7 @@ test('four-module plan and PDF report include the final findings page and eviden
   await expect(page.getByRole('link', { name: 'Open source report →' })).toHaveAttribute('href', '/ai-visibility?tab=actions');
   await page.getByRole('link', { name: /Open complete plan report/ }).click();
   await expect(page.getByRole('heading', { name: 'Complete improvement plan', exact: true })).toBeVisible();
-  for (const module of ['Website Audit', 'Google', 'Competitor Intelligence', 'AI Visibility']) await expect(page.getByRole('heading', { name: `${module} (1)`, exact: true })).toBeVisible();
+  for (const moduleName of ['Website Audit', 'Google', 'Competitor Intelligence', 'AI Visibility']) await expect(page.getByRole('heading', { name: `${moduleName} (1)`, exact: true })).toBeVisible();
   await expect(page.getByText('Answer buyer questions', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
 });

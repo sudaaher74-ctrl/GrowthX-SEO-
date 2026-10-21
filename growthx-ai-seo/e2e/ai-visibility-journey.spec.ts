@@ -290,6 +290,37 @@ test("shows measured results, failed checks, competitor evidence and action plan
   }
 });
 
+test("formats assistant answers safely on desktop and mobile", async ({ page, context }) => {
+  const data = fixture();
+  const text = "# Supplier overview\n\nChoose **verified suppliers**.\n\n## Search methods\n\n1. Trade platforms\n   - IndiaMART\n   - Alibaba\n\n[APEDA](https://apeda.gov.in)\n\n| Supplier | Location |\n| --- | --- |\n| Example supplier | Navi Mumbai |\n\n[Unsafe](javascript:alert(1))\n\n<script>alert(1)</script>";
+  data.journey!.status = "COMPLETE";
+  data.answers = [{ id: "formatted", provider: "GEMINI", model: "fixture-gemini", promptText: "Which suppliers should I consider?", rawResponse: text, errorMessage: null, createdAt: "2026-10-14T10:05:00Z", analysis: { brandMentioned: false, recommended: false }, mentions: [{brandName: "IndiaMART", isCustomer: false}], citations: [{url: "https://apeda.gov.in", domain: "apeda.gov.in"}] }];
+  await setup(page, data);
+  await page.goto("/ai-visibility?tab=results");
+  await page.getByText("Read complete answer", {exact:true}).click();
+  await expect(page.getByRole("heading", {name:"Supplier overview"})).toBeVisible();
+  await expect(page.locator("strong", {hasText:"verified suppliers"})).toBeVisible();
+  await expect(page.locator("ol > li > ul > li")).toHaveCount(2);
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("link", {name:"APEDA", exact:true})).toHaveAttribute("href", "https://apeda.gov.in");
+  await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
+  await expect(page.getByText("# Supplier overview", {exact:true})).toHaveCount(0);
+  if (process.env.ANSWER_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.ANSWER_SCREENSHOT_DIR}/answer-desktop.png`, fullPage:true});
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", {name:"Copy answer", exact:true}).click();
+  await expect(page.getByRole("status").filter({hasText:"Answer copied"})).toBeVisible();
+  // The Windows clipboard normalizes LF to CRLF; wording must remain identical.
+  expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n")).toBe(text);
+  for (const theme of ["light", "dark"]) {
+    await page.getByTitle(theme === "dark" ? "Switch to Night mode" : "Switch to Day mode", {exact:true}).click();
+    await page.setViewportSize({width:390, height:844});
+    if (process.env.ANSWER_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.ANSWER_SCREENSHOT_DIR}/answer-${theme}.png`, fullPage:true});
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.getByRole("heading", {name:"Supplier overview"})).toBeVisible();
+    if (process.env.ANSWER_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.ANSWER_SCREENSHOT_DIR}/answer-${theme}.png`, fullPage:true});
+  }
+});
+
 test("keeps the review usable on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, fixture());

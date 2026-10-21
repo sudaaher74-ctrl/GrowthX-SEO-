@@ -276,55 +276,6 @@ export function useVisibility(projectId: string | null, days?: number) {
   });
 }
 
-export function useTrackedPrompts(projectId: string | null) {
-  return useQuery({
-    queryKey: ["tracked-prompts", projectId],
-    queryFn: () => api.listTrackedPrompts(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useAddPrompts(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (prompts: { text: string; cluster?: string }[]) =>
-      api.addTrackedPrompts(projectId!, prompts),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-suggestions", projectId] });
-    },
-  });
-}
-
-export function useAddCompetitor(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ domain, label }: { domain: string; label?: string }) =>
-      api.addCompetitor(projectId!, domain, label),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
-      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      qc.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
-    },
-  });
-}
-
-export function useRunSweep(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.runVisibilitySweep(projectId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
-      qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
-      qc.invalidateQueries({ queryKey: ["visibility-insights", projectId] });
-      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
-      qc.invalidateQueries({ queryKey: ["aivis-roadmap", projectId] });
-    },
-  });
-}
-
 export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
@@ -414,42 +365,6 @@ export function useCrawlHistory(domain: string | null, limit?: number) {
     queryFn: () => api.getCrawlHistory(domain!, limit),
     enabled: Boolean(domain),
     retry: false,
-  });
-}
-
-export function useCrawlIssues(
-  jobId: string | null,
-  paramsOrSeverity?:
-    | string
-    | {
-        severity?: string;
-        category?: string;
-        confidence?: string;
-        search?: string;
-        page?: number;
-        limit?: number;
-      },
-  status?: string,
-) {
-  const params =
-    typeof paramsOrSeverity === "string"
-      ? { severity: paramsOrSeverity, limit: 100 }
-      : { limit: 100, ...paramsOrSeverity };
-
-  return useQuery({
-    queryKey: ["crawl-issues", jobId, params, status],
-    queryFn: () => api.getCrawlIssues(jobId!, params),
-    enabled: Boolean(jobId),
-    refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
-  });
-}
-
-export function useCrawlPages(jobId: string | null, status?: string) {
-  return useQuery({
-    queryKey: ["crawl-pages", jobId],
-    queryFn: () => api.getCrawlPages(jobId!, { limit: 100 }),
-    enabled: Boolean(jobId),
-    refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
   });
 }
 
