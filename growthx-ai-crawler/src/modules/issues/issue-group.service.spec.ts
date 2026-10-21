@@ -58,6 +58,11 @@ function service(issues: Array<Record<string, any>>, gsc: Array<{ page: string; 
 }
 
 describe('IssueGroupService.groupsForProject', () => {
+  it('returns every problem type for internal plan reconciliation beyond the preview limit', async () => {
+    const svc = service(Array.from({ length: 65 }, (_, i) => issue({ issueType: `TYPE_${i}`, affectedUrl: `https://x.com/${i}` })));
+    expect((await svc.groupsForProject('proj_1')).groups).toHaveLength(50);
+    expect((await svc.groupsForProject('proj_1', { all: true })).groups).toHaveLength(65);
+  });
   it('counts distinct affected pages across overlapping issue groups', async () => {
     const svc = service([
       issue({ issueType: 'MISSING_TITLE', affectedUrl: 'https://x.com/a' }),

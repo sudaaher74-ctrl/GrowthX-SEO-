@@ -67,6 +67,8 @@ export interface GroupFilters {
   source?: string;
   severity?: string;
   limit?: number;
+  /** Internal reconciliation needs every problem type, rather than a UI preview. */
+  all?: boolean;
 }
 
 /** Lower is less certain. The group takes its least certain member's rating. */
@@ -128,7 +130,7 @@ export class IssueGroupService {
       groups.flatMap((group) => (members.get(group.groupKey) ?? []).map((finding) => normaliseUrl(finding.affectedUrl))),
     ).size;
     return {
-      groups: groups.slice(0, limit),
+      groups: filters.all ? groups : groups.slice(0, limit),
       uniqueAffectedPages,
       reachAvailable: groups.length > 0 ? groups.every((g) => g.reachAvailable) : reach.size > 0,
     };

@@ -20,7 +20,7 @@ export class WebsiteAuditAdapter implements FindingAdapter {
 
     if (!project) return [];
 
-    const { groups } = await this.issueGroupService.groupsForProject(projectId, { status: 'OPEN' });
+    const { groups } = await this.issueGroupService.groupsForProject(projectId, { status: 'OPEN', all: true });
 
     return groups.map((group) => {
       const category: NormalisedFinding['category'] =
