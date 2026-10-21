@@ -154,11 +154,18 @@ describe('low-cost production policy', () => {
     it('rejects premium model IDs, unavailable Grok, higher prices, and catalog outages', async () => {
       await expect(harness().service.verifyPrice('claude-opus-5' as any)).rejects.toThrow('allowlist');
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) });
-      await expect(harness().service.verifyPrice('x-ai/grok-4-fast')).rejects.toThrow('unavailable');
+      await expect(harness().service.verifyPrice('x-ai/grok-4.3')).rejects.toThrow('unavailable');
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ id: 'openai/gpt-4.1-mini', pricing: { prompt: '0.000004', completion: '0.000016' } }] }) });
       await expect(harness().service.verifyPrice('openai/gpt-4.1-mini')).rejects.toThrow('price ceiling');
       global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
       await expect(harness().service.verifyPrice('openai/gpt-4.1-mini')).rejects.toThrow('could not be verified');
+    });
+    it('accepts the owner-approved Grok tariff and rejects increases', async () => {
+      expect(policyModel({ ...request, provider: AiProvider.GROK, freshMeasurement: true })).toBe('x-ai/grok-4.3');
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ id: 'x-ai/grok-4.3', pricing: { prompt: '0.00000125', completion: '0.0000025' } }] }) });
+      await expect(harness().service.verifyPrice('x-ai/grok-4.3')).resolves.toBeUndefined();
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ id: 'x-ai/grok-4.3', pricing: { prompt: '0.000002', completion: '0.000003' } }] }) });
+      await expect(harness().service.verifyPrice('x-ai/grok-4.3')).rejects.toThrow('price ceiling');
     });
     it('rejects an expired Google tariff review', async () => {
       await expect(harness(undefined, { AI_GOOGLE_PRICES_VERIFIED_AT: '2020-01-01' }).service.verifyPrice('gemini-3.5-flash-lite')).rejects.toThrow('review expired');

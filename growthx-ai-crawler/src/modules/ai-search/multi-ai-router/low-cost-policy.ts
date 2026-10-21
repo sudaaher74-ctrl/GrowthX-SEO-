@@ -11,8 +11,8 @@ export const APPROVED_MODELS = {
   'openai/gpt-4.1-mini': { input: 0.40, output: 1.6, search: 0 },
   'anthropic/claude-haiku-4.5': { input: 1, output: 5, search: 0 },
   'perplexity/sonar': { input: 1, output: 1, search: 0.005 },
-  // Retained as an approved identity, but unavailable catalog entries fail closed.
-  'x-ai/grok-4-fast': { input: 0.2, output: 0.5, search: 0 },
+  // Owner approved Grok 4.3 on 2026-10-21; existing spending caps remain in force.
+  'x-ai/grok-4.3': { input: 1.25, output: 2.5, search: 0 },
 } as const;
 export type ApprovedModel = keyof typeof APPROVED_MODELS;
 export const VISIBILITY_MODELS: Partial<Record<AiProvider, ApprovedModel>> = {
@@ -20,7 +20,7 @@ export const VISIBILITY_MODELS: Partial<Record<AiProvider, ApprovedModel>> = {
   [AiProvider.OPENAI]: 'openai/gpt-4.1-mini',
   [AiProvider.ANTHROPIC]: 'anthropic/claude-haiku-4.5',
   [AiProvider.PERPLEXITY]: 'perplexity/sonar',
-  [AiProvider.GROK]: 'x-ai/grok-4-fast',
+  [AiProvider.GROK]: 'x-ai/grok-4.3',
 };
 export function costBucket(request: AiRequest): CostBucket {
   if (request.freshMeasurement || request.task === AiTask.VISIBILITY_MEASUREMENT) return 'VISIBILITY';

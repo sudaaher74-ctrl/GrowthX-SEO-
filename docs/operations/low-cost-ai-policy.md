@@ -192,3 +192,8 @@ Flash-Lite; competitor reasoning and visibility retain the verified 2.5 Flash.
 The 3.5 Flash-Lite standard text tariff is USD 0.30 input / 2.50 output per
 million tokens, verified at https://ai.google.dev/gemini-api/docs/pricing.md.
 Existing customer attribution, platform caps and fresh measurement rules remain.
+
+## Owner update — 21 October 2026
+
+The owner approved replacing unavailable Grok 4 Fast with x-ai/grok-4.3 at USD 1.25 input / 2.50 output per million text tokens. Existing platform, customer and bucket spending caps remain unchanged; paid search stays disabled for Grok. The live catalog and actual model response must pass before release.
+

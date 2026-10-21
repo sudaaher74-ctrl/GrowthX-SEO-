@@ -42,6 +42,7 @@ import {
   object,
   replaceRepeatedBuyerQuestions,
   repairBrandedBuyerQuestions,
+  repairUnsupportedServiceAreas,
   str,
 } from "./visibility-workflow.logic";
 import {
@@ -371,7 +372,7 @@ export class VisibilityWorkflowService
         );
         let candidate: VisibilityBrief;
         try {
-          candidate = normalizeBrief(result.parsed, ctx);
+          candidate = normalizeBrief(repairUnsupportedServiceAreas(result.parsed, ctx), ctx);
         } catch (validationError) {
           if (!(validationError instanceof BadRequestException))
             throw validationError;
@@ -385,7 +386,7 @@ export class VisibilityWorkflowService
           );
           try {
             candidate = normalizeBrief(
-              replaceRepeatedBuyerQuestions(repairBrandedBuyerQuestions(result.parsed, ctx)),
+              replaceRepeatedBuyerQuestions(repairBrandedBuyerQuestions(repairUnsupportedServiceAreas(result.parsed, ctx), ctx)),
               ctx,
             );
           } catch (correctedError) {
