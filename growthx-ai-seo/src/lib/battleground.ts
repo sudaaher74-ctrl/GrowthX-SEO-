@@ -67,7 +67,7 @@ export function buildMetrics(you: YouInput, rivals: RivalInput[]): Metric[] {
     rivals.map((r) => ({ id: r.id, name: r.name, value: pick(r) }));
 
   return [
-    { key: "pages", label: "Pages on the website", source: "Crawled", you: you.pagesCrawled, rivals: side((r) => r.pagesCrawled), format: (n) => `${count(n)} pages`, short: count },
+    { key: "pages", label: "Audited pages", source: "Crawled", you: you.pagesCrawled, rivals: side((r) => r.pagesCrawled), format: (n) => `${count(n)} pages`, short: count },
     { key: "health", label: "Website health score", source: "Crawled", you: you.healthScore, rivals: side((r) => r.healthScore), format: (n) => `${Math.round(n)}/100`, short: (n) => String(Math.round(n)) },
   ];
 }
@@ -149,8 +149,8 @@ function safePath(url: string): string {
 
 const METRIC_COPY: Record<MetricKey, (rival: string, them: string, you: string) => { title: string; detail: string }> = {
   pages: (r, t, y) => ({
-    title: `${r} has more pages than you`,
-    detail: `${r} has ${t}; you have ${y}. Every useful page is another way for customers to find them. The Gaps tab shows which topics they cover.`,
+    title: `${r} has more audited pages`,
+    detail: `Their saved audit contains ${t}; yours contains ${y}. These counts describe crawl coverage, not total website size. Check Gaps for differences in the topics covered.`,
   }),
   health: (r, t, y) => ({
     title: `${r}'s website has fewer technical problems`,

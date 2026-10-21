@@ -388,7 +388,7 @@ export function BattlegroundTab({
         </div>
 
         {/* Threat per rival */}
-        <Panel title="How big a threat is each competitor" subtitle="Based on how many things they beat you on" padded>
+        <Panel title="How big a threat is each competitor" subtitle="Based on saved crawl comparisons; not a Google ranking or market-share score" padded>
           <ul className="space-y-2.5">
             {threats.map((t) => (
               <li key={t.id} className="flex items-start justify-between gap-3">
