@@ -5,11 +5,13 @@ import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
+import { collectReportPlans } from './report-plan-findings';
 
 export interface SyncResult {
   created: number;
   updated: number;
   resolved: number;
+  warnings: string[];
 }
 
 @Injectable()
@@ -46,6 +48,7 @@ export class FindingSyncService {
     );
 
     const collectedFindings: NormalisedFinding[] = [];
+    const warnings: string[] = [];
     const successfulSources = new Set<string>();
     for (let i = 0; i < results.length; i++) {
       const res = results[i];
@@ -53,6 +56,7 @@ export class FindingSyncService {
         successfulSources.add(this.adapters[i].source);
         collectedFindings.push(...res.value);
       } else {
+        warnings.push(`${this.adapters[i].source} findings could not be refreshed. Previously saved findings are retained.`);
         this.logger.error(
           `Adapter ${this.adapters[i].constructor.name} failed for project ${projectId}: ${res.reason}`,
         );
@@ -60,6 +64,14 @@ export class FindingSyncService {
     }
 
     const collectedFingerprints = new Set<string>();
+    let reportsCollected = false;
+    try {
+      collectedFindings.push(...await collectReportPlans(this.prisma, projectId));
+      reportsCollected = true;
+    } catch (error) {
+      warnings.push('Saved report recommendations could not be refreshed. Previously saved recommendations are retained.');
+      this.logger.error(`Saved report plans could not be collected for ${projectId}: ${error}`);
+    }
     let created = 0;
     let updated = 0;
     let resolved = 0;
@@ -158,13 +170,16 @@ export class FindingSyncService {
         status: true,
         lifecycle: true,
         transitions: true,
+        detailType: true,
       },
     });
 
     for (const stored of allStoredOpportunities) {
+      // Google and other detectors share this table but own their reconciliation.
+      if (!['REPORT_PLAN', 'ISSUE_GROUP', 'COMPETITOR_FINDING', 'CONTENT_GAP', 'AI_VISIBILITY_LOSS'].includes(stored.detailType ?? '')) continue;
       // A failed adapter supplied no evidence either way. Never turn that
       // observability gap into a false "resolved" finding.
-      if (!successfulSources.has(stored.source)) {
+      if (stored.fingerprint?.startsWith('report-plan:') ? !reportsCollected : !successfulSources.has(stored.source)) {
         continue;
       }
       if (collectedFingerprints.has(stored.fingerprint)) {
@@ -207,6 +222,6 @@ export class FindingSyncService {
       // leave it alone!
     }
 
-    return { created, updated, resolved };
+    return { created, updated, resolved, warnings };
   }
 }

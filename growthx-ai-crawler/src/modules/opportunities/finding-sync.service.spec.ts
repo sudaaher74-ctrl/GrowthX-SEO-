@@ -33,6 +33,7 @@ describe('FindingSyncService', () => {
 
   beforeEach(() => {
     mockPrisma = {
+      project: { findUnique: jest.fn().mockResolvedValue(null) },
       growthOpportunity: {
         findUnique: jest.fn(),
         create: jest.fn(),
@@ -60,7 +61,7 @@ describe('FindingSyncService', () => {
     mockPrisma.growthOpportunity.create.mockResolvedValue({});
 
     const run1 = await service.syncProject('proj-1');
-    expect(run1).toEqual({ created: 1, updated: 0, resolved: 0 });
+    expect(run1).toMatchObject({ created: 1, updated: 0, resolved: 0 });
     expect(mockPrisma.growthOpportunity.create).toHaveBeenCalledTimes(1);
 
     // Run 2: Row exists
@@ -75,6 +76,7 @@ describe('FindingSyncService', () => {
         id: 'opp-1',
         fingerprint: sampleFinding.fingerprint,
         source: 'WEBSITE',
+        detailType: 'ISSUE_GROUP',
         status: 'OPEN',
         lifecycle: FindingLifecycle.QUEUED,
       },
@@ -82,7 +84,7 @@ describe('FindingSyncService', () => {
     mockPrisma.growthOpportunity.update.mockResolvedValue({});
 
     const run2 = await service.syncProject('proj-1');
-    expect(run2).toEqual({ created: 0, updated: 1, resolved: 0 });
+    expect(run2).toMatchObject({ created: 0, updated: 1, resolved: 0 });
     expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'opp-1' },
@@ -106,6 +108,7 @@ describe('FindingSyncService', () => {
         id: 'opp-dismissed',
         fingerprint: sampleFinding.fingerprint,
         source: 'WEBSITE',
+        detailType: 'ISSUE_GROUP',
         status: 'DISMISSED',
         lifecycle: FindingLifecycle.DISMISSED,
       },
@@ -113,7 +116,7 @@ describe('FindingSyncService', () => {
     mockPrisma.growthOpportunity.update.mockResolvedValue({});
 
     const res = await service.syncProject('proj-1');
-    expect(res).toEqual({ created: 0, updated: 1, resolved: 0 });
+    expect(res).toMatchObject({ created: 0, updated: 1, resolved: 0 });
 
     // Ensure status was NEVER overwritten to OPEN or QUEUED
     expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledWith(
@@ -136,6 +139,7 @@ describe('FindingSyncService', () => {
         id: 'opp-executing',
         fingerprint: 'audit::MISSING_H1',
         source: 'WEBSITE',
+        detailType: 'ISSUE_GROUP',
         status: 'ACTIONED',
         lifecycle: FindingLifecycle.APPLYING, // Mid-execution!
         transitions: [],
@@ -143,7 +147,7 @@ describe('FindingSyncService', () => {
     ]);
 
     const res = await service.syncProject('proj-1');
-    expect(res).toEqual({ created: 0, updated: 0, resolved: 0 });
+    expect(res).toMatchObject({ created: 0, updated: 0, resolved: 0 });
 
     // Should NOT have called update to RESOLVED
     expect(mockPrisma.growthOpportunity.update).not.toHaveBeenCalled();
@@ -157,6 +161,7 @@ describe('FindingSyncService', () => {
         id: 'opp-open',
         fingerprint: 'audit::MISSING_H1',
         source: 'WEBSITE',
+        detailType: 'ISSUE_GROUP',
         status: 'OPEN',
         lifecycle: FindingLifecycle.QUEUED,
         transitions: [],
@@ -165,7 +170,7 @@ describe('FindingSyncService', () => {
     mockPrisma.growthOpportunity.update.mockResolvedValue({});
 
     const res = await service.syncProject('proj-1');
-    expect(res).toEqual({ created: 0, updated: 0, resolved: 1 });
+    expect(res).toMatchObject({ created: 0, updated: 0, resolved: 1 });
 
     expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -186,6 +191,7 @@ describe('FindingSyncService', () => {
         id: 'opp-open',
         fingerprint: 'audit::MISSING_H1',
         source: 'WEBSITE',
+        detailType: 'ISSUE_GROUP',
         status: 'OPEN',
         lifecycle: FindingLifecycle.QUEUED,
         transitions: [],
@@ -194,7 +200,14 @@ describe('FindingSyncService', () => {
 
     const res = await service.syncProject('proj-1');
 
-    expect(res).toEqual({ created: 0, updated: 0, resolved: 0 });
+    expect(res).toMatchObject({ created: 0, updated: 0, resolved: 0 });
+    expect(mockPrisma.growthOpportunity.update).not.toHaveBeenCalled();
+  });
+
+  it('does not resolve findings owned by another detector sharing the same source', async () => {
+    mockWebsiteAdapter.collect.mockResolvedValue([]);
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([{ id: 'other-detector', source: 'WEBSITE', fingerprint: 'technical:broken-links', status: 'OPEN', lifecycle: FindingLifecycle.QUEUED, detailType: null }]);
+    await service.syncProject('proj-1');
     expect(mockPrisma.growthOpportunity.update).not.toHaveBeenCalled();
   });
 });

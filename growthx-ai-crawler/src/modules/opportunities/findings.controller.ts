@@ -74,7 +74,7 @@ export class FindingsController {
     const [itemsPlusOne, sourceGroups, fixClassGroups, total] = await Promise.all([
       this.prisma.growthOpportunity.findMany({
         where,
-        orderBy: [{ impact: 'desc' }, { detectedAt: 'asc' }],
+        orderBy: [{ impact: 'desc' }, { detectedAt: 'asc' }, { id: 'asc' }],
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       }),
