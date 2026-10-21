@@ -100,16 +100,16 @@ describe('CompetitorCrawlService', () => {
       expect(prisma.website.upsert.mock.calls[0][0].update).toEqual({});
     });
 
-    it('uses ordinary audit limits instead of silently sampling 150 pages', async () => {
+    it('bounds interactive competitor audits by pages and time', async () => {
       const { crawler, service } = build();
 
       await service.startCrawl('org1', 'p1', 'comp1');
 
       const options = crawler.startCrawlJob.mock.calls[0][1];
-      expect(options.pageLimit).toBeUndefined();
+      expect(options.pageLimit).toBe(200);
       expect(options.rateLimitDelayMs).toBe(CompetitorCrawlService.RATE_LIMIT_DELAY_MS);
       expect(options.maxConcurrency).toBe(CompetitorCrawlService.MAX_CONCURRENCY);
-      expect(options.timeBudgetMs).toBeUndefined();
+      expect(options.timeBudgetMs).toBe(180_000);
       expect(options.renderBudget).toBeUndefined();
       expect(options.maxDepth).toBe(10);
       // Slower and shallower than the defaults used on a customer's own site,

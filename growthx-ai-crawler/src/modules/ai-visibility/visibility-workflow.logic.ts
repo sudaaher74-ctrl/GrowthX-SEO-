@@ -84,8 +84,8 @@ export function replaceRepeatedBuyerQuestions(raw: unknown): unknown {
     const location = str(question?.location, 180);
     const area = location ? ` in ${location}` : "";
     const alternatives = [
-      `Which local suppliers deliver ${offering}${area}?`,
-      `Where can I order ${offering} for home delivery${area}?`,
+      `Which providers offer ${offering}${area}?`,
+      `Where can I find ${offering}${area}?`,
       `What options are available for buying ${offering}${area}?`,
     ];
     const replacement = alternatives.find((candidate) => {
@@ -99,7 +99,42 @@ export function replaceRepeatedBuyerQuestions(raw: unknown): unknown {
   return { ...draft, questions: revised };
 }
 
-/** Reject weak, branded or unrelated question sets instead of reporting them as ten buyer checks. */
+/** Repair draft wording using neutral categories already evidenced by the site. */
+export function repairBrandedBuyerQuestions(raw: unknown, context: VisibilityContext): unknown {
+  const draft = object(raw);
+  const names = [str(draft.businessName), context.businessName, context.domain, context.domain.replace(/^www\./, '').split('.')[0],
+    ...context.facts.filter(f => f.source === 'competitors').flatMap(f => {
+      try { const rival = object(JSON.parse(f.text)); return [str(rival.name), str(rival.domain)]; } catch { return []; }
+    })];
+  const branded = (text: string) => names.some(name => hasName(text, name));
+  const categories = strings(draft.offerings, 100).filter(offering => !branded(offering)).map(offering => ({offering,
+    facts: context.facts.filter(fact => fact.source === 'website' && hasName(fact.text, offering)),
+  })).filter(category => category.facts.length);
+  const used = new Set(list(draft.questions).map(q => normalized(str(q?.text))));
+  const questions = list(draft.questions).map(question => {
+    if (!branded(str(question?.text)) && !branded(str(question?.offering))) return question;
+    const area = str(question?.location) ? ` in ${str(question.location)}` : '';
+    const ordered = [...categories].sort((a,b) => Number(b.offering === question.offering)-Number(a.offering === question.offering));
+    for (const category of ordered) {
+      const options = [
+        `Which providers offer ${category.offering}${area}?`,
+        `What should I compare when choosing ${category.offering}${area}?`,
+        `Where can I find ${category.offering}${area}?`,
+        `Which ${category.offering} options should I shortlist${area}?`,
+        `What features matter when selecting ${category.offering}${area}?`,
+      ];
+      const text = options.find(option => !used.has(normalized(option)));
+      if (!text) continue;
+      used.add(normalized(text));
+      return {...object(question), text, offering:category.offering, evidenceIds:category.facts.slice(0,3).map(fact => fact.id),
+        rationale:'Website-derived category question. Brand-specific wording was removed for a neutral visibility check.'};
+    }
+    return question; // No unsupported category is invented; strict validation still applies.
+  });
+  return {...draft, questions};
+}
+
+/** Reject weak, branded or unrelated question sets instead of reporting them as buyer checks. */
 export function normalizeBrief(
   raw: unknown,
   context: VisibilityContext,
@@ -321,9 +356,10 @@ export function briefPrompt(context: VisibilityContext): string {
 Identify what the business sells, who it serves, and service areas explicitly stated in its own website/profile. Other cities seen in analytics are NOT service areas.
 Create exactly ${buyerQuestionCount()} distinct high-intent buyer questions for recommendation, product selection, delivery/service and purchase comparison.
 Questions MUST NOT name the customer's brand or any rival. Use the real offerings and locations, distribute questions across the service areas and products.
+Preserve evidenced branded product names in the offerings catalog, but never choose a branded offering for a buyer question. Ask about its evidenced generic category instead (for example project management software, not a named product or version).
 For a non-local business with no evidenced service area, return locations=[] and location="". Every question must include an offering from offerings and, for local businesses, a location from locations in its text. Cite fact IDs.
 Use short, natural questions a NEW buyer would ask to find or compare suppliers, such as "Which suppliers deliver [offering] in [location]?" or "Where can I buy [offering] in [location]?" Replace both placeholders with exact values from your lists. Do not ask general nutrition, health, recipe or existing-customer support questions. Do not assume a product has a subscription just because milk subscriptions exist.
-Before returning, check ALL ten questions: no brand names (including the businessName you identified), unique text, exact offering/location fields, the named location written in the actual question, and valid evidence IDs. Naming a location only in metadata or rationale does NOT meet the requirement. Keep the summary and rationales concise.
+Before returning, check ALL ${buyerQuestionCount()} questions: no brand names (including the businessName you identified), unique text, exact offering/location fields, the named location written in the actual question, and valid evidence IDs. Naming a location only in metadata or rationale does NOT meet the requirement. Keep the summary and rationales concise.
 Return JSON: {businessName,summary,offerings:string[],locations:string[],evidenceIds:string[],questions:[{text,offering,location,intent,rationale,evidenceIds:string[]}]}.
 EVIDENCE: ${JSON.stringify(context)}`;
 }

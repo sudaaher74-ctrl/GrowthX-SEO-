@@ -41,6 +41,7 @@ import {
   normalizeBrief,
   object,
   replaceRepeatedBuyerQuestions,
+  repairBrandedBuyerQuestions,
   str,
 } from "./visibility-workflow.logic";
 import {
@@ -384,7 +385,7 @@ export class VisibilityWorkflowService
           );
           try {
             candidate = normalizeBrief(
-              replaceRepeatedBuyerQuestions(result.parsed),
+              replaceRepeatedBuyerQuestions(repairBrandedBuyerQuestions(result.parsed, ctx)),
               ctx,
             );
           } catch (correctedError) {

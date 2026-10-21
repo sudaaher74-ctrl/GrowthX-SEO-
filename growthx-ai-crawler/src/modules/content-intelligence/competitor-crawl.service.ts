@@ -132,6 +132,8 @@ export class CompetitorCrawlService {
       // Override it with the ordinary audit depth without rewriting records.
       maxDepth: CompetitorCrawlService.MAX_DEPTH,
       rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
+      pageLimit: 200,
+      timeBudgetMs: 180_000,
     });
 
     if ((this.prisma as any).page?.create) {
