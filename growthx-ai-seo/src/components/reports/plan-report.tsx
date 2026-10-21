@@ -4,14 +4,9 @@ import { useFindings } from "@/hooks/use-growthx";
 import type { GrowthOpportunity } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
 import { errorMessage } from "@/lib/error-message";
+import { PLAN_SOURCES } from "@/lib/plan-sources";
 
-const GROUPS: { label: string; sources: string[] }[] = [
-  { label: "Website Audit", sources: ["WEBSITE"] },
-  { label: "Google", sources: ["SEARCH_CONSOLE", "ANALYTICS"] },
-  { label: "Competitors", sources: ["COMPETITOR"] },
-  { label: "AI Visibility & market", sources: ["MARKET"] },
-  { label: "Business Profile", sources: ["LOCAL"] },
-];
+const GROUPS = PLAN_SOURCES;
 
 function Finding({ f }: { f: GrowthOpportunity }) {
   return (
@@ -21,7 +16,8 @@ function Finding({ f }: { f: GrowthOpportunity }) {
       {f.evidence.length > 0 && (
         <p className="mt-0.5 text-[11px] text-brand-500">Evidence: {f.evidence.map((e) => `${e.label}: ${e.value}`).join("; ")}</p>
       )}
-      <p className="mt-0.5 text-[12px] text-brand-950"><strong>What to do:</strong> {f.recommendedAction}</p>
+      <p className="mt-0.5 whitespace-pre-line text-[12px] text-brand-950"><strong>What to do:</strong> {f.recommendedAction}</p>
+      <p className="mt-0.5 text-[11px] text-brand-500">Status: {(f.lifecycle ?? 'DETECTED').toLowerCase().replaceAll('_', ' ')} · {f.detailType === 'REPORT_PLAN' ? 'Saved recommendation; review before applying.' : 'Detected finding.'}</p>
       {(f.affectedPages ?? []).length > 0 && (
         <p className="mt-0.5 truncate font-mono text-[10.5px] text-brand-400">
           {f.affectedCount ?? f.affectedPages.length} pages: {f.affectedPages.slice(0, 3).join(", ")}
@@ -64,6 +60,7 @@ export function PlanReport() {
       intro="Every problem and opportunity found across your website audit, Google data, competitors and AI visibility, ranked by impact, each with the evidence and what to do."
     >
       <ReportSection title="Summary">
+        {findings.data.warnings?.map((warning) => <ReportGap key={warning}>{warning}</ReportGap>)}
         <ReportKpis items={[
           { label: "Open findings", value: count(items.length) },
           { label: "High impact", value: count(items.filter((i) => i.potential === "HIGH").length) },
@@ -77,18 +74,17 @@ export function PlanReport() {
         </ReportText>
       </ReportSection>
 
-      {items.length === 0 ? (
-        <ReportGap>Nothing to list. Complete the earlier steps and refresh the plan on the Fix Engine page.</ReportGap>
-      ) : (
+      {items.length === 0 && <ReportGap>Nothing to list. Complete the earlier steps and refresh the plan on the Fix Engine page.</ReportGap>}
+      {
         GROUPS.map((g) => {
           const list = ordered.filter((i) => g.sources.includes(i.source));
           return (
             <ReportSection key={g.label} title={`${g.label} (${list.length})`}>
-              {list.length === 0 ? <ReportText>Nothing open here.</ReportText> : <ul className="space-y-3">{list.map((f) => <Finding key={f.id} f={f} />)}</ul>}
+              {list.length === 0 ? <ReportGap>No open findings imported. Review this module for missing audits, connections or saved reports; this does not confirm that no improvements are needed.</ReportGap> : <ul className="space-y-3">{list.map((f) => <Finding key={f.id} f={f} />)}</ul>}
             </ReportSection>
           );
         })
-      )}
+      }
     </ReportPage>
   );
 }

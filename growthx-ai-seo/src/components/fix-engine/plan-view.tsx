@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
@@ -10,13 +12,7 @@ import { errorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 
 /** The workflow's tabs, and which finding sources belong to each. */
-const GROUPS: { id: string; label: string; sources: string[] }[] = [
-  { id: "WEBSITE", label: "Website Audit", sources: ["WEBSITE"] },
-  { id: "GOOGLE", label: "Google", sources: ["SEARCH_CONSOLE", "ANALYTICS"] },
-  { id: "COMPETITOR", label: "Competitors", sources: ["COMPETITOR"] },
-  { id: "AI", label: "AI Visibility & market", sources: ["MARKET"] },
-  { id: "LOCAL", label: "Business Profile", sources: ["LOCAL"] },
-];
+const GROUPS = PLAN_SOURCES;
 
 const BAND = { HIGH: "good", MEDIUM: "warn", LOW: "default" } as const;
 const EFFORT = { HIGH: "bad", MEDIUM: "warn", LOW: "good" } as const;
@@ -66,7 +62,9 @@ export function PlanView() {
       // Collect from the audit, competitor, AI Visibility and Business Profile adapters, then run the Google detectors.
       const results = await Promise.allSettled([api.syncFindings(projectId!), api.detectOpportunities(projectId!)]);
       const failed = results.flatMap((r) => (r.status === "rejected" ? [errorMessage(r.reason)] : []));
-      if (failed.length === results.length) throw new Error(failed.join(" "));
+      if (failed.length) throw new Error(`Some sources could not refresh: ${failed.join(" ")} Available findings are retained.`);
+      const detection = results[1];
+      if (detection.status === 'fulfilled' && 'failedDetectors' in detection.value && (detection.value.failedDetectors as string[]).length) throw new Error('Some detectors could not finish. Available findings are retained; review the source modules for missing data.');
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["findings", projectId] }),
   });
@@ -82,6 +80,18 @@ export function PlanView() {
 
   return (
     <div className="space-y-4">
+      <Panel title="One plan across your four modules" subtitle="Audit findings, saved report recommendations, weekly actions and saved plans. Refresh after completing a new analysis." padded>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {GROUPS.map((g) => <div key={g.id} className="space-y-1">
+            <p className="text-[13px] font-semibold text-brand-950">{g.label}</p>
+            <p className="text-[12px] text-brand-600">{counts.get(g.id) ?? 0} open findings and recommendations</p>
+            <Link href={g.href} className="text-[12px] text-accent-700 hover:underline">Review source and missing data →</Link>
+          </div>)}
+        </div>
+        <p className="mt-4 text-[12px] text-brand-500">A module with no findings may still need an audit, a connected account or a generated report. Unmeasured data is never treated as a passing result.</p>
+        <Link href="/reports/plan" className="mt-3 inline-block text-[12px] font-semibold text-accent-700 hover:underline">Open complete plan report / Download PDF →</Link>
+      </Panel>
+      {findings.data.warnings?.map((warning) => <StatusNote key={warning} tone="bad">{warning}</StatusNote>)}
       <StatusNote tone="good">
         Fix Engine prepares the changes and you approve them. Nothing here changes your website by itself, and nothing is marked fixed until a later check confirms it.
       </StatusNote>
@@ -173,7 +183,7 @@ function FindingRow({ finding: f, busy, onMove }: { finding: GrowthOpportunity; 
           )}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">What to do</p>
-            <p className="mt-1 text-[12.5px] text-brand-950">{f.recommendedAction}</p>
+            <p className="mt-1 whitespace-pre-line text-[12.5px] text-brand-950">{f.recommendedAction}</p>
           </div>
           {pages.length > 0 && (
             <div>
@@ -188,7 +198,8 @@ function FindingRow({ finding: f, busy, onMove }: { finding: GrowthOpportunity; 
               </ul>
             </div>
           )}
-          <p className="text-[11px] text-brand-400">Confidence {f.confidence}% · found {new Date(f.detectedAt).toLocaleDateString()}</p>
+          <p className="text-[11px] text-brand-400">{f.detailType === 'REPORT_PLAN' ? 'Saved recommendation · review before applying' : `Confidence ${f.confidence}%`} · found {new Date(f.detectedAt).toLocaleDateString()}</p>
+          {group && <Link href={f.detailType === 'REPORT_PLAN' ? group.report : group.href} className="inline-block text-[12px] font-semibold text-accent-700 hover:underline">Open source {f.detailType === 'REPORT_PLAN' ? 'report' : 'module'} →</Link>}
 
           <div className="flex flex-wrap items-center gap-2">
             {lifecycle === "DETECTED" && (

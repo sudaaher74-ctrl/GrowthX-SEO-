@@ -1002,7 +1002,7 @@ export const api = {
   },
 
   syncFindings: (projectId: string) =>
-    post<{ created: number; updated: number; resolved: number }>(
+    post<{ created: number; updated: number; resolved: number; warnings?: string[] }>(
       `/api/projects/${projectId}/findings/sync`,
       {},
     ),

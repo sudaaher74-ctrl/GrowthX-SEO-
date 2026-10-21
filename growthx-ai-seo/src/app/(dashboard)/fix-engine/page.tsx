@@ -26,7 +26,7 @@ import { EngineerPanel, RunsPanel } from "@/components/fix-engine/engineer-panel
 import { PlanView } from "@/components/fix-engine/plan-view";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: Wrench },
+  { id: "overview", label: "Improvement plan", icon: Wrench },
   { id: "history", label: "Fix History", icon: History },
   { id: "before-after", label: "Before & After", icon: GitCompare },
   { id: "impact", label: "Impact Analytics", icon: TrendingUp },
@@ -49,7 +49,10 @@ function FixEngineClient() {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const tab: TabId = TABS.some((t) => t.id === rawTab) ? (rawTab as TabId) : "overview";
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(searchParams.get("runId") || null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(() => {
+    const id = searchParams.get("runId");
+    return id && !['undefined', 'null'].includes(id) ? id : null;
+  });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const { projectId } = useWorkspace();
@@ -127,10 +130,10 @@ function FixEngineClient() {
     <div className="space-y-6 pb-16">
       <PageHeader
         title="Fix Engine"
-        subtitle="Track every technical improvement from code change to measurable search and AI impact."
+        subtitle="Your complete fix and improvement plan for Website Audit, Google, Competitor Intelligence and AI Visibility."
         actions={
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-brand-400">Fix Engine 2.0 · Proof of Impact</span>
+            <a href="/reports/plan" className="text-[12px] font-semibold text-accent-700 hover:underline">Complete plan report →</a>
           </div>
         }
       />
@@ -147,6 +150,7 @@ function FixEngineClient() {
       {/* Tab 1: Overview */}
       {tab === "overview" && (
         <>
+          <PlanView key={activeProjectId} />
           {overviewLoading ? (
             <div className="p-12 text-center text-xs text-brand-400 flex items-center justify-center gap-2">
               <Loader2 className="animate-spin" size={14} /> Loading Fix Engine Overview...
@@ -160,7 +164,6 @@ function FixEngineClient() {
             <ShipPanel />
             <EngineerPanel />
             <RunsPanel />
-            <PlanView />
           </div>
         </>
       )}

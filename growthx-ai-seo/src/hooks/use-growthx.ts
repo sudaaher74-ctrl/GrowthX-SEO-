@@ -580,8 +580,20 @@ export function useFindings(
       // sources. Reconcile before reading so a completed audit cannot show 14
       // problems on Website Audit and an empty Fix Engine until the nightly
       // scheduler happens to run.
-      await api.syncFindings(projectId!);
-      return api.findings(projectId!, filters);
+      const sync = await api.syncFindings(projectId!);
+      const first = await api.findings(projectId!, filters);
+      if (filters.cursor) return { ...first, warnings: sync.warnings ?? [] };
+      const items = [...first.items];
+      const seen = new Set<string>();
+      let cursor = first.nextCursor;
+      while (cursor) {
+        if (seen.has(cursor)) throw new Error("The plan could not load all findings. Please retry.");
+        seen.add(cursor);
+        const page = await api.findings(projectId!, { ...filters, cursor });
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      }
+      return { ...first, items, nextCursor: null, warnings: sync.warnings ?? [] };
     },
     enabled: Boolean(projectId),
     retry: false,
