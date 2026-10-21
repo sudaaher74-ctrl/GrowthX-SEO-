@@ -54,6 +54,7 @@ describe('crawl capacity', () => {
     it('starts an audit when the account has room', async () => {
       prisma.crawlJob.findMany.mockResolvedValue([{ websiteId: 'w_a' }]);
       await expect(controller.startCrawlJob(REQ, { websiteId: 'w_new' })).resolves.toMatchObject({ jobId: 'job_1' });
+      expect(crawler.startCrawlJob).toHaveBeenCalledWith('w_new', expect.objectContaining({pageLimit: 200, timeBudgetMs: 180_000}));
     });
 
     it("refuses a fourth site while three of the account's sites are being audited", async () => {

@@ -22,7 +22,9 @@ import {
 } from './competitor-finder';
 
 /** Matches the Website Audit page's Re-crawl button. */
-const OWN_SITE_CRAWL = { maxDepth: 20, maxConcurrency: 10, useSitemap: true };
+// The first audit must finish on large sites too. It is a measured sample,
+// rather than an unbounded crawl of every product, locale and archive URL.
+const OWN_SITE_CRAWL = { maxDepth: 8, maxConcurrency: 10, useSitemap: true, pageLimit: 200, timeBudgetMs: 180_000 };
 /** A crawl this recent is used as it is rather than run again. */
 const FRESH_OWN_CRAWL_MS = 24 * 60 * 60 * 1000;
 const FRESH_RIVAL_CRAWL_MS = 7 * 24 * 60 * 60 * 1000;

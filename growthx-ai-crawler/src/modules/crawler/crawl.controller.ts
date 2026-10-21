@@ -259,7 +259,7 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
-  async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
+  async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean; pageLimit?: number; timeBudgetMs?: number }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
 
     // resolved an organization for the *caller*, but nothing
@@ -271,7 +271,11 @@ export class CrawlController {
       : await this.websiteForCaller(req, { domain: body.domain as string }, 'write');
 
     await this.assertCrawlCapacity(website.id, website.project!.organizationId);
-    const jobId = await this.crawlerService.startCrawlJob(website.id, body);
+    const jobId = await this.crawlerService.startCrawlJob(website.id, {
+      ...body,
+      pageLimit: body.pageLimit ?? 200,
+      timeBudgetMs: body.timeBudgetMs ?? 180_000,
+    });
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }
 

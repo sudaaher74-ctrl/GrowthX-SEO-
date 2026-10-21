@@ -130,7 +130,7 @@ describe('AutopilotService', () => {
       where: { domain_scope: { domain: 'brandkettle.co.in', scope: 'own' } },
       create: { domain: 'brandkettle.co.in', scope: 'own', projectId: 'p-new' },
     });
-    expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-own', expect.any(Object));
+    expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-own', expect.objectContaining({ pageLimit: 200, timeBudgetMs: 180_000 }));
     expect(view).toMatchObject({ projectId: 'p-new', domain: 'brandkettle.co.in', status: 'DISCOVERING' });
 
     await service.discover(view.id);
