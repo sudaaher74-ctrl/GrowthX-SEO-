@@ -580,6 +580,7 @@ model BacklinkSource {
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   links          Backlink[]
   observations   BacklinkObservation[]
+  recommendation RecommendationAnalysis?
 
   @@unique([projectId, sourceUrl])
   @@index([nextCheckAt, projectId])
@@ -642,6 +643,21 @@ model BacklinkObservation {
   source        BacklinkSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([sourceId, checkedAt])
+}
+
+/// Latest evidence-backed analysis of a publisher article. Holds extracted
+/// findings and short passages only, never the fetched HTML. One row per
+/// source; re-analysis is skipped while content hash and version are unchanged.
+model RecommendationAnalysis {
+  id              String   @id @default(uuid())
+  sourceId        String   @unique
+  analysisVersion String
+  contentHash     String
+  analysis        Json
+  analyzedAt      DateTime @default(now())
+  source          BacklinkSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([analyzedAt])
 }
 
 /// One row per (organization, metric, billing period). Incremented after work

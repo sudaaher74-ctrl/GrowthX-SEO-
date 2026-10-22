@@ -22,6 +22,7 @@ import {
 import { BacklinksService } from "./backlinks.service";
 import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 import { BacklinkDiscovery } from "./backlink-discovery.service";
+import { RecommendationService } from "./recommendation.service";
 
 @ApiTags("Backlink intelligence")
 @ApiBearerAuth()
@@ -33,6 +34,7 @@ export class BacklinksController {
     private readonly queue: BacklinkQueue,
     private readonly analytics: BacklinkAnalyticsService,
     private readonly discovery: BacklinkDiscovery,
+    private readonly recommendations: RecommendationService,
   ) {}
 
   @Get()
@@ -118,6 +120,52 @@ export class BacklinksController {
   @Post("plan")
   plan(@Param("projectId") projectId: string, @Body() body: PlanBacklinkDto) {
     return this.backlinks.plan(projectId, body.sourceId, body.targetUrl);
+  }
+
+  @Get("recommendations/stats")
+  recommendationStats(@Param("projectId") projectId: string) {
+    return this.recommendations.stats(projectId);
+  }
+
+  @Get("recommendations")
+  recommendationLeads(
+    @Param("projectId") projectId: string,
+    @Query() query: BacklinkPageDto,
+  ) {
+    return this.recommendations.candidates(projectId, query.offset);
+  }
+
+  @Get("recommendations/:sourceId")
+  recommendationAnalysis(
+    @Param("projectId") projectId: string,
+    @Param("sourceId") sourceId: string,
+  ) {
+    return this.recommendations.analysis(projectId, sourceId);
+  }
+
+  @Post("recommendations/:sourceId/analyze")
+  analyzeRecommendation(
+    @Param("projectId") projectId: string,
+    @Param("sourceId") sourceId: string,
+  ) {
+    return this.recommendations.analyze(projectId, sourceId);
+  }
+
+  @Post("recommendations/:sourceId/opportunity")
+  pushRecommendationOpportunity(
+    @Param("projectId") projectId: string,
+    @Param("sourceId") sourceId: string,
+  ) {
+    return this.recommendations.pushToOpportunities(projectId, sourceId);
+  }
+
+  @Post("recommendations/:sourceId/outreach")
+  updateRecommendationOutreach(
+    @Param("projectId") projectId: string,
+    @Param("sourceId") sourceId: string,
+    @Body() body: { status?: any; approvedByUser?: boolean; pitchDraft?: string; contactChannel?: string; outcome?: string },
+  ) {
+    return this.recommendations.updateOutreach(projectId, sourceId, body);
   }
 
   @Get("sources/:sourceId/history")

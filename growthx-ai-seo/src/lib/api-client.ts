@@ -478,6 +478,12 @@ export const api = {
     reconcile: (projectId: string) => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/reconcile`, {}),
     history: (projectId: string, sourceId: string, offset = 0) => get<BacklinkHistory>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/sources/${encodeURIComponent(sourceId)}/history?offset=${offset}`),
     remove: (projectId: string, sourceId: string) => del<{ removed: boolean }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/sources/${encodeURIComponent(sourceId)}`),
+    recommendationStats: (projectId: string) => get<import('./backlink-recommendations').RecommendationStats>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/stats`),
+    recommendationLeads: (projectId: string, offset = 0) => get<import('./backlink-recommendations').RecommendationLeads>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations?offset=${offset}`),
+    recommendationAnalysis: (projectId: string, sourceId: string) => get<import('./backlink-recommendations').RecommendationDetail>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}`),
+    analyzeRecommendation: (projectId: string, sourceId: string) => post<import('./backlink-recommendations').AnalyzeResponse>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/analyze`, {}),
+    pushRecommendationOpportunity: (projectId: string, sourceId: string) => post<{ message: string; opportunityId: string }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/opportunity`, {}),
+    updateRecommendationOutreach: (projectId: string, sourceId: string, payload: { status?: string; approvedByUser?: boolean; pitchDraft?: string; contactChannel?: string; outcome?: string }) => post<{ message: string; outreach: import('./backlink-recommendations').PublisherOutreachState }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/outreach`, payload),
   },
 
   // Mammouth AI Orchestration

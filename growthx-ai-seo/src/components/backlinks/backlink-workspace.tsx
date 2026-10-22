@@ -10,6 +10,7 @@ import { api } from '@/lib/api-client';
 import type { BacklinkMutationResult, BacklinkSource } from '@/lib/backlinks';
 import { BacklinkAnalysis } from './backlink-analysis';
 import { BacklinkDiscoveryPanel } from './backlink-discovery';
+import { RecommendationDiscovery } from './recommendation-discovery';
 
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not checked';
 const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -34,7 +35,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [note, setNote] = useState('');
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
-  const [tab, setTab] = useState<'analysis' | 'evidence' | 'actions' | 'prospects'>('analysis');
+  const [tab, setTab] = useState<'analysis' | 'evidence' | 'actions' | 'prospects' | 'recommendations'>('analysis');
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset], queryFn: () => api.backlinks.report(projectId, offset),
     refetchInterval: (query) => {
@@ -115,11 +116,12 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       </form>
     </Panel> : null}
     <nav aria-label="Backlink views" className="flex flex-wrap gap-2">
-      {(['analysis', 'evidence', 'actions', 'prospects'] as const).map((item) => <ActionButton key={item} aria-pressed={tab === item} variant={tab === item ? 'primary' : 'secondary'} onClick={() => setTab(item)}>
-        {item === 'analysis' ? 'Profile & reports' : item === 'evidence' ? 'Source evidence' : item === 'actions' ? 'Next actions' : 'Observed competitor sources'}
+      {(['analysis', 'evidence', 'actions', 'prospects', 'recommendations'] as const).map((item) => <ActionButton key={item} aria-pressed={tab === item} variant={tab === item ? 'primary' : 'secondary'} onClick={() => setTab(item)}>
+        {item === 'analysis' ? 'Profile & reports' : item === 'evidence' ? 'Source evidence' : item === 'actions' ? 'Next actions' : item === 'prospects' ? 'Observed competitor sources' : 'Recommendation discovery'}
       </ActionButton>)}
     </nav>
     {tab === 'analysis' ? <BacklinkAnalysis projectId={projectId} onAddSources={() => setTab('evidence')} refreshing={!!data?.queue.available && data.queue.active + data.queue.waiting > 0} /> : null}
+    {tab === 'recommendations' ? <RecommendationDiscovery projectId={projectId} onAddSources={() => setTab('evidence')} /> : null}
     <QueryState isLoading={report.isLoading} error={report.error}>
       {data && tab === 'evidence' ? <Panel title="Source evidence" subtitle="Open a page to see link destinations, readiness, and verification history.">
         <QueryState isEmpty={!data.sources.length} emptyTitle="No source pages yet" emptyBody="Import URLs from the Search Console Links report or add referring pages you already know.">
