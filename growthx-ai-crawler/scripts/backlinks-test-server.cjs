@@ -20,6 +20,9 @@ const { BacklinkQueue } = require('../src/modules/backlinks/backlink-queue.servi
 const { BacklinksController } = require('../src/modules/backlinks/backlinks.controller');
 const { BacklinksService } = require('../src/modules/backlinks/backlinks.service');
 const { BacklinkAnalyticsService } = require('../src/modules/backlinks/backlink-analytics.service');
+const { BacklinkDiscovery } = require('../src/modules/backlinks/backlink-discovery.service');
+const { PublicBacklinkIndex } = require('../src/modules/backlinks/public-backlink-index.service');
+const { publicAxios } = require('../src/modules/security/ssrf');
 
 async function main() {
   const database = new URL(process.env.DATABASE_URL || 'http://missing');
@@ -32,7 +35,7 @@ async function main() {
   process.env.ALLOW_PRIVATE_CRAWL_TARGETS = 'true';
   process.env.CORS_ALLOWED_ORIGINS = 'http://127.0.0.1:3211';
   const db = new PrismaService(); await db.$connect();
-  const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+  const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null, db: 2 });
   const tag = randomUUID();
   const organization = await db.organization.create({ data: { name: 'Backlink browser test', slug: `backlinks-browser-${tag}` } });
   const user = await db.user.create({ data: { email: `backlinks-browser-${tag}@example.test`, passwordHash: 'unused-test-hash' } });
@@ -61,10 +64,18 @@ async function main() {
       { provide: PrismaService, useValue: db },
       { provide: QueueService, useValue: { ready: Promise.resolve(), getRedisClient: () => redis } },
       { provide: JwtStrategy, useFactory: () => new JwtStrategy({}, { findById: (id) => db.user.findUnique({ where: { id } }) }, db) },
-      JwtAuthGuard, BacklinksService, BacklinkFetcher, BacklinkQueue, BacklinkAnalyticsService,
+      JwtAuthGuard, BacklinksService, BacklinkFetcher, BacklinkQueue, BacklinkAnalyticsService, BacklinkDiscovery, PublicBacklinkIndex,
     ],
   })(BrowserTestModule);
   const app = await NestFactory.create(BrowserTestModule, { logger: false });
+  // External discovery boundaries are deterministic fixtures; publisher checks,
+  // authentication, persistence and queue processing remain real.
+  app.get(PublicBacklinkIndex).grow=async()=>({status:'PARTIAL',reason:'Isolated browser-test archive fixture.'});
+  const actualGet=publicAxios.get.bind(publicAxios);
+  publicAxios.get=(url,config)=>url==='https://en.wikipedia.org/w/api.php'?Promise.resolve({data:{query:{exturlusage:[]}}}):actualGet(url,config);
+  const fetcher=app.get(BacklinkFetcher),actualFetch=fetcher.fetch.bind(fetcher);
+  fetcher.fetch=(url)=>url==='https://client.example/'?Promise.resolve({outcome:'READ',html:'<html><body>Fixture website</body></html>',finalUrl:url,reason:'Isolated footprint fixture.'}):actualFetch(url);
+  const discoveryEdgeId='browser-discovery-'+tag;
   app.use(require('cookie-parser')());
   app.useGlobalGuards(new CsrfGuard());
   app.enableCors({ origin: true, credentials: true });
@@ -75,6 +86,7 @@ async function main() {
     if (closing) return; closing = true;
     clearTimeout(expiry);
     await app.close(); ownServer.close(); competitorServer.close();
+    await db.publicBacklinkEdge.deleteMany({where:{id:discoveryEdgeId}});
     await db.organization.delete({ where: { id: organization.id } }); await db.user.delete({ where: { id: user.id } });
     await redis.quit(); await db.$disconnect();
   }
@@ -87,12 +99,19 @@ async function main() {
     earned = false;
     await db.growthOpportunity.deleteMany({ where: { projectId: project.id, source: 'BACKLINKS' } });
     await db.backlinkSource.deleteMany({ where: { projectId: project.id } });
+    await db.backlinkDiscoveryRun.deleteMany({where:{projectId:project.id}});
+    await db.publicBacklinkEdge.deleteMany({where:{id:discoveryEdgeId}});
     await db.page.update({ where: { id: page.id }, data: { statusCode: 404, indexability: 'NOT_INDEXABLE', crawledAt: new Date() } });
     res.json({ ok: true });
   });
   server.post('/__test__/audit-fixed', async (req, res) => {
     if (req.headers.authorization !== `Bearer ${accessToken}`) return res.sendStatus(403);
     await db.page.update({ where: { id: page.id }, data: { statusCode: 200, indexability: 'INDEXABLE', crawledAt: new Date() } }); res.json({ ok: true });
+  });
+  server.post('/__test__/prepare-discovery',async(req,res)=>{
+    if(req.headers.authorization!==`Bearer ${accessToken}`) return res.sendStatus(403);
+    await db.publicBacklinkEdge.upsert({where:{id:discoveryEdgeId},update:{},create:{id:discoveryEdgeId,sourceUrl:ownSource.replace('/resource','/discovered'),targetUrl,targetHost:'client.example',targetRoot:'client.example',archivePath:'isolated-browser-fixture',archivedAt:new Date()}});
+    res.json({ok:true});
   });
   server.post('/__test__/publisher-link', async (req, res) => {
     if (req.headers.authorization !== `Bearer ${accessToken}`) return res.sendStatus(403);

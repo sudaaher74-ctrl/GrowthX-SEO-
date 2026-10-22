@@ -6,6 +6,8 @@ import { BacklinkQueue } from "./backlink-queue.service";
 import { BacklinksController } from "./backlinks.controller";
 import { BacklinksService } from "./backlinks.service";
 import { BacklinkAnalyticsService } from "./backlink-analytics.service";
+import { PublicBacklinkIndex } from "./public-backlink-index.service";
+import { BacklinkDiscovery } from "./backlink-discovery.service";
 
 @Module({
   imports: [DatabaseModule, QueueModule],
@@ -15,6 +17,8 @@ import { BacklinkAnalyticsService } from "./backlink-analytics.service";
     BacklinkFetcher,
     BacklinkQueue,
     BacklinkAnalyticsService,
+    PublicBacklinkIndex,
+    BacklinkDiscovery,
   ],
   exports: [BacklinksService],
 })

@@ -464,6 +464,8 @@ export interface CompetitorSuggestions {
 
 export const api = {
   backlinks: {
+    discoveryStatus: (projectId:string) => get<import('./backlink-discovery').BacklinkDiscoveryStatus>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/discovery`),
+    startDiscovery: (projectId:string) => post<{message:string;runId:string}>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/discovery`,{}),
     profile: (projectId: string, days: number) => get<BacklinkProfile>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/analytics?days=${days}`),
     explore: (projectId: string, filters: BacklinkFilters) => get<BacklinkExplorer>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/explore?${new URLSearchParams(Object.entries(filters).filter(([,value]) => value !== undefined && value !== '').map(([key,value]) => [key, String(value)]))}`),
     export: (projectId: string, filters: BacklinkFilters) => get<BacklinkExport>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/export?${new URLSearchParams(Object.entries(filters).filter(([,value]) => value !== undefined && value !== '').map(([key,value]) => [key, String(value)]))}`),

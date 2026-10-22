@@ -16,7 +16,10 @@ import { BacklinkQueue } from "./backlink-queue.service";
 import { BacklinksController } from "./backlinks.controller";
 import { BacklinksService } from "./backlinks.service";
 import { BacklinkAnalyticsService } from "./backlink-analytics.service";
+import { BacklinkDiscovery } from "./backlink-discovery.service";
+import { PublicBacklinkIndex } from "./public-backlink-index.service";
 import { DAY } from "./backlink-evidence";
+import { publicAxios } from "../security/ssrf";
 
 // Explicit opt-in, restricted to a local disposable database and Redis instance.
 const enabled = process.env.BACKLINKS_INTEGRATION === "true";
@@ -246,6 +249,8 @@ integration(
           BacklinkFetcher,
           BacklinkQueue,
           BacklinkAnalyticsService,
+          BacklinkDiscovery,
+          PublicBacklinkIndex,
         ],
       })
       class IntegrationModule {}
@@ -622,6 +627,128 @@ integration(
         ).lifecycle,
       ).toBe("DISMISSED");
     });
+
+    it("discovers public-index and footprint sources through the real queue and verifies their actual HTML", async () => {
+      const archiveSource = origin + "/archive-discovered";
+      const footprintSource = origin + "/footprint-discovered";
+      const edgeId = randomUUID();
+      await db.publicBacklinkEdge.create({
+        data: {
+          id: edgeId,
+          sourceUrl: archiveSource,
+          targetUrl: own,
+          targetHost: ownHost,
+          targetRoot: ownHost,
+          archivePath: "public-test-fixture",
+          archivedAt: new Date(),
+        },
+      });
+      expect(
+        await db.backlinkSource.findUnique({
+          where: {
+            projectId_sourceUrl: { projectId, sourceUrl: archiveSource },
+          },
+        }),
+      ).toBeNull();
+      expect((await request("/discovery", "GET", undefined, "")).status).toBe(
+        401,
+      );
+      expect(
+        (await request("/discovery", "POST", {}, viewerToken)).status,
+      ).toBe(403);
+      const foreign = await fetch(
+        `${base}/api/projects/${otherProjectId}/backlinks/discovery`,
+        { headers: { authorization: `Bearer ${token}` } },
+      );
+      expect([403, 404]).toContain(foreign.status);
+      const index = app.get(PublicBacklinkIndex);
+      const archive = jest
+        .spyOn(index, "grow")
+        .mockResolvedValue({
+          status: "PARTIAL",
+          reason: "Bounded fixture archive coverage.",
+        });
+      const actualGet = publicAxios.get.bind(publicAxios);
+      const wiki = jest
+        .spyOn(publicAxios, "get")
+        .mockImplementation(((url: string, config: any) =>
+          url === "https://en.wikipedia.org/w/api.php"
+            ? Promise.resolve({ data: { query: { exturlusage: [] } } })
+            : actualGet(url, config)) as any);
+      const fetcher = app.get(BacklinkFetcher),
+        actualFetch = fetcher.fetch.bind(fetcher);
+      const footprint = jest
+        .spyOn(fetcher, "fetch")
+        .mockImplementation((url: string) =>
+          url === `https://${ownHost}/`
+            ? Promise.resolve({
+                outcome: "READ",
+                html: html(
+                  `<a href="${footprintSource}">Publisher profile</a>`,
+                ),
+                finalUrl: url,
+                reason: "Fixture website footprint.",
+              })
+            : actualFetch(url),
+        );
+      try {
+        const first = await request("/discovery", "POST", {});
+        expect(first.status).toBe(201);
+        expect((await request("/discovery", "POST", {})).body.runId).toBe(
+          first.body.runId,
+        );
+        const deadline = Date.now() + 30000;
+        let status: any;
+        do {
+          status = (await request("/discovery")).body;
+          if (
+            status.run?.finishedAt &&
+            status.run.checked >= 2 &&
+            status.run.verified >= 2
+          )
+            break;
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        } while (Date.now() < deadline);
+        expect(status.run).toMatchObject({
+          id: first.body.runId,
+          status: "PARTIAL",
+          candidates: 2,
+          added: 2,
+          checked: 2,
+          verified: 2,
+        });
+        expect(status.run.sourceIds).toBeUndefined();
+        const discovered = await db.backlinkSource.findMany({
+          where: {
+            projectId,
+            sourceUrl: { in: [archiveSource, footprintSource] },
+          },
+          include: { links: true },
+        });
+        expect(discovered).toHaveLength(2);
+        expect(
+          discovered.every((source) =>
+            source.links.some(
+              (link) =>
+                link.targetUrl === own &&
+                link.status === "VERIFIED" &&
+                link.lastVerifiedAt,
+            ),
+          ),
+        ).toBe(true);
+        expect(new Set(discovered.map((source) => source.discovery))).toEqual(
+          new Set(["COMMON_CRAWL", "PUBLIC_FOOTPRINT"]),
+        );
+        const cooldown = await request("/discovery", "POST", {});
+        expect(cooldown.body.runId).toBe(first.body.runId);
+        expect(cooldown.body.message).toContain("six hours");
+      } finally {
+        archive.mockRestore();
+        wiki.mockRestore();
+        footprint.mockRestore();
+        await db.publicBacklinkEdge.deleteMany({ where: { id: edgeId } });
+      }
+    }, 45000);
 
     it("removes only the selected project source and cascades its history and tasks", async () => {
       expect((await request(`/sources/${sourceId}`, "DELETE")).status).toBe(

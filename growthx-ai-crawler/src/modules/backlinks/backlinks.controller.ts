@@ -21,6 +21,7 @@ import {
 } from "./backlinks.dto";
 import { BacklinksService } from "./backlinks.service";
 import { BacklinkAnalyticsService } from "./backlink-analytics.service";
+import { BacklinkDiscovery } from "./backlink-discovery.service";
 
 @ApiTags("Backlink intelligence")
 @ApiBearerAuth()
@@ -31,6 +32,7 @@ export class BacklinksController {
     private readonly backlinks: BacklinksService,
     private readonly queue: BacklinkQueue,
     private readonly analytics: BacklinkAnalyticsService,
+    private readonly discovery: BacklinkDiscovery,
   ) {}
 
   @Get()
@@ -88,6 +90,16 @@ export class BacklinksController {
   @Post("discover")
   discover(@Param("projectId") projectId: string) {
     return this.backlinks.discover(projectId);
+  }
+
+  @Post("discovery")
+  startDiscovery(@Param("projectId") projectId: string) {
+    return this.discovery.start(projectId);
+  }
+
+  @Get("discovery")
+  discoveryStatus(@Param("projectId") projectId: string) {
+    return this.discovery.status(projectId);
   }
 
   @Post("verify")

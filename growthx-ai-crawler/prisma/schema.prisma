@@ -538,6 +538,7 @@ model Project {
   competitorChangeAlerts    CompetitorChangeAlert[]
   growthOpportunities       GrowthOpportunity[]
   backlinkSources           BacklinkSource[]
+  backlinkDiscoveryRuns     BacklinkDiscoveryRun[]
   pageSnapshots             PageSnapshot[]
   contentSuggestions        ContentSuggestion[]
   publishedChanges          PublishedChange[]
@@ -4433,6 +4434,53 @@ model AiVisibilityMetrics {
   scan               AiVisibilityScan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+// Only facts extracted from public archives belong here. Never copy tenant
+// crawls, imports, integration data or private source lists into this index.
+model PublicBacklinkEdge {
+  id          String   @id
+  sourceUrl   String
+  targetUrl   String
+  targetHost  String
+  targetRoot  String
+  archivePath String
+  archivedAt  DateTime?
+  indexedAt   DateTime @default(now())
+
+  @@index([targetRoot, indexedAt])
+  @@index([indexedAt])
+}
+
+model PublicBacklinkSlice {
+  path        String   @id
+  status      String   @default("RUNNING")
+  pages       Int      @default(0)
+  edges       Int      @default(0)
+  bytes       Int      @default(0)
+  reason      String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+}
+
+model BacklinkDiscoveryRun {
+  id          String   @id @default(uuid())
+  projectId   String
+  status      String   @default("QUEUED")
+  stage       String   @default("Waiting for discovery worker")
+  candidates  Int      @default(0)
+  added       Int      @default(0)
+  verified    Int      @default(0)
+  checked     Int      @default(0)
+  sourceIds   String[] @default([])
+  details     Json     @default("[]")
+  error       String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, startedAt])
+  @@index([status, startedAt])
 }
 
 model AiVisibilitySettings {
