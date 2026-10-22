@@ -12,6 +12,7 @@
     "lint": "npm run check:data && npm run check:design && eslint",
     "typecheck": "tsc --noEmit",
     "test:smoke": "playwright test",
+    "test:backlinks": "playwright test e2e/backlinks-live.spec.ts --workers=1",
     "check:data": "node scripts/check-no-fabricated-data.mjs",
     "check:design": "node scripts/check-design-tokens.mjs",
     "check:dead-code": "knip"

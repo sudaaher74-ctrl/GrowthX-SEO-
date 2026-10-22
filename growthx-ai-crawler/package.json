@@ -21,6 +21,7 @@
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "check:dead-code": "knip",
     "test": "jest",
+    "test:backlinks": "jest --runInBand --runTestsByPath src/modules/backlinks/backlink-evidence.spec.ts src/modules/backlinks/backlink-fetcher.service.spec.ts src/modules/backlinks/backlinks.integration.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

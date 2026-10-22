@@ -5,6 +5,7 @@ import { SearchConsoleInsightsService } from '../integrations/google/search-cons
 import { AnalyticsInsightsService } from '../integrations/google/analytics-insights.service';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { closestMatch, distinctiveTokens, MATCH_THRESHOLD, siteBoilerplate, topicTokens } from '../content-intelligence/topic-match';
+import { BacklinksService } from '../backlinks/backlinks.service';
 
 /** What a detector produces before it is stored. */
 interface Detected {
@@ -39,6 +40,7 @@ export class OpportunityDetectionService {
     private readonly prisma: PrismaService,
     private readonly search: SearchConsoleInsightsService,
     private readonly analytics: AnalyticsInsightsService,
+    private readonly backlinks: BacklinksService,
   ) {}
 
   /**
@@ -64,6 +66,12 @@ export class OpportunityDetectionService {
 
     const found: Detected[] = [];
     const failed: string[] = [];
+    try {
+      await this.backlinks.reconcile(projectId);
+    } catch (error) {
+      this.logger.warn(`Backlink actions could not be reconciled: ${(error as Error).message}`);
+      failed.push('backlinks');
+    }
     for (const detector of detectors) {
       try {
         const results = await detector.run();

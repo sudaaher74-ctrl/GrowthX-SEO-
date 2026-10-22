@@ -6,6 +6,7 @@
  */
 
 import type { StagedFixItem } from "@/lib/staging-engine";
+import type { BacklinkHistory, BacklinkMutationResult, BacklinkReport } from './backlinks';
 import type { VisibilityBrief, VisibilityJourneyResponse } from './visibility-workflow';
 import { createSessionRefresh, type RefreshResult } from './session-refresh';
 import type {
@@ -461,6 +462,17 @@ export interface CompetitorSuggestions {
 }
 
 export const api = {
+  backlinks: {
+    plan: (projectId: string, sourceId: string, targetUrl: string, relevanceReviewed: boolean) => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/plan`, { sourceId, targetUrl, relevanceReviewed }),
+    report: (projectId: string, offset = 0) => get<BacklinkReport>(`/api/projects/${encodeURIComponent(projectId)}/backlinks?offset=${offset}`),
+    import: (projectId: string, text: string, discovery: 'MANUAL' | 'GSC_CSV' | 'CSV') => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/import`, { text, discovery }),
+    discover: (projectId: string) => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/discover`, {}),
+    verify: (projectId: string, sourceId?: string) => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/verify`, { sourceId }),
+    reconcile: (projectId: string) => post<BacklinkMutationResult>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/reconcile`, {}),
+    history: (projectId: string, sourceId: string, offset = 0) => get<BacklinkHistory>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/sources/${encodeURIComponent(sourceId)}/history?offset=${offset}`),
+    remove: (projectId: string, sourceId: string) => del<{ removed: boolean }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/sources/${encodeURIComponent(sourceId)}`),
+  },
+
   // Mammouth AI Orchestration
   mammouth: {
     getConfig: () => get<MammouthConfig>('/api/ai/mammouth/config'),

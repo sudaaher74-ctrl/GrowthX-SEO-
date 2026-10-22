@@ -53,6 +53,7 @@ import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
 import { TokensModule } from './modules/tokens/tokens.module';
 import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-intelligence.module';
+import { BacklinksModule } from './modules/backlinks/backlinks.module';
 
 
 import { CsrfGuard } from './modules/auth/csrf.guard';
@@ -61,6 +62,7 @@ import { CsrfGuard } from './modules/auth/csrf.guard';
   imports: [
     CompetitorActionEngineModule,
     GrowthIntelligenceModule,
+    BacklinksModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // `@nestjs/throttler` was a dependency but was never registered, so no
     // route had any rate limit at all. Two buckets: a burst ceiling and a

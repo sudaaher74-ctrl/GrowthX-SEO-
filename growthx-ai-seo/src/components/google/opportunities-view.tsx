@@ -33,7 +33,7 @@ export function OpportunitiesView() {
   const allOpps = useMemo(() => {
     const list = opps.data?.opportunities ?? [];
     return list.filter(
-      (o) => o.source === "SEARCH_CONSOLE" || o.source === "ANALYTICS" || o.source === "WEBSITE",
+      (o) => o.source === "SEARCH_CONSOLE" || o.source === "ANALYTICS" || o.source === "WEBSITE" || o.source === "BACKLINKS",
     );
   }, [opps.data]);
 
@@ -236,7 +236,7 @@ export function OpportunitiesView() {
                     compact
                     title="No opportunities match your filter"
                     missing="No open opportunity found with the selected criteria."
-                    whyItMatters="Opportunities appear once Search Console and Analytics have data to reason from."
+                    whyItMatters="Opportunities come from verified website, backlink, Search Console, and Analytics evidence."
                     actionRequired="Clear search filter or select All Opportunities."
                   />
                 </div>
