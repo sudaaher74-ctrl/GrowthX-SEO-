@@ -16,6 +16,7 @@ import { FindingSyncService } from './finding-sync.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
+import { BacklinksModule } from '../backlinks/backlinks.module';
 
 /**
  * The unified opportunity surface.
@@ -26,7 +27,7 @@ import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
  * on.
  */
 @Module({
-  imports: [DatabaseModule, IntegrationsModule, AiSearchModule],
+  imports: [DatabaseModule, IntegrationsModule, AiSearchModule, BacklinksModule],
   providers: [
     OpportunitiesService,
     OpportunityDetectionService,

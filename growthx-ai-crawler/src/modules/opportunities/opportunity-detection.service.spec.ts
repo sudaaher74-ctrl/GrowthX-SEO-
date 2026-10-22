@@ -75,7 +75,7 @@ describe('OpportunityDetectionService', () => {
       search,
       analytics,
       written,
-      service: new OpportunityDetectionService(prisma as any, search as any, analytics as any),
+      service: new OpportunityDetectionService(prisma as any, search as any, analytics as any, { reconcile: jest.fn().mockResolvedValue({ reconciled: 0 }) } as any),
     };
   };
 

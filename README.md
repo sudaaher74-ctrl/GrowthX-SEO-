@@ -9,6 +9,11 @@ AI-assisted SEO for real businesses. Three products are in production:
 - **Google Business Profile** — connects a listing through Google, audits it,
   tracks local rankings on a geo grid, and drafts review replies.
 
+**Backlink Intelligence** (`/backlinks`) imports source pages, verifies observed
+links, connects destination readiness to Opportunities, and records verified
+actions in the Proof of Impact ledger. It uses no paid backlink API. See
+[workflow, limits, deployment and tests](docs/backlink-intelligence.md).
+
 Every figure the product shows comes from a crawl, a Google API, or a model
 call made for that customer. When something has not been measured, the screen
 says so — there is no demo or placeholder data, and `npm run check:data`

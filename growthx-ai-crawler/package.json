@@ -21,6 +21,7 @@
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "check:dead-code": "knip",
     "test": "jest",
+    "test:backlinks": "jest --runInBand --runTestsByPath src/modules/backlinks/backlink-analytics.helpers.spec.ts src/modules/backlinks/backlink-evidence.spec.ts src/modules/backlinks/backlink-fetcher.service.spec.ts src/modules/backlinks/backlinks.integration.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -79,6 +80,7 @@
     "rxjs": "^7.8.1",
     "simple-git": "^3.36.0",
     "socket.io": "^4.8.3",
+    "tldts": "^7.4.19",
     "ts-morph": "^28.0.0",
     "typescript": "^5.5.4"
   },

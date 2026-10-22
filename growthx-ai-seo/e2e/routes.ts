@@ -22,6 +22,7 @@ export const PUBLIC_ROUTES = [
 ];
 
 export const DASHBOARD_ROUTES = [
+  "/backlinks",
   "/dashboard",
   "/admin",
   "/ai-visibility",

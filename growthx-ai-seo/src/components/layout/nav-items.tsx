@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, SearchCheck, Wrench, Bot, ShieldCheck } from "lucide-react";
+import { Activity, Crosshair, Globe, SearchCheck, Wrench, Bot, ShieldCheck, Link2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -114,6 +114,11 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
         { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
       ],
+    },
+    {
+      label: "Backlink Intelligence",
+      href: "/backlinks",
+      icon: Link2,
     },
     {
       label: "AI Visibility",

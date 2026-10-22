@@ -1,4 +1,5 @@
 export const PLAN_SOURCES = [
+  { id: 'BACKLINKS', label: 'Backlink Intelligence', sources: ['BACKLINKS'], href: '/backlinks', report: '/backlinks' },
   { id: 'WEBSITE', label: 'Website Audit', sources: ['WEBSITE', 'LOCAL'], href: '/website', report: '/website?tab=report' },
   { id: 'GOOGLE', label: 'Google', sources: ['SEARCH_CONSOLE', 'ANALYTICS'], href: '/google', report: '/google/report' },
   { id: 'COMPETITOR', label: 'Competitor Intelligence', sources: ['COMPETITOR'], href: '/competitor-intelligence', report: '/competitor-intelligence?tab=report' },

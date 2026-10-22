@@ -537,6 +537,7 @@ model Project {
   gbpFixProposals           GbpFixProposal[]
   competitorChangeAlerts    CompetitorChangeAlert[]
   growthOpportunities       GrowthOpportunity[]
+  backlinkSources           BacklinkSource[]
   pageSnapshots             PageSnapshot[]
   contentSuggestions        ContentSuggestion[]
   publishedChanges          PublishedChange[]
@@ -560,6 +561,86 @@ model Project {
   aiVisibilityJourneys      AiVisibilityJourney[]
 
   @@index([organizationId])
+}
+
+/// Public source pages submitted or discovered for one project. These survive
+/// individual website crawls; no customer imports or evidence cross tenants.
+model BacklinkSource {
+  id             String   @id @default(uuid())
+  projectId      String
+  sourceUrl      String
+  origin         String
+  discovery      String
+  changeHistoryTruncated Boolean @default(false)
+  status         String   @default("PENDING")
+  lastAttemptAt  DateTime?
+  nextCheckAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  links          Backlink[]
+  observations   BacklinkObservation[]
+
+  @@unique([projectId, sourceUrl])
+  @@index([nextCheckAt, projectId])
+}
+
+model Backlink {
+  id                String   @id @default(uuid())
+  sourceId          String
+  targetUrl         String
+  targetHost        String
+  targetKind        String
+  status            String   @default("UNVERIFIED")
+  anchorText        String?
+  rel               String[] @default([])
+  firstObservedAt   DateTime?
+  lastVerifiedAt    DateTime?
+  firstMissingAt    DateTime?
+  missingChecks     Int      @default(0)
+  followState       String   @default("UNKNOWN")
+  linkTypes         String[] @default([])
+  placements        String[] @default([])
+  lostConfirmedAt   DateTime?
+  lastChangedAt     DateTime?
+  changes           BacklinkChange[]
+  source            BacklinkSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetUrl])
+  @@index([targetHost, status])
+  @@index([sourceId, targetKind, status])
+  @@index([sourceId, firstObservedAt])
+}
+
+/// Actual verification transitions, separate from first-seen counts and
+/// attempt history. No pre-import history or historical loss dates are invented.
+model BacklinkChange {
+  id          String   @id @default(uuid())
+  backlinkId  String
+  kind        String
+  occurredAt  DateTime @default(now())
+  before      Json     @default("{}")
+  after       Json     @default("{}")
+  backlink    Backlink @relation(fields: [backlinkId], references: [id], onDelete: Cascade)
+
+  @@index([backlinkId, occurredAt])
+  @@index([occurredAt, kind])
+}
+
+/// Immutable fetch history. A missing link is confirmed only by successful
+/// observations at least 24 hours apart. Timeouts and blocks never prove loss.
+model BacklinkObservation {
+  id            String   @id @default(uuid())
+  sourceId      String
+  checkedAt     DateTime @default(now())
+  outcome       String
+  statusCode    Int?
+  finalUrl      String?
+  reason        String
+  contentHash   String?
+  evidence      Json
+  source        BacklinkSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, checkedAt])
 }
 
 /// One row per (organization, metric, billing period). Incremented after work

@@ -525,7 +525,7 @@ export interface GrowthOpportunity {
   id: string;
   projectId?: string;
   fingerprint?: string;
-  source: "SEARCH_CONSOLE" | "COMPETITOR" | "WEBSITE" | "ANALYTICS" | "LOCAL" | "MARKET";
+  source: "SEARCH_CONSOLE" | "COMPETITOR" | "WEBSITE" | "ANALYTICS" | "LOCAL" | "MARKET" | "BACKLINKS";
   category: "SEO" | "CONTENT" | "LOCAL" | "TECHNICAL" | "MARKETING" | "BUSINESS" | "COMPETITOR";
   title: string;
   summary: string;
