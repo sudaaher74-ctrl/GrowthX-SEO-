@@ -9,6 +9,7 @@ import { useWorkspace } from '@/hooks/use-growthx';
 import { api } from '@/lib/api-client';
 import type { BacklinkMutationResult, BacklinkSource } from '@/lib/backlinks';
 import { BacklinkAnalysis } from './backlink-analysis';
+import { BacklinkDiscoveryPanel } from './backlink-discovery';
 
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not checked';
 const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -75,6 +76,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       <p className="text-sm text-brand-600">{data?.coverage ?? 'Monitor source pages you import or discover in your project crawls. No paid backlink data service is required.'}</p>
       <p className="mt-2 text-xs text-brand-500">A source can be checked once every ten minutes. Loss needs repeat successful checks at least 24 hours apart. First observed means first seen by GrowthX. The latest 30 observations per source are retained.</p>
     </Panel>
+    <BacklinkDiscoveryPanel projectId={projectId} />
     {note ? <div role="status"><StatusNote>{note}</StatusNote></div> : null}
     {mutation.error ? <div role="alert"><StatusNote tone="bad">{mutation.error.message}</StatusNote></div> : null}
     {fileError ? <div role="alert"><StatusNote tone="bad">{fileError}</StatusNote></div> : null}

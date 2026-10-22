@@ -75,6 +75,16 @@ test('backlink evidence → destination prerequisite → verified publisher link
   await page.getByRole('button', { name: 'Export filtered CSV', exact: true }).click();
   expect((await downloaded).suggestedFilename()).toMatch(/\.csv$/);
   await expect(page.getByRole('status').filter({ hasText: 'Exported' })).toContainText('Exported 2 of 2 matching rows');
+  expect((await request.post(`${fixture.apiBase}/__test__/prepare-discovery`,{headers:{authorization:`Bearer ${fixture.token}`}})).ok()).toBeTruthy();
+  await page.getByRole('button',{name:'Discover backlinks',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'Discovery started'})).toBeVisible();
+  await expect.poll(async()=>{
+    const response=await request.get(`${fixture.apiBase}/api/projects/${fixture.projectId}/backlinks/discovery`,{headers:{authorization:`Bearer ${fixture.token}`}});
+    const status=await response.json();return status.run?.verified??0;
+  },{timeout:30000}).toBe(1);
+  await page.getByRole('button',{name:'Discovery running…',exact:true}).waitFor({state:'hidden'});
+  await expect(page.getByText('Discovery finished; live verification continues automatically',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('discovery-verified')).toHaveText('1');
   await page.getByRole('button', { name: 'Overview', exact: true }).click();
   await page.getByRole('button', { name: 'Day', exact: true }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
