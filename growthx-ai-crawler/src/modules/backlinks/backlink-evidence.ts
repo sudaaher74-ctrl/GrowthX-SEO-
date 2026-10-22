@@ -54,6 +54,9 @@ export type ExtractedLink = {
   targetKind: "OWN" | "COMPETITOR";
   anchorText: string;
   rel: string[];
+  linkType: "TEXT" | "IMAGE" | "OTHER";
+  placement: "CONTENT" | "NAVIGATION" | "FOOTER" | "SIDEBAR" | "UNKNOWN";
+  pageNofollow: boolean;
 };
 
 /** Only observed anchors count. An imported URL is a candidate until fetched. */
@@ -62,8 +65,18 @@ export function extractBacklinks(
   finalUrl: string,
   own: string[],
   competitors: string[],
+  headerNofollow = false,
 ): ExtractedLink[] {
   const $ = cheerio.load(html);
+  const pageNofollow =
+    headerNofollow ||
+    $('meta[name="robots"],meta[name="googlebot"]')
+      .toArray()
+      .some((meta) =>
+        /(?:^|[\s,])(nofollow|none)(?:$|[\s,])/i.test(
+          $(meta).attr("content") ?? "",
+        ),
+      );
   const found = new Map<string, ExtractedLink>();
   let truncated = false;
   let base = finalUrl;
@@ -102,9 +115,39 @@ export function extractBacklinks(
         .trim()
         .slice(0, 500);
       // Preserve separate occurrences in evidence rather than infer a page-wide follow flag.
-      const key = JSON.stringify([targetUrl, anchorText, rel]);
+      const linkType = $(element).text().trim()
+        ? "TEXT"
+        : $(element).find("img").length
+          ? "IMAGE"
+          : "OTHER";
+      const placement = $(element).closest("footer").length
+        ? "FOOTER"
+        : $(element).closest("nav,header").length
+          ? "NAVIGATION"
+          : $(element).closest("aside").length
+            ? "SIDEBAR"
+            : $(element).closest("article,main").length
+              ? "CONTENT"
+              : "UNKNOWN";
+      const key = JSON.stringify([
+        targetUrl,
+        anchorText,
+        rel,
+        linkType,
+        placement,
+        pageNofollow,
+      ]);
       if (found.size < 500 || found.has(key))
-        found.set(key, { targetUrl, targetHost, targetKind, anchorText, rel });
+        found.set(key, {
+          targetUrl,
+          targetHost,
+          targetKind,
+          anchorText,
+          rel,
+          linkType,
+          placement,
+          pageNofollow,
+        });
       else truncated = true;
     } catch {
       /* mailto, javascript, private URLs and malformed anchors are not candidates */

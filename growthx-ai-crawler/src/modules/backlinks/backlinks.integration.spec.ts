@@ -15,6 +15,7 @@ import { BacklinkFetcher } from "./backlink-fetcher.service";
 import { BacklinkQueue } from "./backlink-queue.service";
 import { BacklinksController } from "./backlinks.controller";
 import { BacklinksService } from "./backlinks.service";
+import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 import { DAY } from "./backlink-evidence";
 
 // Explicit opt-in, restricted to a local disposable database and Redis instance.
@@ -41,6 +42,7 @@ integration(
     let token: string, viewerToken: string;
     let sourceMode: "present" | "missing" | "blocked" = "present",
       prospectEarned = false;
+    let extraFollowedOccurrence = false;
     const ownHost = `client-${randomUUID()}.example`;
     const own = `https://${ownHost}/service`;
     const secret = "backlinks-integration-test-secret-only-32-characters";
@@ -203,7 +205,13 @@ integration(
           html(
             req.url === "/prospect"
               ? competitorLink + (prospectEarned ? ownLink : "")
-              : competitorLink + (sourceMode === "present" ? ownLink : ""),
+              : competitorLink +
+                  (sourceMode === "present"
+                    ? ownLink +
+                      (extraFollowedOccurrence
+                        ? `<main><a href="${own}">Editorial service</a></main>`
+                        : "")
+                    : ""),
           ),
         );
       });
@@ -237,6 +245,7 @@ integration(
           BacklinksService,
           BacklinkFetcher,
           BacklinkQueue,
+          BacklinkAnalyticsService,
         ],
       })
       class IntegrationModule {}
@@ -337,6 +346,18 @@ integration(
           sourceUrl: `${origin}/other`,
           origin,
           discovery: "MANUAL",
+        },
+      });
+      await db.backlink.create({
+        data: {
+          sourceId: otherSource.id,
+          targetUrl: own,
+          targetHost: ownHost,
+          targetKind: "OWN",
+          status: "VERIFIED",
+          firstObservedAt: new Date(),
+          lastVerifiedAt: new Date(),
+          anchorText: "Other tenant private anchor",
         },
       });
       expect((await request(`/sources/${otherSource.id}/history`)).status).toBe(
@@ -479,6 +500,89 @@ integration(
       expect(history.observations.length).toBeGreaterThanOrEqual(5);
       expect(history.observations[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
     }, 60_000);
+
+    it("computes exact tenant-scoped profiles, records attribute changes, and exports filtered evidence", async () => {
+      extraFollowedOccurrence = true;
+      await check(sourceId);
+      const response = await request("/analytics?days=30");
+      expect(response.status).toBe(200);
+      const profile = response.body;
+      expect(profile.counts).toMatchObject({
+        observed: 2,
+        verified: 2,
+        referringDomains: 1,
+        confirmedLost: 0,
+        newlyObserved: 2,
+        mixed: 1,
+        qualified: 1,
+      });
+      expect(profile.authority.available).toBe(false);
+      expect(profile.anchors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            anchor: "Client service",
+            links: 2,
+            referringDomains: 1,
+          }),
+        ]),
+      );
+      expect(profile.topPages[0]).toMatchObject({
+        targetUrl: own,
+        links: 2,
+        referringDomains: 1,
+        followed: 1,
+      });
+      expect(profile.intersection).toEqual([
+        expect.objectContaining({
+          ownLinks: 2,
+          competitorsCount: 1,
+          competitors: { "rival.example": 2 },
+        }),
+      ]);
+      const totals = profile.timeline.reduce(
+        (sum: any, row: any) => ({
+          found: sum.found + row.found,
+          lost: sum.lost + row.lost,
+          recovered: sum.recovered + row.recovered,
+          changed: sum.changed + row.changed,
+        }),
+        { found: 0, lost: 0, recovered: 0, changed: 0 },
+      );
+      expect(totals).toEqual({ found: 2, lost: 1, recovered: 1, changed: 1 });
+      const filtered = await request(
+        "/explore?followState=MIXED&targetKind=OWN&placement=CONTENT",
+      );
+      expect(filtered.body.total).toBe(1);
+      expect(filtered.body.links[0]).toMatchObject({
+        targetUrl: own,
+        source: { id: sourceId },
+        followState: "MIXED",
+      });
+      expect(
+        (await request("/explore?status=LOST&freshness=FRESH")).body.total,
+      ).toBe(0);
+      expect(
+        (await request("/explore?search=private%20anchor")).body.total,
+      ).toBe(0);
+      const exported = await request("/export?followState=MIXED");
+      expect(exported.body).toMatchObject({
+        exported: 1,
+        total: 1,
+        truncated: false,
+      });
+      expect(exported.body.csv).toContain('"MIXED"');
+      expect(exported.body.csv).not.toContain("Other tenant private anchor");
+      const changes = await request("/changes");
+      expect(
+        changes.body.events.some(
+          (event: any) =>
+            event.kind === "ATTRIBUTES_CHANGED" &&
+            event.after.followState === "MIXED",
+        ),
+      ).toBe(true);
+      expect((await request("/analytics?days=1000000")).status).toBe(400);
+      expect((await request("/explore?sort=invalid")).status).toBe(400);
+    }, 30_000);
 
     it("keeps stale audit readiness unknown and preserves user dismissal on redetection", async () => {
       await db.page.update({

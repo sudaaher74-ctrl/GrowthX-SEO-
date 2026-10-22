@@ -14,6 +14,7 @@ export type SourceFetch = {
   finalUrl?: string;
   html?: string;
   reason: string;
+  pageNofollow?: boolean;
 };
 const TOKEN = "GrowthXBacklinkBot";
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -190,6 +191,9 @@ export class BacklinkFetcher {
           ...common,
           outcome: "READ",
           html,
+          pageNofollow: /(?:^|[\s,:])(nofollow|none)(?:$|[\s,])/i.test(
+            String(response.headers["x-robots-tag"] ?? ""),
+          ),
           reason:
             "Successfully inspected source HTML; JavaScript was not executed.",
         };

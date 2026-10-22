@@ -571,6 +571,7 @@ model BacklinkSource {
   sourceUrl      String
   origin         String
   discovery      String
+  changeHistoryTruncated Boolean @default(false)
   status         String   @default("PENDING")
   lastAttemptAt  DateTime?
   nextCheckAt    DateTime @default(now())
@@ -596,10 +597,33 @@ model Backlink {
   lastVerifiedAt    DateTime?
   firstMissingAt    DateTime?
   missingChecks     Int      @default(0)
+  followState       String   @default("UNKNOWN")
+  linkTypes         String[] @default([])
+  placements        String[] @default([])
+  lostConfirmedAt   DateTime?
+  lastChangedAt     DateTime?
+  changes           BacklinkChange[]
   source            BacklinkSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([sourceId, targetUrl])
   @@index([targetHost, status])
+  @@index([sourceId, targetKind, status])
+  @@index([sourceId, firstObservedAt])
+}
+
+/// Actual verification transitions, separate from first-seen counts and
+/// attempt history. No pre-import history or historical loss dates are invented.
+model BacklinkChange {
+  id          String   @id @default(uuid())
+  backlinkId  String
+  kind        String
+  occurredAt  DateTime @default(now())
+  before      Json     @default("{}")
+  after       Json     @default("{}")
+  backlink    Backlink @relation(fields: [backlinkId], references: [id], onDelete: Cascade)
+
+  @@index([backlinkId, occurredAt])
+  @@index([occurredAt, kind])
 }
 
 /// Immutable fetch history. A missing link is confirmed only by successful

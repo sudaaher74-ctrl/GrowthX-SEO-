@@ -8,6 +8,7 @@ import { QueryState } from '@/components/ui/query-state';
 import { useWorkspace } from '@/hooks/use-growthx';
 import { api } from '@/lib/api-client';
 import type { BacklinkMutationResult, BacklinkSource } from '@/lib/backlinks';
+import { BacklinkAnalysis } from './backlink-analysis';
 
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not checked';
 const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -32,7 +33,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [note, setNote] = useState('');
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
-  const [tab, setTab] = useState<'evidence' | 'actions' | 'prospects'>('evidence');
+  const [tab, setTab] = useState<'analysis' | 'evidence' | 'actions' | 'prospects'>('analysis');
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset], queryFn: () => api.backlinks.report(projectId, offset),
     refetchInterval: (query) => {
@@ -57,6 +58,9 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         client.invalidateQueries({ queryKey: ['backlink-history', projectId] }),
         client.invalidateQueries({ queryKey: ['growth-opportunities', projectId] }),
         client.invalidateQueries({ queryKey: ['findings', projectId] }),
+        client.invalidateQueries({ queryKey: ['backlink-profile', projectId] }),
+        client.invalidateQueries({ queryKey: ['backlink-explorer', projectId] }),
+        client.invalidateQueries({ queryKey: ['backlink-changes', projectId] }),
       ]);
     },
   });
@@ -64,8 +68,8 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const busy = mutation.isPending;
 
   return <div className="space-y-5">
-    <PageHeader title="Backlink intelligence" subtitle="Protect existing links. Prepare the destination. Verify what changed."
-      actions={<><Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine?tab=ledger">Verification ledger</Link><ActionButton disabled={busy} onClick={() => report.refetch()}>Refresh</ActionButton>
+    <PageHeader title="Backlink intelligence" subtitle="Explore your link profile, compare competitors, and verify the next useful action."
+      actions={<><Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine?tab=ledger">Verification ledger</Link><ActionButton onClick={() => setTab('evidence')}>Manage sources</ActionButton><ActionButton disabled={busy} onClick={() => { void report.refetch(); void client.invalidateQueries({ queryKey: ['backlink-profile', projectId] }); void client.invalidateQueries({ queryKey: ['backlink-explorer', projectId] }); void client.invalidateQueries({ queryKey: ['backlink-changes', projectId] }); }}>Refresh</ActionButton>
         <ActionButton variant="primary" disabled={busy || !data?.queue.available} onClick={() => mutation.mutate({ kind: 'verify' })}>Verify next 25 sources</ActionButton></>} />
     <Panel padded>
       <p className="text-sm text-brand-600">{data?.coverage ?? 'Monitor source pages you import or discover in your project crawls. No paid backlink data service is required.'}</p>
@@ -75,14 +79,14 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
     {mutation.error ? <div role="alert"><StatusNote tone="bad">{mutation.error.message}</StatusNote></div> : null}
     {fileError ? <div role="alert"><StatusNote tone="bad">{fileError}</StatusNote></div> : null}
     {data && !data.queue.available ? <StatusNote tone="bad">{data.queue.reason}</StatusNote> : null}
-    {data ? <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    {data && tab !== 'analysis' ? <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       <Kpi label="Monitored source pages" value={String(data.summary.totalSources)} sub={`Limit ${data.limits.sources} per project`} />
       <Kpi label="Verified backlinks" value={String(data.summary.verifiedLinks)} sub="Own site · verified within seven days" />
       <Kpi label="Referring hosts observed" value={String(data.summary.referringDomains)} sub="Own site · www aliases combined" />
       <Kpi label="Confirmed missing" value={String(data.summary.confirmedLostLinks)} sub="Previously verified own-site links" />
       <Kpi label="Open actions" value={String(data.summary.openActions)} sub="Shown in your Opportunities queue" />
     </div> : null}
-    <Panel title="Add evidence" subtitle="Paste referring page URLs, or import a Search Console Links CSV. Source pages are inspected for links to your website and saved competitors." padded>
+    {tab === 'evidence' ? <Panel title="Add evidence" subtitle="Paste referring page URLs, or import a Search Console Links CSV. Source pages are inspected for links to your website and saved competitors." padded>
       <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); setNote(''); mutation.mutate({ kind: 'import' }); }}>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-brand-600">Import source
@@ -107,12 +111,13 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         </div>
         <p className="text-xs text-brand-500">Search Console exports are imported manually; connecting Google does not import its Links report. Your own crawl finds outbound links, so external source URLs are needed for wider discovery.</p>
       </form>
-    </Panel>
+    </Panel> : null}
     <nav aria-label="Backlink views" className="flex flex-wrap gap-2">
-      {(['evidence', 'actions', 'prospects'] as const).map((item) => <ActionButton key={item} aria-pressed={tab === item} variant={tab === item ? 'primary' : 'secondary'} onClick={() => setTab(item)}>
-        {item === 'evidence' ? 'Source evidence' : item === 'actions' ? 'Next actions' : 'Observed competitor sources'}
+      {(['analysis', 'evidence', 'actions', 'prospects'] as const).map((item) => <ActionButton key={item} aria-pressed={tab === item} variant={tab === item ? 'primary' : 'secondary'} onClick={() => setTab(item)}>
+        {item === 'analysis' ? 'Profile & reports' : item === 'evidence' ? 'Source evidence' : item === 'actions' ? 'Next actions' : 'Observed competitor sources'}
       </ActionButton>)}
     </nav>
+    {tab === 'analysis' ? <BacklinkAnalysis projectId={projectId} onAddSources={() => setTab('evidence')} refreshing={!!data?.queue.available && data.queue.active + data.queue.waiting > 0} /> : null}
     <QueryState isLoading={report.isLoading} error={report.error}>
       {data && tab === 'evidence' ? <Panel title="Source evidence" subtitle="Open a page to see link destinations, readiness, and verification history.">
         <QueryState isEmpty={!data.sources.length} emptyTitle="No source pages yet" emptyBody="Import URLs from the Search Console Links report or add referring pages you already know.">

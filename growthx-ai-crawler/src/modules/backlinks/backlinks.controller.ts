@@ -13,11 +13,14 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { BacklinkQueue } from "./backlink-queue.service";
 import {
   BacklinkPageDto,
+  BacklinkAnalyticsDto,
+  ExploreBacklinksDto,
   ImportBacklinksDto,
   PlanBacklinkDto,
   VerifyBacklinksDto,
 } from "./backlinks.dto";
 import { BacklinksService } from "./backlinks.service";
+import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 
 @ApiTags("Backlink intelligence")
 @ApiBearerAuth()
@@ -27,6 +30,7 @@ export class BacklinksController {
   constructor(
     private readonly backlinks: BacklinksService,
     private readonly queue: BacklinkQueue,
+    private readonly analytics: BacklinkAnalyticsService,
   ) {}
 
   @Get()
@@ -47,6 +51,38 @@ export class BacklinksController {
     @Body() body: ImportBacklinksDto,
   ) {
     return this.backlinks.import(projectId, body.text, body.discovery);
+  }
+
+  @Get("analytics")
+  analyticsReport(
+    @Param("projectId") projectId: string,
+    @Query() query: BacklinkAnalyticsDto,
+  ) {
+    return this.analytics.profile(projectId, query.days);
+  }
+
+  @Get("explore")
+  explore(
+    @Param("projectId") projectId: string,
+    @Query() query: ExploreBacklinksDto,
+  ) {
+    return this.analytics.explore(projectId, query);
+  }
+
+  @Get("export")
+  export(
+    @Param("projectId") projectId: string,
+    @Query() query: ExploreBacklinksDto,
+  ) {
+    return this.analytics.export(projectId, query);
+  }
+
+  @Get("changes")
+  changes(
+    @Param("projectId") projectId: string,
+    @Query() query: BacklinkPageDto,
+  ) {
+    return this.analytics.changes(projectId, query.offset);
   }
 
   @Post("discover")

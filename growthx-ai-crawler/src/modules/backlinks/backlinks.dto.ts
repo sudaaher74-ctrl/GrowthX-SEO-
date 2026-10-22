@@ -37,3 +37,34 @@ export class PlanBacklinkDto {
   })
   relevanceReviewed!: boolean;
 }
+
+export class BacklinkAnalyticsDto {
+  @IsOptional() @Type(() => Number) @IsIn([7, 30, 90]) days?: number;
+}
+
+export class ExploreBacklinksDto extends BacklinkPageDto {
+  @IsOptional() @IsIn(["OWN", "COMPETITOR", "ALL"]) targetKind?: string;
+  @IsOptional()
+  @IsIn([
+    "ALL",
+    "VERIFIED",
+    "LOST",
+    "MISSING",
+    "UNKNOWN",
+    "BLOCKED",
+    "UNVERIFIED",
+  ])
+  status?: string;
+  @IsOptional()
+  @IsIn(["ALL", "FOLLOWED", "QUALIFIED", "MIXED", "UNKNOWN"])
+  followState?: string;
+  @IsOptional() @IsIn(["ALL", "TEXT", "IMAGE", "OTHER"]) linkType?: string;
+  @IsOptional()
+  @IsIn(["ALL", "CONTENT", "NAVIGATION", "FOOTER", "SIDEBAR", "UNKNOWN"])
+  placement?: string;
+  @IsOptional() @IsIn(["ALL", "FRESH", "STALE"]) freshness?: string;
+  @IsOptional()
+  @IsIn(["newest", "oldest", "changed", "verified"])
+  sort?: string;
+  @IsOptional() @IsString() @MaxLength(200) search?: string;
+}

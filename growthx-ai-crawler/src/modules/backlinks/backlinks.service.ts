@@ -6,6 +6,7 @@ import {
 import { Prisma, Backlink } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";
 import { BacklinkFetcher } from "./backlink-fetcher.service";
+import { summarizeOccurrences } from "./backlink-analytics.helpers";
 import {
   absenceState,
   belongsTo,
@@ -299,6 +300,7 @@ export class BacklinksService {
           result.finalUrl!,
           context.own,
           context.competitors,
+          result.pageNofollow,
         );
     } catch (error) {
       result.outcome = "UNKNOWN";
@@ -357,42 +359,74 @@ export class BacklinksService {
         await tx.backlinkObservation.deleteMany({
           where: { sourceId, id: { notIn: retained.map((item) => item.id) } },
         });
-        const destinations = new Map<string, (typeof found)[number]>();
+        const destinations = new Map<string, typeof found>();
         for (const link of found) {
-          const previous = destinations.get(link.targetUrl);
-          destinations.set(
-            link.targetUrl,
-            previous
-              ? {
-                  ...previous,
-                  rel: [...new Set([...previous.rel, ...link.rel])],
-                }
-              : link,
-          );
+          const occurrences = destinations.get(link.targetUrl) ?? [];
+          occurrences.push(link);
+          destinations.set(link.targetUrl, occurrences);
         }
-        for (const link of destinations.values())
-          await tx.backlink.upsert({
+        const changes: Prisma.BacklinkChangeCreateManyInput[] = [];
+        for (const [targetUrl, occurrences] of destinations) {
+          const sample = occurrences[0];
+          const attributes = summarizeOccurrences(occurrences);
+          const previous = source.links.find(
+            (old) => old.targetUrl === targetUrl,
+          );
+          const priorAttributes = previous
+            ? {
+                anchorText: previous.anchorText ?? "",
+                rel: [...previous.rel].sort(),
+                linkTypes: [...previous.linkTypes].sort(),
+                placements: [...previous.placements].sort(),
+                followState: previous.followState,
+              }
+            : null;
+          const kind = !previous?.lastVerifiedAt
+            ? "FOUND"
+            : previous.lostConfirmedAt || previous.status === "LOST"
+              ? "RECOVERED"
+              : previous.followState !== "UNKNOWN" &&
+                  JSON.stringify(priorAttributes) !== JSON.stringify(attributes)
+                ? "ATTRIBUTES_CHANGED"
+                : null;
+          const link = await tx.backlink.upsert({
             where: {
-              sourceId_targetUrl: { sourceId, targetUrl: link.targetUrl },
+              sourceId_targetUrl: { sourceId, targetUrl },
             },
             create: {
-              ...link,
+              targetUrl,
+              targetHost: sample.targetHost,
+              targetKind: sample.targetKind,
+              ...attributes,
               sourceId,
               status: "VERIFIED",
               firstObservedAt: now,
               lastVerifiedAt: now,
+              lastChangedAt: now,
             },
             update: {
-              ...link,
+              targetHost: sample.targetHost,
+              targetKind: sample.targetKind,
+              ...attributes,
               status: "VERIFIED",
               firstObservedAt:
-                source.links.find((old) => old.targetUrl === link.targetUrl)
-                  ?.firstObservedAt ?? now,
+                previous?.firstObservedAt ?? previous?.lastVerifiedAt ?? now,
               lastVerifiedAt: now,
               firstMissingAt: null,
               missingChecks: 0,
+              lostConfirmedAt: null,
+              ...(kind ? { lastChangedAt: now } : {}),
             },
           });
+          if (kind)
+            changes.push({
+              backlinkId: link.id,
+              kind,
+              occurredAt: now,
+              before: priorAttributes ?? {},
+              after: attributes,
+            });
+        }
         const present = new Set(found.map((link) => link.targetUrl));
         for (const link of source.links) {
           if (present.has(link.targetUrl)) continue;
@@ -403,14 +437,53 @@ export class BacklinksService {
             });
             continue;
           }
-          const data =
+          const data: Prisma.BacklinkUpdateInput =
             result.outcome === "READ" || result.outcome === "ABSENT"
               ? absenceState(link, now)
               : {
                   status: result.outcome === "BLOCKED" ? "BLOCKED" : "UNKNOWN",
                 };
+          if (data.status === "LOST" && !link.lostConfirmedAt) {
+            data.lostConfirmedAt = now;
+            data.lastChangedAt = now;
+            changes.push({
+              backlinkId: link.id,
+              kind: "LOST",
+              occurredAt: now,
+              before: { status: link.status },
+              after: {
+                status: "LOST",
+                firstMissingAt: link.firstMissingAt?.toISOString(),
+                missingChecks: link.missingChecks + 1,
+              },
+            });
+          }
           await tx.backlink.update({ where: { id: link.id }, data });
         }
+        if (changes.length)
+          await tx.backlinkChange.createMany({ data: changes });
+        const agedChanges = await tx.backlinkChange.deleteMany({
+          where: {
+            backlink: { sourceId },
+            occurredAt: { lt: new Date(now.getTime() - 365 * DAY) },
+          },
+        });
+        const expiredChanges = await tx.backlinkChange.findMany({
+          where: { backlink: { sourceId } },
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          skip: 5000,
+          take: 1000,
+          select: { id: true },
+        });
+        if (expiredChanges.length)
+          await tx.backlinkChange.deleteMany({
+            where: { id: { in: expiredChanges.map((change) => change.id) } },
+          });
+        if (agedChanges.count || expiredChanges.length)
+          await tx.backlinkSource.update({
+            where: { id: sourceId },
+            data: { changeHistoryTruncated: true },
+          });
       },
       { timeout: 30_000 },
     );

@@ -19,6 +19,7 @@ const { BacklinkFetcher } = require('../src/modules/backlinks/backlink-fetcher.s
 const { BacklinkQueue } = require('../src/modules/backlinks/backlink-queue.service');
 const { BacklinksController } = require('../src/modules/backlinks/backlinks.controller');
 const { BacklinksService } = require('../src/modules/backlinks/backlinks.service');
+const { BacklinkAnalyticsService } = require('../src/modules/backlinks/backlink-analytics.service');
 
 async function main() {
   const database = new URL(process.env.DATABASE_URL || 'http://missing');
@@ -60,7 +61,7 @@ async function main() {
       { provide: PrismaService, useValue: db },
       { provide: QueueService, useValue: { ready: Promise.resolve(), getRedisClient: () => redis } },
       { provide: JwtStrategy, useFactory: () => new JwtStrategy({}, { findById: (id) => db.user.findUnique({ where: { id } }) }, db) },
-      JwtAuthGuard, BacklinksService, BacklinkFetcher, BacklinkQueue,
+      JwtAuthGuard, BacklinksService, BacklinkFetcher, BacklinkQueue, BacklinkAnalyticsService,
     ],
   })(BrowserTestModule);
   const app = await NestFactory.create(BrowserTestModule, { logger: false });

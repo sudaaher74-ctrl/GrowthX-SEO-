@@ -200,3 +200,43 @@ Finally stop only the two named disposable containers:
 ```sh
 docker stop growthx-backlinks-test-postgres growthx-backlinks-test-redis
 ```
+# Backlink reports and analytics
+
+The suite now includes an overview, a paginated backlink explorer, referring
+domains, anchors, top linked pages, competitor link intersection, and a retained
+new/lost/recovered/attribute-change ledger. These reports use the project's
+observed dataset; they do not claim complete web coverage.
+
+Explorer filters cover destination ownership, status, follow qualification,
+text/image/other link types, content/navigation/footer/sidebar placement,
+verification freshness, and source/destination/anchor search. Sorting and CSV
+export apply to the full matching dataset. Export stops at 10,000 rows, reports
+truncation, quotes fields, and neutralizes spreadsheet formulas.
+
+Domain grouping uses the Public Suffix List through the local `tldts` library,
+including private suffixes. Profile tables show the top 100 groups, with counts
+calculated across the full dataset. They include only own-site links successfully
+verified within seven days. Counts represent source/destination pairs. An anchor
+is a deterministic representative per pair, while full observed occurrences
+remain in source history. Follow qualification includes link rel values,
+page robots directives, and X-Robots-Tag; mixed occurrences remain explicit.
+
+Intersection compares saved competitors across fresh verified referring domains.
+Missing means no fresh own-site link was observed in this dataset. A 50,000-group
+processing cap disables intersection conclusions when exceeded, avoiding false
+absence claims from incomplete comparisons.
+
+The analytics migration `20261022120000_backlink_analytics` adds measured link
+attributes and transactional change events. No historical events are invented
+for existing records. Initial discoveries come from durable first-observed dates;
+loss, recovery, and attribute changes come from verification events. Daily trends
+use UTC and support 7/30/90 days. Events retain up to 365 days and 5,000 per source;
+pruning marks history as limited. Blocks never manufacture a loss or erase a
+previously confirmed loss. Reports do not invent authority, traffic, or toxicity
+scores in the absence of a web-wide authority graph.
+
+Report categories were compared with the official
+[Semrush backlink analysis](https://www.semrush.com/features/backlink-analysis/)
+and [Ahrefs Link Intersect](https://help.ahrefs.com/en/articles/816374-how-to-use-link-intersect-to-find-backlink-ideas-from-competitor-websites)
+descriptions. No paid backlink API is required. Compute, database storage, and
+bandwidth still consume hosting resources.
