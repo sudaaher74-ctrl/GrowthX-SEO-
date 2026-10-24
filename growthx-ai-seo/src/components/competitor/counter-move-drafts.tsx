@@ -35,7 +35,7 @@ export function CounterMoveDrafts({
               you want to act on:
             </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <ActionButton onClick={() => onOpenTab("battleground")}>Battleground: what to do this week</ActionButton>
+              <ActionButton onClick={() => onOpenTab("battleground")}>Battleground</ActionButton>
               <ActionButton onClick={() => onOpenTab("gaps")}>Gaps: what they have that you don&apos;t</ActionButton>
               <ActionButton onClick={() => onOpenTab("radar")}>Rival Radar: what they changed</ActionButton>
             </div>
