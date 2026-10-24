@@ -4,12 +4,11 @@ import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText, RotateCw, AlertTriangle } from "lucide-react";
+import { Plus, CheckCircle2, Swords, Layers, Loader2, Radar, Trash2, X, Home, FileText, RotateCw, AlertTriangle } from "lucide-react";
 import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
-import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
 import { GapsTab } from "@/components/competitor/gaps-tab";
 import { RivalRadarTab } from "@/components/competitor/rival-radar-tab";
@@ -19,7 +18,6 @@ const TABS = [
   { id: "battleground", label: "Battleground", icon: Swords },
   { id: "gaps", label: "Gaps", icon: Layers },
   { id: "radar", label: "Rival Radar", icon: Radar },
-  { id: "counter-moves", label: "Your Plans", icon: Zap },
   { id: "report", label: "Full Report", icon: FileText },
 ];
 
@@ -36,8 +34,9 @@ const LEGACY_TAB_MAP: Record<string, string> = {
   programmatic: "gaps",
   keywords: "gaps",
   content: "gaps",
-  intercept: "counter-moves",
-  opportunities: "counter-moves",
+  intercept: "battleground",
+  opportunities: "battleground",
+  "counter-moves": "battleground",
   technical: "radar",
   // AI Visibility is switched off for now, and its tab with it.
   "ai-visibility": "battleground",
@@ -476,7 +475,7 @@ function CompetitorIntelligenceClient() {
           onAddCompetitor={openAddModal}
           onRemoveCompetitor={askToRemove}
           onRecrawlCompetitor={handleRecrawlCompetitor}
-          onOpenCounterMoves={() => setActiveTab("counter-moves")}
+          onOpenCounterMoves={() => {}}
         />
       )}
 
@@ -489,7 +488,7 @@ function CompetitorIntelligenceClient() {
                 projectId={projectId || ""}
                 domain={customerDomain}
                 competitors={competitorsList}
-                onOpenCounterMoves={() => setActiveTab("counter-moves")}
+                onOpenCounterMoves={() => {}}
               />
       )}
 
@@ -503,12 +502,8 @@ function CompetitorIntelligenceClient() {
                 domain={customerDomain}
                 competitors={competitorsList}
                 onRecrawlCompetitor={handleRecrawlCompetitor}
-                onOpenCounterMoves={() => setActiveTab("counter-moves")}
+                onOpenCounterMoves={() => {}}
               />
-      )}
-
-      {activeTab === "counter-moves" && (
-        <CounterMoveDrafts projectId={projectId || ""} onOpenTab={(tab) => setActiveTab(tab)} />
       )}
 
       {activeTab === "report" && (

@@ -111,7 +111,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
         { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
         { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
-        { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
         { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
       ],
     },
