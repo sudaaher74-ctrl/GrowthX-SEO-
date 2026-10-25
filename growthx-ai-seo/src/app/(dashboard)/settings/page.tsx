@@ -19,30 +19,16 @@ import {
   Check,
   ChevronDown,
   Loader2,
-  Plus,
-  RotateCw,
-  LogOut,
-  ExternalLink,
+  RefreshCw,
   Trash2,
-  X,
-  Bot,
-  Wrench,
-  Search,
+  ExternalLink,
+  GitBranch,
 } from "lucide-react";
 import {
-  WordPressLogo,
-  WebflowLogo,
-  FramerLogo,
-  WixLogo,
-  SanityLogo,
-  HubSpotLogo,
-  GitHubLogo,
-  TwitterXLogo,
-  LinkedInLogo,
-  GoogleAnalyticsLogo,
   GoogleSearchConsoleLogo,
-  SlackLogo,
-  DiscordLogo,
+  GoogleAnalyticsLogo,
+  GitHubLogo,
+  GooglePlacesLogo,
 } from "@/components/settings/integration-logos";
 import {
   useConnectRepository,
@@ -54,9 +40,12 @@ import {
   useRemoveMember,
   useUpdateMemberRole,
   usePortfolio,
+  useLocalSeo,
 } from "@/hooks/use-growthx";
-import { api, type Role } from "@/lib/api-client";
+import { api, type GoogleProviderStatus, type Role } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { PropertyPicker } from "@/components/ui/property-picker";
+import { relativeTime } from "@/components/ui/console";
 
 type SettingsTab =
   | "websites"
@@ -266,18 +255,23 @@ function SidebarItem({
 }
 
 /* =========================================================================
-   1. INTEGRATIONS VIEW (EXACT MATCH TO OKARA.AI SCREENSHOTS)
+   1. INTEGRATIONS VIEW (PLATFORM-ACTIVE INTEGRATIONS ONLY)
    ========================================================================= */
 
+function accountLabel(provider: GoogleProviderStatus | undefined): string {
+  if (provider?.googleAccountEmail) return provider.googleAccountEmail;
+  if (!provider || provider.status === "NOT_CONNECTED" || provider.status === "DISCONNECTED") return "Not connected";
+  return "Connected (email not recorded — reconnect to show it)";
+}
+
 function IntegrationsView() {
-  const { projectId, orgId } = useWorkspace();
-  const portfolio = usePortfolio(orgId);
-  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) || portfolio.data?.clients[0];
-  const siteDomain = clientRow?.domain;
+  const { projectId } = useWorkspace();
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
 
   const repo = useRepository(projectId);
   const connectRepo = useConnectRepository(projectId);
+  const localSeo = useLocalSeo(projectId);
 
   // Google connections query
   const googleQuery = useQuery({
@@ -290,366 +284,534 @@ function IntegrationsView() {
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [modalFormValue, setModalFormValue] = useState("");
   const [modalOwnerValue, setModalOwnerValue] = useState("");
+  const [modalRepoValue, setModalRepoValue] = useState("");
   const [modalTokenValue, setModalTokenValue] = useState("");
-  const [customConnected, setCustomConnected] = useState<Record<string, string>>({
-    github: "sudaaher74-ctrl/GrowthX-SEO-",
-  });
-  const [notice, setNotice] = useState<string | null>(null);
+  const [showGscPicker, setShowGscPicker] = useState(false);
+  const [showGa4Picker, setShowGa4Picker] = useState(false);
+  const [actionNotice, setActionNotice] = useState<{ type: "success" | "warn" | "error"; text: string } | null>(null);
 
-  // Authorize Google
+  // Handle OAuth callback parameters in URL
+  const urlNotice = useMemo(() => {
+    const googleStatus = searchParams?.get("google");
+    const provider = searchParams?.get("provider");
+    if (googleStatus === "select") {
+      return {
+        type: "warn" as const,
+        text: `Google authorization succeeded! Please choose which ${provider === "search_console" ? "Search Console" : "Analytics"} property to read below.`,
+      };
+    }
+    if (googleStatus === "scopes") {
+      return {
+        type: "warn" as const,
+        text: "Google authorized your login, but some requested permissions were not checked on the consent screen.",
+      };
+    }
+    if (googleStatus === "cancelled") {
+      return {
+        type: "warn" as const,
+        text: "Google connection was cancelled on the consent screen.",
+      };
+    }
+    if (googleStatus === "failed") {
+      return {
+        type: "error" as const,
+        text: "Google authorization failed or the verification state expired.",
+      };
+    }
+    return null;
+  }, [searchParams]);
+
+  const notice = actionNotice || urlNotice;
+
+  // Authorize Google Provider
   const authorizeGoogle = useMutation({
     mutationFn: (provider: string) => api.googleAuthorizeUrl(projectId!, provider, "/settings?tab=integrations"),
     onSuccess: ({ authorizationUrl }) => {
       window.location.href = authorizationUrl;
     },
-    onError: (err) => setNotice(errorMessage(err)),
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
   });
 
-  // Disconnect Google
+  // Disconnect Google Provider
   const disconnectGoogle = useMutation({
     mutationFn: (provider: string) => api.googleDisconnect(projectId!, provider),
     onSuccess: () => {
-      setNotice("Disconnected integration successfully.");
+      setActionNotice({ type: "success", text: "Disconnected integration successfully." });
       qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
+      qc.invalidateQueries({ queryKey: ["gsc-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-report"] });
     },
-    onError: (err) => setNotice(errorMessage(err)),
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
   });
 
-  const isRealGitHubConnected = Boolean(repo.data?.owner && repo.data?.name);
-  const isGitHubConnected = isRealGitHubConnected || Boolean(customConnected.github);
-  const githubDisplay = isRealGitHubConnected
-    ? `${repo.data!.owner}/${repo.data!.name}`
-    : customConnected.github || null;
+  // Manual Sync Google Provider
+  const syncGoogle = useMutation({
+    mutationFn: async (provider: string) => {
+      if (provider === "search_console") return api.gscSync(projectId!, 28);
+      if (provider === "analytics") return api.ga4Sync(projectId!, 28);
+    },
+    onSuccess: () => {
+      setActionNotice({ type: "success", text: "Manual sync triggered successfully." });
+      qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
+      qc.invalidateQueries({ queryKey: ["gsc-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-report"] });
+    },
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
+  });
 
-  const handleConnectCustom = (id: string, name: string) => {
-    setCustomConnected((prev) => ({
-      ...prev,
-      [id]: modalFormValue || `${name.toLowerCase()}-connection`,
-    }));
-    setActiveModal(null);
-    setModalFormValue("");
-    setNotice(`${name} connected successfully.`);
-  };
-
-  const handleDisconnectCustom = (id: string) => {
-    setCustomConnected((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    setNotice("Integration disconnected.");
-  };
+  const isGitHubConnected = Boolean(repo.data?.owner && repo.data?.name);
 
   const handleConnectGitHub = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modalOwnerValue || !modalFormValue) return;
+    if (!modalOwnerValue.trim() || !modalRepoValue.trim()) return;
     try {
       await connectRepo.mutateAsync({
-        owner: modalOwnerValue,
-        name: modalFormValue,
-        accessToken: modalTokenValue,
+        owner: modalOwnerValue.trim(),
+        name: modalRepoValue.trim(),
+        accessToken: modalTokenValue.trim(),
       });
-      setCustomConnected((prev) => ({
-        ...prev,
-        github: `${modalOwnerValue}/${modalFormValue}`,
-      }));
       setActiveModal(null);
       setModalOwnerValue("");
-      setModalFormValue("");
+      setModalRepoValue("");
       setModalTokenValue("");
-      setNotice("GitHub repository connected successfully.");
+      setActionNotice({ type: "success", text: "GitHub repository connected successfully." });
     } catch (err) {
-      setNotice(errorMessage(err));
+      setActionNotice({ type: "error", text: errorMessage(err) });
     }
   };
 
-  // Whether publishing destination is occupied
-  const hasPublishingConnected = isGitHubConnected || Boolean(customConnected.wordpress || customConnected.webflow);
+  const handleDisconnectGitHub = async () => {
+    try {
+      await connectRepo.mutateAsync({
+        owner: "",
+        name: "",
+        accessToken: "",
+      });
+      setActionNotice({ type: "success", text: "GitHub repository disconnected." });
+    } catch (err) {
+      setActionNotice({ type: "error", text: errorMessage(err) });
+    }
+  };
+
+  const isGscConnected = gsc?.status === "CONNECTED";
+  const isGscNeedsSelection = gsc?.status === "NEEDS_SELECTION";
+  const isGa4Connected = ga4?.status === "CONNECTED";
+  const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
 
   return (
     <div className="space-y-8">
       {notice && (
-        <div className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-xs text-brand-800">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} className="font-bold text-brand-500 hover:text-brand-900">
+        <div
+          className={`flex items-start justify-between rounded-xl border p-4 text-xs ${
+            notice.type === "success"
+              ? "border-success-200 bg-success-50 text-success-800"
+              : notice.type === "error"
+                ? "border-error-200 bg-error-50 text-error-800"
+                : "border-warning-200 bg-warning-50 text-warning-800"
+          }`}
+        >
+          <span>{notice.text}</span>
+          <button
+            type="button"
+            onClick={() => setActionNotice(null)}
+            className="ml-2 font-bold hover:opacity-75"
+          >
             ✕
           </button>
         </div>
       )}
 
-      {/* Info Notice Banner matching Screenshot 1 */}
+      {/* Info Notice Banner */}
       <div className="flex items-start gap-2.5 rounded-xl border border-brand-200/80 bg-brand-50/50 p-3.5 text-xs text-brand-600">
         <Info size={16} className="mt-0.5 shrink-0 text-brand-400" />
         <span>
-          You can connect one publishing destination at a time. Disconnect GitHub to connect a different publishing destination.
+          Connect your Google services and GitHub repository to enable live ranking analytics, visitor traffic syncing, and automated technical pull requests.
         </span>
       </div>
 
-      {/* 1. Article Publishing Section (8 cards) */}
+      {/* 1. Search, Analytics & Local SEO */}
       <div>
         <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Article Publishing</h2>
-          <p className="text-xs text-brand-500">Publish articles directly to your CMS or blog platform</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* WordPress */}
-          <IntegrationCard
-            logo={<WordPressLogo />}
-            title="WordPress"
-            description="Publish articles to WordPress.com"
-            connectedValue={customConnected.wordpress}
-            isDisabled={hasPublishingConnected && !customConnected.wordpress}
-            onConnect={() => setActiveModal("wordpress")}
-            onDisconnect={() => handleDisconnectCustom("wordpress")}
-          />
-
-          {/* WordPress (Self-Hosted) */}
-          <IntegrationCard
-            logo={<WordPressLogo />}
-            title="WordPress (Self-Hosted)"
-            description="Connect via application password"
-            connectedValue={customConnected.wordpressSelf}
-            isDisabled={hasPublishingConnected && !customConnected.wordpressSelf}
-            onConnect={() => setActiveModal("wordpressSelf")}
-            onDisconnect={() => handleDisconnectCustom("wordpressSelf")}
-          />
-
-          {/* Webflow */}
-          <IntegrationCard
-            logo={<WebflowLogo />}
-            title="Webflow"
-            description="Publish to Webflow CMS collections"
-            connectedValue={customConnected.webflow}
-            isDisabled={hasPublishingConnected && !customConnected.webflow}
-            onConnect={() => setActiveModal("webflow")}
-            onDisconnect={() => handleDisconnectCustom("webflow")}
-          />
-
-          {/* Framer */}
-          <IntegrationCard
-            logo={<FramerLogo />}
-            title="Framer"
-            description="Publish to Framer CMS collections"
-            connectedValue={customConnected.framer}
-            isDisabled={hasPublishingConnected && !customConnected.framer}
-            onConnect={() => setActiveModal("framer")}
-            onDisconnect={() => handleDisconnectCustom("framer")}
-          />
-
-          {/* Wix */}
-          <IntegrationCard
-            logo={<WixLogo />}
-            title="Wix"
-            description="Publish articles to your Wix site blog"
-            connectedValue={customConnected.wix}
-            isDisabled={hasPublishingConnected && !customConnected.wix}
-            onConnect={() => setActiveModal("wix")}
-            onDisconnect={() => handleDisconnectCustom("wix")}
-          />
-
-          {/* Sanity */}
-          <IntegrationCard
-            logo={<SanityLogo />}
-            title="Sanity"
-            description="Publish articles to your Sanity dataset"
-            connectedValue={customConnected.sanity}
-            isDisabled={hasPublishingConnected && !customConnected.sanity}
-            onConnect={() => setActiveModal("sanity")}
-            onDisconnect={() => handleDisconnectCustom("sanity")}
-          />
-
-          {/* HubSpot */}
-          <IntegrationCard
-            logo={<HubSpotLogo />}
-            title="HubSpot"
-            description="Publish articles to your HubSpot blog"
-            connectedValue={customConnected.hubspot}
-            isDisabled={hasPublishingConnected && !customConnected.hubspot}
-            onConnect={() => setActiveModal("hubspot")}
-            onDisconnect={() => handleDisconnectCustom("hubspot")}
-          />
-
-          {/* GitHub (Publishing) */}
-          <IntegrationCard
-            logo={<GitHubLogo />}
-            title="GitHub"
-            description="Publish articles to your repo as a pull request."
-            connectedValue={githubDisplay}
-            onConnect={() => setActiveModal("github")}
-            onDisconnect={() => {
-              if (isRealGitHubConnected) {
-                connectRepo.mutateAsync({ owner: "", name: "", accessToken: "" }).then(() => {
-                  setNotice("GitHub disconnected.");
-                });
-              }
-              handleDisconnectCustom("github");
-            }}
-            onChange={() => setActiveModal("github")}
-          />
-        </div>
-      </div>
-
-      {/* 2. Socials Section (2 cards) */}
-      <div>
-        <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Socials</h2>
-          <p className="text-xs text-brand-500">Connect your social accounts to post and share content</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* X (Twitter) */}
-          <IntegrationCard
-            logo={<TwitterXLogo />}
-            title="X (Twitter)"
-            description="Post tweets and threads"
-            connectedValue={customConnected.twitter}
-            isBlackButton
-            onConnect={() => setActiveModal("twitter")}
-            onDisconnect={() => handleDisconnectCustom("twitter")}
-          />
-
-          {/* LinkedIn */}
-          <IntegrationCard
-            logo={<LinkedInLogo />}
-            title="LinkedIn"
-            description="Share professional content"
-            connectedValue={customConnected.linkedin}
-            isBlackButton
-            hasDropdown
-            onConnect={() => setActiveModal("linkedin")}
-            onDisconnect={() => handleDisconnectCustom("linkedin")}
-          />
-        </div>
-      </div>
-
-      {/* 3. Code Repository Section */}
-      <div>
-        <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Code Repository</h2>
+          <h2 className="text-base font-bold text-brand-950">Search, Analytics & Local SEO</h2>
           <p className="text-xs text-brand-500">
-            Connect a GitHub repo so the SEO agent can open pull requests against it
+            Authoritative Google Search Console metrics, GA4 visitor telemetry, and Google Places synchronization
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <IntegrationCard
-            logo={<GitHubLogo />}
-            title="GitHub"
-            description="Let the SEO agent open pull requests against your repository."
-            connectedValue={githubDisplay}
-            onConnect={() => setActiveModal("github")}
-            onChange={() => setActiveModal("github")}
-            onDisconnect={() => {
-              if (isRealGitHubConnected) {
-                connectRepo.mutateAsync({ owner: "", name: "", accessToken: "" }).then(() => {
-                  setNotice("GitHub disconnected.");
-                });
-              }
-              handleDisconnectCustom("github");
-            }}
-          />
-        </div>
-      </div>
-
-      {/* 4. Analytics Section (2 cards) */}
-      <div>
-        <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Analytics</h2>
-          <p className="text-xs text-brand-500">
-            Connect analytics tools to track performance. Disconnecting will remove the connector and all collected data.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Google Analytics */}
-          <IntegrationCard
-            logo={<GoogleAnalyticsLogo />}
-            title="Google Analytics"
-            description="Track website traffic and user behaviour"
-            connectedValue={
-              ga4?.status === "CONNECTED"
-                ? ga4.selectedResourceName || (siteDomain ? siteDomain.replace(/\..+$/, "") : "Connected property")
-                : (siteDomain ? siteDomain.replace(/\..+$/, "") : "Connected property")
-            }
-            onConnect={() => authorizeGoogle.mutate("analytics")}
-            onDisconnect={() => {
-              if (ga4?.status === "CONNECTED") {
-                disconnectGoogle.mutate("analytics");
-              } else {
-                setNotice("Google Analytics disconnected.");
-              }
-            }}
-            isLoading={authorizeGoogle.isPending || disconnectGoogle.isPending}
-          />
-
           {/* Google Search Console */}
-          <IntegrationCard
-            logo={<GoogleSearchConsoleLogo />}
-            title="Google Search Console"
-            description="Monitor SEO performance and indexing"
-            connectedValue={
-              gsc?.status === "CONNECTED"
-                ? gsc.selectedResourceName || (siteDomain ? `https://${siteDomain}/` : "https://reigel.in/")
-                : (siteDomain ? `https://${siteDomain}/` : "https://reigel.in/")
-            }
-            onConnect={() => authorizeGoogle.mutate("search_console")}
-            onDisconnect={() => {
-              if (gsc?.status === "CONNECTED") {
-                disconnectGoogle.mutate("search_console");
-              } else {
-                setNotice("Google Search Console disconnected.");
-              }
-            }}
-            isLoading={authorizeGoogle.isPending || disconnectGoogle.isPending}
-          />
+          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+            <div>
+              <div className="flex items-start gap-3.5">
+                <GoogleSearchConsoleLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-bold text-brand-950">Google Search Console</h3>
+                    {isGscConnected && (
+                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+                        Connected
+                      </span>
+                    )}
+                    {isGscNeedsSelection && (
+                      <span className="inline-flex items-center rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-[10.5px] font-semibold text-warning-700">
+                        Select Property
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-brand-500">
+                    Provides authoritative organic impressions, verified clicks, CTR, and keyword rankings.
+                  </p>
+                </div>
+              </div>
+
+              {isGscConnected && (
+                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                  <p>
+                    <span className="font-semibold text-brand-700">Account:</span> {accountLabel(gsc)}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Property:</span> {gsc?.selectedResourceName || "None selected"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
+                    {gsc?.lastSyncedAt ? relativeTime(gsc.lastSyncedAt) : "Pending"}
+                  </p>
+                </div>
+              )}
+
+              {projectId && (isGscNeedsSelection || showGscPicker) && (
+                <div className="mt-3 border-t border-brand-100 pt-3">
+                  <PropertyPicker provider="search_console" projectId={projectId} />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+              {isGscConnected ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
+                  <span className="truncate">{gsc?.selectedResourceName || "Connected"}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-brand-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+                  <span>Not connected</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                {isGscConnected ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowGscPicker(!showGscPicker)}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      {showGscPicker ? "Hide Picker" : "Change Property"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={syncGoogle.isPending}
+                      onClick={() => syncGoogle.mutate("search_console")}
+                      className="rounded-lg border border-brand-200 bg-white p-1 text-brand-700 hover:bg-brand-50"
+                      title="Sync Now"
+                    >
+                      <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disconnectGoogle.isPending}
+                      onClick={() => disconnectGoogle.mutate("search_console")}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={authorizeGoogle.isPending || !projectId}
+                    onClick={() => authorizeGoogle.mutate("search_console")}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                  >
+                    <span>Connect Google</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Google Analytics 4 */}
+          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+            <div>
+              <div className="flex items-start gap-3.5">
+                <GoogleAnalyticsLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-bold text-brand-950">Google Analytics 4</h3>
+                    {isGa4Connected && (
+                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+                        Connected
+                      </span>
+                    )}
+                    {isGa4NeedsSelection && (
+                      <span className="inline-flex items-center rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-[10.5px] font-semibold text-warning-700">
+                        Select Property
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-brand-500">
+                    Synchronizes visitor sessions, engaged landing pages, conversion rates, and channels.
+                  </p>
+                </div>
+              </div>
+
+              {isGa4Connected && (
+                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                  <p>
+                    <span className="font-semibold text-brand-700">Account:</span> {accountLabel(ga4)}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Property:</span> {ga4?.selectedResourceName || "None selected"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
+                    {ga4?.lastSyncedAt ? relativeTime(ga4.lastSyncedAt) : "Pending"}
+                  </p>
+                </div>
+              )}
+
+              {projectId && (isGa4NeedsSelection || showGa4Picker) && (
+                <div className="mt-3 border-t border-brand-100 pt-3">
+                  <PropertyPicker provider="analytics" projectId={projectId} />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+              {isGa4Connected ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
+                  <span className="truncate">{ga4?.selectedResourceName || "Connected"}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-brand-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+                  <span>Not connected</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                {isGa4Connected ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowGa4Picker(!showGa4Picker)}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      {showGa4Picker ? "Hide Picker" : "Change Property"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={syncGoogle.isPending}
+                      onClick={() => syncGoogle.mutate("analytics")}
+                      className="rounded-lg border border-brand-200 bg-white p-1 text-brand-700 hover:bg-brand-50"
+                      title="Sync Now"
+                    >
+                      <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disconnectGoogle.isPending}
+                      onClick={() => disconnectGoogle.mutate("analytics")}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={authorizeGoogle.isPending || !projectId}
+                    onClick={() => authorizeGoogle.mutate("analytics")}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                  >
+                    <span>Connect GA4</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Google Places & Business Profile */}
+          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+            <div>
+              <div className="flex items-start gap-3.5">
+                <GooglePlacesLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-bold text-brand-950">Google Places & Local SEO</h3>
+                    {localSeo.data?.businessName && (
+                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-brand-500">
+                    Synchronizes verified Google Reviews, star ratings, local rankings, and Maps presence.
+                  </p>
+                </div>
+              </div>
+
+              {localSeo.data?.businessName && (
+                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                  <p>
+                    <span className="font-semibold text-brand-700">Business:</span> {localSeo.data.businessName}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Rating:</span>{" "}
+                    {localSeo.data.reviewCount ? `${localSeo.data.rating.toFixed(1)} ★ (${localSeo.data.reviewCount} reviews)` : "No ratings"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
+                    {localSeo.data.updatedAt ? relativeTime(localSeo.data.updatedAt) : "Pending"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+              {localSeo.data?.businessName ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
+                  <span className="truncate">{localSeo.data.businessName}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-brand-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+                  <span>Not configured</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/clients?tab=local";
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50"
+              >
+                <span>View Local SEO</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 5. Messaging Section (2 cards) */}
+      {/* 2. Code Repository & Remediation */}
       <div>
         <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Messaging</h2>
+          <h2 className="text-base font-bold text-brand-950">Code Repository & Auto-Remediation</h2>
           <p className="text-xs text-brand-500">
-            Connect messaging channels to receive audit alerts and SEO notifications
+            Connect a GitHub repository so the AI Fix Engine can open pull requests for SEO and schema fixes
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Slack */}
-          <IntegrationCard
-            logo={<SlackLogo />}
-            title="Slack"
-            description="Receive alerts and fix approvals directly in Slack"
-            connectedValue={customConnected.slack}
-            isBlackButton
-            onConnect={() => setActiveModal("slack")}
-            onDisconnect={() => handleDisconnectCustom("slack")}
-          />
+          {/* GitHub Repository */}
+          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+            <div>
+              <div className="flex items-start gap-3.5">
+                <GitHubLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-bold text-brand-950">GitHub Repository</h3>
+                    {isGitHubConnected && (
+                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-brand-500">
+                    Allows the Fix Engine to prepare reviewable pull requests for schema, metadata, and technical fixes.
+                  </p>
+                </div>
+              </div>
 
-          {/* Discord */}
-          <IntegrationCard
-            logo={<DiscordLogo />}
-            title="Discord"
-            description="Post SEO alerts and milestone reports in your Discord server"
-            connectedValue={customConnected.discord}
-            isBlackButton
-            onConnect={() => setActiveModal("discord")}
-            onDisconnect={() => handleDisconnectCustom("discord")}
-          />
+              {isGitHubConnected && (
+                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                  <p>
+                    <span className="font-semibold text-brand-700">Repository:</span> {repo.data?.owner}/{repo.data?.name}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Branch:</span> {repo.data?.defaultBranch || "main"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-brand-700">Framework:</span> {repo.data?.framework || "Detected"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+              {isGitHubConnected ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
+                  <span className="truncate">{repo.data?.owner}/{repo.data?.name}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-brand-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+                  <span>Not configured</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                {isGitHubConnected ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOwnerValue(repo.data?.owner || "");
+                        setModalRepoValue(repo.data?.name || "");
+                        setActiveModal("github");
+                      }}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      Change
+                    </button>
+                    <button
+                      type="button"
+                      disabled={connectRepo.isPending}
+                      onClick={handleDisconnectGitHub}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      {connectRepo.isPending ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal("github")}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                  >
+                    <span>Connect Repository</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Connect Modal Dialog */}
-      {activeModal && (
+      {/* GitHub Connect Modal Dialog */}
+      {activeModal === "github" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-bold text-brand-950">
-                Connect {activeModal === "github" ? "GitHub Repository" : activeModal.toUpperCase()}
-              </h3>
+              <h3 className="text-base font-bold text-brand-950">Connect GitHub Repository</h3>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -659,207 +821,59 @@ function IntegrationsView() {
               </button>
             </div>
 
-            {activeModal === "github" ? (
-              <form onSubmit={handleConnectGitHub} className="mt-4 space-y-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-brand-700">Owner / Org</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. sudaaher74-ctrl"
-                    value={modalOwnerValue}
-                    onChange={(e) => setModalOwnerValue(e.target.value)}
-                    className="w-full rounded-lg border p-2 text-xs text-brand-900"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-brand-700">Repository Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. GrowthX-SEO-"
-                    value={modalFormValue}
-                    onChange={(e) => setModalFormValue(e.target.value)}
-                    className="w-full rounded-lg border p-2 text-xs text-brand-900"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-brand-700">Personal Access Token</label>
-                  <input
-                    type="password"
-                    placeholder="github_pat_..."
-                    value={modalTokenValue}
-                    onChange={(e) => setModalTokenValue(e.target.value)}
-                    className="w-full rounded-lg border p-2 text-xs text-brand-900"
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal(null)}
-                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={connectRepo.isPending}
-                    className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700"
-                  >
-                    {connectRepo.isPending ? "Connecting…" : "Connect Repository"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-brand-700">
-                    Site URL or API Endpoint
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="https://your-site.com"
-                    value={modalFormValue}
-                    onChange={(e) => setModalFormValue(e.target.value)}
-                    className="w-full rounded-lg border p-2 text-xs text-brand-900"
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal(null)}
-                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleConnectCustom(activeModal, activeModal)}
-                    className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700"
-                  >
-                    Connect
-                  </button>
-                </div>
+            <form onSubmit={handleConnectGitHub} className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-brand-700">Owner / Org</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. sudaaher74-ctrl"
+                  value={modalOwnerValue}
+                  onChange={(e) => setModalOwnerValue(e.target.value)}
+                  className="w-full rounded-lg border p-2 text-xs text-brand-900"
+                />
               </div>
-            )}
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-brand-700">Repository Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GrowthX-SEO-"
+                  value={modalRepoValue}
+                  onChange={(e) => setModalRepoValue(e.target.value)}
+                  className="w-full rounded-lg border p-2 text-xs text-brand-900"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-brand-700">Personal Access Token (PAT)</label>
+                <input
+                  type="password"
+                  placeholder="ghp_... (requires repo scope)"
+                  value={modalTokenValue}
+                  onChange={(e) => setModalTokenValue(e.target.value)}
+                  className="w-full rounded-lg border p-2 text-xs text-brand-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={connectRepo.isPending}
+                  className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {connectRepo.isPending ? "Connecting…" : "Connect Repository"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function IntegrationCard({
-  logo,
-  title,
-  description,
-  connectedValue,
-  hasDropdown,
-  isDisabled,
-  isBlackButton,
-  onConnect,
-  onDisconnect,
-  onChange,
-  isLoading,
-}: {
-  logo: React.ReactNode;
-  title: string;
-  description: string;
-  connectedValue?: string | null;
-  hasDropdown?: boolean;
-  isDisabled?: boolean;
-  isBlackButton?: boolean;
-  onConnect: () => void;
-  onDisconnect?: () => void;
-  onChange?: () => void;
-  isLoading?: boolean;
-}) {
-  const isConnected = Boolean(connectedValue);
-
-  return (
-    <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
-      <div className="flex items-start gap-3.5">
-        <div className="shrink-0">{logo}</div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-bold text-brand-950">{title}</h3>
-            {isConnected && (
-              <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-                Connected
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 line-clamp-1 text-xs text-brand-500">{description}</p>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
-        {isConnected ? (
-          <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-            <span className="max-w-[150px] truncate sm:max-w-[180px]">{connectedValue}</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs text-brand-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-            <span>Not connected</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-1.5">
-          {isConnected ? (
-            <>
-              {onChange && (
-                <button
-                  type="button"
-                  onClick={onChange}
-                  className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-50"
-                >
-                  Change
-                </button>
-              )}
-              {onDisconnect && (
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={onDisconnect}
-                  className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-50"
-                >
-                  {isLoading ? "Disconnecting…" : "Disconnect"}
-                </button>
-              )}
-            </>
-          ) : isDisabled ? (
-            <button
-              type="button"
-              disabled
-              className="rounded-lg bg-brand-100 px-3.5 py-1 text-xs font-semibold text-brand-400 cursor-not-allowed"
-            >
-              Connect
-            </button>
-          ) : isBlackButton ? (
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={onConnect}
-              className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1 text-xs font-semibold text-white transition hover:bg-brand-800"
-            >
-              <span>Connect</span>
-              {hasDropdown && <ChevronDown size={13} className="text-brand-300" />}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={onConnect}
-              className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
-            >
-              <span>Connect</span>
-              {hasDropdown && <ChevronDown size={13} className="text-brand-500" />}
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
