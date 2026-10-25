@@ -348,188 +348,284 @@ export function GitHubAgentConnectWorkflow({
     <div
       className={
         mode === "modal"
-          ? "w-full max-w-xl rounded-3xl border border-brand-200 bg-surface-1 p-6 shadow-2xl transition-all"
+          ? "my-auto flex max-h-[88dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-brand-200 bg-surface-1 shadow-2xl transition-all"
           : "w-full rounded-2xl border border-brand-200 bg-white p-5 shadow-2xs"
       }
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-brand-100 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-brand-950">
-            <GitHubLogo className="h-9 w-9 border-none" />
+      {/* Pinned Top Header + 3-Step Progress Bar */}
+      <div
+        className={
+          mode === "modal"
+            ? "shrink-0 border-b border-brand-100 bg-surface-1 px-5 pt-4 pb-3"
+            : "border-b border-brand-100 pb-3 mb-4"
+        }
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-950">
+              <GitHubLogo className="h-8 w-8 border-none" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-brand-950">
+                Connect GitHub Project to Reigel Coding Agent
+              </h3>
+              <p className="text-[11px] text-brand-500">
+                Step 1: Google Login &amp; Link GitHub · Step 2: Select Project · Step 3: Share with Coding Agent
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-brand-950">
-              Connect GitHub Project to Reigel Coding Agent
-            </h3>
-            <p className="text-[11px] text-brand-500">
-              Step 1: Google Login &amp; Link GitHub · Step 2: Select Project · Step 3: Share with Coding Agent
-            </p>
-          </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Close GitHub connection workflow"
+              className="rounded-lg p-1.5 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+            >
+              ✕
+            </button>
+          )}
         </div>
-        {onCancel && (
+
+        {/* 3-Step Progress Bar */}
+        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
           <button
             type="button"
-            onClick={onCancel}
-            aria-label="Close GitHub connection workflow"
-            className="rounded-lg p-1.5 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+            onClick={() => setStep(1)}
+            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
+              step === 1
+                ? "border-primary-500 bg-primary-50/70 text-primary-800"
+                : step > 1
+                  ? "border-success-200 bg-success-50/50 text-success-800"
+                  : "border-brand-200 bg-surface-2 text-brand-500"
+            }`}
           >
-            ✕
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+              {step > 1 ? "✓" : "1"}
+            </span>
+            <span className="truncate">1. Google → GitHub</span>
           </button>
-        )}
+
+          <button
+            type="button"
+            disabled={!gmailAddress.trim()}
+            onClick={() => {
+              setStep(2);
+              loadRepositories(selectedRepoOwner, accessToken);
+            }}
+            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
+              step === 2
+                ? "border-primary-500 bg-primary-50/70 text-primary-800"
+                : step > 2
+                  ? "border-success-200 bg-success-50/50 text-success-800"
+                  : "border-brand-200 bg-surface-2 text-brand-500"
+            }`}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+              {step > 2 ? "✓" : "2"}
+            </span>
+            <span className="truncate">2. Access Project</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={!selectedRepoOwner.trim() || !selectedRepoName.trim()}
+            onClick={() => setStep(3)}
+            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
+              step === 3
+                ? "border-primary-500 bg-primary-50/70 text-primary-800"
+                : "border-brand-200 bg-surface-2 text-brand-500"
+            }`}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+              3
+            </span>
+            <span className="truncate">3. Share with Agent</span>
+          </button>
+        </div>
       </div>
 
-      {/* 3-Step Progress Bar */}
-      <div className="my-4 grid grid-cols-3 gap-2 text-xs">
-        <button
-          type="button"
-          onClick={() => setStep(1)}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-semibold transition ${
-            step === 1
-              ? "border-primary-500 bg-primary-50/70 text-primary-800"
-              : step > 1
-                ? "border-success-200 bg-success-50/50 text-success-800"
-                : "border-brand-200 bg-surface-2 text-brand-500"
-          }`}
-        >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-            {step > 1 ? "✓" : "1"}
-          </span>
-          <span className="truncate">1. Google → GitHub</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={!gmailAddress.trim()}
-          onClick={() => {
-            setStep(2);
-            loadRepositories(selectedRepoOwner, accessToken);
-          }}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-semibold transition ${
-            step === 2
-              ? "border-primary-500 bg-primary-50/70 text-primary-800"
-              : step > 2
-                ? "border-success-200 bg-success-50/50 text-success-800"
-                : "border-brand-200 bg-surface-2 text-brand-500"
-          }`}
-        >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-            {step > 2 ? "✓" : "2"}
-          </span>
-          <span className="truncate">2. Access Project</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={!selectedRepoOwner.trim() || !selectedRepoName.trim()}
-          onClick={() => setStep(3)}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-semibold transition ${
-            step === 3
-              ? "border-primary-500 bg-primary-50/70 text-primary-800"
-              : "border-brand-200 bg-surface-2 text-brand-500"
-          }`}
-        >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-            3
-          </span>
-          <span className="truncate">3. Share with Agent</span>
-        </button>
-      </div>
-
-      {/* =====================================================================
-          STEP 1: GOOGLE LOGIN & LINK GITHUB ACCOUNT
-         ===================================================================== */}
-      {step === 1 && (
-        <div className="space-y-4 py-1">
-          {/* Card 1: Google Identity */}
-          <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
-                  <GoogleGLogo className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-brand-950">
-                      Step 1A · Google Account Identity
-                    </h4>
-                    {googleVerified && gmailAddress.trim() && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
-                        <Check size={10} /> Signed in with Google
-                      </span>
-                    )}
+      {/* Scrollable Step Body */}
+      <div
+        className={
+          mode === "modal"
+            ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"
+            : "py-1"
+        }
+      >
+        {/* =====================================================================
+            STEP 1: GOOGLE LOGIN & LINK GITHUB ACCOUNT
+           ===================================================================== */}
+        {step === 1 && (
+          <div className="space-y-3.5">
+            {/* Card 1: Google Identity */}
+            <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
+                    <GoogleGLogo className="h-5 w-5" />
                   </div>
-                  <p className="text-[11px] text-brand-500">
-                    Your Google identity is used to link and authenticate your GitHub coding agent session.
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-brand-950">
+                        Step 1A · Google Account Identity
+                      </h4>
+                      {googleVerified && gmailAddress.trim() && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
+                          <Check size={10} /> Signed in with Google
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-brand-500">
+                      Your Google identity is used to link and authenticate your GitHub coding agent session.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                  Google Account Email Connected to GitHub
+                </label>
+                <div className="relative">
+                  <Mail size={14} className="absolute left-3 top-2.5 text-brand-400" />
+                  <input
+                    type="email"
+                    required
+                    value={gmailAddress}
+                    onChange={(e) => {
+                      setGmailAddress(e.target.value);
+                      setGoogleVerified(true);
+                    }}
+                    placeholder="your-name@gmail.com"
+                    className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                  />
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                Google Account Email Connected to GitHub
-              </label>
-              <div className="relative">
-                <Mail size={14} className="absolute left-3 top-2.5 text-brand-400" />
-                <input
-                  type="email"
-                  required
-                  value={gmailAddress}
-                  onChange={(e) => {
-                    setGmailAddress(e.target.value);
-                    setGoogleVerified(true);
-                  }}
-                  placeholder="your-name@gmail.com"
-                  className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
-                />
+            {/* Card 2: Connect Google ID with GitHub Account */}
+            <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-3.5 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
+                    <GitHubLogo className="h-7 w-7 border-none" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-brand-950">
+                        Step 1B · Link GitHub Account with Your Google ID
+                      </h4>
+                      {githubProfile ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
+                          <Check size={10} /> Linked @{githubProfile.login}
+                        </span>
+                      ) : selectedRepoOwner.trim() ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">
+                          @{selectedRepoOwner.trim()}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-[11px] text-brand-500">
+                      Authorize Reigel Coding Agent on GitHub once so you can access and share any of your projects.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openGitHubAuthorizePopup}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-300 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-brand-900 shadow-2xs transition hover:bg-brand-50"
+                >
+                  <GitHubLogo className="h-4 w-4 border-none" />
+                  <span>Authorize on GitHub (1-Click)</span>
+                  <ExternalLink size={11} />
+                </button>
               </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                    GitHub Username / Organization
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={selectedRepoOwner}
+                    onChange={(e) => setSelectedRepoOwner(e.target.value)}
+                    placeholder="e.g. sudaaher74-ctrl"
+                    className="w-full rounded-xl border bg-white py-2 px-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                    GitHub Agent Token{" "}
+                    <span className="font-normal text-brand-400">(Saved for all your projects)</span>
+                  </label>
+                  <div className="relative">
+                    <KeyRound size={13} className="absolute left-3 top-2.5 text-brand-400" />
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={accessToken}
+                      onChange={(e) => setAccessToken(e.target.value)}
+                      placeholder="ghp_... or github_pat_..."
+                      className="w-full rounded-xl border bg-white py-2 pl-8 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {isCheckingToken && (
+                <p className="flex items-center gap-1.5 text-[11px] text-brand-500">
+                  <Loader2 size={12} className="animate-spin text-primary-600" />
+                  Verifying GitHub identity…
+                </p>
+              )}
+
+              {githubProfile && (
+                <div className="flex items-center justify-between rounded-xl border border-success-200 bg-success-50/60 px-3 py-2 text-[11.5px] text-success-900">
+                  <span className="flex items-center gap-1.5 font-semibold">
+                    <Check size={13} className="text-success-700" />
+                    Google ID ({gmailAddress}) is linked with GitHub account @{githubProfile.login}
+                  </span>
+                  <span className="text-[10.5px] font-mono text-success-700">Agent Ready</span>
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          {/* Card 2: Connect Google ID with GitHub Account */}
-          <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
-                  <GitHubLogo className="h-8 w-8 border-none" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-brand-950">
-                      Step 1B · Link GitHub Account with Your Google ID
-                    </h4>
-                    {githubProfile ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
-                        <Check size={10} /> Linked @{githubProfile.login}
-                      </span>
-                    ) : selectedRepoOwner.trim() ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">
-                        @{selectedRepoOwner.trim()}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="text-[11px] text-brand-500">
-                    Authorize Reigel Coding Agent on GitHub once so you can access and share any of your projects.
-                  </p>
-                </div>
+        {/* =====================================================================
+            STEP 2: ACCESS & SELECT YOUR GITHUB PROJECT
+           ===================================================================== */}
+        {step === 2 && (
+          <div className="space-y-3.5">
+            {/* Linked Identity Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200/70 bg-surface-2 px-3 py-2 text-[11.5px]">
+              <div className="flex items-center gap-2">
+                <GoogleGLogo className="h-3.5 w-3.5" />
+                <span className="font-semibold text-brand-900">{gmailAddress}</span>
+                <span className="text-brand-400">↔</span>
+                <span className="font-mono font-semibold text-brand-900">
+                  @{githubProfile?.login || selectedRepoOwner}
+                </span>
               </div>
-
               <button
                 type="button"
-                onClick={openGitHubAuthorizePopup}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-300 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-brand-900 shadow-2xs transition hover:bg-brand-50"
+                onClick={() => loadRepositories(selectedRepoOwner, accessToken)}
+                className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
               >
-                <GitHubLogo className="h-4 w-4 border-none" />
-                <span>Authorize on GitHub (1-Click)</span>
-                <ExternalLink size={11} />
+                <RefreshCw size={11} className={isFetchingRepos ? "animate-spin" : ""} />
+                <span>Refresh Projects</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Search & Direct Selection */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
                 <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  GitHub Username / Organization
+                  GitHub Owner / Organization
                 </label>
                 <input
                   type="text"
@@ -537,48 +633,313 @@ export function GitHubAgentConnectWorkflow({
                   value={selectedRepoOwner}
                   onChange={(e) => setSelectedRepoOwner(e.target.value)}
                   placeholder="e.g. sudaaher74-ctrl"
-                  className="w-full rounded-xl border bg-white py-2 px-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
                 />
               </div>
-
               <div>
                 <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  GitHub Agent Token{" "}
-                  <span className="font-normal text-brand-400">(Saved for all your projects)</span>
+                  Selected Project Repository
                 </label>
-                <div className="relative">
-                  <KeyRound size={13} className="absolute left-3 top-2.5 text-brand-400" />
+                <input
+                  type="text"
+                  required
+                  value={selectedRepoName}
+                  onChange={(e) => setSelectedRepoName(e.target.value)}
+                  placeholder="e.g. my-website-repo"
+                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
+                />
+              </div>
+            </div>
+
+            {/* Project List */}
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                  <FolderGit2 size={14} className="text-primary-600" />
+                  <span>Select Your GitHub Project ({filteredRepos.length})</span>
+                </label>
+                <div className="relative w-48">
+                  <Search size={12} className="absolute left-2.5 top-2 text-brand-400" />
                   <input
-                    type="password"
-                    autoComplete="off"
-                    value={accessToken}
-                    onChange={(e) => setAccessToken(e.target.value)}
-                    placeholder="ghp_... or github_pat_..."
-                    className="w-full rounded-xl border bg-white py-2 pl-8 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                    type="text"
+                    placeholder="Search projects…"
+                    value={repoSearch}
+                    onChange={(e) => setRepoSearch(e.target.value)}
+                    className="w-full rounded-lg border bg-white py-1 pl-7 pr-2 text-[11px] text-brand-900"
                   />
+                </div>
+              </div>
+
+              {isFetchingRepos ? (
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand-200 p-6 text-xs text-brand-500">
+                  <Loader2 size={15} className="animate-spin text-primary-600" />
+                  <span>Loading GitHub projects for @{selectedRepoOwner}…</span>
+                </div>
+              ) : filteredRepos.length > 0 ? (
+                <div className="max-h-48 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
+                  {filteredRepos.map((r) => {
+                    const isSelected =
+                      selectedRepoName === r.name && selectedRepoOwner === r.ownerLogin;
+                    return (
+                      <button
+                        key={r.full_name}
+                        type="button"
+                        onClick={() => handleSelectRepoCard(r)}
+                        className={`w-full rounded-xl border p-2.5 text-left transition ${
+                          isSelected
+                            ? "border-primary-500 bg-primary-50/50 ring-1 ring-primary-500"
+                            : "border-brand-200 bg-white hover:border-brand-300 hover:bg-surface-2"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 truncate">
+                            <GitBranch
+                              size={13}
+                              className={
+                                isSelected ? "shrink-0 text-primary-600" : "shrink-0 text-brand-400"
+                              }
+                            />
+                            <span className="truncate text-xs font-bold text-brand-950">
+                              {r.ownerLogin}/{r.name}
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-brand-600">
+                              {r.private ? (
+                                <>
+                                  <Lock size={9} /> Private
+                                </>
+                              ) : (
+                                <>
+                                  <Globe size={9} /> Public
+                                </>
+                              )}
+                            </span>
+                            <span className="font-mono text-[10px] text-brand-400">
+                              {r.default_branch}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {r.language && (
+                              <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
+                                {r.language}
+                              </span>
+                            )}
+                            {isSelected && (
+                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {r.description && (
+                          <p className="mt-1 truncate text-[10.5px] text-brand-500">
+                            {r.description}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-brand-200 p-4 text-center text-xs text-brand-500">
+                  <p>
+                    {fetchRepoError ||
+                      "No repositories matched your filter. Enter your repository name directly above."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================================
+            STEP 3: SHARE PROJECT WITH CODING AGENT & CONNECT
+           ===================================================================== */}
+        {step === 3 && (
+          <div className="space-y-3">
+            {/* Visual Connection Summary */}
+            <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-3.5 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-primary-600" />
+                  <h4 className="text-xs font-bold text-brand-950">
+                    Share Project with Reigel Coding Agent
+                  </h4>
+                </div>
+                <span className="rounded-full bg-primary-100 px-2.5 py-0.5 font-mono text-[10.5px] font-bold text-primary-800">
+                  {selectedRepoOwner}/{selectedRepoName}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
+                <div className="rounded-xl border bg-white p-2">
+                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
+                    1. Google Identity
+                  </span>
+                  <span className="mt-0.5 block truncate font-semibold text-brand-900">
+                    {gmailAddress}
+                  </span>
+                </div>
+                <div className="rounded-xl border bg-white p-2">
+                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
+                    2. GitHub Project
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono font-semibold text-brand-900">
+                    {selectedRepoOwner}/{selectedRepoName}
+                  </span>
+                </div>
+                <div className="rounded-xl border bg-white p-2">
+                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
+                    3. Agent Mode
+                  </span>
+                  <span className="mt-0.5 block font-semibold text-success-700">
+                    Branch &amp; Pull Request Only
+                  </span>
                 </div>
               </div>
             </div>
 
-            {isCheckingToken && (
-              <p className="flex items-center gap-1.5 text-[11px] text-brand-500">
-                <Loader2 size={12} className="animate-spin text-primary-600" />
-                Verifying GitHub identity…
+            {/* Coding Agent Access Permissions (Same as Cursor / Devin / Claude Code) */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-2 p-3.5 space-y-2">
+              <p className="text-xs font-bold text-brand-950">
+                Coding Agent Repository Access (Shared Permissions)
               </p>
+              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sharePermissions.readCode}
+                  onChange={(e) =>
+                    setSharePermissions((p) => ({ ...p, readCode: e.target.checked }))
+                  }
+                  className="mt-0.5 rounded border-brand-300 text-primary-600"
+                />
+                <span>
+                  <strong>Read project source &amp; structure</strong> — Allows the Coding Agent to inspect routes, components, and SEO metadata in an isolated sandbox.
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sharePermissions.createBranches}
+                  onChange={(e) =>
+                    setSharePermissions((p) => ({ ...p, createBranches: e.target.checked }))
+                  }
+                  className="mt-0.5 rounded border-brand-300 text-primary-600"
+                />
+                <span>
+                  <strong>Create dedicated fix branches</strong> — Agent commits improvements to <code className="font-mono text-[11px]">growthx-ai/engineer-*</code> and never pushes directly to <code className="font-mono text-[11px]">{defaultBranch}</code>.
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sharePermissions.openPullRequests}
+                  onChange={(e) =>
+                    setSharePermissions((p) => ({ ...p, openPullRequests: e.target.checked }))
+                  }
+                  className="mt-0.5 rounded border-brand-300 text-primary-600"
+                />
+                <span>
+                  <strong>Open Pull Requests across all 5 Fix Engine tabs</strong> — Prepares reviewable PRs with Before &amp; After diffs for Website Audit, Traffic, Competitor, AI Visibility, and Backlinks.
+                </span>
+              </label>
+            </div>
+
+            {/* Branch, Framework & Token Verification */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                  Default Branch
+                </label>
+                <input
+                  type="text"
+                  value={defaultBranch}
+                  onChange={(e) => setDefaultBranch(e.target.value)}
+                  placeholder="main"
+                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                  Project Framework
+                </label>
+                <select
+                  value={framework}
+                  onChange={(e) =>
+                    setFramework(e.target.value as "nextjs" | "static-html" | "unknown")
+                  }
+                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
+                >
+                  <option value="nextjs">Next.js / React</option>
+                  <option value="static-html">Static HTML</option>
+                  <option value="unknown">Auto-detect / Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Ensure GitHub Agent Token is ready */}
+            <div className="rounded-xl border border-brand-200 bg-white p-3 space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-[11px] font-semibold text-brand-800 flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-primary-600" />
+                  <span>GitHub Coding Agent Access Token (Read &amp; Write)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={openGitHubAuthorizePopup}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-700 hover:underline"
+                >
+                  <span>Get 1-Click Agent Token on GitHub</span>
+                  <ExternalLink size={10} />
+                </button>
+              </div>
+              <input
+                type="password"
+                autoComplete="off"
+                value={accessToken}
+                onChange={(e) => {
+                  setAccessToken(e.target.value);
+                  setConnectError("");
+                }}
+                placeholder="Paste GitHub token (ghp_... or github_pat_...) to grant agent write access"
+                className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+              />
+              <p className="text-[10.5px] text-brand-400">
+                Encrypted at rest and saved to your Google session ({gmailAddress}) so you can connect any project in 1 click.
+              </p>
+            </div>
+
+            {connectError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-error-200 bg-error-50 p-3 text-xs text-error-800"
+              >
+                {connectError}
+              </div>
             )}
 
-            {githubProfile && (
-              <div className="flex items-center justify-between rounded-xl border border-success-200 bg-success-50/60 px-3 py-2 text-[11.5px] text-success-900">
-                <span className="flex items-center gap-1.5 font-semibold">
-                  <Check size={13} className="text-success-700" />
-                  Google ID ({gmailAddress}) is linked with GitHub account @{githubProfile.login}
-                </span>
-                <span className="text-[10.5px] font-mono text-success-700">Agent Ready</span>
+            {isSuccess && (
+              <div
+                role="status"
+                className="flex items-center justify-center gap-2 rounded-xl border border-success-200 bg-success-50 p-3 text-xs font-bold text-success-800"
+              >
+                <Check size={16} /> Project {selectedRepoOwner}/{selectedRepoName} Shared &amp; Connected with Coding Agent!
               </div>
             )}
           </div>
+        )}
+      </div>
 
-          <div className="flex justify-end gap-2 border-t border-brand-100 pt-3">
+      {/* Pinned Bottom Action Footer — Always visible on screen without scrolling */}
+      <div
+        className={
+          mode === "modal"
+            ? "shrink-0 border-t border-brand-100 bg-surface-1 px-5 py-3.5"
+            : "mt-4 border-t border-brand-100 pt-3.5"
+        }
+      >
+        {step === 1 && (
+          <div className="flex justify-end gap-2">
             {onCancel && (
               <button
                 type="button"
@@ -602,164 +963,10 @@ export function GitHubAgentConnectWorkflow({
               <ArrowRight size={13} />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* =====================================================================
-          STEP 2: ACCESS & SELECT YOUR GITHUB PROJECT
-         ===================================================================== */}
-      {step === 2 && (
-        <div className="space-y-4 py-1">
-          {/* Linked Identity Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200/70 bg-surface-2 px-3 py-2 text-[11.5px]">
-            <div className="flex items-center gap-2">
-              <GoogleGLogo className="h-3.5 w-3.5" />
-              <span className="font-semibold text-brand-900">{gmailAddress}</span>
-              <span className="text-brand-400">↔</span>
-              <span className="font-mono font-semibold text-brand-900">
-                @{githubProfile?.login || selectedRepoOwner}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => loadRepositories(selectedRepoOwner, accessToken)}
-              className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
-            >
-              <RefreshCw size={11} className={isFetchingRepos ? "animate-spin" : ""} />
-              <span>Refresh Projects</span>
-            </button>
-          </div>
-
-          {/* Search & Direct Selection */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <div>
-              <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                GitHub Owner / Organization
-              </label>
-              <input
-                type="text"
-                required
-                value={selectedRepoOwner}
-                onChange={(e) => setSelectedRepoOwner(e.target.value)}
-                placeholder="e.g. sudaaher74-ctrl"
-                className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                Selected Project Repository
-              </label>
-              <input
-                type="text"
-                required
-                value={selectedRepoName}
-                onChange={(e) => setSelectedRepoName(e.target.value)}
-                placeholder="e.g. my-website-repo"
-                className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-              />
-            </div>
-          </div>
-
-          {/* Project List */}
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                <FolderGit2 size={14} className="text-primary-600" />
-                <span>Select Your GitHub Project ({filteredRepos.length})</span>
-              </label>
-              <div className="relative w-48">
-                <Search size={12} className="absolute left-2.5 top-2 text-brand-400" />
-                <input
-                  type="text"
-                  placeholder="Search projects…"
-                  value={repoSearch}
-                  onChange={(e) => setRepoSearch(e.target.value)}
-                  className="w-full rounded-lg border bg-white py-1 pl-7 pr-2 text-[11px] text-brand-900"
-                />
-              </div>
-            </div>
-
-            {isFetchingRepos ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand-200 p-6 text-xs text-brand-500">
-                <Loader2 size={15} className="animate-spin text-primary-600" />
-                <span>Loading GitHub projects for @{selectedRepoOwner}…</span>
-              </div>
-            ) : filteredRepos.length > 0 ? (
-              <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
-                {filteredRepos.map((r) => {
-                  const isSelected =
-                    selectedRepoName === r.name && selectedRepoOwner === r.ownerLogin;
-                  return (
-                    <button
-                      key={r.full_name}
-                      type="button"
-                      onClick={() => handleSelectRepoCard(r)}
-                      className={`w-full rounded-xl border p-3 text-left transition ${
-                        isSelected
-                          ? "border-primary-500 bg-primary-50/50 ring-1 ring-primary-500"
-                          : "border-brand-200 bg-white hover:border-brand-300 hover:bg-surface-2"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 truncate">
-                          <GitBranch
-                            size={13}
-                            className={
-                              isSelected ? "shrink-0 text-primary-600" : "shrink-0 text-brand-400"
-                            }
-                          />
-                          <span className="truncate text-xs font-bold text-brand-950">
-                            {r.ownerLogin}/{r.name}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-brand-600">
-                            {r.private ? (
-                              <>
-                                <Lock size={9} /> Private
-                              </>
-                            ) : (
-                              <>
-                                <Globe size={9} /> Public
-                              </>
-                            )}
-                          </span>
-                          <span className="font-mono text-[10px] text-brand-400">
-                            {r.default_branch}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {r.language && (
-                            <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
-                              {r.language}
-                            </span>
-                          )}
-                          {isSelected && (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {r.description && (
-                        <p className="mt-1 truncate text-[10.5px] text-brand-500">
-                          {r.description}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-brand-200 p-4 text-center text-xs text-brand-500">
-                <p>
-                  {fetchRepoError ||
-                    "No repositories matched your filter. Enter your repository name directly above."}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between gap-2 border-t border-brand-100 pt-3">
+        {step === 2 && (
+          <div className="flex justify-between gap-2">
             <button
               type="button"
               onClick={() => setStep(1)}
@@ -777,185 +984,10 @@ export function GitHubAgentConnectWorkflow({
               <ArrowRight size={13} />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* =====================================================================
-          STEP 3: SHARE PROJECT WITH CODING AGENT & CONNECT
-         ===================================================================== */}
-      {step === 3 && (
-        <div className="space-y-4 py-1">
-          {/* Visual Connection Summary */}
-          <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-primary-600" />
-                <h4 className="text-xs font-bold text-brand-950">
-                  Share Project with Reigel Coding Agent
-                </h4>
-              </div>
-              <span className="rounded-full bg-primary-100 px-2.5 py-0.5 font-mono text-[10.5px] font-bold text-primary-800">
-                {selectedRepoOwner}/{selectedRepoName}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
-              <div className="rounded-xl border bg-white p-2.5">
-                <span className="block text-[10px] font-bold uppercase text-brand-400">
-                  1. Google Identity
-                </span>
-                <span className="mt-0.5 block truncate font-semibold text-brand-900">
-                  {gmailAddress}
-                </span>
-              </div>
-              <div className="rounded-xl border bg-white p-2.5">
-                <span className="block text-[10px] font-bold uppercase text-brand-400">
-                  2. GitHub Project
-                </span>
-                <span className="mt-0.5 block truncate font-mono font-semibold text-brand-900">
-                  {selectedRepoOwner}/{selectedRepoName}
-                </span>
-              </div>
-              <div className="rounded-xl border bg-white p-2.5">
-                <span className="block text-[10px] font-bold uppercase text-brand-400">
-                  3. Agent Mode
-                </span>
-                <span className="mt-0.5 block font-semibold text-success-700">
-                  Branch &amp; Pull Request Only
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Coding Agent Access Permissions (Same as Cursor / Devin / Claude Code) */}
-          <div className="rounded-2xl border border-brand-200 bg-surface-2 p-4 space-y-2.5">
-            <p className="text-xs font-bold text-brand-950">
-              Coding Agent Repository Access (Shared Permissions)
-            </p>
-            <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sharePermissions.readCode}
-                onChange={(e) =>
-                  setSharePermissions((p) => ({ ...p, readCode: e.target.checked }))
-                }
-                className="mt-0.5 rounded border-brand-300 text-primary-600"
-              />
-              <span>
-                <strong>Read project source &amp; structure</strong> — Allows the Coding Agent to inspect routes, components, and SEO metadata in an isolated sandbox.
-              </span>
-            </label>
-            <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sharePermissions.createBranches}
-                onChange={(e) =>
-                  setSharePermissions((p) => ({ ...p, createBranches: e.target.checked }))
-                }
-                className="mt-0.5 rounded border-brand-300 text-primary-600"
-              />
-              <span>
-                <strong>Create dedicated fix branches</strong> — Agent commits improvements to <code className="font-mono text-[11px]">growthx-ai/engineer-*</code> and never pushes directly to <code className="font-mono text-[11px]">{defaultBranch}</code>.
-              </span>
-            </label>
-            <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sharePermissions.openPullRequests}
-                onChange={(e) =>
-                  setSharePermissions((p) => ({ ...p, openPullRequests: e.target.checked }))
-                }
-                className="mt-0.5 rounded border-brand-300 text-primary-600"
-              />
-              <span>
-                <strong>Open Pull Requests across all 5 Fix Engine tabs</strong> — Prepares reviewable PRs with Before &amp; After diffs for Website Audit, Traffic, Competitor, AI Visibility, and Backlinks.
-              </span>
-            </label>
-          </div>
-
-          {/* Branch, Framework & Token Verification */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                Default Branch
-              </label>
-              <input
-                type="text"
-                value={defaultBranch}
-                onChange={(e) => setDefaultBranch(e.target.value)}
-                placeholder="main"
-                className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                Project Framework
-              </label>
-              <select
-                value={framework}
-                onChange={(e) =>
-                  setFramework(e.target.value as "nextjs" | "static-html" | "unknown")
-                }
-                className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-              >
-                <option value="nextjs">Next.js / React</option>
-                <option value="static-html">Static HTML</option>
-                <option value="unknown">Auto-detect / Other</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Ensure GitHub Agent Token is ready */}
-          <div className="rounded-xl border border-brand-200 bg-white p-3 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-[11px] font-semibold text-brand-800 flex items-center gap-1.5">
-                <ShieldCheck size={14} className="text-primary-600" />
-                <span>GitHub Coding Agent Access Token (Read &amp; Write)</span>
-              </label>
-              <button
-                type="button"
-                onClick={openGitHubAuthorizePopup}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-700 hover:underline"
-              >
-                <span>Get 1-Click Agent Token on GitHub</span>
-                <ExternalLink size={10} />
-              </button>
-            </div>
-            <input
-              type="password"
-              autoComplete="off"
-              value={accessToken}
-              onChange={(e) => {
-                setAccessToken(e.target.value);
-                setConnectError("");
-              }}
-              placeholder="Paste GitHub token (ghp_... or github_pat_...) to grant agent write access"
-              className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
-            />
-            <p className="text-[10.5px] text-brand-400">
-              Encrypted at rest and saved to your Google session ({gmailAddress}) so you can connect any project in 1 click.
-            </p>
-          </div>
-
-          {connectError && (
-            <div
-              role="alert"
-              className="rounded-xl border border-error-200 bg-error-50 p-3 text-xs text-error-800"
-            >
-              {connectError}
-            </div>
-          )}
-
-          {isSuccess && (
-            <div
-              role="status"
-              className="flex items-center justify-center gap-2 rounded-xl border border-success-200 bg-success-50 p-3 text-xs font-bold text-success-800"
-            >
-              <Check size={16} /> Project {selectedRepoOwner}/{selectedRepoName} Shared &amp; Connected with Coding Agent!
-            </div>
-          )}
-
-          <div className="flex justify-between gap-2 border-t border-brand-100 pt-3">
+        {step === 3 && (
+          <div className="flex justify-between gap-2">
             <button
               type="button"
               onClick={() => setStep(2)}
@@ -988,8 +1020,8 @@ export function GitHubAgentConnectWorkflow({
               )}
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

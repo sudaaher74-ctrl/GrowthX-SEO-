@@ -789,7 +789,10 @@ function IntegrationsView() {
           role="dialog"
           aria-modal="true"
           aria-label="Connect GitHub Project to Reigel Coding Agent"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setGithubModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/75 p-3 sm:p-4 backdrop-blur-xs"
         >
           <GitHubAgentConnectWorkflow
             projectId={projectId}
