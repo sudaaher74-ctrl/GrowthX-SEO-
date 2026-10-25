@@ -23,10 +23,10 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://avatars.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin} ${socketOrigin}${isProd ? "" : " ws://localhost:*"}`,
+  `connect-src 'self' https://api.github.com ${apiOrigin} ${socketOrigin}${isProd ? "" : " ws://localhost:*"}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  "form-action 'self' https://github.com",
   "object-src 'none'",
 ].join("; ");
 

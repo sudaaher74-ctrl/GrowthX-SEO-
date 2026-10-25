@@ -1,818 +1,1164 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
-  Check,
-  Loader2,
-  RefreshCw,
-  GitBranch,
+  CheckCircle2,
   Lock,
   Globe,
+  GitBranch,
   Search,
-  ChevronDown,
-  Monitor,
-  Menu,
+  RefreshCw,
+  ShieldCheck,
+  ExternalLink,
+  Copy,
+  Check,
+  KeyRound,
+  LogOut,
+  AlertCircle,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { GitHubLogo } from "@/components/settings/integration-logos";
-import { api } from "@/lib/api-client";
+import { useConnectRepository } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
-
-export interface GitHubRepoItem {
-  name: string;
-  full_name: string;
-  ownerLogin: string;
-  description: string | null;
-  default_branch: string;
-  private: boolean;
-  html_url: string;
-  updated_at?: string;
-  language?: string | null;
-}
-
-interface SavedGitHubSession {
-  googleEmail: string;
-  githubOwner: string;
-  accessToken: string;
-  githubName?: string;
-  updatedAt: string;
-}
-
-const STORAGE_KEY = "reigel_github_agent_session_v1";
 
 export interface GitHubAgentConnectWorkflowProps {
   projectId: string | null;
   userEmail?: string | null;
   existingRepo?: {
-    owner: string;
-    name: string;
+    owner?: string;
+    name?: string;
     defaultBranch?: string;
     framework?: string;
   } | null;
   mode?: "modal" | "inline";
-  onConnected?: (repo: {
-    owner: string;
-    name: string;
-    defaultBranch: string;
-    framework: string;
-  }) => void;
+  oauthCode?: string | null;
+  oauthState?: string | null;
+  installationId?: string | null;
+  onConnected?: (repo: { owner: string; name: string; defaultBranch: string }) => void;
   onCancel?: () => void;
 }
 
-function maskEmailAddress(email: string): string {
-  const clean = email.trim();
-  const atIdx = clean.indexOf("@");
-  if (atIdx <= 0) return "s********@gmail.com";
-  const local = clean.slice(0, atIdx);
-  const domain = clean.slice(atIdx + 1);
-  return `${local[0]}********@${domain}`;
+interface GitHubAuthenticatedUser {
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+  email: string | null;
+  htmlUrl: string;
 }
 
-/** Pixel-art Agent Bot Icon matching the Coding Agent installation screen */
-function CodingAgentBotAvatar() {
-  return (
-    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-brand-950 shadow-md ring-1 ring-brand-200">
-      <svg
-        viewBox="0 0 24 24"
-        className="h-8 w-8 fill-current text-brand-950"
-        aria-hidden="true"
-      >
-        <path d="M7 4h10v2h2v6h-2v2h-2v2h2v2h-2v2h-2v-4h-2v4H9v-2H7v-2h2v-2H7v-2H5V6h2V4zm2 4v2h2V8H9zm4 0v2h2V8h-2z" />
-      </svg>
-    </div>
-  );
+interface GitHubLiveRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  description: string | null;
+  language: string | null;
+  updated_at: string;
+  permissions?: {
+    admin?: boolean;
+    push?: boolean;
+    pull?: boolean;
+  };
+  owner: {
+    login: string;
+    avatar_url?: string;
+  };
 }
 
-/** GitHub-style green pixel identicon avatar */
-function GitHubIdenticon({ size = "sm" }: { size?: "sm" | "md" }) {
-  const dim = size === "md" ? "h-7 w-7" : "h-5 w-5";
-  return (
-    <span
-      className={`inline-flex ${dim} shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand-200 bg-white p-0.5`}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 5 5" className="h-full w-full fill-success-500">
-        <rect x="1" y="0" width="1" height="1" />
-        <rect x="3" y="0" width="1" height="1" />
-        <rect x="0" y="1" width="1" height="1" />
-        <rect x="2" y="1" width="1" height="1" />
-        <rect x="4" y="1" width="1" height="1" />
-        <rect x="1" y="2" width="3" height="1" />
-        <rect x="0" y="3" width="2" height="1" />
-        <rect x="3" y="3" width="2" height="1" />
-        <rect x="2" y="4" width="1" height="1" />
-      </svg>
-    </span>
-  );
+interface StoredGitHubAppConfig {
+  slug: string;
+  name: string;
+  clientId: string;
+  clientSecret: string;
+  htmlUrl: string;
+}
+
+const SESSION_STORAGE_KEY = "reigel_github_oauth_session_v1";
+const APP_CONFIG_STORAGE_KEY = "reigel_github_app_config_v1";
+
+function inferFramework(repo: GitHubLiveRepo): string {
+  const hay = `${repo.name} ${repo.description || ""} ${repo.language || ""}`.toLowerCase();
+  if (hay.includes("astro")) return "Astro";
+  if (hay.includes("remix")) return "Remix";
+  if (hay.includes("wordpress") || hay.includes("php")) return "WordPress";
+  return "nextjs";
 }
 
 export function GitHubAgentConnectWorkflow({
   projectId,
   userEmail,
   existingRepo,
-  mode = "inline",
+  mode = "modal",
+  oauthCode,
+  oauthState,
   onConnected,
   onCancel,
 }: GitHubAgentConnectWorkflowProps) {
-  // 3 screens matching the exact GitHub App installation + sudo email verification workflow:
-  // 1. "install"       -> Install & Authorize Reigel Coding Agent (All repos / Only select repositories)
-  // 2. "confirm_email" -> Confirm access (Signed in as @owner -> Verify via email)
-  // 3. "confirm_code"  -> Confirm access (Enter verification code sent to s********@gmail.com -> Verify)
-  const [screen, setScreen] = useState<"install" | "confirm_email" | "confirm_code">("install");
+  const connectRepo = useConnectRepository(projectId);
 
-  const [gmailAddress, setGmailAddress] = useState(userEmail || "sudaaher74@gmail.com");
-  const [selectedRepoOwner, setSelectedRepoOwner] = useState(
-    existingRepo?.owner || "sudaaher74-ctrl",
+  // Server/local GitHub OAuth configuration
+  const [serverAppSlug, setServerAppSlug] = useState<string | null>(null);
+  const [customAppConfig, setCustomAppConfig] = useState<StoredGitHubAppConfig | null>(null);
+
+  // Authenticated GitHub user + real OAuth token (`gho_...` / `ghu_...` / `ghp_...`)
+  const [accessToken, setAccessToken] = useState<string>("");
+  const [ghUser, setGhUser] = useState<GitHubAuthenticatedUser | null>(null);
+
+  // GitHub OAuth Device Flow state (`https://github.com/login/device`)
+  const [deviceCode, setDeviceCode] = useState<string | null>(null);
+  const [userCode, setUserCode] = useState<string | null>(null);
+  const [verificationUri, setVerificationUri] = useState<string>("https://github.com/login/device");
+  const [pollIntervalSec, setPollIntervalSec] = useState<number>(5);
+  const [isStartingDevice, setIsStartingDevice] = useState<boolean>(false);
+  const [isWaitingForGitHub, setIsWaitingForGitHub] = useState<boolean>(false);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
+  // Personal Access Token alternative
+  const [showPatInput, setShowPatInput] = useState<boolean>(false);
+  const [patValue, setPatValue] = useState<string>("");
+  const [isVerifyingPat, setIsVerifyingPat] = useState<boolean>(false);
+
+  // Live repositories from `https://api.github.com/user/repos`
+  const [repos, setRepos] = useState<GitHubLiveRepo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState<boolean>(false);
+  const [repoSearch, setRepoSearch] = useState<string>("");
+  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "public" | "private">("all");
+  const [selectedFullName, setSelectedFullName] = useState<string>(
+    existingRepo?.owner && existingRepo?.name ? `${existingRepo.owner}/${existingRepo.name}` : "",
   );
-  const [accountDisplayName, setAccountDisplayName] = useState("Sudarshan Aher");
-  const [editingAccount, setEditingAccount] = useState(false);
+  const [branchInput, setBranchInput] = useState<string>(existingRepo?.defaultBranch || "main");
+  const [frameworkInput, setFrameworkInput] = useState<string>(existingRepo?.framework || "nextjs");
 
-  const [repoScope, setRepoScope] = useState<"all" | "selected">("selected");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
 
-  const [selectedRepoName, setSelectedRepoName] = useState(existingRepo?.name || "");
-  const [defaultBranch, setDefaultBranch] = useState(existingRepo?.defaultBranch || "main");
-  const [framework, setFramework] = useState<"nextjs" | "static-html" | "unknown">(
-    (existingRepo?.framework as "nextjs" | "static-html" | "unknown") || "nextjs",
-  );
+  const popupRef = useRef<Window | null>(null);
+  const manifestFormRef = useRef<HTMLFormElement | null>(null);
+  const [manifestJson, setManifestJson] = useState<string>("");
 
-  const [accessToken, setAccessToken] = useState("");
-  const [repoSearch, setRepoSearch] = useState("");
-  const [fetchedRepos, setFetchedRepos] = useState<GitHubRepoItem[]>([]);
-  const [isFetchingRepos, setIsFetchingRepos] = useState(false);
-
-  const [verificationInput, setVerificationInput] = useState("");
-  const [dispatchedCode] = useState("84291036");
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectError, setConnectError] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
-
-  useEffect(() => {
-    if (userEmail) {
-      setGmailAddress(userEmail);
-    }
-  }, [userEmail]);
-
-  // Restore saved session if present
+  // Load saved GitHub App config or active OAuth session from storage
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as SavedGitHubSession;
-      if (saved.accessToken) setAccessToken(saved.accessToken);
-      if (saved.githubOwner && !existingRepo?.owner) {
-        setSelectedRepoOwner(saved.githubOwner);
+      const savedApp = window.localStorage.getItem(APP_CONFIG_STORAGE_KEY);
+      if (savedApp) {
+        const parsed = JSON.parse(savedApp) as StoredGitHubAppConfig;
+        if (parsed?.slug && parsed?.clientId && parsed?.clientSecret) {
+          setCustomAppConfig(parsed);
+        }
       }
-      if (saved.githubName) {
-        setAccountDisplayName(saved.githubName);
+      const savedSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession) as {
+          accessToken?: string;
+          user?: GitHubAuthenticatedUser;
+        };
+        if (parsed?.accessToken && parsed?.user?.login) {
+          setAccessToken(parsed.accessToken);
+          setGhUser(parsed.user);
+        }
       }
+    } catch {
+      // ignore storage errors
+    }
+
+    fetch("/api/github/oauth")
+      .then((r) => r.json())
+      .then((cfg: { appSlug?: string | null }) => {
+        if (cfg?.appSlug) setServerAppSlug(cfg.appSlug);
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, []);
+
+  // Fetch real repositories from `https://api.github.com/user/repos` whenever `accessToken` is set
+  const fetchLiveRepositories = useCallback(
+    async (token: string) => {
+      if (!token) return;
+      setLoadingRepos(true);
+      setErrorText(null);
+      try {
+        const res = await fetch(
+          "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator,organization_member",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+            },
+            cache: "no-store",
+          },
+        );
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+            setAccessToken("");
+            setGhUser(null);
+            throw new Error("GitHub session expired. Please sign in with GitHub again.");
+          }
+          throw new Error(`GitHub API returned HTTP ${res.status} while loading repositories.`);
+        }
+        const list = (await res.json()) as GitHubLiveRepo[];
+        const valid = Array.isArray(list) ? list : [];
+        setRepos(valid);
+
+        if (valid.length > 0) {
+          const existingMatch =
+            existingRepo?.owner && existingRepo?.name
+              ? valid.find(
+                  (r) =>
+                    r.full_name.toLowerCase() ===
+                    `${existingRepo.owner}/${existingRepo.name}`.toLowerCase(),
+                )
+              : null;
+          const pick = existingMatch || valid[0];
+          setSelectedFullName(pick.full_name);
+          setBranchInput(pick.default_branch || "main");
+          setFrameworkInput(inferFramework(pick));
+        }
+      } catch (err) {
+        setErrorText(errorMessage(err));
+      } finally {
+        setLoadingRepos(false);
+      }
+    },
+    [existingRepo],
+  );
+
+  useEffect(() => {
+    if (accessToken) {
+      fetchLiveRepositories(accessToken);
+    }
+  }, [accessToken, fetchLiveRepositories]);
+
+  // Start a real GitHub OAuth Device session (`https://github.com/login/device/code`)
+  const startDeviceSession = useCallback(async () => {
+    setIsStartingDevice(true);
+    setErrorText(null);
+    try {
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "device_start",
+          clientId: customAppConfig?.clientId,
+        }),
+      });
+      const data = (await res.json()) as {
+        deviceCode?: string;
+        userCode?: string;
+        verificationUri?: string;
+        interval?: number;
+        error?: string;
+      };
+      if (!res.ok || !data.deviceCode || !data.userCode) {
+        throw new Error(data.error || "Unable to start GitHub OAuth session.");
+      }
+      setDeviceCode(data.deviceCode);
+      setUserCode(data.userCode);
+      setVerificationUri(data.verificationUri || "https://github.com/login/device");
+      setPollIntervalSec(data.interval || 5);
+    } catch (err) {
+      setErrorText(errorMessage(err));
+    } finally {
+      setIsStartingDevice(false);
+    }
+  }, [customAppConfig]);
+
+  useEffect(() => {
+    if (!accessToken && !oauthCode && !deviceCode && !isStartingDevice) {
+      startDeviceSession();
+    }
+  }, [accessToken, oauthCode, deviceCode, isStartingDevice, startDeviceSession]);
+
+  // Handle callback code from `https://github.com` (`/api/github/callback`)
+  useEffect(() => {
+    if (!oauthCode) return;
+    let cancelled = false;
+
+    async function handleOAuthReturn() {
+      setErrorText(null);
+      try {
+        // Case A: Returning from 1-click GitHub App Manifest registration on github.com
+        if (oauthState?.startsWith("manifest_")) {
+          setStatusBanner("Finalizing your GitHub App registration with github.com…");
+          const res = await fetch("/api/github/oauth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "manifest_convert", code: oauthCode }),
+          });
+          const data = (await res.json()) as StoredGitHubAppConfig & { error?: string };
+          if (!res.ok || !data.slug) {
+            throw new Error(data.error || "Failed to register GitHub App.");
+          }
+          if (cancelled) return;
+          window.localStorage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(data));
+          setCustomAppConfig(data);
+          // Immediately redirect to `https://github.com/apps/<slug>/installations/new`
+          window.location.href = `https://github.com/apps/${encodeURIComponent(data.slug)}/installations/new?state=${encodeURIComponent(projectId || "connect")}`;
+          return;
+        }
+
+        // Case B: Returning from GitHub App installation / Web OAuth callback with `?code=...`
+        setStatusBanner("Completing GitHub OAuth handshake with github.com…");
+        let savedClientId: string | undefined;
+        let savedClientSecret: string | undefined;
+        try {
+          const raw = window.localStorage.getItem(APP_CONFIG_STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as StoredGitHubAppConfig;
+            savedClientId = parsed.clientId;
+            savedClientSecret = parsed.clientSecret;
+          }
+        } catch {
+          // ignore
+        }
+
+        const res = await fetch("/api/github/oauth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "exchange_code",
+            code: oauthCode,
+            clientId: savedClientId,
+            clientSecret: savedClientSecret,
+          }),
+        });
+        const data = (await res.json()) as {
+          status?: string;
+          accessToken?: string;
+          user?: GitHubAuthenticatedUser;
+          error?: string;
+        };
+        if (!res.ok || !data.accessToken || !data.user) {
+          throw new Error(data.error || "Could not exchange GitHub authorization code.");
+        }
+        if (cancelled) return;
+        setAccessToken(data.accessToken);
+        setGhUser(data.user);
+        setStatusBanner(null);
+        try {
+          window.sessionStorage.setItem(
+            SESSION_STORAGE_KEY,
+            JSON.stringify({ accessToken: data.accessToken, user: data.user }),
+          );
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("github_code");
+          cleanUrl.searchParams.delete("installation_id");
+          cleanUrl.searchParams.delete("setup_action");
+          cleanUrl.searchParams.delete("github_state");
+          window.history.replaceState(null, "", cleanUrl.toString());
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStatusBanner(null);
+          setErrorText(errorMessage(err));
+        }
+      }
+    }
+
+    handleOAuthReturn();
+    return () => {
+      cancelled = true;
+    };
+  }, [oauthCode, oauthState, projectId]);
+
+  // Poll `/api/github/oauth` (`action: "device_poll"`) while the user authorizes on `https://github.com/login/device`
+  useEffect(() => {
+    if (!deviceCode || accessToken) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const pollOnce = async () => {
+      try {
+        const res = await fetch("/api/github/oauth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "device_poll",
+            deviceCode,
+            clientId: customAppConfig?.clientId,
+          }),
+        });
+        const data = (await res.json()) as {
+          status?: "authorized" | "pending" | "failed";
+          accessToken?: string;
+          user?: GitHubAuthenticatedUser;
+          interval?: number;
+          error?: string;
+        };
+        if (cancelled) return;
+
+        if (data.status === "authorized" && data.accessToken && data.user) {
+          setAccessToken(data.accessToken);
+          setGhUser(data.user);
+          setIsWaitingForGitHub(false);
+          try {
+            window.sessionStorage.setItem(
+              SESSION_STORAGE_KEY,
+              JSON.stringify({ accessToken: data.accessToken, user: data.user }),
+            );
+            if (popupRef.current && !popupRef.current.closed) {
+              popupRef.current.close();
+            }
+          } catch {
+            // ignore
+          }
+          return;
+        }
+
+        if (data.status === "failed") {
+          setIsWaitingForGitHub(false);
+          setErrorText(data.error || "GitHub authorization expired. Generating a fresh code…");
+          startDeviceSession();
+          return;
+        }
+
+        const nextWait = (data.interval || pollIntervalSec || 5) * 1000;
+        timer = setTimeout(pollOnce, nextWait);
+      } catch {
+        if (!cancelled) {
+          timer = setTimeout(pollOnce, (pollIntervalSec || 5) * 1000);
+        }
+      }
+    };
+
+    timer = setTimeout(pollOnce, (pollIntervalSec || 5) * 1000);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [deviceCode, accessToken, pollIntervalSec, customAppConfig, startDeviceSession]);
+
+  const handleCopyAndOpenGitHub = async () => {
+    setErrorText(null);
+    if (userCode) {
+      try {
+        await navigator.clipboard.writeText(userCode);
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 3500);
+      } catch {
+        // ignore clipboard permission issues
+      }
+    }
+    setIsWaitingForGitHub(true);
+    const width = 620;
+    const height = 740;
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+    const popup = window.open(
+      verificationUri,
+      "github_oauth_window",
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+    );
+    popupRef.current = popup;
+  };
+
+  const activeAppSlug = customAppConfig?.slug || serverAppSlug;
+
+  const handleInstallGitHubAppRedirect = () => {
+    if (!activeAppSlug) return;
+    window.location.href = `https://github.com/apps/${encodeURIComponent(activeAppSlug)}/installations/new?state=${encodeURIComponent(projectId || "connect")}`;
+  };
+
+  // 1-Click GitHub App registration on `https://github.com/settings/apps/new`
+  const handleCreateGitHubAppOnGitHub = () => {
+    if (typeof window === "undefined") return;
+    const origin = window.location.origin;
+    const callbackUrl = `${origin}/api/github/callback`;
+    const suffix = Date.now().toString(36).slice(-5);
+    const manifest = {
+      name: `Reigel SEO Agent ${suffix}`,
+      url: origin,
+      redirect_url: callbackUrl,
+      setup_url: callbackUrl,
+      setup_on_update: true,
+      request_oauth_on_install: true,
+      public: true,
+      default_permissions: {
+        contents: "write",
+        pull_requests: "write",
+        metadata: "read",
+      },
+      default_events: ["push", "pull_request"],
+    };
+    setManifestJson(JSON.stringify(manifest));
+    setTimeout(() => {
+      manifestFormRef.current?.submit();
+    }, 50);
+  };
+
+  const handleVerifyPat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = patValue.trim();
+    if (!trimmed) {
+      setErrorText("Please enter a valid GitHub Personal Access Token.");
+      return;
+    }
+    setIsVerifyingPat(true);
+    setErrorText(null);
+    try {
+      const res = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${trimmed}`,
+          Accept: "application/vnd.github+json",
+        },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error("GitHub rejected this token. Verify the token has `repo` permissions.");
+      }
+      const data = (await res.json()) as {
+        login?: string;
+        name?: string | null;
+        avatar_url?: string | null;
+        email?: string | null;
+        html_url?: string;
+      };
+      if (!data.login) {
+        throw new Error("Could not verify GitHub user profile for this token.");
+      }
+      const verifiedUser: GitHubAuthenticatedUser = {
+        login: data.login,
+        name: data.name ?? null,
+        avatarUrl: data.avatar_url ?? null,
+        email: data.email ?? null,
+        htmlUrl: data.html_url ?? `https://github.com/${data.login}`,
+      };
+      setAccessToken(trimmed);
+      setGhUser(verifiedUser);
+      try {
+        window.sessionStorage.setItem(
+          SESSION_STORAGE_KEY,
+          JSON.stringify({ accessToken: trimmed, user: verifiedUser }),
+        );
+      } catch {
+        // ignore
+      }
+    } catch (err) {
+      setErrorText(errorMessage(err));
+    } finally {
+      setIsVerifyingPat(false);
+    }
+  };
+
+  const handleSwitchGitHubAccount = () => {
+    try {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {
       // ignore
     }
-  }, [existingRepo?.owner]);
+    setAccessToken("");
+    setGhUser(null);
+    setRepos([]);
+    setDeviceCode(null);
+    setUserCode(null);
+    setIsWaitingForGitHub(false);
+  };
 
-  // Fetch GitHub user profile + repositories
-  const loadRepositories = useCallback(
-    async (ownerInput?: string, tokenInput?: string) => {
-      const owner = (ownerInput ?? selectedRepoOwner).trim();
-      const cleanToken = (tokenInput ?? accessToken)
-        .replace(/^\s*(bearer|token)\s+/i, "")
-        .trim();
+  const filteredRepos = useMemo(() => {
+    const q = repoSearch.trim().toLowerCase();
+    return repos.filter((r) => {
+      if (visibilityFilter === "public" && r.private) return false;
+      if (visibilityFilter === "private" && !r.private) return false;
+      if (!q) return true;
+      return (
+        r.full_name.toLowerCase().includes(q) ||
+        (r.description || "").toLowerCase().includes(q) ||
+        (r.language || "").toLowerCase().includes(q)
+      );
+    });
+  }, [repos, repoSearch, visibilityFilter]);
 
-      if (!owner && !cleanToken) return;
-      setIsFetchingRepos(true);
-
-      try {
-        const headers: Record<string, string> = {
-          Accept: "application/vnd.github+json",
-        };
-        if (cleanToken.startsWith("ghp_") || cleanToken.startsWith("github_pat_")) {
-          headers["Authorization"] = `Bearer ${cleanToken}`;
-        }
-
-        // Also fetch user display name if possible
-        if (owner) {
-          fetch(`https://api.github.com/users/${encodeURIComponent(owner)}`, { headers })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((u) => {
-              if (u?.name) setAccountDisplayName(u.name);
-            })
-            .catch(() => null);
-        }
-
-        const url =
-          cleanToken.startsWith("ghp_") || cleanToken.startsWith("github_pat_")
-            ? "https://api.github.com/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator,organization_member"
-            : `https://api.github.com/users/${encodeURIComponent(owner)}/repos?sort=updated&per_page=50`;
-
-        const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          const parsed: GitHubRepoItem[] = data.map((r: Record<string, unknown>) => {
-            const repoOwner =
-              typeof r.owner === "object" && r.owner !== null && "login" in r.owner
-                ? String((r.owner as { login: string }).login)
-                : owner;
-            return {
-              name: String(r.name ?? ""),
-              full_name: String(r.full_name ?? `${repoOwner}/${String(r.name ?? "")}`),
-              ownerLogin: repoOwner,
-              description: typeof r.description === "string" ? r.description : null,
-              default_branch: String(r.default_branch ?? "main"),
-              private: Boolean(r.private),
-              html_url: String(r.html_url ?? ""),
-              updated_at: typeof r.updated_at === "string" ? r.updated_at : undefined,
-              language: typeof r.language === "string" ? r.language : null,
-            };
-          });
-          setFetchedRepos(parsed);
-          if (parsed.length > 0 && !selectedRepoName) {
-            setSelectedRepoName(parsed[0].name);
-            setSelectedRepoOwner(parsed[0].ownerLogin);
-            setDefaultBranch(parsed[0].default_branch || "main");
-          }
-        }
-      } catch {
-        // Keep manual entry fallback
-      } finally {
-        setIsFetchingRepos(false);
-      }
-    },
-    [selectedRepoOwner, accessToken, selectedRepoName],
+  const selectedRepoObj = useMemo(
+    () => repos.find((r) => r.full_name === selectedFullName) || null,
+    [repos, selectedFullName],
   );
 
-  useEffect(() => {
-    loadRepositories(selectedRepoOwner, accessToken);
-  }, [loadRepositories, selectedRepoOwner, accessToken]);
-
-  const handleSelectRepo = (r: GitHubRepoItem) => {
-    setSelectedRepoOwner(r.ownerLogin);
-    setSelectedRepoName(r.name);
-    setDefaultBranch(r.default_branch || "main");
-    const lang = (r.language || "").toLowerCase();
-    if (lang === "html" || lang === "css") {
-      setFramework("static-html");
-    } else {
-      setFramework("nextjs");
-    }
-    setDropdownOpen(false);
-    setConnectError("");
-  };
-
-  const handleInstallAndAuthorize = () => {
-    setConnectError("");
-    const repoToUse = selectedRepoName.trim() || fetchedRepos[0]?.name || "";
-    if (!selectedRepoOwner.trim() || !repoToUse) {
-      setDropdownOpen(true);
-      setConnectError("Please select a repository first.");
-      return;
-    }
-    if (!selectedRepoName.trim() && repoToUse) {
-      setSelectedRepoName(repoToUse);
-    }
-    setScreen("confirm_email");
-  };
-
-  const handleTriggerEmailVerification = () => {
-    setConnectError("");
-    setVerificationInput(dispatchedCode);
-    setScreen("confirm_code");
-  };
-
-  const handleVerifyAndComplete = async () => {
+  const handleConnectSelectedRepo = async () => {
     if (!projectId) {
-      setConnectError("Select an active website project first.");
+      setErrorText("Please select a website project first.");
       return;
     }
-    if (!verificationInput.trim()) {
-      setConnectError("Please enter the verification code.");
+    if (!accessToken) {
+      setErrorText("Please authenticate with GitHub first.");
+      return;
+    }
+    const [owner, name] = selectedFullName.split("/");
+    if (!owner || !name) {
+      setErrorText("Please select a GitHub repository to connect.");
       return;
     }
 
-    const cleanOwner = selectedRepoOwner.trim() || "sudaaher74-ctrl";
-    const cleanName = (selectedRepoName.trim() || fetchedRepos[0]?.name || "GrowthX-SEO-").replace(
-      /\.git$/i,
-      "",
-    );
-
-    setIsConnecting(true);
-    setConnectError("");
-
+    setErrorText(null);
     try {
-      await api.connectRepository(projectId, {
-        owner: cleanOwner,
-        name: cleanName,
-        accessToken: accessToken.trim() || "__REUSE_LINKED_GITHUB_TOKEN__",
-        defaultBranch: defaultBranch.trim() || "main",
-        framework,
+      await connectRepo.mutateAsync({
+        owner: owner.trim(),
+        name: name.trim(),
+        defaultBranch: branchInput.trim() || "main",
+        framework: frameworkInput || "nextjs",
+        accessToken,
       });
-
-      try {
-        const sessionPayload: SavedGitHubSession = {
-          googleEmail: gmailAddress.trim(),
-          githubOwner: cleanOwner,
-          accessToken: accessToken.trim(),
-          githubName: accountDisplayName,
-          updatedAt: new Date().toISOString(),
-        };
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionPayload));
-      } catch {
-        // ignore storage errors
-      }
-
-      setIsSuccess(true);
-      setTimeout(() => {
-        onConnected?.({
-          owner: cleanOwner,
-          name: cleanName,
-          defaultBranch: defaultBranch.trim() || "main",
-          framework,
-        });
-      }, 500);
+      onConnected?.({
+        owner: owner.trim(),
+        name: name.trim(),
+        defaultBranch: branchInput.trim() || "main",
+      });
     } catch (err) {
-      setConnectError(errorMessage(err) || "Could not complete GitHub connection.");
-    } finally {
-      setIsConnecting(false);
+      setErrorText(errorMessage(err));
     }
   };
-
-  const filteredRepos = fetchedRepos.filter((r) => {
-    if (!repoSearch.trim()) return true;
-    const q = repoSearch.toLowerCase();
-    return (
-      r.name.toLowerCase().includes(q) ||
-      r.full_name.toLowerCase().includes(q) ||
-      (r.description ?? "").toLowerCase().includes(q)
-    );
-  });
-
-  const maskedEmail = maskEmailAddress(gmailAddress);
 
   return (
     <div
-      className={
-        mode === "modal"
-          ? "my-auto flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xl transition-all"
-          : "w-full overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xs"
-      }
+      onClick={(e) => e.stopPropagation()}
+      className={`flex flex-col overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 text-brand-950 shadow-2xl ${
+        mode === "modal" ? "my-auto max-h-[90vh] w-full max-w-2xl" : "w-full"
+      }`}
     >
-      {/* GitHub Browser Top Bar */}
-      <div className="flex shrink-0 items-center justify-between border-b border-brand-200 bg-surface-2 px-4 py-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-200 bg-surface-1 text-brand-500">
-            <Menu size={14} />
-          </span>
-          <GitHubLogo className="h-6 w-6 shrink-0 border-none" />
-          <span className="truncate rounded-md border border-brand-200 bg-surface-1 px-2.5 py-1 font-mono text-[11px] text-brand-500">
-            {screen === "install"
-              ? "github.com/apps/reigel-coding-agent/installations/new/permissions"
-              : "github.com/apps/reigel-coding-agent/installations"}
-          </span>
+      {/* Hidden form for 1-click GitHub App Manifest creation on https://github.com/settings/apps/new */}
+      <form
+        ref={manifestFormRef}
+        action={`https://github.com/settings/apps/new?state=${encodeURIComponent(`manifest_${projectId || "default"}`)}`}
+        method="post"
+        className="hidden"
+      >
+        <input type="hidden" name="manifest" value={manifestJson} readOnly />
+      </form>
+
+      {/* Top Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-brand-100 bg-surface-2 px-6 py-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <GitHubLogo />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-brand-950">
+                Connect GitHub to Reigel Coding Agent
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+                <ShieldCheck size={11} />
+                Official GitHub.com OAuth
+              </span>
+            </div>
+            <p className="truncate text-xs text-brand-500">
+              {userEmail
+                ? `Signed in as ${userEmail} · Authenticate your GitHub account on github.com`
+                : "Authenticate directly on github.com and select the repository to connect"}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <GitHubIdenticon size="sm" />
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close GitHub connection modal"
+            className="rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1 text-xs font-semibold text-brand-600 transition hover:bg-brand-50 hover:text-brand-950"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable Body */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5">
+        {statusBanner && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-primary-200 bg-primary-50 p-3.5 text-xs font-medium text-primary-800">
+            <RefreshCw size={14} className="animate-spin shrink-0 text-primary-600" />
+            <span>{statusBanner}</span>
+          </div>
+        )}
+
+        {errorText && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-xl border border-error-200 bg-error-50 p-3.5 text-xs text-error-800"
+          >
+            <AlertCircle size={15} className="mt-0.5 shrink-0 text-error-600" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">GitHub Connection Error</p>
+              <p className="mt-0.5">{errorText}</p>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 1: Authenticate with real GitHub.com */}
+        {!ghUser ? (
+          <div className="space-y-5">
+            {/* Primary Real GitHub.com OAuth Card */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-2/60 p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-2.5 py-0.5 text-[10.5px] font-semibold text-white">
+                    Step 1 of 2 · GitHub.com Authentication
+                  </span>
+                  <h3 className="text-sm font-bold text-brand-950 pt-1">
+                    Authorize Your GitHub Account on github.com
+                  </h3>
+                  <p className="text-xs text-brand-600 leading-relaxed">
+                    Sign in with any GitHub account on{" "}
+                    <span className="font-mono font-semibold text-brand-900">github.com</span>,
+                    complete GitHub&apos;s security/email verification if prompted, and grant
+                    repository access so the SEO Coding Agent can open automated pull requests.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option A: Dedicated GitHub App Installation redirect if configured */}
+              {activeAppSlug && (
+                <div className="rounded-xl border border-primary-200 bg-primary-50/60 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="text-xs font-bold text-brand-950">
+                        GitHub App Installation ({activeAppSlug})
+                      </p>
+                      <p className="text-[11px] text-brand-600">
+                        Redirects directly to{" "}
+                        <span className="font-mono">
+                          github.com/apps/{activeAppSlug}/installations/new
+                        </span>{" "}
+                        to choose All repositories or Only select repositories.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleInstallGitHubAppRedirect}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800"
+                    >
+                      <span>Install &amp; Authorize on GitHub.com</span>
+                      <ExternalLink size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Universal Multi-User GitHub.com OAuth Device Flow */}
+              <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-brand-950">
+                      One-Time GitHub.com Verification Code
+                    </p>
+                    <p className="text-[11px] text-brand-500">
+                      Click <span className="font-semibold text-brand-800">Continue on GitHub.com</span>{" "}
+                      below — we automatically copy this code and open{" "}
+                      <span className="font-mono text-brand-700">github.com/login/device</span>.
+                    </p>
+                  </div>
+
+                  {isStartingDevice ? (
+                    <div className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 px-4 py-2.5 text-xs font-medium text-brand-600">
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Requesting code from github.com…</span>
+                    </div>
+                  ) : userCode ? (
+                    <div className="flex items-center gap-2">
+                      <code className="rounded-xl border-2 border-brand-900 bg-surface-2 px-3.5 py-2 font-mono text-base font-bold tracking-widest text-brand-950 select-all">
+                        {userCode}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(userCode);
+                            setCopiedCode(true);
+                            setTimeout(() => setCopiedCode(false), 2500);
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-2 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                        title="Copy verification code"
+                      >
+                        {copiedCode ? <Check size={14} className="text-success-600" /> : <Copy size={14} />}
+                        <span>{copiedCode ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startDeviceSession}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+                    >
+                      <RefreshCw size={13} />
+                      <span>Generate Code</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-brand-100 pt-3.5">
+                  <div className="flex items-center gap-2 text-xs text-brand-600">
+                    {isWaitingForGitHub ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin text-primary-600 shrink-0" />
+                        <span className="font-medium text-primary-800">
+                          Waiting for you to click Authorize on github.com… (auto-detects immediately)
+                        </span>
+                      </>
+                    ) : (
+                      <span>
+                        Works with any personal or organization GitHub account (including 2FA &amp; SSO).
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!userCode || isStartingDevice}
+                    onClick={handleCopyAndOpenGitHub}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-950 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
+                  >
+                    <span>
+                      {isWaitingForGitHub ? "Re-open GitHub.com" : "Copy Code & Continue on GitHub.com"}
+                    </span>
+                    <ExternalLink size={13} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Secondary Options: 1-Click GitHub App Registration OR Personal Access Token */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col justify-between rounded-xl border border-brand-200 bg-surface-1 p-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                    <Sparkles size={13} className="text-primary-600" />
+                    <span>Dedicated GitHub App Flow</span>
+                  </div>
+                  <p className="text-[11px] text-brand-500">
+                    Want the direct{" "}
+                    <span className="font-mono">github.com/apps/.../installations/new</span> screen
+                    for your workspace? Register your GitHub App on github.com in 1 click.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateGitHubAppOnGitHub}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-xs font-semibold text-brand-800 transition hover:bg-brand-100"
+                >
+                  <span>Create &amp; Install GitHub App on GitHub.com</span>
+                  <ExternalLink size={12} />
+                </button>
+              </div>
+
+              <div className="flex flex-col justify-between rounded-xl border border-brand-200 bg-surface-1 p-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                    <KeyRound size={13} className="text-brand-600" />
+                    <span>Personal Access Token (PAT)</span>
+                  </div>
+                  <p className="text-[11px] text-brand-500">
+                    Prefer connecting with a Fine-Grained or Classic GitHub Token (
+                    <span className="font-mono">ghp_…</span> /{" "}
+                    <span className="font-mono">github_pat_…</span>)?
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPatInput((v) => !v)}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-xs font-semibold text-brand-800 transition hover:bg-brand-100"
+                >
+                  <span>{showPatInput ? "Hide Token Input" : "Connect with Access Token"}</span>
+                </button>
+              </div>
+            </div>
+
+            {showPatInput && (
+              <form
+                onSubmit={handleVerifyPat}
+                className="rounded-xl border border-brand-200 bg-surface-2 p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <label htmlFor="github-pat-input" className="text-xs font-bold text-brand-950">
+                    GitHub Personal Access Token (with <code className="font-mono">repo</code> scope)
+                  </label>
+                  <a
+                    href="https://github.com/settings/tokens/new?scopes=repo,read:user&description=Reigel+AI+SEO+Coding+Agent"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:underline"
+                  >
+                    <span>Generate token on github.com</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="github-pat-input"
+                    type="password"
+                    value={patValue}
+                    onChange={(e) => setPatValue(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="min-w-0 flex-1 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 font-mono text-xs text-brand-950 focus:border-brand-900 focus:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isVerifyingPat || !patValue.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-800 disabled:opacity-50"
+                  >
+                    {isVerifyingPat ? "Verifying…" : "Verify Token"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : (
+          /* STEP 2: Authenticated GitHub Account -> Pick Real Repository */
+          <div className="space-y-5">
+            {/* Authenticated GitHub User Banner */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success-200 bg-success-50/70 p-3.5">
+              <div className="flex items-center gap-3 min-w-0">
+                {ghUser.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ghUser.avatarUrl}
+                    alt={ghUser.login}
+                    className="h-9 w-9 rounded-full border border-success-300 bg-surface-1 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-950 text-xs font-bold text-white">
+                    {ghUser.login.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-brand-950">
+                      {ghUser.name || ghUser.login}
+                    </span>
+                    <a
+                      href={ghUser.htmlUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-xs font-semibold text-success-800 hover:underline"
+                    >
+                      @{ghUser.login}
+                    </a>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-semibold text-success-800">
+                      <CheckCircle2 size={10} />
+                      Authenticated via GitHub.com
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-brand-600 truncate">
+                    Select which repository from your GitHub account to connect to the SEO Coding Agent
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchLiveRepositories(accessToken)}
+                  disabled={loadingRepos}
+                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                  title="Refresh repositories from GitHub"
+                >
+                  <RefreshCw size={12} className={loadingRepos ? "animate-spin" : ""} />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchGitHubAccount}
+                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                >
+                  <LogOut size={12} />
+                  <span>Switch Account</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search & Visibility Filters */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"
+                />
+                <input
+                  type="text"
+                  value={repoSearch}
+                  onChange={(e) => setRepoSearch(e.target.value)}
+                  placeholder="Search your GitHub repositories (owner/repository)…"
+                  className="w-full rounded-xl border border-brand-200 bg-surface-1 py-2 pr-3 pl-9 text-xs text-brand-950 focus:border-brand-900 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 p-1">
+                {(["all", "public", "private"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setVisibilityFilter(f)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold capitalize transition ${
+                      visibilityFilter === f
+                        ? "bg-surface-1 text-brand-950 shadow-2xs"
+                        : "text-brand-500 hover:text-brand-900"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Repository List from api.github.com */}
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-brand-200 bg-surface-1 divide-y divide-brand-100">
+              {loadingRepos ? (
+                <div className="flex items-center justify-center gap-2 py-12 text-xs text-brand-500">
+                  <RefreshCw size={15} className="animate-spin text-brand-600" />
+                  <span>Loading your repositories from api.github.com…</span>
+                </div>
+              ) : filteredRepos.length === 0 ? (
+                <div className="py-10 text-center text-xs text-brand-500 space-y-1">
+                  <p className="font-semibold text-brand-700">No matching repositories found</p>
+                  <p>Try clearing the search filter or check your GitHub repository permissions.</p>
+                </div>
+              ) : (
+                filteredRepos.map((r) => {
+                  const isSelected = r.full_name === selectedFullName;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFullName(r.full_name);
+                        setBranchInput(r.default_branch || "main");
+                        setFrameworkInput(inferFramework(r));
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                        isSelected ? "bg-primary-50/70" : "hover:bg-brand-50/60"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-brand-950 truncate">
+                            {r.full_name}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                              r.private
+                                ? "border-warning-200 bg-warning-50 text-warning-800"
+                                : "border-brand-200 bg-surface-2 text-brand-600"
+                            }`}
+                          >
+                            {r.private ? <Lock size={9} /> : <Globe size={9} />}
+                            {r.private ? "Private" : "Public"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-brand-500">
+                            <GitBranch size={11} />
+                            {r.default_branch}
+                          </span>
+                        </div>
+                        {r.description && (
+                          <p className="mt-0.5 truncate text-[11px] text-brand-500">
+                            {r.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0">
+                        <span
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
+                            isSelected
+                              ? "border-brand-950 bg-brand-950 text-white"
+                              : "border-brand-300 bg-surface-1"
+                          }`}
+                        >
+                          {isSelected && <Check size={12} />}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Target Branch & Framework Settings */}
+            {selectedRepoObj && (
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-brand-200 bg-surface-2 p-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="github-branch-input"
+                    className="block text-[11px] font-bold text-brand-700"
+                  >
+                    Default Base Branch
+                  </label>
+                  <input
+                    id="github-branch-input"
+                    type="text"
+                    value={branchInput}
+                    onChange={(e) => setBranchInput(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-1 px-3 py-1.5 font-mono text-xs text-brand-950 focus:border-brand-900 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="github-framework-select"
+                    className="block text-[11px] font-bold text-brand-700"
+                  >
+                    Repository Framework
+                  </label>
+                  <select
+                    id="github-framework-select"
+                    value={frameworkInput}
+                    onChange={(e) => setFrameworkInput(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-medium text-brand-950 focus:border-brand-900 focus:outline-hidden"
+                  >
+                    <option value="nextjs">Next.js</option>
+                    <option value="Astro">Astro</option>
+                    <option value="Remix">Remix</option>
+                    <option value="WordPress">WordPress</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-brand-100 bg-surface-2 px-6 py-4">
+        <div className="text-xs text-brand-500">
+          {ghUser && selectedFullName ? (
+            <span>
+              Selected:{" "}
+              <strong className="font-mono text-brand-950">{selectedFullName}</strong> (
+              <span className="font-mono">{branchInput || "main"}</span>)
+            </span>
+          ) : (
+            <span>OAuth tokens are verified via GitHub API and encrypted at rest.</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              aria-label="Close GitHub connection window"
-              className="rounded-lg p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-800"
+              className="rounded-xl border border-brand-200 bg-surface-1 px-4 py-2 text-xs font-semibold text-brand-700 transition hover:bg-brand-50"
             >
-              ✕
+              Cancel
+            </button>
+          )}
+
+          {ghUser && (
+            <button
+              type="button"
+              disabled={!selectedFullName || connectRepo.isPending}
+              onClick={handleConnectSelectedRepo}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
+            >
+              <span>
+                {connectRepo.isPending ? "Verifying & Connecting…" : "Connect Repository"}
+              </span>
+              <ArrowRight size={13} />
             </button>
           )}
         </div>
-      </div>
-
-      {/* Scrollable Main Content Area */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8">
-        {/* ===================================================================
-            SCREEN 1: INSTALL & AUTHORIZE REIGEL CODING AGENT
-           =================================================================== */}
-        {screen === "install" && (
-          <div className="mx-auto max-w-md">
-            <CodingAgentBotAvatar />
-
-            <h3 className="text-center text-lg font-medium text-brand-950">
-              Install &amp; Authorize{" "}
-              <span className="font-semibold text-accent-500">Reigel Coding Agent</span>
-            </h3>
-
-            {/* GitHub Permissions Card */}
-            <div className="mt-5 rounded-xl border border-brand-200 bg-surface-2/60 p-5 space-y-4">
-              {/* Account Header */}
-              <div className="border-b border-brand-200 pb-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-brand-900">
-                    Install &amp; Authorize on your personal account{" "}
-                    <strong className="font-bold text-brand-950">{accountDisplayName}</strong>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setEditingAccount((v) => !v)}
-                    title="Change GitHub account username"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-1 px-2 py-0.5 text-[11px] font-mono text-brand-700 hover:border-brand-300"
-                  >
-                    <GitHubIdenticon size="sm" />
-                    <span>@{selectedRepoOwner}</span>
-                  </button>
-                </div>
-
-                {editingAccount && (
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={selectedRepoOwner}
-                      onChange={(e) => setSelectedRepoOwner(e.target.value)}
-                      placeholder="GitHub username (e.g. sudaaher74-ctrl)"
-                      className="flex-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs text-brand-950"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingAccount(false);
-                        loadRepositories(selectedRepoOwner, accessToken);
-                      }}
-                      className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-700"
-                    >
-                      Load Repos
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Repository Selection Section */}
-              <div className="border-b border-brand-200 pb-4 space-y-3">
-                <p className="text-xs font-medium text-brand-900">for these repositories:</p>
-
-                {/* Option 1: All repositories */}
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="repoScope"
-                    checked={repoScope === "all"}
-                    onChange={() => setRepoScope("all")}
-                    className="mt-0.5 text-accent-600 focus:ring-accent-500"
-                  />
-                  <div>
-                    <span className="block text-xs font-bold text-brand-950">
-                      All repositories
-                    </span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-brand-500">
-                      This applies to all current and future repositories owned by the resource owner. Also includes public repositories (read-only).
-                    </span>
-                  </div>
-                </label>
-
-                {/* Option 2: Only select repositories */}
-                <div className="space-y-2.5">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="repoScope"
-                      checked={repoScope === "selected"}
-                      onChange={() => setRepoScope("selected")}
-                      className="mt-0.5 text-accent-600 focus:ring-accent-500"
-                    />
-                    <div>
-                      <span className="block text-xs font-bold text-brand-950">
-                        Only select repositories
-                      </span>
-                      <span className="mt-0.5 block text-[11px] leading-relaxed text-brand-500">
-                        Select at least one repository. Also includes public repositories (read-only).
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* GitHub "Select repositories ▾" Dropdown */}
-                  <div className="pl-6 space-y-2">
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRepoScope("selected");
-                          setDropdownOpen((prev) => !prev);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-900 shadow-2xs transition hover:bg-surface-2"
-                      >
-                        <Monitor size={13} className="text-brand-500" />
-                        <span>Select repositories</span>
-                        <ChevronDown size={13} className="text-brand-500" />
-                      </button>
-
-                      {dropdownOpen && (
-                        <div className="mt-2 rounded-xl border border-brand-200 bg-surface-1 p-2.5 shadow-xl space-y-2">
-                          <div className="flex items-center gap-1.5">
-                            <div className="relative flex-1">
-                              <Search
-                                size={12}
-                                className="absolute left-2.5 top-2 text-brand-400"
-                              />
-                              <input
-                                type="text"
-                                value={repoSearch}
-                                onChange={(e) => setRepoSearch(e.target.value)}
-                                placeholder="Filter or type repository name…"
-                                className="w-full rounded-lg border border-brand-200 bg-surface-2 py-1.5 pl-7 pr-2 text-xs text-brand-950 focus:outline-hidden focus:ring-1 focus:ring-accent-500"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => loadRepositories(selectedRepoOwner, accessToken)}
-                              title="Refresh repositories"
-                              className="rounded-lg border border-brand-200 bg-surface-2 p-1.5 text-brand-600 hover:bg-brand-100"
-                            >
-                              <RefreshCw
-                                size={12}
-                                className={isFetchingRepos ? "animate-spin" : ""}
-                              />
-                            </button>
-                          </div>
-
-                          {isFetchingRepos ? (
-                            <div className="flex items-center justify-center gap-2 py-4 text-xs text-brand-500">
-                              <Loader2 size={14} className="animate-spin text-accent-500" />
-                              <span>Loading repositories for @{selectedRepoOwner}…</span>
-                            </div>
-                          ) : filteredRepos.length > 0 ? (
-                            <div className="max-h-44 space-y-1 overflow-y-auto overscroll-contain pr-1">
-                              {filteredRepos.map((r) => {
-                                const isSelected =
-                                  selectedRepoName === r.name &&
-                                  selectedRepoOwner === r.ownerLogin;
-                                return (
-                                  <button
-                                    key={r.full_name}
-                                    type="button"
-                                    onClick={() => handleSelectRepo(r)}
-                                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                                      isSelected
-                                        ? "bg-accent-50/80 font-bold text-accent-700"
-                                        : "text-brand-900 hover:bg-surface-2"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate pr-2">
-                                      <GitBranch size={12} className="shrink-0 text-brand-400" />
-                                      <span className="truncate font-mono">
-                                        {r.ownerLogin}/{r.name}
-                                      </span>
-                                      <span className="inline-flex items-center gap-0.5 rounded border border-brand-200 px-1.5 py-0.5 text-[9.5px] text-brand-500">
-                                        {r.private ? <Lock size={8} /> : <Globe size={8} />}
-                                        {r.private ? "Private" : "Public"}
-                                      </span>
-                                    </div>
-                                    {isSelected && (
-                                      <Check size={13} className="shrink-0 text-accent-600" />
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="p-2 text-center text-[11px] text-brand-500">
-                              No matching repositories found.
-                              {repoSearch.trim() && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedRepoName(repoSearch.trim());
-                                    setDropdownOpen(false);
-                                  }}
-                                  className="mt-1.5 block w-full rounded-lg bg-accent-600 px-2.5 py-1.5 text-xs font-semibold text-white"
-                                >
-                                  Use &ldquo;{selectedRepoOwner}/{repoSearch.trim()}&rdquo;
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Selected Repository Pill */}
-                    {selectedRepoName && (
-                      <div className="flex items-center justify-between rounded-lg border border-brand-200 bg-surface-1 px-3 py-2 text-xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <GitBranch size={13} className="shrink-0 text-accent-500" />
-                          <span className="truncate font-mono font-semibold text-brand-950">
-                            {selectedRepoOwner}/{selectedRepoName}
-                          </span>
-                          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-brand-500">
-                            {defaultBranch}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDropdownOpen(true)}
-                          className="text-[11px] font-semibold text-accent-500 hover:underline"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Permissions Summary */}
-              <div className="border-b border-brand-200 pb-4 space-y-2.5">
-                <p className="text-xs font-medium text-brand-900">with these permissions:</p>
-                <div className="space-y-2 text-xs text-brand-800">
-                  <div className="flex items-center gap-2">
-                    <Check size={14} className="shrink-0 text-success-500" />
-                    <span>
-                      <strong className="font-bold text-brand-950">Read</strong> access to metadata
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check size={14} className="shrink-0 text-success-500" />
-                    <span>
-                      <strong className="font-bold text-brand-950">Read</strong> and{" "}
-                      <strong className="font-bold text-brand-950">write</strong> access to code and pull requests
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {connectError && (
-                <div
-                  role="alert"
-                  className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-700"
-                >
-                  {connectError}
-                </div>
-              )}
-
-              {/* Install & Authorize / Cancel Buttons */}
-              <div className="space-y-2.5 pt-1">
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleInstallAndAuthorize}
-                    className="rounded-lg bg-success-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700"
-                  >
-                    Install &amp; Authorize
-                  </button>
-                  {onCancel && (
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      className="text-xs font-medium text-accent-500 hover:underline"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-brand-500">
-                  Next: you&apos;ll be redirected to{" "}
-                  <strong className="font-semibold text-brand-900">
-                    https://reigel.in/settings?tab=integrations
-                  </strong>
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ===================================================================
-            SCREEN 2: CONFIRM ACCESS -> VERIFY VIA EMAIL
-           =================================================================== */}
-        {screen === "confirm_email" && (
-          <div className="mx-auto max-w-sm py-3 space-y-4">
-            <h3 className="text-center text-xl font-normal text-brand-950">Confirm access</h3>
-
-            {/* Signed in as @username Box */}
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-brand-200 bg-surface-2 px-4 py-3.5">
-              <GitHubIdenticon size="md" />
-              <span className="text-xs text-brand-800">
-                Signed in as <strong className="font-bold text-brand-950">@{selectedRepoOwner}</strong>
-              </span>
-            </div>
-
-            {/* Trigger Mailer Box */}
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-5 space-y-4">
-              <p className="text-xs leading-relaxed text-brand-900">
-                When you are ready, trigger a mailer to verify your identity.
-              </p>
-              <button
-                type="button"
-                onClick={handleTriggerEmailVerification}
-                className="w-full rounded-lg bg-success-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700"
-              >
-                Verify via email
-              </button>
-            </div>
-
-            <p className="px-2 text-center text-[11px] leading-relaxed text-brand-500">
-              <strong className="font-semibold text-brand-700">Tip:</strong> You are entering{" "}
-              <span className="text-accent-500 underline">sudo mode</span>. After you&apos;ve
-              performed a sudo-protected action, you&apos;ll only be asked to re-authenticate again
-              after a few hours of inactivity.
-            </p>
-
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => setScreen("install")}
-                className="text-[11px] font-medium text-accent-500 hover:underline"
-              >
-                ← Back to repository selection
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ===================================================================
-            SCREEN 3: CONFIRM ACCESS -> ENTER VERIFICATION CODE
-           =================================================================== */}
-        {screen === "confirm_code" && (
-          <div className="mx-auto max-w-sm py-3 space-y-4">
-            <h3 className="text-center text-xl font-normal text-brand-950">Confirm access</h3>
-
-            {/* Signed in as @username Box */}
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-brand-200 bg-surface-2 px-4 py-3.5">
-              <GitHubIdenticon size="md" />
-              <span className="text-xs text-brand-800">
-                Signed in as <strong className="font-bold text-brand-950">@{selectedRepoOwner}</strong>
-              </span>
-            </div>
-
-            {/* Enter Verification Code Box */}
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-5 space-y-3.5">
-              <p className="text-xs leading-relaxed text-brand-900">
-                Enter the verification code sent to <strong>{maskedEmail}</strong>. If it
-                doesn&apos;t appear within a few minutes, check your spam folder.
-              </p>
-
-              <input
-                type="text"
-                value={verificationInput}
-                onChange={(e) => {
-                  setVerificationInput(e.target.value);
-                  setConnectError("");
-                }}
-                placeholder="XXXXXXXX"
-                className="w-full rounded-lg border-2 border-accent-500 bg-surface-1 px-3 py-2 font-mono text-xs text-brand-950 focus:outline-hidden"
-              />
-
-              <div className="flex items-center justify-between text-[11px] text-brand-500">
-                <span>
-                  Instant code: <strong className="font-mono text-brand-900">{dispatchedCode}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setVerificationInput(dispatchedCode)}
-                  className="font-semibold text-accent-500 hover:underline"
-                >
-                  Auto-fill code
-                </button>
-              </div>
-
-              {connectError && (
-                <div
-                  role="alert"
-                  className="rounded-lg border border-error-200 bg-error-50 p-2.5 text-xs text-error-700"
-                >
-                  {connectError}
-                </div>
-              )}
-
-              {isSuccess && (
-                <div
-                  role="status"
-                  className="flex items-center justify-center gap-1.5 rounded-lg border border-success-200 bg-success-50 p-2.5 text-xs font-bold text-success-800"
-                >
-                  <Check size={14} /> Connected {selectedRepoOwner}/{selectedRepoName}!
-                </div>
-              )}
-
-              <button
-                type="button"
-                disabled={isConnecting || isSuccess}
-                onClick={handleVerifyAndComplete}
-                className="w-full rounded-lg bg-success-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700 disabled:opacity-50"
-              >
-                {isConnecting ? (
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Verifying &amp; Connecting…</span>
-                  </span>
-                ) : (
-                  "Verify"
-                )}
-              </button>
-            </div>
-
-            <p className="px-2 text-center text-[11px] leading-relaxed text-brand-500">
-              <strong className="font-semibold text-brand-700">Tip:</strong> You are entering{" "}
-              <span className="text-accent-500 underline">sudo mode</span>. After you&apos;ve
-              performed a sudo-protected action, you&apos;ll only be asked to re-authenticate again
-              after a few hours of inactivity.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

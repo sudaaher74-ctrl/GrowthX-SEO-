@@ -281,7 +281,19 @@ function IntegrationsView() {
   const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
 
-  const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const githubOauthCode = searchParams?.get("github_code") || null;
+  const githubOauthState = searchParams?.get("github_state") || null;
+  const githubInstallationId = searchParams?.get("installation_id") || null;
+
+  const [githubModalOpen, setGithubModalOpen] = useState(
+    Boolean(githubOauthCode || githubInstallationId),
+  );
+
+  useEffect(() => {
+    if (githubOauthCode || githubInstallationId) {
+      setGithubModalOpen(true);
+    }
+  }, [githubOauthCode, githubInstallationId]);
 
   const [showGscPicker, setShowGscPicker] = useState(false);
   const [showGa4Picker, setShowGa4Picker] = useState(false);
@@ -290,7 +302,14 @@ function IntegrationsView() {
   // Handle OAuth callback parameters in URL
   const urlNotice = useMemo(() => {
     const googleStatus = searchParams?.get("google");
+    const githubStatus = searchParams?.get("github");
     const provider = searchParams?.get("provider");
+    if (githubStatus === "cancelled") {
+      return {
+        type: "warn" as const,
+        text: "GitHub authorization was cancelled on github.com.",
+      };
+    }
     if (googleStatus === "select") {
       return {
         type: "warn" as const,
@@ -785,6 +804,9 @@ function IntegrationsView() {
             userEmail={user?.email}
             existingRepo={repo.data ?? null}
             mode="modal"
+            oauthCode={githubOauthCode}
+            oauthState={githubOauthState}
+            installationId={githubInstallationId}
             onCancel={() => setGithubModalOpen(false)}
             onConnected={(connected) => {
               setGithubModalOpen(false);
@@ -792,7 +814,7 @@ function IntegrationsView() {
               qc.invalidateQueries({ queryKey: ["automation-repo", projectId] });
               setActionNotice({
                 type: "success",
-                text: `GitHub project ${connected.owner}/${connected.name} shared and connected with Reigel Coding Agent via Google ID (${user?.email || "verified"}).`,
+                text: `GitHub repository ${connected.owner}/${connected.name} (${connected.defaultBranch}) authenticated via github.com and connected to Reigel Coding Agent.`,
               });
             }}
           />

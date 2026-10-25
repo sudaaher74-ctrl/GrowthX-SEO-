@@ -4,7 +4,6 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { ActionButton } from "@/components/ui/console";
 import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 import { DASH } from "@/lib/google-format";
-import "./report-print.css";
 
 /** Who the report is for, from the selected workspace. */
 export function useReportContext() {

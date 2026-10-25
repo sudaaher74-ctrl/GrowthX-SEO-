@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run check:data && npm run check:design && next build",
+    "build": "npm run check:data && npm run check:design && next build --webpack",
     "start": "next start",
     "lint": "npm run check:data && npm run check:design && eslint",
     "typecheck": "tsc --noEmit",
