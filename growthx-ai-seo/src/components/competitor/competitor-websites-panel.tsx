@@ -249,7 +249,7 @@ function SiteCard({
       <div className="p-5 flex flex-col gap-4">
         {/* Header: Avatar, Name, Domain, Status */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div
               className={cn(
                 "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-[12px] font-bold shadow-xs border",
@@ -260,11 +260,20 @@ function SiteCard({
             >
               {initials}
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="truncate text-[14.5px] font-bold text-brand-950 tracking-tight">
-                  {displayName}
-                </h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-[14.5px] font-bold text-brand-950 tracking-tight" title={displayName}>
+                {displayName}
+              </h3>
+              <div className="mt-0.5 flex items-center gap-2 min-w-0">
+                <a
+                  href={`https://${displayDomain}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-400 hover:text-signal-400 transition-colors group/link truncate min-w-0"
+                >
+                  <span className="truncate">{displayDomain}</span>
+                  <ExternalLink size={10} className="shrink-0 opacity-50 group-hover/link:opacity-100 transition-opacity" />
+                </a>
                 {you ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/15 border border-signal-400/30 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-signal-400 shrink-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
@@ -276,15 +285,6 @@ function SiteCard({
                   </span>
                 )}
               </div>
-              <a
-                href={`https://${displayDomain}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-brand-400 hover:text-signal-400 transition-colors group/link truncate"
-              >
-                <span>{displayDomain}</span>
-                <ExternalLink size={10} className="shrink-0 opacity-50 group-hover/link:opacity-100 transition-opacity" />
-              </a>
             </div>
           </div>
 
