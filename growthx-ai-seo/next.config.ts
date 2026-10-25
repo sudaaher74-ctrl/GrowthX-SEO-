@@ -40,7 +40,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // Only enable standalone output when explicitly requested for custom Docker containers.
+  // On Vercel, standalone output must be disabled to prevent NFT trace errors on route groups.
+  ...(process.env.BUILD_STANDALONE === "true" ? { output: "standalone" as const } : {}),
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
