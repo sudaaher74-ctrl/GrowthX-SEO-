@@ -26,7 +26,7 @@ import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/comp
 import { LoadingState } from "@/components/ui/truthful-state";
 import { useFindings, useIssueGroups, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
-import type { FixChangeReport } from "@/lib/api-types";
+import type { AutomationRun, FixChangeReport } from "@/lib/api-types";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { errorMessage } from "@/lib/error-message";
 import { count } from "@/lib/google-format";
@@ -58,7 +58,7 @@ const LIFECYCLE_LABEL: Record<string, string> = {
   FAILED: "Failed",
   SNOOZED: "Snoozed",
   DISMISSED: "Dismissed",
-  RESOLVED: "Resolved",
+  RESOLVED: "Confirmed Fixed",
 };
 
 const BAND = { HIGH: "good", MEDIUM: "warn", LOW: "default" } as const;
@@ -69,6 +69,70 @@ type SubSection = "ALL" | "GITHUB_RUNNER" | "BEFORE_AFTER" | "IMPROVEMENT_LOG";
 function groupOf(source?: string | null) {
   const norm = (source || "").toUpperCase().trim();
   return GROUPS.find((g) => g.sources.some((s) => s.toUpperCase() === norm)) ?? null;
+}
+
+function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[]) {
+  const instructionStep = run.steps.find((s) => s.step === "instruction");
+  const finishStep = run.steps.find((s) => s.step === "finish");
+  const readSteps = run.steps.filter((s) => s.step === "read" && s.detail);
+  const rawInstruction = instructionStep?.detail ?? "";
+  const changeSteps = run.steps.filter((s) => s.change);
+
+  const matchedFindings = allFindings.filter((f) => {
+    if (changeSteps.some((cs) => cs.change?.issueId === f.id)) return true;
+    const snippet = f.title.slice(0, 30).toLowerCase().trim();
+    return snippet.length > 5 && rawInstruction.toLowerCase().includes(snippet);
+  });
+
+  const groupFromInstruction = GROUPS.find((g) =>
+    rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
+  );
+  const groupFromChange = groupOf(changeSteps[0]?.change?.sourceModule);
+  const groupFromFinding = matchedFindings[0] ? groupOf(matchedFindings[0].source) : null;
+  const resolvedGroup =
+    groupFromInstruction ?? groupFromFinding ?? groupFromChange ?? groupOf("WEBSITE");
+
+  const cleanedFirstLine = rawInstruction
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => /^\d+\.\s*\[/.test(l) || (!l.startsWith("Fix the following") && l.length > 0))
+    ?.replace(/^\d+\.\s*\[[^\]]+\]\s*/, "")
+    ?.split("|")[0]
+    ?.replace(/\s*Problem:.*$/i, "")
+    ?.trim();
+
+  const headline =
+    matchedFindings[0]?.title ||
+    cleanedFirstLine ||
+    (run.filesChanged.length > 0
+      ? `GitHub Repository Update (${run.filesChanged.join(", ")})`
+      : "GitHub Fix Engine Task");
+
+  const inspectedFiles = readSteps
+    .map((s) => (s.detail ?? "").replace(/^read\s+/i, "").trim())
+    .filter(Boolean);
+
+  const summaryAfter =
+    finishStep?.detail ||
+    (run.filesChanged.length > 0
+      ? `Modified ${run.filesChanged.join(", ")}${run.branch ? ` on branch ${run.branch}` : ""} and opened GitHub Pull Request.`
+      : run.status === "RUNNING"
+        ? "GitHub Fix Engine is inspecting repository files and preparing the code/content update…"
+        : run.error ||
+          (inspectedFiles.length > 0
+            ? `Inspected ${inspectedFiles.join(", ")} in repository.`
+            : "Completed repository inspection pass."));
+
+  return {
+    rawInstruction,
+    finishDetail: finishStep?.detail ?? null,
+    inspectedFiles,
+    matchedFindings,
+    moduleId: resolvedGroup?.id ?? "WEBSITE",
+    moduleLabel: resolvedGroup?.label ?? "Website Audit",
+    headline,
+    summaryAfter,
+  };
 }
 
 interface UnifiedLogEntry {
@@ -104,6 +168,7 @@ export function GitHubFixesLogView({
   const [selectedFindingIds, setSelectedFindingIds] = useState<string[]>(
     initialFindingId ? [initialFindingId] : [],
   );
+  const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
   const [engineerPrompt, setEngineerPrompt] = useState("");
   const [showRepoConnect, setShowRepoConnect] = useState(false);
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
@@ -124,14 +189,17 @@ export function GitHubFixesLogView({
     queryFn: () => api.listAutomationRuns(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "RUNNING") ? 4000 : false),
+    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "RUNNING") ? 3500 : false),
   });
+
+  const isPollingRuns = (runsQuery.data ?? []).some((r) => r.status === "RUNNING");
 
   const changesQuery = useQuery({
     queryKey: ["fix-changes", projectId],
     queryFn: () => api.listFixChanges(projectId!),
     enabled: Boolean(projectId),
     retry: false,
+    refetchInterval: isPollingRuns ? 4000 : false,
   });
 
   const ledgerQuery = useQuery({
@@ -139,6 +207,7 @@ export function GitHubFixesLogView({
     queryFn: () => api.getFixImpactLedger(projectId!),
     enabled: Boolean(projectId),
     retry: false,
+    refetchInterval: isPollingRuns ? 4000 : false,
   });
 
   const invalidateAll = () => {
@@ -155,6 +224,41 @@ export function GitHubFixesLogView({
   const ledgerEntries = useMemo(() => ledgerQuery.data ?? [], [ledgerQuery.data]);
   const connectedRepo = repoQuery.data ?? null;
   const isEngineerBusy = runs.some((r) => r.status === "RUNNING");
+
+  // Map each finding ID to its latest GitHub AutomationRun
+  const findingRunMap = useMemo(() => {
+    const map = new Map<string, AutomationRun>();
+    for (const run of runs) {
+      const ctx = resolveRunContext(run, allFindings);
+      for (const f of ctx.matchedFindings) {
+        if (!map.has(f.id)) {
+          map.set(f.id, run);
+        }
+      }
+    }
+    return map;
+  }, [runs, allFindings]);
+
+  // Visible runs for the Task Status & Completion Confirmation section
+  const visibleTaskRuns = useMemo(() => {
+    const list: Array<{ run: AutomationRun; ctx: ReturnType<typeof resolveRunContext> }> = [];
+    for (const run of runs) {
+      const ctx = resolveRunContext(run, allFindings);
+      const matchesFilter =
+        moduleFilter === "ALL" ||
+        ctx.moduleId === moduleFilter ||
+        run.status === "RUNNING" ||
+        run.id === trackedRunId;
+      if (matchesFilter) {
+        list.push({ run, ctx });
+      }
+    }
+    // If the user filtered to a tab where a run's module wasn't detected, still show the newest run if it was started recently
+    if (list.length === 0 && runs.length > 0) {
+      list.push({ run: runs[0], ctx: resolveRunContext(runs[0], allFindings) });
+    }
+    return list.slice(0, 4);
+  }, [runs, allFindings, moduleFilter, trackedRunId]);
 
   // Module counts across all findings + PR changes
   const moduleCounts = useMemo(() => {
@@ -213,19 +317,15 @@ export function GitHubFixesLogView({
 
     const runIdsWithChanges = new Set(fromReports.map((c) => c.runId));
     const fromEngineerRuns = runs
-      .filter((r) => !runIdsWithChanges.has(r.id) && r.filesChanged.length > 0)
+      .filter((r) => !runIdsWithChanges.has(r.id) && (r.filesChanged.length > 0 || r.steps.length > 0))
       .map((r) => {
-        const instructionStep = r.steps.find((s) => s.step === "instruction");
-        const finishStep = r.steps.find((s) => s.step === "finish");
-        const rawInstruction = instructionStep?.detail ?? "";
-        const matchedGroup =
-          GROUPS.find((g) =>
-            rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
-          ) ?? groupOf("WEBSITE");
-        const matchedFinding = allFindings.find((f) =>
-          rawInstruction.toLowerCase().includes(f.title.slice(0, 28).toLowerCase()),
-        );
+        const ctx = resolveRunContext(r, allFindings);
+        const matchedFinding = ctx.matchedFindings[0];
         const rep = changeReports.find((cr) => cr.id === r.id);
+        const targetFiles =
+          r.filesChanged.length > 0
+            ? r.filesChanged.join(", ")
+            : ctx.inspectedFiles.join(", ") || "Repository files";
 
         return {
           key: `eng-run-${r.id}`,
@@ -235,28 +335,22 @@ export function GitHubFixesLogView({
           reviewState: rep?.reviewState ?? ("OPEN" as const),
           mergedAt: rep?.mergedAt ?? null,
           pullRequestUrl: r.pullRequestUrl,
-          moduleId: matchedFinding
-            ? (groupOf(matchedFinding.source)?.id ?? matchedGroup?.id ?? "WEBSITE")
-            : (matchedGroup?.id ?? "WEBSITE"),
-          moduleLabel: matchedFinding
-            ? (groupOf(matchedFinding.source)?.label ?? matchedGroup?.label ?? "Website Audit")
-            : (matchedGroup?.label ?? "Website Audit"),
-          findingTitle:
-            matchedFinding?.title ||
-            rawInstruction.split("\n")[0]?.replace(/^Fix the following.*:\s*/i, "") ||
-            `GitHub Engineer Update (${r.filesChanged.length} file${r.filesChanged.length === 1 ? "" : "s"})`,
+          moduleId: ctx.moduleId,
+          moduleLabel: ctx.moduleLabel,
+          findingTitle: ctx.headline,
           field: "CODE_AND_SEO_UPDATE",
           fieldLabel: FIELD_LABELS.CODE_AND_SEO_UPDATE,
           url: matchedFinding?.affectedPages?.[0] ?? "",
-          file: r.filesChanged.join(", "),
+          file: targetFiles,
           before:
             matchedFinding?.summary ||
-            "Previous repository code prior to GitHub Engineer update",
+            "Previous repository code prior to GitHub Fix Engine pass",
           beforeSource: "REPOSITORY",
-          after:
-            finishStep?.detail ||
-            `Updated ${r.filesChanged.join(", ")} in GitHub Pull Request`,
-          why: matchedFinding?.recommendedAction || rawInstruction || "Applied via GitHub Engineer",
+          after: ctx.summaryAfter,
+          why:
+            matchedFinding?.recommendedAction ||
+            ctx.rawInstruction ||
+            "Applied via GitHub Fix Engine",
           verification: "NOT_CHECKED" as const,
           liveValue: null,
           checkedAt: null,
@@ -274,7 +368,12 @@ export function GitHubFixesLogView({
       if (moduleFilter !== "ALL" && g?.id !== moduleFilter) return false;
       const lc = f.lifecycle ?? "DETECTED";
       if (lc === "DISMISSED") return false;
-      if (statusFilter === "FIXED_OR_PR" && !["VERIFYING", "VERIFIED", "MEASURED", "RESOLVED", "APPLYING"].includes(lc)) {
+      const fRun = findingRunMap.get(f.id);
+      const hasPrOrFixed =
+        ["VERIFYING", "VERIFIED", "MEASURED", "RESOLVED", "APPLYING"].includes(lc) ||
+        fRun?.status === "AWAITING_REVIEW" ||
+        Boolean(fRun?.pullRequestUrl);
+      if (statusFilter === "FIXED_OR_PR" && !hasPrOrFixed) {
         return false;
       }
       if (statusFilter === "IN_PLAN" && !["QUEUED", "APPROVED"].includes(lc)) {
@@ -293,7 +392,7 @@ export function GitHubFixesLogView({
       }
       return true;
     });
-  }, [allFindings, moduleFilter, statusFilter, searchQuery]);
+  }, [allFindings, moduleFilter, statusFilter, searchQuery, findingRunMap]);
 
   // Filter GitHub PR changes by module and search
   const filteredPrChanges = useMemo(() => {
@@ -320,41 +419,43 @@ export function GitHubFixesLogView({
 
     // 1. GitHub PR Runs
     for (const run of runs) {
-      const instructionStep = run.steps.find((s) => s.step === "instruction");
-      const changeSteps = run.steps.filter((s) => s.change);
-      const firstMod = groupOf(changeSteps[0]?.change?.sourceModule) ?? groupOf("WEBSITE");
+      const ctx = resolveRunContext(run, allFindings);
+      const isCompleteWithPr = run.status === "AWAITING_REVIEW" && Boolean(run.pullRequestUrl);
+      const isComplete = run.status === "AWAITING_REVIEW";
 
       entries.push({
         id: `run-${run.id}`,
         timestamp: run.finishedAt || run.startedAt,
         category: "GITHUB_PR",
-        moduleId: firstMod?.id ?? "WEBSITE",
-        moduleLabel: firstMod?.label ?? "Website Audit",
-        title:
-          run.status === "AWAITING_REVIEW"
-            ? `GitHub Pull Request opened (${run.filesChanged.length} file${run.filesChanged.length === 1 ? "" : "s"} changed)`
+        moduleId: ctx.moduleId,
+        moduleLabel: ctx.moduleLabel,
+        title: isCompleteWithPr
+          ? `Task Complete — GitHub Pull Request opened for "${ctx.headline}" (${run.filesChanged.length} file${run.filesChanged.length === 1 ? "" : "s"} changed)`
+          : isComplete
+            ? `Task Complete — GitHub Fix Engine finished "${ctx.headline}"`
             : run.status === "RUNNING"
-              ? "GitHub Fix Engine run in progress"
-              : "GitHub Fix Engine run finished",
-        detail:
-          instructionStep?.detail ||
-          (run.filesChanged.length > 0
-            ? `Modified files: ${run.filesChanged.join(", ")}`
-            : run.error || "Automated SEO repository pass"),
-        file: run.filesChanged.join(", ") || null,
+              ? `Task in Progress — Fixing "${ctx.headline}" on GitHub…`
+              : `Task Finished Without PR — "${ctx.headline}"`,
+        detail: ctx.summaryAfter,
+        beforeText: ctx.matchedFindings[0]?.summary ?? null,
+        afterText: ctx.summaryAfter,
+        file:
+          run.filesChanged.join(", ") ||
+          ctx.inspectedFiles.join(", ") ||
+          null,
         prUrl: run.pullRequestUrl,
-        statusLabel:
-          run.status === "AWAITING_REVIEW"
-            ? "PR Ready"
+        statusLabel: isCompleteWithPr
+          ? "Task Complete · PR Ready"
+          : isComplete
+            ? "Task Complete"
             : run.status === "RUNNING"
-              ? "Running"
-              : "Failed",
-        statusTone:
-          run.status === "AWAITING_REVIEW"
-            ? "good"
-            : run.status === "RUNNING"
-              ? "warn"
-              : "bad",
+              ? "In Progress"
+              : "Needs Retry",
+        statusTone: isComplete
+          ? "good"
+          : run.status === "RUNNING"
+            ? "warn"
+            : "bad",
       });
     }
 
@@ -363,7 +464,7 @@ export function GitHubFixesLogView({
       entries.push({
         id: `diff-${ch.key}`,
         timestamp: ch.checkedAt || ch.mergedAt || ch.runStartedAt,
-        category: ch.verification === "MATCHED" ? "VERIFICATION" : "CODE_DIFF",
+        category: "CODE_DIFF",
         moduleId: ch.moduleId,
         moduleLabel: ch.moduleLabel,
         title: `${ch.fieldLabel}: ${ch.findingTitle}`,
@@ -378,11 +479,57 @@ export function GitHubFixesLogView({
             ? "Verified Live"
             : ch.reviewState === "MERGED"
               ? "Merged in GitHub"
-              : "Prepared in PR",
+              : ch.runStatus === "AWAITING_REVIEW"
+                ? "Task Complete · PR Ready"
+                : ch.runStatus === "RUNNING"
+                  ? "Applying on GitHub"
+                  : "Inspected",
+        statusTone:
+          ch.verification === "MATCHED" || ch.reviewState === "MERGED" || ch.runStatus === "AWAITING_REVIEW"
+            ? "good"
+            : ch.runStatus === "RUNNING"
+              ? "warn"
+              : "info",
+      });
+
+      // Also expose verification tracking entry so Live Verifications filter shows every PR / run verification state
+      entries.push({
+        id: `verif-pr-${ch.key}`,
+        timestamp: ch.checkedAt || ch.mergedAt || ch.runStartedAt,
+        category: "VERIFICATION",
+        moduleId: ch.moduleId,
+        moduleLabel: ch.moduleLabel,
+        title:
+          ch.verification === "MATCHED"
+            ? `Confirmed Live on Website: ${ch.findingTitle}`
+            : ch.pullRequestUrl
+              ? `Awaiting PR Merge & Live Verification: ${ch.findingTitle}`
+              : `Verification Status: ${ch.findingTitle}`,
+        detail:
+          ch.verification === "MATCHED"
+            ? `Live website matches expected update (${ch.liveValue || ch.after}).`
+            : ch.pullRequestUrl
+              ? `Pull Request is ready (${ch.file}). Merge the PR on GitHub and click "Verify Live Site" to confirm live deployment.`
+              : ch.after,
+        beforeText: ch.before,
+        afterText: ch.liveValue || ch.after,
+        url: ch.url || null,
+        file: ch.file || null,
+        prUrl: ch.pullRequestUrl,
+        statusLabel:
+          ch.verification === "MATCHED"
+            ? "Confirmed Live"
+            : ch.reviewState === "MERGED"
+              ? "Merged · Ready to Verify"
+              : ch.pullRequestUrl
+                ? "PR Open · Ready to Merge"
+                : "Pending PR",
         statusTone:
           ch.verification === "MATCHED" || ch.reviewState === "MERGED"
             ? "good"
-            : "info",
+            : ch.pullRequestUrl
+              ? "info"
+              : "warn",
       });
     }
 
@@ -408,16 +555,18 @@ export function GitHubFixesLogView({
       });
     }
 
-    // 4. Cross-Module Findings in Plan / Verified / Resolved
+    // 4. Cross-Module Findings in Plan / Before-After / Verification
     for (const f of allFindings) {
       const lc = f.lifecycle ?? "DETECTED";
       if (lc === "DISMISSED") continue;
       const modGroup = groupOf(f.source);
+      const fRun = findingRunMap.get(f.id);
       const isActioned = ["QUEUED", "APPROVED", "APPLYING", "VERIFYING", "VERIFIED", "MEASURED", "RESOLVED"].includes(lc);
       const evidenceSummary = f.evidence
         .slice(0, 3)
         .map((e) => `${e.label}: ${e.value}`)
         .join(" · ");
+      const beforeStr = evidenceSummary ? `${f.summary} (${evidenceSummary})` : f.summary;
 
       entries.push({
         id: `finding-${f.id}`,
@@ -427,17 +576,88 @@ export function GitHubFixesLogView({
         moduleLabel: modGroup?.label ?? f.source,
         title: `${isActioned ? "Improvement tracked" : "Issue detected"}: ${f.title}`,
         detail: f.recommendedAction,
-        beforeText: evidenceSummary ? `${f.summary} (${evidenceSummary})` : f.summary,
+        beforeText: beforeStr,
         afterText: f.recommendedAction,
         url: f.affectedPages?.[0] ?? null,
-        statusLabel: LIFECYCLE_LABEL[lc] ?? lc,
+        prUrl: fRun?.pullRequestUrl ?? null,
+        statusLabel:
+          fRun?.status === "AWAITING_REVIEW"
+            ? "Task Complete · PR Ready"
+            : fRun?.status === "RUNNING"
+              ? "Fixing on GitHub…"
+              : LIFECYCLE_LABEL[lc] ?? lc,
         statusTone:
-          ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+          ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || fRun?.status === "AWAITING_REVIEW"
             ? "good"
-            : ["QUEUED", "APPROVED", "VERIFYING", "APPLYING"].includes(lc)
-              ? "info"
-              : "default",
+            : fRun?.status === "RUNNING"
+              ? "warn"
+              : ["QUEUED", "APPROVED", "VERIFYING", "APPLYING"].includes(lc)
+                ? "info"
+                : "default",
       });
+
+      // Ensure Before / After Diffs filter shows every module's before/after blueprint even before a PR is merged
+      if (!prChanges.some((c) => c.findingTitle === f.title)) {
+        entries.push({
+          id: `finding-diff-${f.id}`,
+          timestamp: f.lastTransitionAt || f.resolvedAt || f.detectedAt,
+          category: "CODE_DIFF",
+          moduleId: modGroup?.id ?? "WEBSITE",
+          moduleLabel: modGroup?.label ?? f.source,
+          title: `Before & After Blueprint: ${f.title}`,
+          detail: f.recommendedAction,
+          beforeText: beforeStr,
+          afterText: f.recommendedAction,
+          url: f.affectedPages?.[0] ?? null,
+          prUrl: fRun?.pullRequestUrl ?? null,
+          statusLabel:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+              ? "Confirmed Fixed"
+              : fRun?.status === "AWAITING_REVIEW"
+                ? "Task Complete · PR Ready"
+                : isActioned
+                  ? "Queued for GitHub Fix"
+                  : "Ready to Fix",
+          statusTone:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || fRun?.status === "AWAITING_REVIEW"
+              ? "good"
+              : isActioned
+                ? "info"
+                : "default",
+        });
+
+        entries.push({
+          id: `finding-verif-${f.id}`,
+          timestamp: f.lastTransitionAt || f.resolvedAt || f.detectedAt,
+          category: "VERIFICATION",
+          moduleId: modGroup?.id ?? "WEBSITE",
+          moduleLabel: modGroup?.label ?? f.source,
+          title:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+              ? `Confirmed Fixed: ${f.title}`
+              : `Verification Checklist: ${f.title}`,
+          detail:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+              ? `Marked confirmed fixed in Fix Engine.`
+              : `Click "Fix with GitHub" to generate a Pull Request, or click "Mark Fixed" once verified on your live site.`,
+          beforeText: beforeStr,
+          afterText: f.recommendedAction,
+          url: f.affectedPages?.[0] ?? null,
+          prUrl: fRun?.pullRequestUrl ?? null,
+          statusLabel:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+              ? "Confirmed Fixed"
+              : isActioned
+                ? "In Fix Plan · Pending Verification"
+                : "Not Yet Verified",
+          statusTone:
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+              ? "good"
+              : isActioned
+                ? "warn"
+                : "default",
+        });
+      }
     }
 
     return entries
@@ -458,7 +678,7 @@ export function GitHubFixesLogView({
         return true;
       })
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [runs, prChanges, ledgerEntries, allFindings, moduleFilter, logCategoryFilter, searchQuery]);
+  }, [runs, prChanges, ledgerEntries, allFindings, moduleFilter, logCategoryFilter, searchQuery, findingRunMap]);
 
   // KPI Metrics
   const kpiStats = useMemo(() => {
@@ -498,17 +718,17 @@ export function GitHubFixesLogView({
       }
 
       const lines: string[] = [
-        `Fix the following ${candidates.length} issue(s) from Fix Engine in the website repository:`,
+        `Fix the following ${candidates.length} issue(s) from Fix Engine by editing the website repository files (IMPORTANT: you MUST edit or create at least one concrete file in the repository—such as page HTML/TSX/JSX, metadata, Organization/LocalBusiness/FAQ JSON-LD structured data, internal links, citation/partner sections, or SEO documentation/config—so a Pull Request is always opened):`,
       ];
       for (let i = 0; i < candidates.length; i++) {
         const f = candidates[i];
         const modLabel = groupOf(f.source)?.label ?? f.source;
         const pagesPart =
           f.affectedPages && f.affectedPages.length > 0
-            ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
+            ? ` | Target Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
             : "";
         lines.push(
-          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 150)}\n   Fix: ${f.recommendedAction.slice(0, 220)}`,
+          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 140)}\n   Required Repo Fix: ${f.recommendedAction.slice(0, 200)}`,
         );
       }
       const instruction = lines.join("\n").slice(0, 1950);
@@ -526,9 +746,10 @@ export function GitHubFixesLogView({
       });
     },
     onSuccess: (run) => {
+      setTrackedRunId(run.id);
       setActionBanner({
         tone: "good",
-        text: `GitHub Fix Engine started (Run ${run.id.slice(0, 8)}). Cloning repository, applying fixes on a branch, validating build, and opening Pull Request…`,
+        text: `GitHub Fix Task started (Run #${run.id.slice(0, 8)}). Watch the live Task Status tracker below — it will turn green with your Pull Request link as soon as the task finishes.`,
       });
       invalidateAll();
     },
@@ -540,12 +761,13 @@ export function GitHubFixesLogView({
   const runLowRiskFixesMutation = useMutation({
     mutationFn: () => api.runFixes(projectId!),
     onSuccess: (run) => {
+      setTrackedRunId(run.id);
       setActionBanner({
         tone: run.status === "FAILED" ? "bad" : "good",
         text:
           run.status === "FAILED"
             ? run.error || "Low-risk fix run finished without changes."
-            : `Pull request prepared with ${run.filesChanged.length} changed file(s). Review and merge on GitHub.`,
+            : `Task Complete! Pull request prepared with ${run.filesChanged.length} changed file(s). Review and merge on GitHub.`,
       });
       invalidateAll();
     },
@@ -556,11 +778,12 @@ export function GitHubFixesLogView({
 
   const runEngineerMutation = useMutation({
     mutationFn: (instruction: string) => api.runEngineer(projectId!, instruction),
-    onSuccess: () => {
+    onSuccess: (run) => {
+      setTrackedRunId(run.id);
       setEngineerPrompt("");
       setActionBanner({
         tone: "good",
-        text: "GitHub Engineer started. It is reading your repository, making the requested improvement, validating the build, and opening a Pull Request.",
+        text: `GitHub Engineer Task started (Run #${run.id.slice(0, 8)}). Watch the live Task Status tracker below for completion confirmation.`,
       });
       invalidateAll();
     },
@@ -689,10 +912,28 @@ export function GitHubFixesLogView({
     );
   }
 
+  const trackedRun = trackedRunId ? runs.find((r) => r.id === trackedRunId) ?? null : null;
+  const trackedRunCtx = trackedRun ? resolveRunContext(trackedRun, allFindings) : null;
+
   return (
     <div className="space-y-6">
-      {actionBanner && (
-        <StatusNote tone={actionBanner.tone}>{actionBanner.text}</StatusNote>
+      {trackedRun && trackedRun.status !== "RUNNING" ? (
+        <StatusNote tone={trackedRun.status === "AWAITING_REVIEW" ? "good" : "bad"}>
+          {trackedRun.status === "AWAITING_REVIEW"
+            ? `✓ Task Complete! GitHub Fix Engine finished "${trackedRunCtx?.headline ?? "your requested fix"}"${
+                trackedRun.filesChanged.length > 0
+                  ? ` and modified ${trackedRun.filesChanged.length} file(s) (${trackedRun.filesChanged.join(", ")})`
+                  : ""
+              }.${trackedRun.pullRequestUrl ? " Your GitHub Pull Request is open and ready below." : ""}`
+            : `Task finished without opening a Pull Request (${
+                trackedRun.error ||
+                (trackedRunCtx?.inspectedFiles.length
+                  ? `Inspected ${trackedRunCtx.inspectedFiles.join(", ")} without committing changes`
+                  : "No file edits committed")
+              }). Click "Retry Fix with GitHub" below to apply a repository code/content update.`}
+        </StatusNote>
+      ) : (
+        actionBanner && <StatusNote tone={actionBanner.tone}>{actionBanner.text}</StatusNote>
       )}
 
       {/* 1. Complete KPI Overview Bar */}
@@ -870,33 +1111,234 @@ export function GitHubFixesLogView({
               </div>
             )}
 
-            {/* Active Running Job Banner */}
-            {runs.filter((r) => r.status === "RUNNING").map((run) => (
-              <div
-                key={run.id}
-                className="rounded-xl border border-warning-200 bg-warning-50/70 p-3.5 space-y-2"
-              >
+            {/* Live GitHub Fix Task Status & Completion Confirmation Tracker */}
+            {visibleTaskRuns.length > 0 && (
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 text-[12.5px] font-bold text-warning-900">
-                    <RefreshCw size={13} className="animate-spin" />
-                    GitHub Fix Engine is working on your repository…
+                  <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand-500">
+                    GitHub Fix Task Status &amp; Completion Confirmation ({count(visibleTaskRuns.length)})
                   </span>
-                  <span className="font-mono text-[11px] text-warning-700">
-                    Started {relativeTime(run.startedAt)}
+                  <span className="text-[11px] text-brand-400">
+                    {isEngineerBusy ? "Auto-updating every 3.5s…" : "All tasks finished"}
                   </span>
                 </div>
-                {run.steps.length > 0 && (
-                  <ul className="space-y-1 pl-1">
-                    {run.steps.slice(-5).map((st, idx) => (
-                      <li key={idx} className="text-[11.5px] text-warning-800 font-mono">
-                        {st.ok ? "✓" : "✗"} {st.step}
-                        {st.detail ? `: ${st.detail}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+
+                {visibleTaskRuns.map(({ run, ctx }) => {
+                  const isRunning = run.status === "RUNNING";
+                  const isSuccess = run.status === "AWAITING_REVIEW";
+                  const unverifiedMatched = ctx.matchedFindings.filter(
+                    (mf) => !["VERIFIED", "RESOLVED"].includes(mf.lifecycle ?? ""),
+                  );
+
+                  return (
+                    <div
+                      key={run.id}
+                      className={cn(
+                        "rounded-xl border p-4 space-y-3 transition-colors",
+                        isRunning
+                          ? "border-warning-200 bg-warning-50/70"
+                          : isSuccess
+                            ? "border-success-200/80 bg-success-50/50"
+                            : "border-error-200/80 bg-error-50/40",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isRunning ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-bold text-warning-900">
+                                <RefreshCw size={11} className="animate-spin" />
+                                TASK IN PROGRESS
+                              </span>
+                            ) : isSuccess ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-success-100 px-2.5 py-0.5 text-[11px] font-bold text-success-900">
+                                <CheckCircle2 size={12} />
+                                TASK COMPLETE · {run.pullRequestUrl ? "PULL REQUEST READY" : "FINISHED"}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-error-100 px-2.5 py-0.5 text-[11px] font-bold text-error-900">
+                                TASK FINISHED WITHOUT PR · RETRY AVAILABLE
+                              </span>
+                            )}
+                            <Pill tone="info">{ctx.moduleLabel}</Pill>
+                            <span className="font-mono text-[11px] text-brand-500">
+                              Run #{run.id.slice(0, 8)}
+                            </span>
+                          </div>
+
+                          <p className="text-[13px] font-bold text-brand-950">
+                            {ctx.headline}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-right font-mono text-[11px] text-brand-600">
+                          {isRunning ? (
+                            <span>Started {relativeTime(run.startedAt)}</span>
+                          ) : (
+                            <span>
+                              Completed {relativeTime(run.finishedAt || run.startedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Summary / Explanation of Completion */}
+                      <p
+                        className={cn(
+                          "text-[12px]",
+                          isRunning
+                            ? "text-warning-900"
+                            : isSuccess
+                              ? "text-success-900"
+                              : "text-error-900",
+                        )}
+                      >
+                        {isRunning
+                          ? "GitHub Fix Engine is cloning your repository, applying code/content improvements on a dedicated branch, validating the build, and opening a Pull Request…"
+                          : isSuccess
+                            ? ctx.summaryAfter
+                            : run.error ||
+                              (ctx.inspectedFiles.length > 0
+                                ? `Inspected ${ctx.inspectedFiles.join(", ")} in ${connectedRepo ? `${connectedRepo.owner}/${connectedRepo.name}` : "repository"}, but finished without committing a file change. Click "Retry & Apply Repo Fix" to apply an on-site code/schema improvement.`
+                                : "Task finished without opening a Pull Request. Click Retry below to run again.")}
+                      </p>
+
+                      {/* Branch & Files Changed */}
+                      <div className="flex flex-wrap items-center gap-3 text-[11.5px] font-mono text-brand-700">
+                        {run.branch && (
+                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border">
+                            <GitBranch size={11} /> {run.branch}
+                          </span>
+                        )}
+                        {run.filesChanged.length > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border text-success-800">
+                            <FileCode size={11} /> Modified ({run.filesChanged.length}):{" "}
+                            {run.filesChanged.join(", ")}
+                          </span>
+                        )}
+                        {run.filesChanged.length === 0 && ctx.inspectedFiles.length > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border text-brand-600">
+                            <FileCode size={11} /> Inspected: {ctx.inspectedFiles.join(", ")}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Step-by-Step Execution Log */}
+                      {run.steps.length > 0 && (
+                        <div className="rounded-lg border bg-white/80 p-2.5 space-y-1">
+                          <span className="block text-[10px] font-bold uppercase tracking-[0.06em] text-brand-400">
+                            Execution Steps ({run.steps.length})
+                          </span>
+                          <ul className="space-y-1">
+                            {run.steps.slice(-6).map((st, idx) => (
+                              <li
+                                key={idx}
+                                className="font-mono text-[11px] text-brand-800 break-words"
+                              >
+                                <span
+                                  className={
+                                    st.ok
+                                      ? "font-bold text-success-700"
+                                      : "font-bold text-error-700"
+                                  }
+                                >
+                                  {st.ok ? "✓" : "✗"}
+                                </span>{" "}
+                                <span className="font-semibold">{st.step}</span>
+                                {st.detail ? `: ${st.detail.slice(0, 220)}` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Completion Actions */}
+                      {!isRunning && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-brand-200/60 pt-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {run.pullRequestUrl && (
+                              <a
+                                href={run.pullRequestUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[11.5px] font-semibold text-white shadow-2xs hover:bg-primary-700"
+                              >
+                                <GitPullRequest size={12} /> View &amp; Merge Pull Request on GitHub{" "}
+                                <ExternalLink size={11} />
+                              </a>
+                            )}
+                            {isSuccess && (
+                              <ActionButton
+                                disabled={verifyLiveMutation.isPending}
+                                icon={
+                                  <ShieldCheck
+                                    size={12}
+                                    className={verifyLiveMutation.isPending ? "animate-spin" : undefined}
+                                  />
+                                }
+                                onClick={() => verifyLiveMutation.mutate(run.id)}
+                              >
+                                Verify Live Website
+                              </ActionButton>
+                            )}
+                            <ActionButton
+                              icon={<GitCompare size={12} />}
+                              onClick={() => setSubSection("BEFORE_AFTER")}
+                            >
+                              View Before &amp; After
+                            </ActionButton>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {unverifiedMatched.length > 0 && isSuccess && (
+                              <ActionButton
+                                disabled={transition.isPending}
+                                icon={<CheckCircle2 size={12} />}
+                                onClick={() => {
+                                  for (const mf of unverifiedMatched) {
+                                    transition.mutate({
+                                      id: mf.id,
+                                      to: "RESOLVED",
+                                      reason: `Confirmed fixed via GitHub Run #${run.id.slice(0, 8)}`,
+                                    });
+                                  }
+                                  setActionBanner({
+                                    tone: "good",
+                                    text: `Marked "${ctx.headline}" as Confirmed Fixed!`,
+                                  });
+                                }}
+                              >
+                                Confirm Task Fixed
+                              </ActionButton>
+                            )}
+                            {!isSuccess && (
+                              <ActionButton
+                                variant="primary"
+                                disabled={isEngineerBusy || runPlanFixesMutation.isPending}
+                                icon={<RefreshCw size={12} />}
+                                onClick={() => {
+                                  if (ctx.matchedFindings.length > 0) {
+                                    runPlanFixesMutation.mutate({
+                                      findingIds: ctx.matchedFindings.map((mf) => mf.id),
+                                    });
+                                  } else if (ctx.rawInstruction) {
+                                    runEngineerMutation.mutate(
+                                      `Edit or create a concrete file in the repository to implement: ${ctx.rawInstruction.slice(0, 1700)}`,
+                                    );
+                                  }
+                                }}
+                              >
+                                Retry &amp; Apply Repo Fix
+                              </ActionButton>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            )}
 
             {/* Batch Action Controls */}
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-brand-50/50 p-3.5">
@@ -974,12 +1416,30 @@ export function GitHubFixesLogView({
                   const group = groupOf(f.source);
                   const checked = selectedFindingIds.includes(f.id);
                   const lc = f.lifecycle ?? "DETECTED";
+                  const fRun = findingRunMap.get(f.id);
+                  const matchedPr = prChanges.find(
+                    (c) =>
+                      c.findingTitle === f.title ||
+                      (c.url && f.affectedPages?.includes(c.url)),
+                  );
+                  const prUrl = fRun?.pullRequestUrl || matchedPr?.pullRequestUrl || null;
+                  const isTaskComplete =
+                    ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) ||
+                    fRun?.status === "AWAITING_REVIEW" ||
+                    Boolean(prUrl);
+                  const isTaskRunning = fRun?.status === "RUNNING";
+                  const isTaskFailed = fRun?.status === "FAILED" && !isTaskComplete;
+
                   return (
                     <div
                       key={f.id}
                       className={cn(
                         "flex flex-col gap-2 px-4 py-3 transition-colors sm:flex-row sm:items-center sm:justify-between",
-                        checked ? "bg-primary-50/40" : "hover:bg-brand-50/40",
+                        checked
+                          ? "bg-primary-50/40"
+                          : isTaskComplete
+                            ? "bg-success-50/20 hover:bg-success-50/40"
+                            : "hover:bg-brand-50/40",
                       )}
                     >
                       <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
@@ -997,17 +1457,28 @@ export function GitHubFixesLogView({
                             {group && <Pill tone="info">{group.label}</Pill>}
                             <Pill tone={BAND[f.potential]}>{f.potential.toLowerCase()} impact</Pill>
                             <Pill tone={EFFORT[f.effort]}>{f.effort.toLowerCase()} effort</Pill>
-                            <Pill
-                              tone={
-                                ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
-                                  ? "good"
-                                  : ["QUEUED", "APPROVED", "VERIFYING"].includes(lc)
+                            {isTaskRunning ? (
+                              <Pill tone="warn">⟳ Task Running on GitHub…</Pill>
+                            ) : isTaskComplete ? (
+                              <Pill tone="good">
+                                ✓ Task Complete ·{" "}
+                                {["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
+                                  ? "Confirmed Fixed"
+                                  : "GitHub PR Ready"}
+                              </Pill>
+                            ) : isTaskFailed ? (
+                              <Pill tone="bad">⚠ Last Run Stopped · Retry Available</Pill>
+                            ) : (
+                              <Pill
+                                tone={
+                                  ["QUEUED", "APPROVED", "VERIFYING"].includes(lc)
                                     ? "warn"
                                     : "default"
-                              }
-                            >
-                              {LIFECYCLE_LABEL[lc] ?? lc}
-                            </Pill>
+                                }
+                              >
+                                {LIFECYCLE_LABEL[lc] ?? lc}
+                              </Pill>
+                            )}
                           </div>
                           <p className="text-[11.5px] text-brand-600 line-clamp-2">
                             <strong className="text-brand-800">Fix: </strong>
@@ -1022,8 +1493,18 @@ export function GitHubFixesLogView({
                         </div>
                       </label>
 
-                      <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
-                        {lc === "DETECTED" && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 self-end sm:self-center">
+                        {prUrl && (
+                          <a
+                            href={prUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-success-300 bg-success-50 px-2.5 py-1 text-[11.5px] font-semibold text-success-800 hover:bg-success-100"
+                          >
+                            <GitPullRequest size={12} /> View GitHub PR <ExternalLink size={10} />
+                          </a>
+                        )}
+                        {lc === "DETECTED" && !isTaskComplete && (
                           <ActionButton
                             disabled={transition.isPending}
                             onClick={() => transition.mutate({ id: f.id, to: "QUEUED" })}
@@ -1031,13 +1512,35 @@ export function GitHubFixesLogView({
                             Add to plan
                           </ActionButton>
                         )}
+                        {!["VERIFIED", "RESOLVED"].includes(lc) &&
+                          (isTaskComplete || ["QUEUED", "APPROVED", "VERIFYING"].includes(lc)) && (
+                            <ActionButton
+                              disabled={transition.isPending}
+                              icon={<CheckCircle2 size={12} />}
+                              onClick={() =>
+                                transition.mutate({
+                                  id: f.id,
+                                  to: "RESOLVED",
+                                  reason: "Confirmed fixed in GitHub Fix Engine",
+                                })
+                              }
+                            >
+                              Confirm Fixed
+                            </ActionButton>
+                          )}
                         <ActionButton
-                          variant="primary"
+                          variant={isTaskComplete ? "secondary" : "primary"}
                           disabled={isEngineerBusy || runPlanFixesMutation.isPending}
                           icon={<GitPullRequest size={12} />}
                           onClick={() => handleFixFindingWithGitHub(f)}
                         >
-                          Fix with GitHub
+                          {isTaskRunning
+                            ? "Fixing on GitHub…"
+                            : isTaskComplete
+                              ? "Re-run on GitHub"
+                              : isTaskFailed
+                                ? "Retry Fix with GitHub"
+                                : "Fix with GitHub"}
                         </ActionButton>
                       </div>
                     </div>
