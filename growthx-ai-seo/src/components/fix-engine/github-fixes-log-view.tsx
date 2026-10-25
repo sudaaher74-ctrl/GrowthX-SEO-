@@ -78,11 +78,26 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
   const rawInstruction = instructionStep?.detail ?? "";
   const changeSteps = run.steps.filter((s) => s.change);
 
-  const matchedFindings = allFindings.filter((f) => {
+  const directMatched = allFindings.filter((f) => {
     if (changeSteps.some((cs) => cs.change?.issueId === f.id)) return true;
-    const snippet = f.title.slice(0, 30).toLowerCase().trim();
+    const snippet = f.title.slice(0, 26).toLowerCase().trim();
     return snippet.length > 5 && rawInstruction.toLowerCase().includes(snippet);
   });
+
+  // Fallback for runs whose 180-char step preview clipped a long preamble before the finding title
+  const fallbackFinding =
+    directMatched.length === 0 && rawInstruction.startsWith("Fix the following")
+      ? ([...allFindings]
+          .filter((f) => (f.lifecycle ?? "DETECTED") === "QUEUED")
+          .sort(
+            (a, b) =>
+              new Date(b.lastTransitionAt || b.detectedAt).getTime() -
+              new Date(a.lastTransitionAt || a.detectedAt).getTime(),
+          )[0] ?? null)
+      : null;
+
+  const matchedFindings =
+    directMatched.length > 0 ? directMatched : fallbackFinding ? [fallbackFinding] : [];
 
   const groupFromInstruction = GROUPS.find((g) =>
     rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
@@ -717,20 +732,21 @@ export function GitHubFixesLogView({
         throw new Error("Select at least one finding in Fix Engine to apply via GitHub.");
       }
 
-      const lines: string[] = [
-        `Fix the following ${candidates.length} issue(s) from Fix Engine by editing the website repository files (IMPORTANT: you MUST edit or create at least one concrete file in the repository—such as page HTML/TSX/JSX, metadata, Organization/LocalBusiness/FAQ JSON-LD structured data, internal links, citation/partner sections, or SEO documentation/config—so a Pull Request is always opened):`,
-      ];
+      const lines: string[] = [];
       for (let i = 0; i < candidates.length; i++) {
         const f = candidates[i];
         const modLabel = groupOf(f.source)?.label ?? f.source;
         const pagesPart =
           f.affectedPages && f.affectedPages.length > 0
-            ? ` | Target Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
+            ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
             : "";
         lines.push(
-          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 140)}\n   Required Repo Fix: ${f.recommendedAction.slice(0, 200)}`,
+          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 130)}\n   Fix: ${f.recommendedAction.slice(0, 180)}`,
         );
       }
+      lines.push(
+        `RULES: Do NOT read or edit LOCAL_SEO_STRATEGY.md or .md files. Read index.html (or page files in src/) with start:1, end:90. Make 1 concise edit where "old" is 2-5 exact lines and "new" is 3-12 lines (updating meta, JSON-LD schema, headings, or links in HTML/JSX), then immediately call finish.`,
+      );
       const instruction = lines.join("\n").slice(0, 1950);
 
       // Move any newly detected findings into the plan as we start the GitHub run
@@ -1321,9 +1337,17 @@ export function GitHubFixesLogView({
                                     runPlanFixesMutation.mutate({
                                       findingIds: ctx.matchedFindings.map((mf) => mf.id),
                                     });
+                                  } else if (selectedFindingIds.length > 0) {
+                                    runPlanFixesMutation.mutate({
+                                      findingIds: selectedFindingIds,
+                                    });
+                                  } else if (filteredFindings.length > 0) {
+                                    runPlanFixesMutation.mutate({
+                                      findingIds: [filteredFindings[0].id],
+                                    });
                                   } else if (ctx.rawInstruction) {
                                     runEngineerMutation.mutate(
-                                      `Edit or create a concrete file in the repository to implement: ${ctx.rawInstruction.slice(0, 1700)}`,
+                                      `${ctx.rawInstruction.slice(0, 1400)}\nRULES: Do NOT read or edit LOCAL_SEO_STRATEGY.md or .md files. Read index.html (start:1, end:90), make 1 concise edit where "old" is 2-5 exact lines and "new" is 3-12 lines, then call finish.`,
                                     );
                                   }
                                 }}
