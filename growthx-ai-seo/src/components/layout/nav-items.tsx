@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, SearchCheck, Wrench, Bot, ShieldCheck, Link2 } from "lucide-react";
+import { Activity, Crosshair, Globe, Wrench, Bot, Link2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -139,11 +139,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "ledger", label: "Impact Ledger", href: "/fix-engine?tab=ledger", tab: "ledger" },
         { id: "reports", label: "Reports", href: "/fix-engine?tab=reports", tab: "reports" },
       ],
-    },
-    {
-      label: "Proof of Impact",
-      href: "/fix-engine?tab=impact",
-      icon: ShieldCheck,
     },
   ];
 

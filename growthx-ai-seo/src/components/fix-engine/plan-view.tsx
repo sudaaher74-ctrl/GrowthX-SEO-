@@ -89,21 +89,7 @@ export function PlanView() {
 
   return (
     <div className="space-y-4">
-      <Panel title="One plan across your five modules" subtitle="Audit findings, traffic performance, competitor gaps, backlink actions and AI visibility. Refresh after completing a new analysis." padded>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {GROUPS.map((g) => <div key={g.id} className="space-y-1">
-            <p className="text-[13px] font-semibold text-brand-950">{g.label}</p>
-            <p className="text-[12px] text-brand-600">{counts.get(g.id) ?? 0} open findings and recommendations</p>
-            <Link href={g.href} className="text-[12px] text-accent-700 hover:underline">Review source and missing data →</Link>
-          </div>)}
-        </div>
-        <p className="mt-4 text-[12px] text-brand-500">A module with no findings may still need an audit, a connected account or a generated report. Unmeasured data is never treated as a passing result.</p>
-        <Link href="/reports/plan" className="mt-3 inline-block text-[12px] font-semibold text-accent-700 hover:underline">Open complete plan report / Download PDF →</Link>
-      </Panel>
       {findings.data.warnings?.map((warning) => <StatusNote key={warning} tone="bad">{warning}</StatusNote>)}
-      <StatusNote tone="good">
-        Fix Engine prepares the changes and you approve them. Nothing here changes your website by itself, and nothing is marked fixed until a later check confirms it.
-      </StatusNote>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
