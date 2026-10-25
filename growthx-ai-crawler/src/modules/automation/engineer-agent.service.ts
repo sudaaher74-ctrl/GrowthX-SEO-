@@ -96,21 +96,69 @@ Rules:
 - You cannot run commands, install packages, change package.json, lockfiles, CI configuration or secrets. If the instruction needs that, finish and say what a person must do.
 - You will be stopped after ${MAX_TURNS} turns. Finish before that.`;
 
-/** Pulls the first JSON object out of a model reply, tolerating fences and chatter. */
+function escapeRawControlCharsInStrings(raw: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === '\n') {
+        out += '\\n';
+        continue;
+      }
+      if (ch === '\r') {
+        out += '\\r';
+        continue;
+      }
+      if (ch === '\t') {
+        out += '\\t';
+        continue;
+      }
+      if (ch.charCodeAt(0) < 0x20) {
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** Pulls the first JSON object out of a model reply, tolerating fences, raw newlines in strings, and chatter. */
 export function parseAction(text: string): Action | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
+  const cleaned = (text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const source = fenceMatch ? fenceMatch[1].trim() : cleaned;
+
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
   if (start === -1 || end <= start) return null;
   try {
-    const parsed = JSON.parse(text.slice(start, end + 1));
+    const candidate = escapeRawControlCharsInStrings(source.slice(start, end + 1));
+    const parsed = JSON.parse(candidate);
     if (parsed && typeof parsed === 'object') return parsed as Action;
   } catch {
     // Fallback: scan for the first balanced {...} JSON object in case multiple objects or trailing braces exist
     let depth = 0;
     let inString = false;
     let escaped = false;
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
+    for (let i = start; i < source.length; i++) {
+      const ch = source[i];
       if (escaped) {
         escaped = false;
         continue;
@@ -129,8 +177,9 @@ export function parseAction(text: string): Action | null {
           depth--;
           if (depth === 0) {
             try {
-              const candidate = JSON.parse(text.slice(start, i + 1));
-              if (candidate && typeof candidate === 'object') return candidate as Action;
+              const candidate = escapeRawControlCharsInStrings(source.slice(start, i + 1));
+              const parsed = JSON.parse(candidate);
+              if (parsed && typeof parsed === 'object') return parsed as Action;
             } catch {
               break;
             }
@@ -396,7 +445,7 @@ export class EngineerAgentService {
           result:
             'Your previous reply was truncated or invalid JSON. Reply with ONE compact JSON object: if using "edit", keep "old" to 2-5 exact lines and "new" to 3-12 lines so it fits in one short JSON reply.',
         });
-        if (malformed >= 5) throw new Error('The model did not return usable actions. Please try again.');
+        if (malformed >= 3) throw new Error('The model did not return usable actions. Please try again.');
         continue;
       }
 

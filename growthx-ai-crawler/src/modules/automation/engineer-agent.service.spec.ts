@@ -13,6 +13,14 @@ describe('parseAction', () => {
   it('reads JSON from a reply with fences and chatter', () => {
     expect(parseAction('Sure!\n```json\n{"tool":"list","path":"src"}\n```')).toEqual({ tool: 'list', path: 'src' });
   });
+  it('handles raw newlines inside string values and multiple JSON objects', () => {
+    expect(parseAction('{"tool":"edit","path":"a.tsx","old":"line1\nline2","new":"line1\nline3"}\n{"tool":"finish","summary":"done"}')).toEqual({
+      tool: 'edit',
+      path: 'a.tsx',
+      old: 'line1\nline2',
+      new: 'line1\nline3',
+    });
+  });
   it('returns null for a reply with no JSON', () => {
     expect(parseAction('I will now edit the file')).toBeNull();
     expect(parseAction('{broken')).toBeNull();

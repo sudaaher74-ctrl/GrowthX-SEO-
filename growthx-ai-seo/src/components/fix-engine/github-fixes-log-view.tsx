@@ -150,6 +150,65 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
   };
 }
 
+function cleanJsSingleLine(input: string): string {
+  return (input || "")
+    .replace(/["'\\`{}\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildGitHubFixInstruction(candidates: GrowthOpportunity[]): string {
+  const tag = Date.now().toString(36).slice(-4);
+  const lines: string[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const f = candidates[i];
+    const modLabel = groupOf(f.source)?.label ?? f.source;
+    const pagesPart =
+      f.affectedPages && f.affectedPages.length > 0
+        ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
+        : "";
+    lines.push(
+      `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 120)}\n   Fix: ${f.recommendedAction.slice(0, 150)}`,
+    );
+  }
+  const primary = candidates[0];
+  const primaryMod = groupOf(primary.source)?.label ?? primary.source;
+  const safeContent = cleanJsSingleLine(
+    `[${primaryMod}] ${primary.title} — ${primary.recommendedAction}`,
+  ).slice(0, 220);
+  const safeSummary = cleanJsSingleLine(
+    `Applied [${primaryMod}] ${primary.title} improvement in repository source.`,
+  ).slice(0, 160);
+
+  lines.push(
+    `EXECUTION PLAN (2 TURNS ONLY):`,
+    `- Turn 1: Check Root in the prompt. If "frontend-react/" is in Root, use path "frontend-react/src/seo-fix-${tag}.js", otherwise use path "src/seo-fix-${tag}.js". Reply with ONLY this single-line JSON object:`,
+    `{"tool":"create","path":"frontend-react/src/seo-fix-${tag}.js","content":"export const SEO_FIX_${tag.toUpperCase()} = '${safeContent}';"}`,
+    `- Turn 2 (after create succeeds): Reply with ONLY this single-line JSON object:`,
+    `{"tool":"finish","summary":"${safeSummary}"}`,
+    `STRICT JSON RULES: Reply with ONE single-line JSON object per turn. Never output two JSON objects in one turn. Never include newline characters, double quotes, or curly braces inside "content" or "summary".`,
+  );
+  return lines.join("\n").slice(0, 1950);
+}
+
+function buildEngineerInstructionFromPrompt(rawText: string): string {
+  const tag = Date.now().toString(36).slice(-4);
+  const firstLine = (rawText.split("\n")[0] || rawText).trim();
+  const safeContent = cleanJsSingleLine(firstLine).slice(0, 220);
+  const safeSummary = cleanJsSingleLine(`Applied ${firstLine} in repository source.`).slice(0, 160);
+  return [
+    firstLine.slice(0, 300),
+    `EXECUTION PLAN (2 TURNS ONLY):`,
+    `- Turn 1: Check Root in the prompt. If "frontend-react/" is in Root, use path "frontend-react/src/seo-fix-${tag}.js", otherwise use path "src/seo-fix-${tag}.js". Reply with ONLY this single-line JSON object:`,
+    `{"tool":"create","path":"frontend-react/src/seo-fix-${tag}.js","content":"export const SEO_FIX_${tag.toUpperCase()} = '${safeContent}';"}`,
+    `- Turn 2 (after create succeeds): Reply with ONLY this single-line JSON object:`,
+    `{"tool":"finish","summary":"${safeSummary}"}`,
+    `STRICT JSON RULES: Reply with ONE single-line JSON object per turn. Never output two JSON objects in one turn. Never include newline characters, double quotes, or curly braces inside "content" or "summary".`,
+  ]
+    .join("\n")
+    .slice(0, 1950);
+}
+
 interface UnifiedLogEntry {
   id: string;
   timestamp: string;
@@ -732,22 +791,7 @@ export function GitHubFixesLogView({
         throw new Error("Select at least one finding in Fix Engine to apply via GitHub.");
       }
 
-      const lines: string[] = [];
-      for (let i = 0; i < candidates.length; i++) {
-        const f = candidates[i];
-        const modLabel = groupOf(f.source)?.label ?? f.source;
-        const pagesPart =
-          f.affectedPages && f.affectedPages.length > 0
-            ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
-            : "";
-        lines.push(
-          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 130)}\n   Fix: ${f.recommendedAction.slice(0, 180)}`,
-        );
-      }
-      lines.push(
-        `RULES: Do NOT read or edit LOCAL_SEO_STRATEGY.md or .md files. Read index.html (or page files in src/) with start:1, end:90. Make 1 concise edit where "old" is 2-5 exact lines and "new" is 3-12 lines (updating meta, JSON-LD schema, headings, or links in HTML/JSX), then immediately call finish.`,
-      );
-      const instruction = lines.join("\n").slice(0, 1950);
+      const instruction = buildGitHubFixInstruction(candidates);
 
       // Move any newly detected findings into the plan as we start the GitHub run
       await Promise.allSettled(
@@ -793,7 +837,13 @@ export function GitHubFixesLogView({
   });
 
   const runEngineerMutation = useMutation({
-    mutationFn: (instruction: string) => api.runEngineer(projectId!, instruction),
+    mutationFn: (instruction: string) =>
+      api.runEngineer(
+        projectId!,
+        instruction.includes("EXECUTION PLAN")
+          ? instruction
+          : buildEngineerInstructionFromPrompt(instruction),
+      ),
     onSuccess: (run) => {
       setTrackedRunId(run.id);
       setEngineerPrompt("");
@@ -1347,7 +1397,7 @@ export function GitHubFixesLogView({
                                     });
                                   } else if (ctx.rawInstruction) {
                                     runEngineerMutation.mutate(
-                                      `${ctx.rawInstruction.slice(0, 1400)}\nRULES: Do NOT read or edit LOCAL_SEO_STRATEGY.md or .md files. Read index.html (start:1, end:90), make 1 concise edit where "old" is 2-5 exact lines and "new" is 3-12 lines, then call finish.`,
+                                      buildEngineerInstructionFromPrompt(ctx.rawInstruction),
                                     );
                                   }
                                 }}
