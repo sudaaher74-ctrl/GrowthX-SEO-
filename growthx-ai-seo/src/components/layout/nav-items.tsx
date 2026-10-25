@@ -131,14 +131,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
-      children: [
-        { id: "overview", label: "Overview", href: "/fix-engine?tab=overview", tab: "overview", isDefault: true },
-        { id: "history", label: "Fix History", href: "/fix-engine?tab=history", tab: "history" },
-        { id: "before-after", label: "Before & After", href: "/fix-engine?tab=before-after", tab: "before-after" },
-        { id: "impact", label: "Impact Analytics", href: "/fix-engine?tab=impact", tab: "impact" },
-        { id: "ledger", label: "Impact Ledger", href: "/fix-engine?tab=ledger", tab: "ledger" },
-        { id: "reports", label: "Reports", href: "/fix-engine?tab=reports", tab: "reports" },
-      ],
     },
   ];
 

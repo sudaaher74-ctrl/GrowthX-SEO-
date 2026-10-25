@@ -26,7 +26,7 @@ test('four-module plan and PDF report include the final findings page and eviden
     return json(null);
   });
   await page.goto('/fix-engine');
-  await expect(page.getByRole('tab', { name: 'Improvement plan', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Improvement', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Answer buyer questions', { exact: true })).toBeVisible();
   expect(finalPageRequests).toBeGreaterThan(0);
   await page.getByRole('button', { name: /^AI Visibility 1$/ }).click();
@@ -36,7 +36,7 @@ test('four-module plan and PDF report include the final findings page and eviden
   await expect(page.getByRole('link', { name: 'Open source report →' })).toHaveAttribute('href', '/ai-visibility?tab=actions');
   await page.getByRole('link', { name: /Complete plan report/ }).click();
   await expect(page.getByRole('heading', { name: 'Complete improvement plan', exact: true })).toBeVisible();
-  for (const moduleName of ['Website Audit', 'Google', 'Competitor Intelligence', 'AI Visibility']) await expect(page.getByRole('heading', { name: `${moduleName} (1)`, exact: true })).toBeVisible();
+  for (const moduleName of ['Website Audit', 'Traffic', 'Competitor Intelligence', 'AI Visibility']) await expect(page.getByRole('heading', { name: `${moduleName} (1)`, exact: true })).toBeVisible();
   await expect(page.getByText('Answer buyer questions', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
 });

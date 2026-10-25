@@ -106,8 +106,8 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         subtitle="Discover where your competitors are being recommended, understand why, and get a personalized plan to earn similar backlinks."
         actions={
           <>
-            <Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine?tab=ledger">
-              Verification ledger
+            <Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine">
+              Fix Engine
             </Link>
             <ActionButton onClick={() => setShowDiscoveryTool(!showDiscoveryTool)}>
               {showDiscoveryTool ? 'Hide Discovery Tool' : 'Discover Candidates'}

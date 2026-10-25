@@ -234,7 +234,7 @@ function NavLink({
   } else if (itemPath === "/ai-visibility") {
     active = pathname === "/ai-visibility" || pathname.startsWith("/ai-visibility/");
   } else if (itemPath === "/fix-engine") {
-    active = pathname === "/fix-engine" && (!currentTab || currentTab === "overview");
+    active = pathname === "/fix-engine" || pathname.startsWith("/fix-engine/");
   } else {
     active =
       pathname === itemPath ||

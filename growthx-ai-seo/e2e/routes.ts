@@ -48,10 +48,7 @@ export const DASHBOARD_ROUTES = [
 
 /** Tabs whose panels mount enough extra code to be worth their own check. */
 export const TABBED_ROUTES = [
-  "/fix-engine?tab=overview",
-  "/fix-engine?tab=implementation",
-  "/fix-engine?tab=verification",
-  "/fix-engine?tab=history",
+  "/fix-engine?tab=improvement",
   "/website?tab=overview",
   "/website?tab=technical-seo",
   "/website?tab=performance",
