@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
+  ArrowRightLeft,
   Building2,
   Check,
   ChevronDown,
@@ -20,6 +21,7 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { visibilityJourneyApi } from "@/lib/api-client";
 import {
@@ -722,17 +724,10 @@ export function PromptsSection({
         </div>
       </details>
 
-      {/* 4 Category Metric Cards (Okara style, Screenshot 1) */}
+      {/* 4 Category Metric Cards (Refined Day & Night Theme) */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {categoryStats.map((cat) => {
           const isSelected = filterCategory === cat.key;
-          const toneClasses =
-            cat.cardTone === "error"
-              ? "border-error-200/80 bg-error-50 text-error-700"
-              : cat.cardTone === "warning"
-                ? "border-warning-200/80 bg-warning-50 text-warning-700"
-                : "border-success-200/80 bg-success-50 text-success-700";
-
           return (
             <button
               key={cat.key}
@@ -740,20 +735,38 @@ export function PromptsSection({
               onClick={() =>
                 setFilterCategory(filterCategory === cat.key ? "ALL" : cat.key)
               }
-              className={`flex flex-col rounded-xl border p-4 text-left shadow-xs transition-all ${toneClasses} ${
-                isSelected ? "ring-2 ring-primary-500 ring-offset-1" : "hover:opacity-90"
-              }`}
+              className={cn(
+                "flex flex-col rounded-2xl border p-4 text-left shadow-card transition-all",
+                "bg-brand-50/70 dark:bg-brand-900/40",
+                isSelected
+                  ? "border-brand-950 dark:border-brand-100 ring-2 ring-brand-950/10 dark:ring-brand-100/10"
+                  : "border-brand-200/60 dark:border-brand-800/80 hover:border-brand-300 dark:hover:border-brand-700",
+              )}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold tracking-tight">{cat.label}</span>
-                {filterCategory === cat.key && (
-                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">Active</span>
-                )}
+                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">{cat.label}</span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      cat.key === "best-of" || cat.key === "jobs-to-be-done"
+                        ? "bg-warning-500"
+                        : cat.key === "competitor"
+                          ? "bg-primary-500"
+                          : "bg-success-500",
+                    )}
+                  />
+                  {isSelected && (
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-brand-950 dark:text-brand-100">
+                      Active
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 text-3xl font-bold font-mono tracking-tight">
+              <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950 dark:text-brand-50">
                 {cat.pct}%
               </div>
-              <div className="mt-1 text-xs opacity-90">{cat.subtext}</div>
+              <div className="mt-1 text-xs text-brand-400 dark:text-brand-500">{cat.subtext}</div>
             </button>
           );
         })}
@@ -940,20 +953,22 @@ export function PromptsSection({
                             <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
                               {c.status === "recommended" ? (
                                 <span
-                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
-                                  title={`${engine.name} recommended your business`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400"
+                                  title={`${engine.name}: Recommended your business`}
                                 >
-                                  <Check size={13} />
+                                  <Check size={11} className="stroke-[2.5]" />
+                                  <span>Cited</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
-                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
-                                  title={c.label}
+                                  className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
+                                  title={`Cited instead: ${c.competitor}`}
                                 >
-                                  {c.competitor?.slice(0, 1).toUpperCase() || "!"}
+                                  <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
+                                  <span className="truncate">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
-                                <span className="font-mono text-sm text-brand-400">—</span>
+                                <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
                               )}
                             </div>
                           );
@@ -966,11 +981,11 @@ export function PromptsSection({
                 // Normal expandable row
                 const isExpanded = expandedPrompt === originalIndex;
                 const categoryBadgeTone =
-                  category === "best-of" || category === "jobs-to-be-done"
-                    ? "bad"
-                    : category === "competitor"
-                      ? "warn"
-                      : "good";
+                  category === "competitor"
+                    ? "warn"
+                    : category === "branded"
+                      ? "good"
+                      : "default";
 
                 return (
                   <div key={originalIndex} className="transition-colors hover:bg-surface-2/30">
@@ -1023,20 +1038,22 @@ export function PromptsSection({
                             <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
                               {c.status === "recommended" ? (
                                 <span
-                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
-                                  title={`${engine.name} recommended your business`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400"
+                                  title={`${engine.name}: Recommended your business`}
                                 >
-                                  <Check size={13} />
+                                  <Check size={11} className="stroke-[2.5]" />
+                                  <span>Cited</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
-                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
-                                  title={c.label}
+                                  className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
+                                  title={`Cited instead: ${c.competitor}`}
                                 >
-                                  {c.competitor?.slice(0, 1).toUpperCase() || "!"}
+                                  <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
+                                  <span className="truncate">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
-                                <span className="font-mono text-sm text-brand-400">—</span>
+                                <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
                               )}
                             </div>
                           );
@@ -1053,35 +1070,61 @@ export function PromptsSection({
                             const c = citations[engine.key];
                             const Icon = engine.icon;
                             return (
-                              <div key={engine.name} className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <Icon className="h-4 w-4 text-brand-700" />
-                                    <span className="text-xs font-bold text-brand-950">{engine.name}</span>
+                              <div
+                                key={engine.name}
+                                className="flex flex-col justify-between rounded-xl border border-brand-200/60 bg-brand-50/70 p-3.5 space-y-3 shadow-card dark:border-brand-800/80 dark:bg-brand-900/50"
+                              >
+                                <div className="space-y-2.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="h-4 w-4 text-brand-700 dark:text-brand-300" />
+                                      <span className="text-xs font-bold text-brand-950 dark:text-brand-100">{engine.name}</span>
+                                    </div>
+                                    {c.status === "recommended" ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400">
+                                        <Check size={11} className="stroke-[2.5]" /> Cited
+                                      </span>
+                                    ) : c.status === "competitor" ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-semibold text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300">
+                                        <ArrowRightLeft size={10} /> Rival cited
+                                      </span>
+                                    ) : c.status === "pending" ? (
+                                      <span className="rounded-full border border-brand-200/60 bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-500 dark:border-brand-800 dark:bg-brand-800 dark:text-brand-400">
+                                        Pending
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-full border border-brand-200/60 bg-brand-100/70 px-2 py-0.5 text-[11px] font-medium text-brand-400 dark:border-brand-800 dark:bg-brand-800/60 dark:text-brand-400">
+                                        {c.label === "Check failed" ? "Check failed" : "Not cited"}
+                                      </span>
+                                    )}
                                   </div>
-                                  <span
-                                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${
-                                      c.status === "recommended"
-                                        ? "border-success-200 bg-success-50 text-success-700"
+
+                                  {c.status === "competitor" && c.competitor && (
+                                    <div className="rounded-lg border border-warning-500/20 bg-warning-500/5 p-2.5 dark:border-warning-400/20 dark:bg-warning-400/5">
+                                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-warning-700 dark:text-warning-400">
+                                        <ArrowRightLeft size={10} />
+                                        <span>Cited Instead</span>
+                                      </div>
+                                      <p className="mt-1 text-xs font-bold text-brand-950 dark:text-brand-100 break-words" title={c.competitor}>
+                                        {c.competitor}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {c.quote ? (
+                                    <blockquote className="rounded-lg border-l-2 border-primary-500 bg-brand-100/50 p-2.5 text-xs italic text-brand-700 dark:bg-brand-800/40 dark:text-brand-300">
+                                      &ldquo;{c.quote}&rdquo;
+                                    </blockquote>
+                                  ) : (
+                                    <p className="text-xs text-brand-400 dark:text-brand-500">
+                                      {c.status === "pending"
+                                        ? `Prompt will be sent to ${engine.name} during the check.`
                                         : c.status === "competitor"
-                                          ? "border-error-200 bg-error-50 text-error-700"
-                                          : "border-line bg-surface-2 text-brand-600"
-                                    }`}
-                                  >
-                                    {c.label}
-                                  </span>
+                                          ? "No direct quote snippet recorded."
+                                          : "No quote saved for this answer."}
+                                    </p>
+                                  )}
                                 </div>
-                                {c.quote ? (
-                                  <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
-                                    &ldquo;{c.quote}&rdquo;
-                                  </blockquote>
-                                ) : (
-                                  <p className="text-xs text-brand-500">
-                                    {c.status === "pending"
-                                      ? `Prompt will be sent to ${engine.name} during the check.`
-                                      : "No quote saved for this answer."}
-                                  </p>
-                                )}
                               </div>
                             );
                           })}
@@ -1129,7 +1172,7 @@ export function PromptsSection({
       <div className="overflow-hidden rounded-xl border border-line bg-surface-1 shadow-card">
         <div className="flex flex-col justify-between gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-error-200 bg-error-50 text-error-700">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-warning-500/25 bg-warning-500/10 text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300">
               <Target size={16} />
             </div>
             <div>
@@ -1192,11 +1235,12 @@ export function PromptsSection({
 
                     <div className="w-20 text-right sm:w-24">
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
                           item.priority === "High"
-                            ? "border-error-200 bg-error-50 text-error-700"
-                            : "border-warning-200 bg-warning-50 text-warning-700"
-                        }`}
+                            ? "border-error-500/25 bg-error-500/10 text-error-600 dark:border-error-400/25 dark:bg-error-400/10 dark:text-error-400"
+                            : "border-warning-500/25 bg-warning-500/10 text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300",
+                        )}
                       >
                         {item.priority}
                       </span>
