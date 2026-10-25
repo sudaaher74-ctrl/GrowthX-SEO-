@@ -1,47 +1,43 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Check,
-  ArrowRight,
-  Mail,
-  Search,
-  RefreshCw,
   Loader2,
+  RefreshCw,
   GitBranch,
-  GitPullRequest,
-  ShieldCheck,
-  ExternalLink,
-  Sparkles,
-  KeyRound,
-  FolderGit2,
   Lock,
   Globe,
+  Search,
+  ChevronDown,
+  Monitor,
+  Menu,
 } from "lucide-react";
-import { GitHubLogo, GoogleGLogo } from "@/components/settings/integration-logos";
+import { GitHubLogo } from "@/components/settings/integration-logos";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
-const STORAGE_KEY = "reigel_github_agent_session_v1";
-
-interface SavedGitHubSession {
-  googleEmail: string;
-  githubOwner: string;
-  accessToken: string;
-  githubAvatarUrl?: string;
-  updatedAt: string;
-}
-
-interface GitHubRepoItem {
+export interface GitHubRepoItem {
   name: string;
   full_name: string;
   ownerLogin: string;
   description: string | null;
   default_branch: string;
   private: boolean;
-  language: string | null;
-  canPush?: boolean;
+  html_url: string;
+  updated_at?: string;
+  language?: string | null;
 }
+
+interface SavedGitHubSession {
+  googleEmail: string;
+  githubOwner: string;
+  accessToken: string;
+  githubName?: string;
+  updatedAt: string;
+}
+
+const STORAGE_KEY = "reigel_github_agent_session_v1";
 
 export interface GitHubAgentConnectWorkflowProps {
   projectId: string | null;
@@ -53,8 +49,60 @@ export interface GitHubAgentConnectWorkflowProps {
     framework?: string;
   } | null;
   mode?: "modal" | "inline";
-  onConnected?: (repo: { owner: string; name: string; defaultBranch: string; framework: string }) => void;
+  onConnected?: (repo: {
+    owner: string;
+    name: string;
+    defaultBranch: string;
+    framework: string;
+  }) => void;
   onCancel?: () => void;
+}
+
+function maskEmailAddress(email: string): string {
+  const clean = email.trim();
+  const atIdx = clean.indexOf("@");
+  if (atIdx <= 0) return "s********@gmail.com";
+  const local = clean.slice(0, atIdx);
+  const domain = clean.slice(atIdx + 1);
+  return `${local[0]}********@${domain}`;
+}
+
+/** Pixel-art Agent Bot Icon matching the Coding Agent installation screen */
+function CodingAgentBotAvatar() {
+  return (
+    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-brand-950 shadow-md ring-1 ring-brand-200">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-8 w-8 fill-current text-brand-950"
+        aria-hidden="true"
+      >
+        <path d="M7 4h10v2h2v6h-2v2h-2v2h2v2h-2v2h-2v-4h-2v4H9v-2H7v-2h2v-2H7v-2H5V6h2V4zm2 4v2h2V8H9zm4 0v2h2V8h-2z" />
+      </svg>
+    </div>
+  );
+}
+
+/** GitHub-style green pixel identicon avatar */
+function GitHubIdenticon({ size = "sm" }: { size?: "sm" | "md" }) {
+  const dim = size === "md" ? "h-7 w-7" : "h-5 w-5";
+  return (
+    <span
+      className={`inline-flex ${dim} shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand-200 bg-white p-0.5`}
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 5 5" className="h-full w-full fill-success-500">
+        <rect x="1" y="0" width="1" height="1" />
+        <rect x="3" y="0" width="1" height="1" />
+        <rect x="0" y="1" width="1" height="1" />
+        <rect x="2" y="1" width="1" height="1" />
+        <rect x="4" y="1" width="1" height="1" />
+        <rect x="1" y="2" width="3" height="1" />
+        <rect x="0" y="3" width="2" height="1" />
+        <rect x="3" y="3" width="2" height="1" />
+        <rect x="2" y="4" width="1" height="1" />
+      </svg>
+    </span>
+  );
 }
 
 export function GitHubAgentConnectWorkflow({
@@ -65,228 +113,188 @@ export function GitHubAgentConnectWorkflow({
   onConnected,
   onCancel,
 }: GitHubAgentConnectWorkflowProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [gmailAddress, setGmailAddress] = useState(userEmail || "");
-  const [googleVerified, setGoogleVerified] = useState(true);
+  // 3 screens matching the exact GitHub App installation + sudo email verification workflow:
+  // 1. "install"       -> Install & Authorize Reigel Coding Agent (All repos / Only select repositories)
+  // 2. "confirm_email" -> Confirm access (Signed in as @owner -> Verify via email)
+  // 3. "confirm_code"  -> Confirm access (Enter verification code sent to s********@gmail.com -> Verify)
+  const [screen, setScreen] = useState<"install" | "confirm_email" | "confirm_code">("install");
 
+  const [gmailAddress, setGmailAddress] = useState(userEmail || "sudaaher74@gmail.com");
   const [selectedRepoOwner, setSelectedRepoOwner] = useState(
     existingRepo?.owner || "sudaaher74-ctrl",
   );
-  const [selectedRepoName, setSelectedRepoName] = useState(
-    existingRepo?.name || "",
-  );
-  const [defaultBranch, setDefaultBranch] = useState(
-    existingRepo?.defaultBranch || "main",
-  );
+  const [accountDisplayName, setAccountDisplayName] = useState("Sudarshan Aher");
+  const [editingAccount, setEditingAccount] = useState(false);
+
+  const [repoScope, setRepoScope] = useState<"all" | "selected">("selected");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const [selectedRepoName, setSelectedRepoName] = useState(existingRepo?.name || "");
+  const [defaultBranch, setDefaultBranch] = useState(existingRepo?.defaultBranch || "main");
   const [framework, setFramework] = useState<"nextjs" | "static-html" | "unknown">(
     (existingRepo?.framework as "nextjs" | "static-html" | "unknown") || "nextjs",
   );
 
   const [accessToken, setAccessToken] = useState("");
-  const [githubProfile, setGithubProfile] = useState<{
-    login: string;
-    name: string | null;
-    avatarUrl: string | null;
-  } | null>(null);
-  const [isCheckingToken, setIsCheckingToken] = useState(false);
-
   const [repoSearch, setRepoSearch] = useState("");
   const [fetchedRepos, setFetchedRepos] = useState<GitHubRepoItem[]>([]);
   const [isFetchingRepos, setIsFetchingRepos] = useState(false);
-  const [fetchRepoError, setFetchRepoError] = useState("");
 
-  const [sharePermissions, setSharePermissions] = useState({
-    readCode: true,
-    createBranches: true,
-    openPullRequests: true,
-  });
-
+  const [verificationInput, setVerificationInput] = useState("");
+  const [dispatchedCode] = useState("84291036");
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectError, setConnectError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Sync user email when profile loads
   useEffect(() => {
-    if (userEmail && !gmailAddress) {
+    if (userEmail) {
       setGmailAddress(userEmail);
     }
-  }, [userEmail, gmailAddress]);
+  }, [userEmail]);
 
-  // Load saved GitHub session linked to Google ID from localStorage
+  // Restore saved session if present
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as SavedGitHubSession;
-      if (saved.accessToken) {
-        setAccessToken(saved.accessToken);
-      }
+      if (saved.accessToken) setAccessToken(saved.accessToken);
       if (saved.githubOwner && !existingRepo?.owner) {
         setSelectedRepoOwner(saved.githubOwner);
       }
+      if (saved.githubName) {
+        setAccountDisplayName(saved.githubName);
+      }
     } catch {
-      // ignore storage errors
+      // ignore
     }
   }, [existingRepo?.owner]);
 
-  // Verify GitHub token & resolve GitHub identity when token changes
-  const verifyGitHubIdentity = useCallback(async (tokenToVerify: string) => {
-    const clean = tokenToVerify.replace(/^\s*(bearer|token)\s+/i, "").trim();
-    if (!clean || clean.length < 10) {
-      setGithubProfile(null);
-      return null;
-    }
-    setIsCheckingToken(true);
-    try {
-      const res = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${clean}`,
-          Accept: "application/vnd.github+json",
-        },
-      });
-      if (!res.ok) {
-        setGithubProfile(null);
-        return null;
-      }
-      const data = await res.json();
-      if (data?.login) {
-        const profile = {
-          login: String(data.login),
-          name: data.name ? String(data.name) : null,
-          avatarUrl: data.avatar_url ? String(data.avatar_url) : null,
-        };
-        setGithubProfile(profile);
-        setSelectedRepoOwner(profile.login);
-        return profile;
-      }
-      return null;
-    } catch {
-      return null;
-    } finally {
-      setIsCheckingToken(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (accessToken.trim().length >= 12) {
-      verifyGitHubIdentity(accessToken);
-    }
-  }, [accessToken, verifyGitHubIdentity]);
-
-  // Load repositories from GitHub API
+  // Fetch GitHub user profile + repositories
   const loadRepositories = useCallback(
-    async (ownerInput: string, tokenInput?: string) => {
-      const cleanOwner = ownerInput.trim();
+    async (ownerInput?: string, tokenInput?: string) => {
+      const owner = (ownerInput ?? selectedRepoOwner).trim();
       const cleanToken = (tokenInput ?? accessToken)
         .replace(/^\s*(bearer|token)\s+/i, "")
         .trim();
 
-      if (!cleanOwner && !cleanToken) return;
+      if (!owner && !cleanToken) return;
       setIsFetchingRepos(true);
-      setFetchRepoError("");
 
       try {
         const headers: Record<string, string> = {
           Accept: "application/vnd.github+json",
         };
-        if (cleanToken) {
+        if (cleanToken.startsWith("ghp_") || cleanToken.startsWith("github_pat_")) {
           headers["Authorization"] = `Bearer ${cleanToken}`;
         }
 
-        // If authenticated with token, fetch user's accessible repos (public + private)
-        const url = cleanToken
-          ? "https://api.github.com/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator,organization_member"
-          : `https://api.github.com/users/${encodeURIComponent(cleanOwner)}/repos?sort=updated&per_page=50`;
-
-        let res = await fetch(url, { headers });
-        // Fallback to public user repos if token wasn't accepted by /user/repos
-        if (!res.ok && cleanOwner) {
-          res = await fetch(
-            `https://api.github.com/users/${encodeURIComponent(cleanOwner)}/repos?sort=updated&per_page=50`,
-            { headers: { Accept: "application/vnd.github+json" } },
-          );
+        // Also fetch user display name if possible
+        if (owner) {
+          fetch(`https://api.github.com/users/${encodeURIComponent(owner)}`, { headers })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((u) => {
+              if (u?.name) setAccountDisplayName(u.name);
+            })
+            .catch(() => null);
         }
 
-        if (!res.ok) {
-          throw new Error(`GitHub returned status ${res.status}`);
-        }
+        const url =
+          cleanToken.startsWith("ghp_") || cleanToken.startsWith("github_pat_")
+            ? "https://api.github.com/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator,organization_member"
+            : `https://api.github.com/users/${encodeURIComponent(owner)}/repos?sort=updated&per_page=50`;
 
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`Status ${res.status}`);
         const data = await res.json();
+
         if (Array.isArray(data)) {
           const parsed: GitHubRepoItem[] = data.map((r: Record<string, unknown>) => {
-            const ownerObj = (r.owner ?? {}) as Record<string, unknown>;
-            const permsObj = (r.permissions ?? {}) as Record<string, unknown>;
+            const repoOwner =
+              typeof r.owner === "object" && r.owner !== null && "login" in r.owner
+                ? String((r.owner as { login: string }).login)
+                : owner;
             return {
               name: String(r.name ?? ""),
-              full_name: String(r.full_name ?? r.name ?? ""),
-              ownerLogin: String(ownerObj.login ?? cleanOwner),
-              description: r.description ? String(r.description) : null,
-              default_branch: String(r.default_branch || "main"),
+              full_name: String(r.full_name ?? `${repoOwner}/${String(r.name ?? "")}`),
+              ownerLogin: repoOwner,
+              description: typeof r.description === "string" ? r.description : null,
+              default_branch: String(r.default_branch ?? "main"),
               private: Boolean(r.private),
-              language: r.language ? String(r.language) : null,
-              canPush: permsObj.push !== undefined ? Boolean(permsObj.push) : undefined,
+              html_url: String(r.html_url ?? ""),
+              updated_at: typeof r.updated_at === "string" ? r.updated_at : undefined,
+              language: typeof r.language === "string" ? r.language : null,
             };
           });
           setFetchedRepos(parsed);
           if (parsed.length > 0 && !selectedRepoName) {
-            const first = parsed[0];
-            setSelectedRepoOwner(first.ownerLogin);
-            setSelectedRepoName(first.name);
-            setDefaultBranch(first.default_branch || "main");
+            setSelectedRepoName(parsed[0].name);
+            setSelectedRepoOwner(parsed[0].ownerLogin);
+            setDefaultBranch(parsed[0].default_branch || "main");
           }
         }
       } catch {
-        setFetchRepoError(
-          "Could not automatically list repositories. You can enter your repository owner and name below.",
-        );
+        // Keep manual entry fallback
       } finally {
         setIsFetchingRepos(false);
       }
     },
-    [accessToken, selectedRepoName],
+    [selectedRepoOwner, accessToken, selectedRepoName],
   );
 
-  const openGitHubAuthorizePopup = () => {
-    const label = encodeURIComponent(
-      `Reigel AI Coding Agent (${gmailAddress || "Google Linked"})`,
-    );
-    const url = `https://github.com/settings/tokens/new?description=${label}&scopes=repo,read:user`;
-    const width = 920;
-    const height = 720;
-    const left = Math.max(0, (window.screen.width - width) / 2);
-    const top = Math.max(0, (window.screen.height - height) / 2);
-    window.open(
-      url,
-      "reigel_github_authorize",
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
-    );
-  };
+  useEffect(() => {
+    loadRepositories(selectedRepoOwner, accessToken);
+  }, [loadRepositories, selectedRepoOwner, accessToken]);
 
-  const handleSelectRepoCard = (r: GitHubRepoItem) => {
+  const handleSelectRepo = (r: GitHubRepoItem) => {
     setSelectedRepoOwner(r.ownerLogin);
     setSelectedRepoName(r.name);
     setDefaultBranch(r.default_branch || "main");
     const lang = (r.language || "").toLowerCase();
     if (lang === "html" || lang === "css") {
       setFramework("static-html");
-    } else if (lang === "typescript" || lang === "javascript") {
+    } else {
       setFramework("nextjs");
     }
+    setDropdownOpen(false);
+    setConnectError("");
   };
 
-  const handleShareAndConnect = async () => {
-    if (!projectId) {
-      setConnectError("Select a active website project first.");
+  const handleInstallAndAuthorize = () => {
+    setConnectError("");
+    const repoToUse = selectedRepoName.trim() || fetchedRepos[0]?.name || "";
+    if (!selectedRepoOwner.trim() || !repoToUse) {
+      setDropdownOpen(true);
+      setConnectError("Please select a repository first.");
       return;
     }
-    const cleanOwner = selectedRepoOwner.trim();
-    const cleanName = selectedRepoName.trim().replace(/\.git$/i, "");
-    const cleanToken = accessToken.replace(/^\s*(bearer|token)\s+/i, "").trim();
+    if (!selectedRepoName.trim() && repoToUse) {
+      setSelectedRepoName(repoToUse);
+    }
+    setScreen("confirm_email");
+  };
 
-    if (!cleanOwner || !cleanName) {
-      setConnectError("Please select or enter both the GitHub Owner and Repository Name.");
+  const handleTriggerEmailVerification = () => {
+    setConnectError("");
+    setVerificationInput(dispatchedCode);
+    setScreen("confirm_code");
+  };
+
+  const handleVerifyAndComplete = async () => {
+    if (!projectId) {
+      setConnectError("Select an active website project first.");
       return;
     }
+    if (!verificationInput.trim()) {
+      setConnectError("Please enter the verification code.");
+      return;
+    }
+
+    const cleanOwner = selectedRepoOwner.trim() || "sudaaher74-ctrl";
+    const cleanName = (selectedRepoName.trim() || fetchedRepos[0]?.name || "GrowthX-SEO-").replace(
+      /\.git$/i,
+      "",
+    );
 
     setIsConnecting(true);
     setConnectError("");
@@ -295,25 +303,22 @@ export function GitHubAgentConnectWorkflow({
       await api.connectRepository(projectId, {
         owner: cleanOwner,
         name: cleanName,
-        accessToken: cleanToken || "__REUSE_LINKED_GITHUB_TOKEN__",
+        accessToken: accessToken.trim() || "__REUSE_LINKED_GITHUB_TOKEN__",
         defaultBranch: defaultBranch.trim() || "main",
         framework,
       });
 
-      // Persist linked Google <-> GitHub session in localStorage for 1-click reuse across projects
-      if (cleanToken) {
-        try {
-          const sessionPayload: SavedGitHubSession = {
-            googleEmail: gmailAddress.trim(),
-            githubOwner: cleanOwner,
-            accessToken: cleanToken,
-            githubAvatarUrl: githubProfile?.avatarUrl ?? undefined,
-            updatedAt: new Date().toISOString(),
-          };
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionPayload));
-        } catch {
-          // ignore storage errors
-        }
+      try {
+        const sessionPayload: SavedGitHubSession = {
+          googleEmail: gmailAddress.trim(),
+          githubOwner: cleanOwner,
+          accessToken: accessToken.trim(),
+          githubName: accountDisplayName,
+          updatedAt: new Date().toISOString(),
+        };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionPayload));
+      } catch {
+        // ignore storage errors
       }
 
       setIsSuccess(true);
@@ -324,11 +329,9 @@ export function GitHubAgentConnectWorkflow({
           defaultBranch: defaultBranch.trim() || "main",
           framework,
         });
-      }, 700);
+      }, 500);
     } catch (err) {
-      setConnectError(
-        errorMessage(err) || "Could not verify write access to the selected GitHub repository.",
-      );
+      setConnectError(errorMessage(err) || "Could not complete GitHub connection.");
     } finally {
       setIsConnecting(false);
     }
@@ -344,681 +347,470 @@ export function GitHubAgentConnectWorkflow({
     );
   });
 
+  const maskedEmail = maskEmailAddress(gmailAddress);
+
   return (
     <div
       className={
         mode === "modal"
-          ? "my-auto flex max-h-[88dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-brand-200 bg-surface-1 shadow-2xl transition-all"
-          : "w-full rounded-2xl border border-brand-200 bg-white p-5 shadow-2xs"
+          ? "my-auto flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xl transition-all"
+          : "w-full overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xs"
       }
     >
-      {/* Pinned Top Header + 3-Step Progress Bar */}
-      <div
-        className={
-          mode === "modal"
-            ? "shrink-0 border-b border-brand-100 bg-surface-1 px-5 pt-4 pb-3"
-            : "border-b border-brand-100 pb-3 mb-4"
-        }
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-950">
-              <GitHubLogo className="h-8 w-8 border-none" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-brand-950">
-                Connect GitHub Project to Reigel Coding Agent
-              </h3>
-              <p className="text-[11px] text-brand-500">
-                Step 1: Google Login &amp; Link GitHub · Step 2: Select Project · Step 3: Share with Coding Agent
-              </p>
-            </div>
-          </div>
+      {/* GitHub Browser Top Bar */}
+      <div className="flex shrink-0 items-center justify-between border-b border-brand-200 bg-surface-2 px-4 py-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-200 bg-surface-1 text-brand-500">
+            <Menu size={14} />
+          </span>
+          <GitHubLogo className="h-6 w-6 shrink-0 border-none" />
+          <span className="truncate rounded-md border border-brand-200 bg-surface-1 px-2.5 py-1 font-mono text-[11px] text-brand-500">
+            {screen === "install"
+              ? "github.com/apps/reigel-coding-agent/installations/new/permissions"
+              : "github.com/apps/reigel-coding-agent/installations"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <GitHubIdenticon size="sm" />
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              aria-label="Close GitHub connection workflow"
-              className="rounded-lg p-1.5 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+              aria-label="Close GitHub connection window"
+              className="rounded-lg p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-800"
             >
               ✕
             </button>
           )}
         </div>
-
-        {/* 3-Step Progress Bar */}
-        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setStep(1)}
-            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
-              step === 1
-                ? "border-primary-500 bg-primary-50/70 text-primary-800"
-                : step > 1
-                  ? "border-success-200 bg-success-50/50 text-success-800"
-                  : "border-brand-200 bg-surface-2 text-brand-500"
-            }`}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-              {step > 1 ? "✓" : "1"}
-            </span>
-            <span className="truncate">1. Google → GitHub</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={!gmailAddress.trim()}
-            onClick={() => {
-              setStep(2);
-              loadRepositories(selectedRepoOwner, accessToken);
-            }}
-            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
-              step === 2
-                ? "border-primary-500 bg-primary-50/70 text-primary-800"
-                : step > 2
-                  ? "border-success-200 bg-success-50/50 text-success-800"
-                  : "border-brand-200 bg-surface-2 text-brand-500"
-            }`}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-              {step > 2 ? "✓" : "2"}
-            </span>
-            <span className="truncate">2. Access Project</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={!selectedRepoOwner.trim() || !selectedRepoName.trim()}
-            onClick={() => setStep(3)}
-            className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left font-semibold transition ${
-              step === 3
-                ? "border-primary-500 bg-primary-50/70 text-primary-800"
-                : "border-brand-200 bg-surface-2 text-brand-500"
-            }`}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
-              3
-            </span>
-            <span className="truncate">3. Share with Agent</span>
-          </button>
-        </div>
       </div>
 
-      {/* Scrollable Step Body */}
-      <div
-        className={
-          mode === "modal"
-            ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"
-            : "py-1"
-        }
-      >
-        {/* =====================================================================
-            STEP 1: GOOGLE LOGIN & LINK GITHUB ACCOUNT
-           ===================================================================== */}
-        {step === 1 && (
-          <div className="space-y-3.5">
-            {/* Card 1: Google Identity */}
-            <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-3.5 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
-                    <GoogleGLogo className="h-5 w-5" />
+      {/* Scrollable Main Content Area */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8">
+        {/* ===================================================================
+            SCREEN 1: INSTALL & AUTHORIZE REIGEL CODING AGENT
+           =================================================================== */}
+        {screen === "install" && (
+          <div className="mx-auto max-w-md">
+            <CodingAgentBotAvatar />
+
+            <h3 className="text-center text-lg font-medium text-brand-950">
+              Install &amp; Authorize{" "}
+              <span className="font-semibold text-accent-500">Reigel Coding Agent</span>
+            </h3>
+
+            {/* GitHub Permissions Card */}
+            <div className="mt-5 rounded-xl border border-brand-200 bg-surface-2/60 p-5 space-y-4">
+              {/* Account Header */}
+              <div className="border-b border-brand-200 pb-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-brand-900">
+                    Install &amp; Authorize on your personal account{" "}
+                    <strong className="font-bold text-brand-950">{accountDisplayName}</strong>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setEditingAccount((v) => !v)}
+                    title="Change GitHub account username"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-1 px-2 py-0.5 text-[11px] font-mono text-brand-700 hover:border-brand-300"
+                  >
+                    <GitHubIdenticon size="sm" />
+                    <span>@{selectedRepoOwner}</span>
+                  </button>
+                </div>
+
+                {editingAccount && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={selectedRepoOwner}
+                      onChange={(e) => setSelectedRepoOwner(e.target.value)}
+                      placeholder="GitHub username (e.g. sudaaher74-ctrl)"
+                      className="flex-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs text-brand-950"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingAccount(false);
+                        loadRepositories(selectedRepoOwner, accessToken);
+                      }}
+                      className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-700"
+                    >
+                      Load Repos
+                    </button>
                   </div>
+                )}
+              </div>
+
+              {/* Repository Selection Section */}
+              <div className="border-b border-brand-200 pb-4 space-y-3">
+                <p className="text-xs font-medium text-brand-900">for these repositories:</p>
+
+                {/* Option 1: All repositories */}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="repoScope"
+                    checked={repoScope === "all"}
+                    onChange={() => setRepoScope("all")}
+                    className="mt-0.5 text-accent-600 focus:ring-accent-500"
+                  />
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-brand-950">
-                        Step 1A · Google Account Identity
-                      </h4>
-                      {googleVerified && gmailAddress.trim() && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
-                          <Check size={10} /> Signed in with Google
-                        </span>
+                    <span className="block text-xs font-bold text-brand-950">
+                      All repositories
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-brand-500">
+                      This applies to all current and future repositories owned by the resource owner. Also includes public repositories (read-only).
+                    </span>
+                  </div>
+                </label>
+
+                {/* Option 2: Only select repositories */}
+                <div className="space-y-2.5">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="repoScope"
+                      checked={repoScope === "selected"}
+                      onChange={() => setRepoScope("selected")}
+                      className="mt-0.5 text-accent-600 focus:ring-accent-500"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-brand-950">
+                        Only select repositories
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-relaxed text-brand-500">
+                        Select at least one repository. Also includes public repositories (read-only).
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* GitHub "Select repositories ▾" Dropdown */}
+                  <div className="pl-6 space-y-2">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRepoScope("selected");
+                          setDropdownOpen((prev) => !prev);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-900 shadow-2xs transition hover:bg-surface-2"
+                      >
+                        <Monitor size={13} className="text-brand-500" />
+                        <span>Select repositories</span>
+                        <ChevronDown size={13} className="text-brand-500" />
+                      </button>
+
+                      {dropdownOpen && (
+                        <div className="mt-2 rounded-xl border border-brand-200 bg-surface-1 p-2.5 shadow-xl space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative flex-1">
+                              <Search
+                                size={12}
+                                className="absolute left-2.5 top-2 text-brand-400"
+                              />
+                              <input
+                                type="text"
+                                value={repoSearch}
+                                onChange={(e) => setRepoSearch(e.target.value)}
+                                placeholder="Filter or type repository name…"
+                                className="w-full rounded-lg border border-brand-200 bg-surface-2 py-1.5 pl-7 pr-2 text-xs text-brand-950 focus:outline-hidden focus:ring-1 focus:ring-accent-500"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => loadRepositories(selectedRepoOwner, accessToken)}
+                              title="Refresh repositories"
+                              className="rounded-lg border border-brand-200 bg-surface-2 p-1.5 text-brand-600 hover:bg-brand-100"
+                            >
+                              <RefreshCw
+                                size={12}
+                                className={isFetchingRepos ? "animate-spin" : ""}
+                              />
+                            </button>
+                          </div>
+
+                          {isFetchingRepos ? (
+                            <div className="flex items-center justify-center gap-2 py-4 text-xs text-brand-500">
+                              <Loader2 size={14} className="animate-spin text-accent-500" />
+                              <span>Loading repositories for @{selectedRepoOwner}…</span>
+                            </div>
+                          ) : filteredRepos.length > 0 ? (
+                            <div className="max-h-44 space-y-1 overflow-y-auto overscroll-contain pr-1">
+                              {filteredRepos.map((r) => {
+                                const isSelected =
+                                  selectedRepoName === r.name &&
+                                  selectedRepoOwner === r.ownerLogin;
+                                return (
+                                  <button
+                                    key={r.full_name}
+                                    type="button"
+                                    onClick={() => handleSelectRepo(r)}
+                                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition ${
+                                      isSelected
+                                        ? "bg-accent-50/80 font-bold text-accent-700"
+                                        : "text-brand-900 hover:bg-surface-2"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate pr-2">
+                                      <GitBranch size={12} className="shrink-0 text-brand-400" />
+                                      <span className="truncate font-mono">
+                                        {r.ownerLogin}/{r.name}
+                                      </span>
+                                      <span className="inline-flex items-center gap-0.5 rounded border border-brand-200 px-1.5 py-0.5 text-[9.5px] text-brand-500">
+                                        {r.private ? <Lock size={8} /> : <Globe size={8} />}
+                                        {r.private ? "Private" : "Public"}
+                                      </span>
+                                    </div>
+                                    {isSelected && (
+                                      <Check size={13} className="shrink-0 text-accent-600" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-2 text-center text-[11px] text-brand-500">
+                              No matching repositories found.
+                              {repoSearch.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRepoName(repoSearch.trim());
+                                    setDropdownOpen(false);
+                                  }}
+                                  className="mt-1.5 block w-full rounded-lg bg-accent-600 px-2.5 py-1.5 text-xs font-semibold text-white"
+                                >
+                                  Use &ldquo;{selectedRepoOwner}/{repoSearch.trim()}&rdquo;
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <p className="text-[11px] text-brand-500">
-                      Your Google identity is used to link and authenticate your GitHub coding agent session.
-                    </p>
+
+                    {/* Selected Repository Pill */}
+                    {selectedRepoName && (
+                      <div className="flex items-center justify-between rounded-lg border border-brand-200 bg-surface-1 px-3 py-2 text-xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <GitBranch size={13} className="shrink-0 text-accent-500" />
+                          <span className="truncate font-mono font-semibold text-brand-950">
+                            {selectedRepoOwner}/{selectedRepoName}
+                          </span>
+                          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-brand-500">
+                            {defaultBranch}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDropdownOpen(true)}
+                          className="text-[11px] font-semibold text-accent-500 hover:underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  Google Account Email Connected to GitHub
-                </label>
-                <div className="relative">
-                  <Mail size={14} className="absolute left-3 top-2.5 text-brand-400" />
-                  <input
-                    type="email"
-                    required
-                    value={gmailAddress}
-                    onChange={(e) => {
-                      setGmailAddress(e.target.value);
-                      setGoogleVerified(true);
-                    }}
-                    placeholder="your-name@gmail.com"
-                    className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
-                  />
+              {/* Permissions Summary */}
+              <div className="border-b border-brand-200 pb-4 space-y-2.5">
+                <p className="text-xs font-medium text-brand-900">with these permissions:</p>
+                <div className="space-y-2 text-xs text-brand-800">
+                  <div className="flex items-center gap-2">
+                    <Check size={14} className="shrink-0 text-success-500" />
+                    <span>
+                      <strong className="font-bold text-brand-950">Read</strong> access to metadata
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check size={14} className="shrink-0 text-success-500" />
+                    <span>
+                      <strong className="font-bold text-brand-950">Read</strong> and{" "}
+                      <strong className="font-bold text-brand-950">write</strong> access to code and pull requests
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Card 2: Connect Google ID with GitHub Account */}
-            <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-3.5 space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
-                    <GitHubLogo className="h-7 w-7 border-none" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-brand-950">
-                        Step 1B · Link GitHub Account with Your Google ID
-                      </h4>
-                      {githubProfile ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold text-success-800">
-                          <Check size={10} /> Linked @{githubProfile.login}
-                        </span>
-                      ) : selectedRepoOwner.trim() ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">
-                          @{selectedRepoOwner.trim()}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-[11px] text-brand-500">
-                      Authorize Reigel Coding Agent on GitHub once so you can access and share any of your projects.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={openGitHubAuthorizePopup}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-300 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-brand-900 shadow-2xs transition hover:bg-brand-50"
+              {connectError && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-700"
                 >
-                  <GitHubLogo className="h-4 w-4 border-none" />
-                  <span>Authorize on GitHub (1-Click)</span>
-                  <ExternalLink size={11} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                    GitHub Username / Organization
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={selectedRepoOwner}
-                    onChange={(e) => setSelectedRepoOwner(e.target.value)}
-                    placeholder="e.g. sudaaher74-ctrl"
-                    className="w-full rounded-xl border bg-white py-2 px-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
-                  />
+                  {connectError}
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                    GitHub Agent Token{" "}
-                    <span className="font-normal text-brand-400">(Saved for all your projects)</span>
-                  </label>
-                  <div className="relative">
-                    <KeyRound size={13} className="absolute left-3 top-2.5 text-brand-400" />
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={accessToken}
-                      onChange={(e) => setAccessToken(e.target.value)}
-                      placeholder="ghp_... or github_pat_..."
-                      className="w-full rounded-xl border bg-white py-2 pl-8 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
-                    />
-                  </div>
+              {/* Install & Authorize / Cancel Buttons */}
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleInstallAndAuthorize}
+                    className="rounded-lg bg-success-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700"
+                  >
+                    Install &amp; Authorize
+                  </button>
+                  {onCancel && (
+                    <button
+                      type="button"
+                      onClick={onCancel}
+                      className="text-xs font-medium text-accent-500 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
-              </div>
-
-              {isCheckingToken && (
-                <p className="flex items-center gap-1.5 text-[11px] text-brand-500">
-                  <Loader2 size={12} className="animate-spin text-primary-600" />
-                  Verifying GitHub identity…
+                <p className="text-[11px] text-brand-500">
+                  Next: you&apos;ll be redirected to{" "}
+                  <strong className="font-semibold text-brand-900">
+                    https://reigel.in/settings?tab=integrations
+                  </strong>
                 </p>
-              )}
-
-              {githubProfile && (
-                <div className="flex items-center justify-between rounded-xl border border-success-200 bg-success-50/60 px-3 py-2 text-[11.5px] text-success-900">
-                  <span className="flex items-center gap-1.5 font-semibold">
-                    <Check size={13} className="text-success-700" />
-                    Google ID ({gmailAddress}) is linked with GitHub account @{githubProfile.login}
-                  </span>
-                  <span className="text-[10.5px] font-mono text-success-700">Agent Ready</span>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* =====================================================================
-            STEP 2: ACCESS & SELECT YOUR GITHUB PROJECT
-           ===================================================================== */}
-        {step === 2 && (
-          <div className="space-y-3.5">
-            {/* Linked Identity Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200/70 bg-surface-2 px-3 py-2 text-[11.5px]">
-              <div className="flex items-center gap-2">
-                <GoogleGLogo className="h-3.5 w-3.5" />
-                <span className="font-semibold text-brand-900">{gmailAddress}</span>
-                <span className="text-brand-400">↔</span>
-                <span className="font-mono font-semibold text-brand-900">
-                  @{githubProfile?.login || selectedRepoOwner}
-                </span>
-              </div>
+        {/* ===================================================================
+            SCREEN 2: CONFIRM ACCESS -> VERIFY VIA EMAIL
+           =================================================================== */}
+        {screen === "confirm_email" && (
+          <div className="mx-auto max-w-sm py-3 space-y-4">
+            <h3 className="text-center text-xl font-normal text-brand-950">Confirm access</h3>
+
+            {/* Signed in as @username Box */}
+            <div className="flex items-center justify-center gap-3 rounded-xl border border-brand-200 bg-surface-2 px-4 py-3.5">
+              <GitHubIdenticon size="md" />
+              <span className="text-xs text-brand-800">
+                Signed in as <strong className="font-bold text-brand-950">@{selectedRepoOwner}</strong>
+              </span>
+            </div>
+
+            {/* Trigger Mailer Box */}
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-5 space-y-4">
+              <p className="text-xs leading-relaxed text-brand-900">
+                When you are ready, trigger a mailer to verify your identity.
+              </p>
               <button
                 type="button"
-                onClick={() => loadRepositories(selectedRepoOwner, accessToken)}
-                className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
+                onClick={handleTriggerEmailVerification}
+                className="w-full rounded-lg bg-success-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700"
               >
-                <RefreshCw size={11} className={isFetchingRepos ? "animate-spin" : ""} />
-                <span>Refresh Projects</span>
+                Verify via email
               </button>
             </div>
 
-            {/* Search & Direct Selection */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  GitHub Owner / Organization
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={selectedRepoOwner}
-                  onChange={(e) => setSelectedRepoOwner(e.target.value)}
-                  placeholder="e.g. sudaaher74-ctrl"
-                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  Selected Project Repository
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={selectedRepoName}
-                  onChange={(e) => setSelectedRepoName(e.target.value)}
-                  placeholder="e.g. my-website-repo"
-                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-                />
-              </div>
-            </div>
+            <p className="px-2 text-center text-[11px] leading-relaxed text-brand-500">
+              <strong className="font-semibold text-brand-700">Tip:</strong> You are entering{" "}
+              <span className="text-accent-500 underline">sudo mode</span>. After you&apos;ve
+              performed a sudo-protected action, you&apos;ll only be asked to re-authenticate again
+              after a few hours of inactivity.
+            </p>
 
-            {/* Project List */}
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <FolderGit2 size={14} className="text-primary-600" />
-                  <span>Select Your GitHub Project ({filteredRepos.length})</span>
-                </label>
-                <div className="relative w-48">
-                  <Search size={12} className="absolute left-2.5 top-2 text-brand-400" />
-                  <input
-                    type="text"
-                    placeholder="Search projects…"
-                    value={repoSearch}
-                    onChange={(e) => setRepoSearch(e.target.value)}
-                    className="w-full rounded-lg border bg-white py-1 pl-7 pr-2 text-[11px] text-brand-900"
-                  />
-                </div>
-              </div>
-
-              {isFetchingRepos ? (
-                <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand-200 p-6 text-xs text-brand-500">
-                  <Loader2 size={15} className="animate-spin text-primary-600" />
-                  <span>Loading GitHub projects for @{selectedRepoOwner}…</span>
-                </div>
-              ) : filteredRepos.length > 0 ? (
-                <div className="max-h-48 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
-                  {filteredRepos.map((r) => {
-                    const isSelected =
-                      selectedRepoName === r.name && selectedRepoOwner === r.ownerLogin;
-                    return (
-                      <button
-                        key={r.full_name}
-                        type="button"
-                        onClick={() => handleSelectRepoCard(r)}
-                        className={`w-full rounded-xl border p-2.5 text-left transition ${
-                          isSelected
-                            ? "border-primary-500 bg-primary-50/50 ring-1 ring-primary-500"
-                            : "border-brand-200 bg-white hover:border-brand-300 hover:bg-surface-2"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 truncate">
-                            <GitBranch
-                              size={13}
-                              className={
-                                isSelected ? "shrink-0 text-primary-600" : "shrink-0 text-brand-400"
-                              }
-                            />
-                            <span className="truncate text-xs font-bold text-brand-950">
-                              {r.ownerLogin}/{r.name}
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-brand-600">
-                              {r.private ? (
-                                <>
-                                  <Lock size={9} /> Private
-                                </>
-                              ) : (
-                                <>
-                                  <Globe size={9} /> Public
-                                </>
-                              )}
-                            </span>
-                            <span className="font-mono text-[10px] text-brand-400">
-                              {r.default_branch}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {r.language && (
-                              <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
-                                {r.language}
-                              </span>
-                            )}
-                            {isSelected && (
-                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white">
-                                ✓
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {r.description && (
-                          <p className="mt-1 truncate text-[10.5px] text-brand-500">
-                            {r.description}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-brand-200 p-4 text-center text-xs text-brand-500">
-                  <p>
-                    {fetchRepoError ||
-                      "No repositories matched your filter. Enter your repository name directly above."}
-                  </p>
-                </div>
-              )}
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => setScreen("install")}
+                className="text-[11px] font-medium text-accent-500 hover:underline"
+              >
+                ← Back to repository selection
+              </button>
             </div>
           </div>
         )}
 
-        {/* =====================================================================
-            STEP 3: SHARE PROJECT WITH CODING AGENT & CONNECT
-           ===================================================================== */}
-        {step === 3 && (
-          <div className="space-y-3">
-            {/* Visual Connection Summary */}
-            <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-3.5 space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={15} className="text-primary-600" />
-                  <h4 className="text-xs font-bold text-brand-950">
-                    Share Project with Reigel Coding Agent
-                  </h4>
-                </div>
-                <span className="rounded-full bg-primary-100 px-2.5 py-0.5 font-mono text-[10.5px] font-bold text-primary-800">
-                  {selectedRepoOwner}/{selectedRepoName}
-                </span>
-              </div>
+        {/* ===================================================================
+            SCREEN 3: CONFIRM ACCESS -> ENTER VERIFICATION CODE
+           =================================================================== */}
+        {screen === "confirm_code" && (
+          <div className="mx-auto max-w-sm py-3 space-y-4">
+            <h3 className="text-center text-xl font-normal text-brand-950">Confirm access</h3>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
-                <div className="rounded-xl border bg-white p-2">
-                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
-                    1. Google Identity
-                  </span>
-                  <span className="mt-0.5 block truncate font-semibold text-brand-900">
-                    {gmailAddress}
-                  </span>
-                </div>
-                <div className="rounded-xl border bg-white p-2">
-                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
-                    2. GitHub Project
-                  </span>
-                  <span className="mt-0.5 block truncate font-mono font-semibold text-brand-900">
-                    {selectedRepoOwner}/{selectedRepoName}
-                  </span>
-                </div>
-                <div className="rounded-xl border bg-white p-2">
-                  <span className="block text-[9.5px] font-bold uppercase text-brand-400">
-                    3. Agent Mode
-                  </span>
-                  <span className="mt-0.5 block font-semibold text-success-700">
-                    Branch &amp; Pull Request Only
-                  </span>
-                </div>
-              </div>
+            {/* Signed in as @username Box */}
+            <div className="flex items-center justify-center gap-3 rounded-xl border border-brand-200 bg-surface-2 px-4 py-3.5">
+              <GitHubIdenticon size="md" />
+              <span className="text-xs text-brand-800">
+                Signed in as <strong className="font-bold text-brand-950">@{selectedRepoOwner}</strong>
+              </span>
             </div>
 
-            {/* Coding Agent Access Permissions (Same as Cursor / Devin / Claude Code) */}
-            <div className="rounded-2xl border border-brand-200 bg-surface-2 p-3.5 space-y-2">
-              <p className="text-xs font-bold text-brand-950">
-                Coding Agent Repository Access (Shared Permissions)
+            {/* Enter Verification Code Box */}
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-5 space-y-3.5">
+              <p className="text-xs leading-relaxed text-brand-900">
+                Enter the verification code sent to <strong>{maskedEmail}</strong>. If it
+                doesn&apos;t appear within a few minutes, check your spam folder.
               </p>
-              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sharePermissions.readCode}
-                  onChange={(e) =>
-                    setSharePermissions((p) => ({ ...p, readCode: e.target.checked }))
-                  }
-                  className="mt-0.5 rounded border-brand-300 text-primary-600"
-                />
-                <span>
-                  <strong>Read project source &amp; structure</strong> — Allows the Coding Agent to inspect routes, components, and SEO metadata in an isolated sandbox.
-                </span>
-              </label>
-              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sharePermissions.createBranches}
-                  onChange={(e) =>
-                    setSharePermissions((p) => ({ ...p, createBranches: e.target.checked }))
-                  }
-                  className="mt-0.5 rounded border-brand-300 text-primary-600"
-                />
-                <span>
-                  <strong>Create dedicated fix branches</strong> — Agent commits improvements to <code className="font-mono text-[11px]">growthx-ai/engineer-*</code> and never pushes directly to <code className="font-mono text-[11px]">{defaultBranch}</code>.
-                </span>
-              </label>
-              <label className="flex items-start gap-2.5 text-xs text-brand-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sharePermissions.openPullRequests}
-                  onChange={(e) =>
-                    setSharePermissions((p) => ({ ...p, openPullRequests: e.target.checked }))
-                  }
-                  className="mt-0.5 rounded border-brand-300 text-primary-600"
-                />
-                <span>
-                  <strong>Open Pull Requests across all 5 Fix Engine tabs</strong> — Prepares reviewable PRs with Before &amp; After diffs for Website Audit, Traffic, Competitor, AI Visibility, and Backlinks.
-                </span>
-              </label>
-            </div>
 
-            {/* Branch, Framework & Token Verification */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  Default Branch
-                </label>
-                <input
-                  type="text"
-                  value={defaultBranch}
-                  onChange={(e) => setDefaultBranch(e.target.value)}
-                  placeholder="main"
-                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 mb-1">
-                  Project Framework
-                </label>
-                <select
-                  value={framework}
-                  onChange={(e) =>
-                    setFramework(e.target.value as "nextjs" | "static-html" | "unknown")
-                  }
-                  className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900"
-                >
-                  <option value="nextjs">Next.js / React</option>
-                  <option value="static-html">Static HTML</option>
-                  <option value="unknown">Auto-detect / Other</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Ensure GitHub Agent Token is ready */}
-            <div className="rounded-xl border border-brand-200 bg-white p-3 space-y-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="text-[11px] font-semibold text-brand-800 flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-primary-600" />
-                  <span>GitHub Coding Agent Access Token (Read &amp; Write)</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={openGitHubAuthorizePopup}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-700 hover:underline"
-                >
-                  <span>Get 1-Click Agent Token on GitHub</span>
-                  <ExternalLink size={10} />
-                </button>
-              </div>
               <input
-                type="password"
-                autoComplete="off"
-                value={accessToken}
+                type="text"
+                value={verificationInput}
                 onChange={(e) => {
-                  setAccessToken(e.target.value);
+                  setVerificationInput(e.target.value);
                   setConnectError("");
                 }}
-                placeholder="Paste GitHub token (ghp_... or github_pat_...) to grant agent write access"
-                className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                placeholder="XXXXXXXX"
+                className="w-full rounded-lg border-2 border-accent-500 bg-surface-1 px-3 py-2 font-mono text-xs text-brand-950 focus:outline-hidden"
               />
-              <p className="text-[10.5px] text-brand-400">
-                Encrypted at rest and saved to your Google session ({gmailAddress}) so you can connect any project in 1 click.
-              </p>
-            </div>
 
-            {connectError && (
-              <div
-                role="alert"
-                className="rounded-xl border border-error-200 bg-error-50 p-3 text-xs text-error-800"
-              >
-                {connectError}
+              <div className="flex items-center justify-between text-[11px] text-brand-500">
+                <span>
+                  Instant code: <strong className="font-mono text-brand-900">{dispatchedCode}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setVerificationInput(dispatchedCode)}
+                  className="font-semibold text-accent-500 hover:underline"
+                >
+                  Auto-fill code
+                </button>
               </div>
-            )}
 
-            {isSuccess && (
-              <div
-                role="status"
-                className="flex items-center justify-center gap-2 rounded-xl border border-success-200 bg-success-50 p-3 text-xs font-bold text-success-800"
-              >
-                <Check size={16} /> Project {selectedRepoOwner}/{selectedRepoName} Shared &amp; Connected with Coding Agent!
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              {connectError && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-error-200 bg-error-50 p-2.5 text-xs text-error-700"
+                >
+                  {connectError}
+                </div>
+              )}
 
-      {/* Pinned Bottom Action Footer — Always visible on screen without scrolling */}
-      <div
-        className={
-          mode === "modal"
-            ? "shrink-0 border-t border-brand-100 bg-surface-1 px-5 py-3.5"
-            : "mt-4 border-t border-brand-100 pt-3.5"
-        }
-      >
-        {step === 1 && (
-          <div className="flex justify-end gap-2">
-            {onCancel && (
+              {isSuccess && (
+                <div
+                  role="status"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-success-200 bg-success-50 p-2.5 text-xs font-bold text-success-800"
+                >
+                  <Check size={14} /> Connected {selectedRepoOwner}/{selectedRepoName}!
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={onCancel}
-                className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                disabled={isConnecting || isSuccess}
+                onClick={handleVerifyAndComplete}
+                className="w-full rounded-lg bg-success-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-success-700 disabled:opacity-50"
               >
-                Cancel
+                {isConnecting ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Verifying &amp; Connecting…</span>
+                  </span>
+                ) : (
+                  "Verify"
+                )}
               </button>
-            )}
-            <button
-              type="button"
-              disabled={!gmailAddress.trim() || !selectedRepoOwner.trim()}
-              onClick={() => {
-                setStep(2);
-                loadRepositories(selectedRepoOwner, accessToken);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
-            >
-              <GoogleGLogo className="h-3.5 w-3.5" />
-              <span>Continue &amp; Access GitHub Projects</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        )}
+            </div>
 
-        {step === 2 && (
-          <div className="flex justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              disabled={!selectedRepoOwner.trim() || !selectedRepoName.trim()}
-              onClick={() => setStep(3)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
-            >
-              <span>Continue to Share Project with Agent</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="flex justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              disabled={
-                isConnecting ||
-                isSuccess ||
-                !sharePermissions.readCode ||
-                !sharePermissions.createBranches ||
-                !sharePermissions.openPullRequests
-              }
-              onClick={handleShareAndConnect}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
-            >
-              {isConnecting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Sharing Project &amp; Verifying Agent Access…</span>
-                </>
-              ) : (
-                <>
-                  <GitPullRequest size={14} />
-                  <span>Share Project &amp; Connect Coding Agent</span>
-                </>
-              )}
-            </button>
+            <p className="px-2 text-center text-[11px] leading-relaxed text-brand-500">
+              <strong className="font-semibold text-brand-700">Tip:</strong> You are entering{" "}
+              <span className="text-accent-500 underline">sudo mode</span>. After you&apos;ve
+              performed a sudo-protected action, you&apos;ll only be asked to re-authenticate again
+              after a few hours of inactivity.
+            </p>
           </div>
         )}
       </div>

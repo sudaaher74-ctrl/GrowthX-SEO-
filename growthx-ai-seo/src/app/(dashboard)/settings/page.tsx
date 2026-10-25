@@ -694,9 +694,9 @@ function IntegrationsView() {
       {/* 2. Code Repository & Remediation */}
       <div>
         <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Code Repository & Auto-Remediation</h2>
+          <h2 className="text-base font-bold text-brand-950">Code Repository</h2>
           <p className="text-xs text-brand-500">
-            Connect through Google login, link your GitHub account, select your project, and share repository access with the Reigel Coding Agent
+            Connect a GitHub repo so the SEO agent can open pull requests against it
           </p>
         </div>
 
@@ -708,7 +708,7 @@ function IntegrationsView() {
                 <GitHubLogo />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-brand-950">GitHub Repository</h3>
+                    <h3 className="truncate text-sm font-bold text-brand-950">GitHub</h3>
                     {isGitHubConnected && (
                       <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
                         Connected
@@ -716,36 +716,22 @@ function IntegrationsView() {
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-brand-500">
-                    Allows the Fix Engine to prepare reviewable pull requests for schema, metadata, and technical fixes.
+                    Let the SEO agent open pull requests against your repository.
                   </p>
                 </div>
               </div>
-
-              {isGitHubConnected && (
-                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
-                  <p>
-                    <span className="font-semibold text-brand-700">Repository:</span> {repo.data?.owner}/{repo.data?.name}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Branch:</span> {repo.data?.defaultBranch || "main"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Framework:</span> {repo.data?.framework || "Detected"}
-                  </p>
-                </div>
-              )}
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+            <div className="mt-6 flex items-center justify-between pt-2">
               {isGitHubConnected ? (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
-                  <span className="truncate">{repo.data?.owner}/{repo.data?.name}</span>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-success-600 truncate max-w-[200px]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-success-500" />
+                  <span className="truncate font-mono">{repo.data?.owner}/{repo.data?.name}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-brand-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>Not configured</span>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-warning-500">
+                  <span className="h-2 w-2 rounded-full bg-warning-500" />
+                  <span>Disconnected</span>
                 </div>
               )}
 
@@ -755,7 +741,7 @@ function IntegrationsView() {
                     <button
                       type="button"
                       onClick={openGitHubModal}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       Change
                     </button>
@@ -763,7 +749,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={connectRepo.isPending}
                       onClick={handleDisconnectGitHub}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {connectRepo.isPending ? "Disconnecting…" : "Disconnect"}
                     </button>
@@ -772,9 +758,9 @@ function IntegrationsView() {
                   <button
                     type="button"
                     onClick={openGitHubModal}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-brand-800 disabled:opacity-50"
                   >
-                    <span>Connect Repository</span>
+                    <span>Connect</span>
                   </button>
                 )}
               </div>
