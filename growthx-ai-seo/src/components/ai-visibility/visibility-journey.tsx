@@ -268,6 +268,22 @@ function GoogleAiIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
+function ClaudeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Claude" role="img">
+      <path d="M12 2l1.6 5.8L19.4 9.4l-5.8 1.6L12 16.8l-1.6-5.8L4.6 9.4l5.8-1.6L12 2zm6 12l.9 3.3L22.2 18.2l-3.3.9L18 22.4l-.9-3.3-3.3-.9 3.3-.9L18 14zm-12 0l.9 3.3L10.2 18.2l-3.3.9L6 22.4l-.9-3.3-3.3-.9 3.3-.9L6 14z" />
+    </svg>
+  );
+}
+
+function PerplexityIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Perplexity" role="img">
+      <path d="M12 2a1 1 0 0 1 1 1v4.06a7.02 7.02 0 0 1 2.93 1.21l2.87-2.87a1 1 0 1 1 1.41 1.41l-2.87 2.87A7.02 7.02 0 0 1 18.55 12.6H22a1 1 0 1 1 0 2h-3.45a7.02 7.02 0 0 1-1.21 2.93l2.87 2.87a1 1 0 0 1-1.41 1.41l-2.87-2.87A7.02 7.02 0 0 1 13 20.06V23a1 1 0 1 1-2 0v-2.94a7.02 7.02 0 0 1-2.93-1.21l-2.87 2.87a1 1 0 0 1-1.41-1.41l2.87-2.87A7.02 7.02 0 0 1 5.45 14.6H2a1 1 0 1 1 0-2h3.45a7.02 7.02 0 0 1 1.21-2.93L3.79 6.8a1 1 0 0 1 1.41-1.41l2.87 2.87A7.02 7.02 0 0 1 11 7.06V3a1 1 0 0 1 1-1zm0 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+    </svg>
+  );
+}
+
 type PromptCategory = "best-of" | "jobs-to-be-done" | "competitor" | "branded";
 
 function categorizePrompt(q: BuyerQuestion, businessName: string): PromptCategory {
@@ -333,27 +349,69 @@ function matchPrompt(textA: string, textB: string): boolean {
   return a === b || a.includes(b) || b.includes(a);
 }
 
+export type SupportedEngine = "ChatGPT" | "Google AI" | "Claude" | "Perplexity";
+
 interface EngineCitation {
-  engine: "ChatGPT" | "Google AI";
+  engine: SupportedEngine;
   status: "recommended" | "competitor" | "not_cited" | "pending";
   label: string;
   competitor?: string | null;
   quote?: string | null;
 }
 
+const ENGINES: {
+  key: "chatGpt" | "googleAi" | "claude" | "perplexity";
+  name: SupportedEngine;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { key: "chatGpt", name: "ChatGPT", icon: ChatGptIcon },
+  { key: "googleAi", name: "Google AI", icon: GoogleAiIcon },
+  { key: "claude", name: "Claude", icon: ClaudeIcon },
+  { key: "perplexity", name: "Perplexity", icon: PerplexityIcon },
+];
+
 function getEngineCitation(
   promptText: string,
-  engine: "ChatGPT" | "Google AI",
+  engine: SupportedEngine,
   answers: VisibilityAnswer[],
   businessName: string,
 ): EngineCitation {
-  const matchingAnswer = answers.find(
-    (a) =>
-      matchPrompt(promptText, a.promptText) &&
-      (engine === "ChatGPT"
-        ? a.provider.toUpperCase().includes("OPENAI") || a.provider.toUpperCase().includes("CHATGPT")
-        : a.provider.toUpperCase().includes("GEMINI") || a.provider.toUpperCase().includes("GOOGLE")),
-  );
+  const matchingAnswer = answers.find((a) => {
+    if (!matchPrompt(promptText, a.promptText)) return false;
+    const p = (a.provider || "").toUpperCase();
+    const m = (a.model || "").toUpperCase();
+
+    switch (engine) {
+      case "ChatGPT":
+        return (
+          p.includes("OPENAI") ||
+          p.includes("CHATGPT") ||
+          p.includes("GPT") ||
+          m.includes("GPT") ||
+          m.includes("OPENAI")
+        );
+      case "Google AI":
+        return (
+          p.includes("GEMINI") ||
+          p.includes("GOOGLE") ||
+          m.includes("GEMINI") ||
+          m.includes("GOOGLE")
+        );
+      case "Claude":
+        return (
+          p.includes("ANTHROPIC") ||
+          p.includes("CLAUDE") ||
+          m.includes("CLAUDE") ||
+          m.includes("ANTHROPIC")
+        );
+      case "Perplexity":
+        return (
+          p.includes("PERPLEXITY") ||
+          m.includes("PERPLEXITY") ||
+          m.includes("SONAR")
+        );
+    }
+  });
 
   if (!matchingAnswer) {
     return {
@@ -475,26 +533,26 @@ export function PromptsSection({
   });
 
   // 2. Filtered prompts
-  const displayedPrompts = draft.questions
-    .map((q, originalIndex) => ({
-      q,
-      originalIndex,
-      category: categorizePrompt(q, draft.businessName),
+  const buildPromptItem = (q: BuyerQuestion, originalIndex: number) => ({
+    q,
+    originalIndex,
+    category: categorizePrompt(q, draft.businessName),
+    citations: {
       chatGpt: getEngineCitation(q.text, "ChatGPT", answers, draft.businessName),
       googleAi: getEngineCitation(q.text, "Google AI", answers, draft.businessName),
-    }))
+      claude: getEngineCitation(q.text, "Claude", answers, draft.businessName),
+      perplexity: getEngineCitation(q.text, "Perplexity", answers, draft.businessName),
+    },
+  });
+
+  const displayedPrompts = draft.questions
+    .map(buildPromptItem)
     .filter(
       (item) => filterCategory === "ALL" || item.category === filterCategory,
     );
 
   const promptsToDisplay = isEditing
-    ? draft.questions.map((q, originalIndex) => ({
-        q,
-        originalIndex,
-        category: categorizePrompt(q, draft.businessName),
-        chatGpt: getEngineCitation(q.text, "ChatGPT", answers, draft.businessName),
-        googleAi: getEngineCitation(q.text, "Google AI", answers, draft.businessName),
-      }))
+    ? draft.questions.map(buildPromptItem)
     : displayedPrompts;
 
   // 3. Build Gap Tasks (Screenshots 3, 4, 5)
@@ -781,23 +839,24 @@ export function PromptsSection({
 
         {/* Table container with horizontal scroll for smaller screens */}
         <div className="overflow-x-auto">
-          <div className="min-w-[700px]">
+          <div className="min-w-[820px]">
             {/* Table column headers */}
             <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
               <div className="flex-1">Prompt</div>
-              <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
-                <ChatGptIcon className="h-3.5 w-3.5 text-brand-600" />
-                <span className="normal-case font-medium text-brand-700">ChatGPT</span>
-              </div>
-              <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
-                <GoogleAiIcon className="h-3.5 w-3.5" />
-                <span className="normal-case font-medium text-brand-700">Google AI</span>
-              </div>
+              {ENGINES.map((engine) => {
+                const Icon = engine.icon;
+                return (
+                  <div key={engine.name} className="flex w-20 items-center justify-center gap-1.5 sm:w-28">
+                    <Icon className="h-3.5 w-3.5 text-brand-600" />
+                    <span className="normal-case font-medium text-brand-700">{engine.name}</span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Prompts list */}
             <div className="divide-y divide-line">
-              {promptsToDisplay.map(({ q, originalIndex, category, chatGpt, googleAi }) => {
+              {promptsToDisplay.map(({ q, originalIndex, category, citations }) => {
                 if (isEditing) {
                   return (
                     <div
@@ -805,7 +864,7 @@ export function PromptsSection({
                       className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2/20"
                     >
                       {/* Left: Input, Category select, Trash */}
-                      <div className="flex flex-1 items-center gap-2.5 min-w-[320px]">
+                      <div className="flex flex-1 items-center gap-2.5 min-w-[280px]">
                         <input
                           type="text"
                           value={q.text}
@@ -875,44 +934,30 @@ export function PromptsSection({
 
                       {/* Right: Engine Indicators */}
                       <div className="flex items-center shrink-0">
-                        <div className="flex w-36 items-center justify-center sm:w-44">
-                          {chatGpt.status === "recommended" ? (
-                            <span
-                              className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
-                              title="ChatGPT recommended your business"
-                            >
-                              <Check size={13} />
-                            </span>
-                          ) : chatGpt.status === "competitor" ? (
-                            <span
-                              className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
-                              title={chatGpt.label}
-                            >
-                              {chatGpt.competitor?.slice(0, 1).toUpperCase() || "!"}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-sm text-brand-400">—</span>
-                          )}
-                        </div>
-                        <div className="flex w-36 items-center justify-center sm:w-44">
-                          {googleAi.status === "recommended" ? (
-                            <span
-                              className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
-                              title="Google AI recommended your business"
-                            >
-                              <Check size={13} />
-                            </span>
-                          ) : googleAi.status === "competitor" ? (
-                            <span
-                              className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
-                              title={googleAi.label}
-                            >
-                              {googleAi.competitor?.slice(0, 1).toUpperCase() || "!"}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-sm text-brand-400">—</span>
-                          )}
-                        </div>
+                        {ENGINES.map((engine) => {
+                          const c = citations[engine.key];
+                          return (
+                            <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
+                              {c.status === "recommended" ? (
+                                <span
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
+                                  title={`${engine.name} recommended your business`}
+                                >
+                                  <Check size={13} />
+                                </span>
+                              ) : c.status === "competitor" ? (
+                                <span
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
+                                  title={c.label}
+                                >
+                                  {c.competitor?.slice(0, 1).toUpperCase() || "!"}
+                                </span>
+                              ) : (
+                                <span className="font-mono text-sm text-brand-400">—</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -972,103 +1017,74 @@ export function PromptsSection({
 
                       {/* Engine Indicators */}
                       <div className="flex items-center shrink-0">
-                        <div className="flex w-36 items-center justify-center sm:w-44">
-                          {chatGpt.status === "recommended" ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="ChatGPT recommended your business">
-                              <Check size={13} />
-                            </span>
-                          ) : chatGpt.status === "competitor" ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={chatGpt.label}>
-                              {chatGpt.competitor?.slice(0, 1).toUpperCase() || "!"}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-sm text-brand-400">—</span>
-                          )}
-                        </div>
-                        <div className="flex w-36 items-center justify-center sm:w-44">
-                          {googleAi.status === "recommended" ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="Google AI recommended your business">
-                              <Check size={13} />
-                            </span>
-                          ) : googleAi.status === "competitor" ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={googleAi.label}>
-                              {googleAi.competitor?.slice(0, 1).toUpperCase() || "!"}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-sm text-brand-400">—</span>
-                          )}
-                        </div>
+                        {ENGINES.map((engine) => {
+                          const c = citations[engine.key];
+                          return (
+                            <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
+                              {c.status === "recommended" ? (
+                                <span
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
+                                  title={`${engine.name} recommended your business`}
+                                >
+                                  <Check size={13} />
+                                </span>
+                              ) : c.status === "competitor" ? (
+                                <span
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
+                                  title={c.label}
+                                >
+                                  {c.competitor?.slice(0, 1).toUpperCase() || "!"}
+                                </span>
+                              ) : (
+                                <span className="font-mono text-sm text-brand-400">—</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
                     {/* Expanded Details */}
                     {isExpanded && (
                       <div className="border-t border-line bg-surface-2/40 p-4 space-y-4">
-                        {/* Side-by-side comparison cards (Okara Screenshot 1) */}
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          {/* ChatGPT Card */}
-                          <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <ChatGptIcon className="h-4 w-4 text-brand-700" />
-                                <span className="text-xs font-bold text-brand-950">ChatGPT</span>
+                        {/* Side-by-side comparison cards for all 4 models */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          {ENGINES.map((engine) => {
+                            const c = citations[engine.key];
+                            const Icon = engine.icon;
+                            return (
+                              <div key={engine.name} className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Icon className="h-4 w-4 text-brand-700" />
+                                    <span className="text-xs font-bold text-brand-950">{engine.name}</span>
+                                  </div>
+                                  <span
+                                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${
+                                      c.status === "recommended"
+                                        ? "border-success-200 bg-success-50 text-success-700"
+                                        : c.status === "competitor"
+                                          ? "border-error-200 bg-error-50 text-error-700"
+                                          : "border-line bg-surface-2 text-brand-600"
+                                    }`}
+                                  >
+                                    {c.label}
+                                  </span>
+                                </div>
+                                {c.quote ? (
+                                  <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
+                                    &ldquo;{c.quote}&rdquo;
+                                  </blockquote>
+                                ) : (
+                                  <p className="text-xs text-brand-500">
+                                    {c.status === "pending"
+                                      ? `Prompt will be sent to ${engine.name} during the check.`
+                                      : "No quote saved for this answer."}
+                                  </p>
+                                )}
                               </div>
-                              <span
-                                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                                  chatGpt.status === "recommended"
-                                    ? "border-success-200 bg-success-50 text-success-700"
-                                    : chatGpt.status === "competitor"
-                                      ? "border-error-200 bg-error-50 text-error-700"
-                                      : "border-line bg-surface-2 text-brand-600"
-                                }`}
-                              >
-                                {chatGpt.label}
-                              </span>
-                            </div>
-                            {chatGpt.quote ? (
-                              <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
-                                &ldquo;{chatGpt.quote}&rdquo;
-                              </blockquote>
-                            ) : (
-                              <p className="text-xs text-brand-500">
-                                {chatGpt.status === "pending"
-                                  ? "Prompt will be sent to ChatGPT during the check."
-                                  : "No quote saved for this answer."}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Google AI Card */}
-                          <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <GoogleAiIcon className="h-4 w-4" />
-                                <span className="text-xs font-bold text-brand-950">Google AI</span>
-                              </div>
-                              <span
-                                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                                  googleAi.status === "recommended"
-                                    ? "border-success-200 bg-success-50 text-success-700"
-                                    : googleAi.status === "competitor"
-                                      ? "border-error-200 bg-error-50 text-error-700"
-                                      : "border-line bg-surface-2 text-brand-600"
-                                }`}
-                              >
-                                {googleAi.label}
-                              </span>
-                            </div>
-                            {googleAi.quote ? (
-                              <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
-                                &ldquo;{googleAi.quote}&rdquo;
-                              </blockquote>
-                            ) : (
-                              <p className="text-xs text-brand-500">
-                                {googleAi.status === "pending"
-                                  ? "Prompt will be sent to Google AI during the check."
-                                  : "No quote saved for this answer."}
-                              </p>
-                            )}
-                          </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
