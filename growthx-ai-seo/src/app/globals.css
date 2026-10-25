@@ -591,13 +591,13 @@ body {
   --color-primary-600: var(--color-signal-400);
   --color-primary-700: var(--color-signal-400);
 
-  --color-surface-1: #12151a;
-  --color-surface-2: #171b22;
-  --color-surface-3: #1c2027;
-  --color-line: #1f242c;
-  --color-line-strong: #2c323c;
-  --color-canvas: #0a0c0f;
-  --border-color: #1f242c;
+  --color-surface-1: #0f1115;
+  --color-surface-2: #14171d;
+  --color-surface-3: #1a1d24;
+  --color-line: #1e222a;
+  --color-line-strong: #282d38;
+  --color-canvas: #090a0d;
+  --border-color: #1e222a;
 
   --color-success-50: #10261c;
   --color-success-700: #34d399;
@@ -627,6 +627,62 @@ body {
   color: var(--color-signal-ink);
 }
 .dash-dark [data-nav-active="true"] * { color: inherit; }
+
+/* Matte Black Night Theme for tables, panels, cards and dropdowns */
+.dash-dark .dark\:bg-slate-900,
+.dash-dark .dark\:bg-slate-900\/60,
+.dash-dark .dark\:bg-slate-900\/50,
+.dash-dark .bg-slate-900,
+.dark .dash-dark .dark\:bg-slate-900,
+.dash-dark.dark .dark\:bg-slate-900 {
+  background-color: #0f1115 !important;
+}
+
+.dash-dark .dark\:bg-slate-800,
+.dash-dark .dark\:bg-slate-800\/60,
+.dash-dark .dark\:bg-slate-800\/50,
+.dash-dark .dark\:bg-slate-800\/40,
+.dash-dark .bg-slate-800,
+.dark .dash-dark .dark\:bg-slate-800,
+.dash-dark.dark .dark\:bg-slate-800 {
+  background-color: #15171d !important;
+}
+
+.dash-dark .dark\:hover\:bg-slate-800\/40:hover,
+.dash-dark .hover\:bg-slate-800\/40:hover,
+.dash-dark .dark\:hover\:bg-slate-700:hover,
+.dash-dark tbody tr:hover {
+  background-color: #181b22 !important;
+}
+
+.dash-dark .dark\:border-slate-800,
+.dash-dark .dark\:border-slate-700,
+.dash-dark .border-slate-800,
+.dash-dark .border-slate-700,
+.dark .dash-dark .dark\:border-slate-800,
+.dash-dark.dark .dark\:border-slate-800,
+.dark .dash-dark .dark\:border-slate-700,
+.dash-dark.dark .dark\:border-slate-700 {
+  border-color: #20242d !important;
+}
+
+.dash-dark .dark\:bg-blue-950\/20 {
+  background-color: rgba(212, 255, 63, 0.08) !important;
+}
+
+.dash-dark select option {
+  background-color: #15171d !important;
+  color: #f2f4f8 !important;
+}
+
+/* Ensure no white background buttons with unreadable light text exist in dark mode */
+.dash-dark button.bg-white,
+.dash-dark .dark\:bg-white,
+.dash-dark .dark\:bg-slate-100 {
+  background-color: #181a20 !important;
+  color: #f2f4f8 !important;
+  border-color: #282d38 !important;
+}
 
 .dash-light {
   --color-canvas: #f6f8fb;

@@ -522,7 +522,7 @@ function WebsiteAuditClient() {
               <button
                 type="button"
                 onClick={() => setShowLogsModal(false)}
-                className="rounded-lg bg-primary-600 dark:bg-white text-white dark:text-slate-900 px-4 py-1.5 text-xs font-semibold"
+                className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700"
               >
                 Close Logs
               </button>
