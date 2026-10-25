@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Bot,
   Building2,
   Check,
   ChevronDown,
@@ -14,12 +13,9 @@ import {
   Database,
   Globe,
   LayoutGrid,
-  Pencil,
-  Plus,
   RefreshCw,
   Sparkles,
   Target,
-  Trash2,
 } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { visibilityJourneyApi } from "@/lib/api-client";
@@ -434,41 +430,7 @@ export function PromptsSection({
   const inputClass =
     "w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm text-brand-950 focus:border-primary-500 focus:outline-none";
 
-  const changeQuestion = (
-    index: number,
-    field: "text" | "offering" | "location" | "intent",
-    value: string,
-  ) =>
-    setDraft((d) => ({
-      ...d,
-      questions: d.questions.map((q, i) =>
-        i === index ? { ...q, [field]: value } : q,
-      ),
-    }));
 
-  const addPrompt = () => {
-    const newPrompt: BuyerQuestion = {
-      text: "",
-      offering: draft.offerings[0] || "General",
-      location: draft.locations[0] || "",
-      intent: "recommendation",
-      rationale: "Custom buyer prompt for AI visibility tracking.",
-      evidenceIds: [],
-    };
-    setDraft((d) => ({
-      ...d,
-      questions: [newPrompt, ...d.questions],
-    }));
-    setExpandedPrompt(0);
-  };
-
-  const removePrompt = (index: number) => {
-    setDraft((d) => ({
-      ...d,
-      questions: d.questions.filter((_, i) => i !== index),
-    }));
-    if (expandedPrompt === index) setExpandedPrompt(null);
-  };
 
   // 1. Calculate stats for the 4 Okara category cards
   const categories: { key: PromptCategory; label: string; cardTone: "error" | "warning" | "success" }[] = [
@@ -765,15 +727,6 @@ export function PromptsSection({
                 Confirm & check {draft.questions.length} prompts
               </ActionButton>
             )}
-            {!locked && (
-              <ActionButton
-                variant="secondary"
-                onClick={addPrompt}
-                icon={<Plus size={14} />}
-              >
-                Add prompt
-              </ActionButton>
-            )}
             {hasScan && onViewResults && (
               <ActionButton
                 variant="secondary"
@@ -952,96 +905,6 @@ export function PromptsSection({
                           </p>
                         )}
                       </div>
-                    </div>
-
-                    {/* Inline Editor for prompt */}
-                    <div className="rounded-lg border border-line bg-surface-1 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-950">
-                          <Pencil size={13} />
-                          Edit prompt wording
-                        </span>
-                        {!locked && draft.questions.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removePrompt(originalIndex)}
-                            className="flex items-center gap-1 text-xs text-error-700 hover:underline"
-                          >
-                            <Trash2 size={13} />
-                            Remove prompt
-                          </button>
-                        )}
-                      </div>
-
-                      <textarea
-                        aria-label={`Prompt wording ${originalIndex + 1}`}
-                        className={inputClass}
-                        rows={2}
-                        disabled={locked}
-                        value={q.text}
-                        onChange={(e) => changeQuestion(originalIndex, "text", e.target.value)}
-                        placeholder="Enter the buyer prompt wording…"
-                      />
-
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <label className="space-y-1 text-xs text-brand-600">
-                          <span>Offering</span>
-                          <select
-                            aria-label="Select offering"
-                            className={inputClass}
-                            disabled={locked}
-                            value={q.offering}
-                            onChange={(e) => changeQuestion(originalIndex, "offering", e.target.value)}
-                          >
-                            {draft.offerings.map((o) => (
-                              <option key={o} value={o}>
-                                {o}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-1 text-xs text-brand-600">
-                          <span>Service area</span>
-                          <select
-                            aria-label="Select service area"
-                            className={inputClass}
-                            disabled={locked}
-                            value={q.location}
-                            onChange={(e) => changeQuestion(originalIndex, "location", e.target.value)}
-                          >
-                            <option value="">No local area</option>
-                            {draft.locations.map((l) => (
-                              <option key={l} value={l}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-1 text-xs text-brand-600">
-                          <span>Category</span>
-                          <select
-                            aria-label="Select intent category"
-                            className={inputClass}
-                            disabled={locked}
-                            value={q.intent}
-                            onChange={(e) => changeQuestion(originalIndex, "intent", e.target.value)}
-                          >
-                            <option value="recommendation">Best-of</option>
-                            <option value="action">Jobs to be done</option>
-                            <option value="comparison">Competitor</option>
-                            <option value="brand">Branded</option>
-                          </select>
-                        </label>
-                      </div>
-
-                      {q.rationale && (
-                        <p className="border-t border-line pt-2 text-[11px] text-brand-500">
-                          <strong className="text-brand-700">Why this prompt: </strong>
-                          {q.rationale}
-                        </p>
-                      )}
                     </div>
                   </div>
                 )}
