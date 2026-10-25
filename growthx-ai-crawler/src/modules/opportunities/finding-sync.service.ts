@@ -4,6 +4,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
+import { BacklinksAdapter } from '../backlinks/backlinks.adapter';
+import { TrafficAdapter } from './traffic.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
 
 export interface SyncResult {
@@ -22,11 +24,15 @@ export class FindingSyncService {
     private readonly websiteAuditAdapter: WebsiteAuditAdapter,
     private readonly competitorAdapter: CompetitorAdapter,
     private readonly aiVisibilityAdapter: AiVisibilityAdapter,
+    private readonly backlinksAdapter: BacklinksAdapter,
+    private readonly trafficAdapter: TrafficAdapter,
   ) {
     this.adapters = [
       this.websiteAuditAdapter,
       this.competitorAdapter,
       this.aiVisibilityAdapter,
+      this.backlinksAdapter,
+      this.trafficAdapter,
     ];
   }
 
@@ -51,6 +57,9 @@ export class FindingSyncService {
       const res = results[i];
       if (res.status === 'fulfilled') {
         successfulSources.add(this.adapters[i].source);
+        for (const f of res.value) {
+          if (f.source) successfulSources.add(f.source);
+        }
         collectedFindings.push(...res.value);
       } else {
         this.logger.error(

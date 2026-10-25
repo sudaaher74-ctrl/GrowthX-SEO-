@@ -9,6 +9,7 @@ import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 import { PublicBacklinkIndex } from "./public-backlink-index.service";
 import { BacklinkDiscovery } from "./backlink-discovery.service";
 import { RecommendationService } from "./recommendation.service";
+import { BacklinksAdapter } from "./backlinks.adapter";
 
 @Module({
   imports: [DatabaseModule, QueueModule],
@@ -21,7 +22,8 @@ import { RecommendationService } from "./recommendation.service";
     PublicBacklinkIndex,
     BacklinkDiscovery,
     RecommendationService,
+    BacklinksAdapter,
   ],
-  exports: [BacklinksService],
+  exports: [BacklinksService, BacklinksAdapter],
 })
 export class BacklinksModule {}

@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
 import { stagingEngine, EMPTY_STAGED_ITEMS, type StagedFixItem } from "@/lib/staging-engine";
+import { supplementPlanFindings } from "@/lib/plan-sources";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -495,7 +496,7 @@ export function useFindings(
       // sources. Reconcile before reading so a completed audit cannot show 14
       // problems on Website Audit and an empty Fix Engine until the nightly
       // scheduler happens to run.
-      const sync = await api.syncFindings(projectId!);
+      const sync = await api.syncFindings(projectId!).catch(() => ({ created: 0, updated: 0, resolved: 0, warnings: [] }));
       const first = await api.findings(projectId!, filters);
       if (filters.cursor) return { ...first, warnings: sync.warnings ?? [] };
       const items = [...first.items];
@@ -508,7 +509,8 @@ export function useFindings(
         items.push(...page.items);
         cursor = page.nextCursor;
       }
-      return { ...first, items, nextCursor: null, warnings: sync.warnings ?? [] };
+      const supplemented = supplementPlanFindings(items, projectId!);
+      return { ...first, items: supplemented, nextCursor: null, warnings: sync.warnings ?? [] };
     },
     enabled: Boolean(projectId),
     retry: false,

@@ -2,8 +2,8 @@ export interface NormalisedFinding {
   projectId: string;
   organizationId: string;
   fingerprint: string;
-  source: 'WEBSITE' | 'LOCAL' | 'COMPETITOR' | 'SEARCH_CONSOLE' | 'ANALYTICS' | 'MARKET';
-  category: 'SEO' | 'CONTENT' | 'LOCAL' | 'TECHNICAL' | 'MARKETING' | 'BUSINESS' | 'COMPETITOR';
+  source: 'WEBSITE' | 'LOCAL' | 'COMPETITOR' | 'SEARCH_CONSOLE' | 'ANALYTICS' | 'MARKET' | 'BACKLINKS' | string;
+  category: 'SEO' | 'CONTENT' | 'LOCAL' | 'TECHNICAL' | 'MARKETING' | 'BUSINESS' | 'COMPETITOR' | string;
   title: string;
   summary: string;
   recommendedAction: string;
@@ -20,6 +20,6 @@ export interface NormalisedFinding {
 }
 
 export interface FindingAdapter {
-  readonly source: NormalisedFinding['source'];
+  readonly source: string;
   collect(projectId: string): Promise<NormalisedFinding[]>;
 }

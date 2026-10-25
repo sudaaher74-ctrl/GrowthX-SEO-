@@ -77,7 +77,10 @@ export function PlanReport() {
       {items.length === 0 && <ReportGap>Nothing to list. Complete the earlier steps and refresh the plan on the Fix Engine page.</ReportGap>}
       {
         GROUPS.map((g) => {
-          const list = ordered.filter((i) => g.sources.includes(i.source));
+          const list = ordered.filter((i) => {
+            const norm = (i.source || '').toUpperCase().trim();
+            return g.sources.some((s) => s.toUpperCase() === norm);
+          });
           return (
             <ReportSection key={g.label} title={`${g.label} (${list.length})`}>
               {list.length === 0 ? <ReportGap>No open findings imported. Review this module for missing audits, connections or saved reports; this does not confirm that no improvements are needed.</ReportGap> : <ul className="space-y-3">{list.map((f) => <Finding key={f.id} f={f} />)}</ul>}

@@ -39,7 +39,8 @@ const LIFECYCLE_LABEL: Record<string, string> = {
 };
 
 function groupOf(source: string) {
-  return GROUPS.find((g) => g.sources.includes(source)) ?? null;
+  const norm = (source || '').toUpperCase().trim();
+  return GROUPS.find((g) => g.sources.some((s) => s.toUpperCase() === norm)) ?? null;
 }
 
 /**
@@ -59,7 +60,7 @@ export function PlanView() {
 
   const refresh = useMutation({
     mutationFn: async () => {
-      // Collect from the audit, competitor, AI Visibility and Business Profile adapters, then run the Google detectors.
+      // Collect from audit, competitor, AI visibility, backlinks, and traffic adapters, then run detectors.
       const results = await Promise.allSettled([api.syncFindings(projectId!), api.detectOpportunities(projectId!)]);
       const failed = results.flatMap((r) => (r.status === "rejected" ? [errorMessage(r.reason)] : []));
       if (failed.length) throw new Error(`Some sources could not refresh: ${failed.join(" ")} Available findings are retained.`);
@@ -74,14 +75,22 @@ export function PlanView() {
 
   const items = findings.data.items;
   const counts = new Map<string, number>();
-  for (const g of GROUPS) counts.set(g.id, items.filter((i) => g.sources.includes(i.source)).length);
+  for (const g of GROUPS) {
+    counts.set(
+      g.id,
+      items.filter((i) => {
+        const norm = (i.source || '').toUpperCase().trim();
+        return g.sources.some((s) => s.toUpperCase() === norm);
+      }).length,
+    );
+  }
   const shown = group === "ALL" ? items : items.filter((i) => groupOf(i.source)?.id === group);
   const active = shown.filter((i) => !["DISMISSED", "RESOLVED"].includes(i.lifecycle ?? "DETECTED"));
 
   return (
     <div className="space-y-4">
-      <Panel title="One plan across your four modules" subtitle="Audit findings, saved report recommendations, weekly actions and saved plans. Refresh after completing a new analysis." padded>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Panel title="One plan across your five modules" subtitle="Audit findings, traffic performance, competitor gaps, backlink actions and AI visibility. Refresh after completing a new analysis." padded>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {GROUPS.map((g) => <div key={g.id} className="space-y-1">
             <p className="text-[13px] font-semibold text-brand-950">{g.label}</p>
             <p className="text-[12px] text-brand-600">{counts.get(g.id) ?? 0} open findings and recommendations</p>
