@@ -419,7 +419,7 @@ export function ActionPlan({ data }: { data: VisibilityJourneyResponse }) {
       emptyBody="The plan combines your service areas, Google performance, website gaps and actual AI answers. Missing data will be stated."
     >
       <div className="space-y-5">
-        {assessments.length > 0 && <Panel padded title="What the saved answers show" subtitle="Uses the same classified answers as See results.">
+        {assessments.length > 0 && <Panel padded title="What the saved answers show" subtitle="Uses the same classified answers as your reviewed buyer prompts.">
           <p className="text-sm font-semibold leading-6 text-brand-950">
             {measured.length ? `${recommended} ${recommended === 1 ? "recommendation" : "recommendations"} across ${measured.length} measured ${measured.length === 1 ? "answer" : "answers"}. Your business was mentioned ${mentioned} ${mentioned === 1 ? "time" : "times"}.` : "No successfully classified answers are available yet."}
           </p>

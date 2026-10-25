@@ -39,12 +39,11 @@ import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibili
 
 const STEPS = [
   { id: "review", label: "1. Prompts" },
-  { id: "results", label: "2. See results" },
-  { id: "plan", label: "3. Take action" },
+  { id: "plan", label: "2. Take action" },
 ];
 const ALIASES: Record<string, string> = {
   overview: "review", questions: "review", prompts: "review", sandbox: "review", settings: "review", unified: "review",
-  answers: "results", citations: "results", models: "results", history: "results", competitors: "results", "competitor-intelligence": "results", "competitor-comparison": "results",
+  results: "review", answers: "review", citations: "review", models: "review", history: "review", competitors: "review", "competitor-intelligence": "review", "competitor-comparison": "review",
   recommendations: "plan", insights: "plan", actions: "plan", gaps: "plan", "root-cause": "plan", "root-cause-analysis": "plan",
 };
 
@@ -65,13 +64,13 @@ function Journey({ projectId }: { projectId: string }) {
   const data = query.data;
   const run = data?.journey;
   const requested = params.get("tab");
-  const tab = requested ? ALIASES[requested] || (STEPS.some((s) => s.id === requested) ? requested : "review") : run?.scanId ? "results" : "review";
+  const tab = requested ? ALIASES[requested] || (STEPS.some((s) => s.id === requested) ? requested : "review") : "review";
   const setTab = (value: string) => router.replace(`/ai-visibility?tab=${value}`, { scroll: false });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   const prepare = useMutation({ mutationFn: () => visibilityJourneyApi.prepare(projectId), retry: false,
     onSuccess: () => { void refresh(); setTab("review"); }, onError: () => { void refresh(); } });
   const check = useMutation({ mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) => visibilityJourneyApi.check(projectId, id, brief), retry: false,
-    onSuccess: () => { void refresh(); setTab("results"); }, onError: () => { void refresh(); } });
+    onSuccess: () => { void refresh(); setTab("review"); }, onError: () => { void refresh(); } });
   const busy = journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
@@ -116,7 +115,6 @@ function Journey({ projectId }: { projectId: string }) {
               providers={data?.providers ?? []}
               analysis={run.analysis ?? []}
               hasScan={!!run.scanId}
-              onViewResults={() => setTab("results")}
             />
           ) : (
             <Panel title="Review before you run" subtitle="Check your products, service areas and buyer prompts. Then confirm to start the AI checks." padded>
@@ -124,18 +122,10 @@ function Journey({ projectId }: { projectId: string }) {
             </Panel>
           )}
         </>}
-        {tab === "results" && data && <>
-          <Panel padded title="Do AI assistants recommend your business?" subtitle="Read the actual answers, compare assistants, and see where your business appears." actions={<ActionButton variant="primary" disabled={!hasPlan} onClick={() => setTab("plan")} icon={<ArrowRight size={14} />}>View action plan</ActionButton>}>
-            <p className="text-xs text-brand-500">{run.brief?.questions.length ?? 0} buyer prompts · {assistantNames || "No available assistants"} · {busy ? "Analysis in progress" : "Saved analysis"}</p>
-          </Panel>
-          <AnswerResults data={data} />
-          <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-semibold text-brand-950">Compare competitors mentioned in the answers</summary><div className="mt-4"><GapResults data={data} /></div></details>
-          {!run.scanId && <ActionButton onClick={() => setTab("review")}>Review prompts to begin</ActionButton>}
-        </>}
         {tab === "plan" && data && <>
           <Panel padded title="Your next steps" subtitle="Prioritized actions based on your website evidence and the AI answers we saved."><p className="text-xs text-brand-500">Review the supporting evidence for each action. Changes can be prepared in Fix Engine.</p></Panel>
           <ActionPlan data={data} />
-          <ActionButton onClick={() => setTab(hasPlan ? "results" : "review")}>{hasPlan ? "Back to results" : "Review prompts to begin"}</ActionButton>
+          <ActionButton onClick={() => setTab("review")}>Back to prompts</ActionButton>
         </>}
         <details className="rounded-xl border p-4">
           <summary className="cursor-pointer text-sm font-semibold text-brand-700">Analysis details{run.errors.length ? ` · ${run.errors.length} coverage note${run.errors.length === 1 ? "" : "s"}` : " · sources and assistants"}</summary>
