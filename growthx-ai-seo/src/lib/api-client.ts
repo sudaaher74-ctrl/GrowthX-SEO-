@@ -982,8 +982,8 @@ export const api = {
     get<GoogleBreakdown>(`/api/projects/${projectId}/google/breakdown?days=${days}&dimension=${dimension}`),
   googleAlerts: (projectId: string, days: number) =>
     get<GoogleAlertsReport>(`/api/projects/${projectId}/google/alerts?days=${days}`),
-  generateGoogleReport: (projectId: string, days: number) =>
-    post<GoogleReport>(`/api/projects/${projectId}/google/report?days=${days}`, {}),
+  generateGoogleReport: (projectId: string, days: number, targetCities?: string[]) =>
+    post<GoogleReport>(`/api/projects/${projectId}/google/report?days=${days}`, targetCities?.length ? { targetCities } : {}),
   getLatestGoogleReport: (projectId: string) => get<GoogleReport | null>(`/api/projects/${projectId}/google/report/latest`),
   googlePage: (projectId: string, days: number, url: string) =>
     get<GooglePageDetail>(`/api/projects/${projectId}/google/page?days=${days}&url=${encodeURIComponent(url)}`),

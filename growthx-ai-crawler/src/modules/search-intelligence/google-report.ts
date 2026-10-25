@@ -34,6 +34,39 @@ export interface RowFact {
   extra?: string;
 }
 
+export interface BusinessTrafficContext {
+  businessName: string | null;
+  industry: string | null;
+  summary: string | null;
+  businessModel: string | null;
+  targetAudience: string | null;
+  businessGoal: string | null;
+  offerings: string[];
+  targetCities: string[];
+  primaryCity: string | null;
+  state: string | null;
+  country: string | null;
+  seedKeywords: string[];
+  pagesAudited: number;
+  crawledAt: string | null;
+  healthScore: number | null;
+  auditedPages: Array<{ path: string; title: string }>;
+}
+
+export interface LocationTrafficGap {
+  location: string;
+  source: 'website_audit' | 'business_profile' | 'target_market';
+  sessions: number;
+  searchClicks: number;
+  searchImpressions: number;
+  status: 'NO_CLICKS' | 'LOW_TRAFFIC' | 'ACTIVE';
+  finding: string;
+  plan: string;
+  recommendedSteps: string[];
+  relevantOfferings: string[];
+  matchingPages: string[];
+}
+
 export interface GoogleReportFacts {
   days: number;
   site: string | null;
@@ -70,6 +103,10 @@ export interface GoogleReportFacts {
     countries: Array<{ country: string; sessions: number }>;
     cities: Array<{ city: string; country: string; sessions: number }>;
   };
+  /** What the Website Audit understood about the user's business, offerings, and target service cities. */
+  business?: BusinessTrafficContext | null;
+  /** Comparison between cities/markets where the business operates and actual traffic/clicks received. */
+  locationGaps?: LocationTrafficGap[];
   /** What could not be read, and why, so the report does not guess at it. */
   notMeasured: string[];
 }
@@ -132,6 +169,8 @@ export interface GoogleReport {
   model: string | null;
   analysisError: string | null;
   snapshotId?: string | null;
+  /** Number of action items forwarded into Fix Engine (Traffic tab). */
+  forwardedToFixEngine?: number;
 }
 
 const LEVELS: Priority[] = ['high', 'medium', 'low'];
@@ -252,8 +291,26 @@ ${t.sources.map((x) => `    - ${x.source} / ${x.medium} (${x.channel}): ${n(x.se
     ? `  ${f.index.asked} pages checked with Google: ${f.index.indexed} indexed, ${f.index.notIndexed} not indexed; ${f.index.indexableButNotIndexed} allowed in search but not indexed; ${f.index.canonicalOverridden} where Google chose a different canonical. Reasons: ${f.index.topReasons.map((g) => `${g.state} (${g.count})`).join('; ') || 'none'}`
     : '  no index inspection has been run';
 
-  return `Write an improvement report for the website${f.site ? ` ${f.site}` : ''}, from its Google Search Console and Google Analytics 4 data for the last ${f.days} days.
+  const b = f.business;
+  const businessSection = b
+    ? `\nBUSINESS CONTEXT (from Website Audit)
+  business name: ${b.businessName ?? f.site ?? 'unknown'}
+  industry: ${b.industry ?? 'not classified'}
+  summary: ${b.summary ?? 'not available'}
+  core offerings: ${b.offerings.join(', ') || 'none detected'}
+  target cities / service areas on website: ${b.targetCities.join(', ') || 'none specified'}
+  pages audited: ${b.pagesAudited}${b.healthScore != null ? ` (health score ${b.healthScore}/100)` : ''}
+  key website pages: ${b.auditedPages.slice(0, 8).map((p) => `${p.path} (${p.title})`).join('; ') || 'none'}\n`
+    : '';
 
+  const gaps = f.locationGaps ?? [];
+  const locationSection = gaps.length > 0
+    ? `\nTARGET BUSINESS LOCATIONS VS ACTUAL TRAFFIC
+${gaps.map((g) => `  - ${g.location} [${g.status}]: ${g.sessions} sessions, ${g.searchClicks} search clicks, ${g.searchImpressions} impressions. ${g.finding}`).join('\n')}\n`
+    : '';
+
+  return `Write an improvement report for the website${f.site ? ` ${f.site}` : ''}, from its Google Search Console and Google Analytics 4 data for the last ${f.days} days.
+${businessSection}${locationSection}
 DATA SOURCES
   ${src('Search Console', f.searchConsole)}
   ${src('Google Analytics 4', f.analytics)}
@@ -325,6 +382,7 @@ Return JSON exactly in this shape:
 
 Rules:
 - Order "priorities" as the order to do them: high impact and low effort first. Give 5 to 8. Every one names its platform and cites figures from the data above.
+- If TARGET BUSINESS LOCATIONS VS ACTUAL TRAFFIC shows any city or region where the business operates with 0 clicks or low traffic, include a high-priority action to capture traffic and search clicks in that exact city/region for the business's core offerings.
 - Cover both platforms. If a platform has no data, say so in whereWeAre and put connecting or fixing it first.
 - Name the actual queries and page URLs to work on. Give 3 to 5 concrete steps each.
 - marketingStrategy is a marketing plan built from where the traffic comes from. Use "grow" for a channel that works and deserves more, "fix" for one that brings visits that do not engage or convert, "start" for a channel with no traffic that suits this business, and "maintain" otherwise. Cover every channel that has traffic, and name the actual sources (for example a referring site or a social app) from the data. Do not recommend spending a budget figure; say where effort or spend should go, in what order.
@@ -332,4 +390,168 @@ Rules:
 - The plan is 4 weeks, highest impact first.
 - Use only the data above. Never invent rankings, traffic, revenue, benchmarks or numbers. If something is "not measured", say it is not measured instead of guessing.
 - Small numbers are small: with only a handful of clicks, say the sample is too small to trust and prefer actions that build visibility over actions that tune it.`;
+}
+
+/**
+ * Ensures the report analysis always includes actionable priorities for target cities
+ * where the business operates (from Website Audit) that have 0 clicks or low traffic,
+ * and provides a complete business-aware fallback analysis when the AI model is unavailable.
+ */
+export function enrichAnalysisWithBusinessGaps(
+  existing: GoogleReportAnalysis | null,
+  facts: GoogleReportFacts,
+): GoogleReportAnalysis {
+  const business = facts.business;
+  const gaps = (facts.locationGaps ?? []).filter((g) => g.status === 'NO_CLICKS' || g.status === 'LOW_TRAFFIC');
+  const brand = business?.businessName || facts.site || 'your website';
+  const offeringLabel = business?.offerings.slice(0, 2).join(' & ') || business?.industry || 'core offerings';
+  const clicks = facts.kpis.find((k) => k.label.toLowerCase().includes('click'))?.value ?? 0;
+  const impressions = facts.kpis.find((k) => k.label.toLowerCase().includes('impression'))?.value ?? 0;
+  const sessions = facts.traffic?.sessions ?? 0;
+
+  const base: GoogleReportAnalysis = existing ?? {
+    executiveSummary: `${brand}${business?.industry ? ` (${business.industry})` : ''} recorded ${n(sessions)} visitor sessions, ${n(clicks)} Google search clicks, and ${n(impressions)} search impressions over the last ${facts.days} days.${
+      gaps.length > 0
+        ? ` Website Audit shows your business targets ${gaps.map((g) => g.location).join(', ')}, where search clicks or visitor traffic are currently missing or below potential.`
+        : ''
+    } Priority actions focus on capturing high-intent local and commercial search traffic for ${offeringLabel} and converting those visitors on your key landing pages.`,
+    whereWeAre: {
+      searchConsole: {
+        verdict: facts.searchConsole.hasData
+          ? `${n(clicks)} clicks from ${n(impressions)} search impressions in the last ${facts.days} days.`
+          : 'Search Console needs active query data to measure keyword positions.',
+        points: [
+          `Total search clicks: ${n(clicks)} across ${n(impressions)} impressions.`,
+          ...(facts.topQueries.length > 0
+            ? [`Top query: "${facts.topQueries[0].key}" (${n(facts.topQueries[0].clicks)} clicks, position ${pos(facts.topQueries[0].position)}).`]
+            : ['No high-volume search queries recorded in this window yet.']),
+        ],
+      },
+      analytics: {
+        verdict: facts.traffic
+          ? `${n(facts.traffic.sessions)} sessions and ${n(facts.traffic.users)} active users recorded in GA4.`
+          : 'Connect or refresh Google Analytics 4 to measure visitor cities and channels.',
+        points: [
+          ...(facts.traffic?.countries.length
+            ? [`Top country: ${facts.traffic.countries[0].country} (${n(facts.traffic.countries[0].sessions)} sessions).`]
+            : []),
+          ...(facts.traffic?.cities.length
+            ? [`Top cities: ${facts.traffic.cities.slice(0, 3).map((c) => `${c.city} (${n(c.sessions)})`).join(', ')}.`]
+            : ['No city-level visitor sessions recorded yet in this window.']),
+        ],
+      },
+    },
+    priorities: [],
+    quickWins: [],
+    marketingStrategy: {
+      summary: `Align organic search and local referral channels with ${brand}'s core offerings (${offeringLabel})${
+        business?.targetCities.length ? ` in ${business.targetCities.join(', ')}` : ''
+      }.`,
+      whereTrafficComesFrom: facts.traffic?.channels.length
+        ? facts.traffic.channels.map((c) => `${c.channel}: ${n(c.sessions)} sessions (${pct(c.share)})`)
+        : ['Traffic channel breakdown will populate as GA4 records visitor sessions.'],
+      channels: (facts.traffic?.channels ?? []).slice(0, 4).map((c) => ({
+        channel: c.channel,
+        verdict: c.channel.toLowerCase().includes('organic') ? 'grow' : 'maintain',
+        share: pct(c.share),
+        whatWeSee: `${n(c.sessions)} sessions (${pct(c.share)} of traffic).`,
+        strategy: `Strengthen ${c.channel} landing pages with clear city and offering signals for ${offeringLabel}.`,
+        actions: [
+          `Optimize landing page headlines and meta descriptions for ${offeringLabel}.`,
+          `Add clear calls-to-action above the fold on top landing pages.`,
+        ],
+      })),
+      audience: gaps.map((g) => `${g.location}: ${g.finding} — ${g.plan}`),
+    },
+    plan: [
+      {
+        week: 'Week 1',
+        actions: [
+          gaps[0]
+            ? `Optimize titles, H1s, and local landing page copy for ${gaps[0].location} (${offeringLabel}).`
+            : `Update primary service page titles and meta descriptions for ${offeringLabel}.`,
+          'Verify Google Search Console indexation for all core commercial pages.',
+        ],
+      },
+      {
+        week: 'Week 2',
+        actions: [
+          'Deploy LocalBusiness and Product/Service JSON-LD schema with target service areas.',
+          'Add internal links from informational pages to top commercial landing pages.',
+        ],
+      },
+      {
+        week: 'Week 3',
+        actions: [
+          `Publish high-intent local and commercial content answering buyer questions for ${offeringLabel}.`,
+          'Improve snippet CTR on pages receiving impressions with 0 clicks.',
+        ],
+      },
+      {
+        week: 'Week 4',
+        actions: [
+          'Review Search Console click growth and GA4 city-level visitor acquisition.',
+          'Forward verified improvements into Fix Engine impact tracking.',
+        ],
+      },
+    ],
+    dataGaps: facts.notMeasured,
+  };
+
+  const priorities = [...base.priorities];
+  for (const gap of gaps) {
+    const locLower = gap.location.toLowerCase();
+    const alreadyCovered = priorities.some((p) => p.title.toLowerCase().includes(locLower));
+    if (!alreadyCovered) {
+      priorities.unshift({
+        rank: 0,
+        title:
+          gap.status === 'NO_CLICKS'
+            ? `Win search clicks and visitors in ${gap.location} for ${offeringLabel} (currently 0 clicks)`
+            : `Grow local search traffic and click quality in ${gap.location} for ${offeringLabel}`,
+        platform: 'BOTH',
+        priority: 'high',
+        impact: 'high',
+        effort: 'medium',
+        evidence: `${gap.finding} Website Audit Offerings: ${gap.relevantOfferings.join(', ') || offeringLabel}.`,
+        whyItMatters: `Your website indicates you do business in ${gap.location}, so missing clicks and visitors from ${gap.location} means high-intent local buyers are not reaching your site.`,
+        steps: gap.recommendedSteps,
+        measureBy: `Search Console clicks for "${gap.location}" queries and GA4 visitor sessions from ${gap.location}.`,
+      });
+    }
+  }
+
+  if (priorities.length === 0) {
+    priorities.push({
+      rank: 1,
+      title: `Improve Google search click-through rate and commercial keyword targeting for ${offeringLabel}`,
+      platform: 'GSC',
+      priority: 'high',
+      impact: 'high',
+      effort: 'low',
+      evidence: `Search Console recorded ${n(clicks)} clicks from ${n(impressions)} impressions in the last ${facts.days} days.`,
+      whyItMatters: `Aligning your page titles and descriptions with what buyers search for ${offeringLabel} turns existing impressions into qualified clicks.`,
+      steps: [
+        `Update the homepage and top service page titles to name ${offeringLabel}${business?.primaryCity ? ` in ${business.primaryCity}` : ''}.`,
+        'Write action-oriented meta descriptions with a clear value proposition and call to action.',
+        'Request re-indexing in Google Search Console and monitor click growth.',
+      ],
+      measureBy: 'Organic clicks and average CTR in Google Search Console.',
+    });
+  }
+
+  const ranked = priorities.map((p, i) => ({ ...p, rank: i + 1 }));
+  const quickWins = base.quickWins.length > 0
+    ? base.quickWins
+    : [
+        ...(gaps[0] ? [`Add "${gaps[0].location}" and "${offeringLabel}" to your homepage and primary service page title tags.`] : []),
+        `Add LocalBusiness / Organization JSON-LD schema with areaServed on ${facts.site || 'your homepage'}.`,
+        `Link your highest-traffic landing pages directly to your core ${offeringLabel} inquiry or booking page.`,
+      ];
+
+  return {
+    ...base,
+    priorities: ranked,
+    quickWins,
+  };
 }

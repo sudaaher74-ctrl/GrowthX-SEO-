@@ -101,7 +101,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "search-console", label: "Search Console", href: "/google/search-console" },
         { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
         { id: "keywords", label: "Keywords", href: "/google/keywords" },
-        { id: "report", label: "Improvement report", href: "/google/report" },
+        { id: "report", label: "Report", href: "/google?tab=report", tab: "report" },
       ],
     },
     {

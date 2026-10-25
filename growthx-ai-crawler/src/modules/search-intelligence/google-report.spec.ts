@@ -1,4 +1,4 @@
-import { GoogleReportFacts, buildPrompt, normaliseAnalysis } from './google-report';
+import { GoogleReportFacts, buildPrompt, enrichAnalysisWithBusinessGaps, normaliseAnalysis } from './google-report';
 
 const facts = (over: Partial<GoogleReportFacts> = {}): GoogleReportFacts => ({
   days: 28,
@@ -139,5 +139,47 @@ describe('buildPrompt', () => {
       }),
     );
     expect(p).toContain('not available yet (the Analytics data needs a refresh to add sources)');
+  });
+
+  it('enriches analysis with high-priority action when a business city from Website Audit has 0 clicks', () => {
+    const f = facts({
+      business: {
+        businessName: 'MilquuFresh',
+        industry: 'Dairy & A2 Milk Delivery',
+        summary: 'Fresh farm milk delivery in Nashik and Pune',
+        businessModel: 'D2C',
+        targetAudience: 'Families',
+        businessGoal: 'Subscriptions',
+        offerings: ['A2 Cow Milk', 'Gir Cow Ghee'],
+        targetCities: ['Nashik'],
+        primaryCity: 'Nashik',
+        state: 'Maharashtra',
+        country: 'India',
+        seedKeywords: ['a2 milk nashik'],
+        pagesAudited: 12,
+        crawledAt: '2026-10-24T00:00:00Z',
+        healthScore: 84,
+        auditedPages: [{ path: '/products/a2-milk', title: 'A2 Cow Milk Delivery' }],
+      },
+      locationGaps: [
+        {
+          location: 'Nashik',
+          source: 'website_audit',
+          sessions: 0,
+          searchClicks: 0,
+          searchImpressions: 0,
+          status: 'NO_CLICKS',
+          finding: 'Website Audit shows MilquuFresh targets Nashik, but Traffic recorded 0 search clicks and 0 visitor sessions from Nashik.',
+          plan: 'Launch local search capture for Nashik.',
+          recommendedSteps: ['Optimize page title for Nashik', 'Add LocalBusiness schema for Nashik'],
+          relevantOfferings: ['A2 Cow Milk'],
+          matchingPages: ['/products/a2-milk'],
+        },
+      ],
+    });
+    const enriched = enrichAnalysisWithBusinessGaps(null, f);
+    expect(enriched.priorities.length).toBeGreaterThan(0);
+    expect(enriched.priorities[0].title).toContain('Nashik');
+    expect(enriched.priorities[0].steps).toContain('Optimize page title for Nashik');
   });
 });

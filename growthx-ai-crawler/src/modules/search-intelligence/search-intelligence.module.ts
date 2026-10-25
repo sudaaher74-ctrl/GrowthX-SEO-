@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { OpportunitiesModule } from '../opportunities/opportunities.module';
 import { ChangeImpactService } from './change-impact.service';
 import { ChangeRiskService } from './change-risk.service';
 import { DataForSeoService } from './dataforseo.service';
@@ -28,7 +29,7 @@ import { SearchRankingsService } from './search-rankings.service';
  * comes from the global CrawlerModule.
  */
 @Module({
-  imports: [DatabaseModule, IntegrationsModule, AiSearchModule],
+  imports: [DatabaseModule, IntegrationsModule, AiSearchModule, OpportunitiesModule],
   controllers: [SearchIntelligenceController, GoogleOverviewController],
   providers: [
     GoogleOverviewService,

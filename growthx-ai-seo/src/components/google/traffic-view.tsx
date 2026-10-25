@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
   ArrowDownRight,
@@ -16,7 +17,10 @@ import {
   Search,
   Share2,
   Smartphone,
+  Sparkles,
 } from "lucide-react";
+import { Tabs } from "@/components/ui/console";
+import { ImprovementReportView } from "@/components/google/improvement-report-view";
 import {
   CartesianGrid,
   Line,
@@ -139,13 +143,46 @@ interface TrafficOriginItem {
   organic: boolean;
 }
 
+const TRAFFIC_TABS = [
+  { id: "overview", label: "Traffic Overview", icon: Activity },
+  { id: "report", label: "Report", icon: Sparkles },
+] as const;
+
+type TrafficTabId = (typeof TRAFFIC_TABS)[number]["id"];
+
 /**
  * TrafficView
  *
  * Real-time traffic, visitors, geography (interactive global map),
- * top cities, channels and referrers breakdown, landing pages, and search queries.
+ * top cities, channels and referrers breakdown, landing pages, search queries,
+ * and the Business & Traffic Improvement Report tab.
  */
 export function TrafficView() {
+  return (
+    <Suspense fallback={<div className="p-8 text-xs text-brand-400">Loading Traffic…</div>}>
+      <TrafficViewClient />
+    </Suspense>
+  );
+}
+
+function TrafficViewClient() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab: TrafficTabId = rawTab === "report" ? "report" : "overview";
+
+  const selectTab = (newTab: TrafficTabId) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newTab === "overview") {
+      params.delete("tab");
+    } else {
+      params.set("tab", newTab);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   const { projectId } = useWorkspace();
   const periodDays = usePeriodDays();
   const [trafficOriginMode, setTrafficOriginMode] = useState<"channels" | "sites">("channels");
@@ -215,7 +252,7 @@ export function TrafficView() {
         organic: !!c.organic,
       }))
       .sort((a, b) => b.count - a.count);
-  }, [reportData?.channels]);
+  }, [reportData]);
 
   const siteSourcesBreakdown = useMemo<TrafficOriginItem[]>(() => {
     if (!reportData?.sources || reportData.sources.length === 0) {
@@ -230,7 +267,7 @@ export function TrafficView() {
         organic: s.medium === "organic",
       }))
       .sort((a, b) => b.count - a.count);
-  }, [reportData?.sources]);
+  }, [reportData]);
 
   // Landing pages
   const landingPages = useMemo(() => {
@@ -246,19 +283,17 @@ export function TrafficView() {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [reportData?.landingPages]);
+  }, [reportData]);
 
   // Devices
   const deviceStats = useMemo(() => {
     const rows = deviceBreakdown.query.data?.rows ?? [];
     let desktopClicks = 0;
-    let mobileClicks = 0;
     let total = 0;
     for (const r of rows) {
       const k = r.key.toUpperCase();
       total += r.clicks || r.impressions || 0;
       if (k === "DESKTOP") desktopClicks += r.clicks || r.impressions || 0;
-      if (k === "MOBILE") mobileClicks += r.clicks || r.impressions || 0;
     }
     if (total === 0) return { desktop: 67, mobile: 33 };
     const dPct = Math.round((desktopClicks / total) * 100);
@@ -341,14 +376,14 @@ export function TrafficView() {
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [reportData?.cities]);
+  }, [reportData]);
 
   // Queries
   const queries = gscQueries.query.data ?? [];
 
   return (
     <div className="space-y-6 pb-16">
-      {/* ── TOP HEADER (Clean Traffic Title, No Sub-tabs, Clean Night Theme) ── */}
+      {/* ── TOP HEADER ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -358,7 +393,7 @@ export function TrafficView() {
             </h1>
           </div>
           <p className="mt-1 text-xs text-brand-400">
-            Real-time visitors, traffic sources, geography, and search performance
+            Real-time visitors, traffic sources, geography, search performance, and business traffic gap report
           </p>
         </div>
 
@@ -376,7 +411,18 @@ export function TrafficView() {
         </div>
       </div>
 
-      {/* ── CONNECTION ALERT (If not connected) ── */}
+      {/* ── TRAFFIC TABS (Overview & Report) ── */}
+      <Tabs
+        tabs={TRAFFIC_TABS as unknown as { id: TrafficTabId; label: string; icon?: React.ElementType }[]}
+        active={activeTab}
+        onChange={selectTab}
+      />
+
+      {activeTab === "report" ? (
+        <ImprovementReportView />
+      ) : (
+        <>
+          {/* ── CONNECTION ALERT (If not connected) ── */}
       {!isConnected && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warning-200 bg-warning-50 px-5 py-3 text-xs text-warning-800">
           <p>
@@ -1017,11 +1063,19 @@ export function TrafficView() {
                   <MapPin className="h-5 w-5" />
                 </div>
                 <p className="mt-3 text-xs font-semibold text-brand-950">
-                  No city-level data recorded for this period yet
+                  No city-level clicks or visitors recorded for this period yet
                 </p>
                 <p className="mt-1 max-w-[260px] text-[11px] text-brand-400">
-                  City telemetry appears once visitors allow location coordinates during active sessions in GA4.
+                  Open the Report tab to analyze where your business operates (from Website Audit) and plan local traffic acquisition for your target cities.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => selectTab("report")}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800 transition"
+                >
+                  <Sparkles size={12} />
+                  <span>Plan Target City Traffic in Report →</span>
+                </button>
               </div>
             )}
           </div>
@@ -1071,6 +1125,8 @@ export function TrafficView() {
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

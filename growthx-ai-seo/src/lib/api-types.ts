@@ -870,6 +870,37 @@ interface GoogleReportRow {
   position: number;
   extra?: string;
 }
+export interface BusinessTrafficContext {
+  businessName: string | null;
+  industry: string | null;
+  summary: string | null;
+  businessModel: string | null;
+  targetAudience: string | null;
+  businessGoal: string | null;
+  offerings: string[];
+  targetCities: string[];
+  primaryCity: string | null;
+  state: string | null;
+  country: string | null;
+  seedKeywords: string[];
+  pagesAudited: number;
+  crawledAt: string | null;
+  healthScore: number | null;
+  auditedPages: { path: string; title: string }[];
+}
+export interface LocationTrafficGap {
+  location: string;
+  source: "website_audit" | "business_profile" | "target_market";
+  sessions: number;
+  searchClicks: number;
+  searchImpressions: number;
+  status: "NO_CLICKS" | "LOW_TRAFFIC" | "ACTIVE";
+  finding: string;
+  plan: string;
+  recommendedSteps: string[];
+  relevantOfferings: string[];
+  matchingPages: string[];
+}
 export interface GoogleReportFacts {
   days: number;
   site: string | null;
@@ -880,6 +911,8 @@ export interface GoogleReportFacts {
   topPages: GoogleReportRow[];
   strikingDistance: GoogleReportRow[];
   ctrOpportunities: GoogleReportRow[];
+  business?: BusinessTrafficContext | null;
+  locationGaps?: LocationTrafficGap[];
   notMeasured: string[];
 }
 export interface GoogleReport {
@@ -906,6 +939,7 @@ export interface GoogleReport {
   model: string | null;
   analysisError: string | null;
   snapshotId?: string | null;
+  forwardedToFixEngine?: number;
 }
 
 export interface GoogleAlertsReport {

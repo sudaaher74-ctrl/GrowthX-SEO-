@@ -12,11 +12,32 @@ export function googleReportFilename(report: GoogleReport, ext: string): string 
 export function googleReportMarkdown(report: GoogleReport): string {
   const { facts, analysis: a } = report;
   const lines: string[] = [
-    `# Google improvement report${facts.site ? `: ${facts.site}` : ""}`,
+    `# Traffic & Business Improvement Report${facts.site ? `: ${facts.site}` : ""}`,
     "",
-    `Last ${facts.days} days. Written by Sarvam from Search Console and Google Analytics 4 figures. Generated ${report.generatedAt.slice(0, 10)}.`,
+    `Last ${facts.days} days. Combines Website Audit business context with Search Console and Google Analytics 4 figures. Generated ${report.generatedAt.slice(0, 10)}.`,
     "",
   ];
+  if (facts.business) {
+    const b = facts.business;
+    lines.push("## Business Understanding (from Website Audit)", "");
+    if (b.businessName) lines.push(`- **Business:** ${b.businessName}`);
+    if (b.industry) lines.push(`- **Industry:** ${b.industry}`);
+    if (b.summary) lines.push(`- **Summary:** ${b.summary}`);
+    if (b.offerings.length) lines.push(`- **Core Offerings:** ${b.offerings.join(", ")}`);
+    if (b.targetCities.length) lines.push(`- **Target Cities / Service Areas:** ${b.targetCities.join(", ")}`);
+    lines.push(`- **Website Pages Audited:** ${b.pagesAudited}`, "");
+  }
+  if (facts.locationGaps && facts.locationGaps.length > 0) {
+    lines.push("## Target City & Market Traffic Gap Plan", "");
+    for (const g of facts.locationGaps) {
+      lines.push(`### ${g.location} (${g.status === "NO_CLICKS" ? "0 clicks — Action Needed" : g.status === "LOW_TRAFFIC" ? "Low traffic" : "Active traffic"})`, "");
+      lines.push(`- **Measured Traffic:** ${g.searchClicks} search clicks · ${g.searchImpressions} impressions · ${g.sessions} GA4 sessions`);
+      lines.push(`- **Finding:** ${g.finding}`);
+      lines.push(`- **Plan:** ${g.plan}`, "");
+      g.recommendedSteps.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+      if (g.recommendedSteps.length) lines.push("");
+    }
+  }
   if (!a) {
     lines.push(report.analysisError ?? "The analysis could not be written.", "");
   } else {

@@ -21,6 +21,7 @@ export class TrafficAdapter implements FindingAdapter {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       include: {
+        businessProfile: true,
         websites: { select: { domain: true }, take: 1 },
       },
     });
@@ -30,6 +31,144 @@ export class TrafficAdapter implements FindingAdapter {
     const organizationId = project.organizationId;
     const domain = project.websites[0]?.domain || project.name || 'your website';
     const findings: NormalisedFinding[] = [];
+    const seenFingerprints = new Set<string>();
+
+    // 0. Forwarded recommendations & target city traffic gaps from the latest Traffic Report
+    try {
+      const latestReportRow = (this.prisma as any).googleReportSnapshot
+        ? await (this.prisma as any).googleReportSnapshot.findFirst({
+            where: { projectId },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, report: true },
+          })
+        : null;
+
+      const report = latestReportRow?.report as Record<string, any> | undefined;
+      if (report) {
+        const locationGaps = Array.isArray(report.facts?.locationGaps) ? report.facts.locationGaps : [];
+        const businessName = report.facts?.business?.businessName || project.businessProfile?.businessName || domain;
+        const offerings = Array.isArray(report.facts?.business?.offerings) && report.facts.business.offerings.length > 0
+          ? report.facts.business.offerings.slice(0, 3).join(', ')
+          : project.businessProfile?.industry || 'core offerings';
+
+        for (const gap of locationGaps) {
+          if (!gap?.location || gap.status === 'ACTIVE') continue;
+          const locSlug = slug(String(gap.location));
+          const fp = `traffic::report-location-gap::${projectId}::${locSlug}`;
+          if (seenFingerprints.has(fp)) continue;
+          seenFingerprints.add(fp);
+
+          const steps = Array.isArray(gap.recommendedSteps) && gap.recommendedSteps.length > 0
+            ? gap.recommendedSteps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')
+            : gap.plan || `Optimize landing pages and local search visibility for ${gap.location}.`;
+
+          findings.push({
+            projectId,
+            organizationId,
+            fingerprint: fp,
+            source: 'SEARCH_CONSOLE',
+            category: 'SEO',
+            title:
+              gap.status === 'NO_CLICKS'
+                ? `Capture missing traffic in ${gap.location} for ${businessName} (0 clicks recorded)`
+                : `Grow local search traffic and click quality in ${gap.location} for ${businessName}`,
+            summary: gap.finding || `Your website targets ${gap.location}, but Traffic recorded ${gap.sessions ?? 0} sessions and ${gap.searchClicks ?? 0} search clicks.`,
+            recommendedAction: steps,
+            evidence: [
+              { label: 'Target City / Market (Website Audit)', value: String(gap.location), source: 'Website Business Audit' },
+              { label: 'Business Offerings', value: offerings, source: 'Website Business Audit' },
+              {
+                label: 'Measured Traffic',
+                value: `${gap.sessions ?? 0} sessions · ${gap.searchClicks ?? 0} search clicks · ${gap.searchImpressions ?? 0} impressions`,
+                source: 'Traffic & Search Console Report',
+              },
+            ],
+            potential: 'HIGH',
+            effort: 'MEDIUM',
+            confidence: 92,
+            impact: 90,
+            fixClass: 'APPROVAL',
+            affectedPages: Array.isArray(gap.matchingPages) ? gap.matchingPages : [],
+            affectedCount: Array.isArray(gap.matchingPages) && gap.matchingPages.length > 0 ? gap.matchingPages.length : 1,
+            detailType: 'REPORT_PLAN',
+            detailRef: latestReportRow.id || fp,
+          });
+        }
+
+        const priorities = Array.isArray(report.analysis?.priorities) ? report.analysis.priorities : [];
+        for (const p of priorities.slice(0, 6)) {
+          if (!p?.title) continue;
+          const titleSlug = slug(String(p.title)).slice(0, 60);
+          const fp = `traffic::report-priority::${projectId}::${titleSlug}`;
+          if (seenFingerprints.has(fp)) continue;
+          seenFingerprints.add(fp);
+
+          const steps = Array.isArray(p.steps) && p.steps.length > 0
+            ? p.steps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')
+            : p.whyItMatters || 'Review the Traffic Report and apply the recommended improvement.';
+
+          const potential: NormalisedFinding['potential'] =
+            String(p.impact).toLowerCase() === 'low' ? 'LOW' : String(p.impact).toLowerCase() === 'medium' ? 'MEDIUM' : 'HIGH';
+          const effort: NormalisedFinding['effort'] =
+            String(p.effort).toLowerCase() === 'low' ? 'LOW' : String(p.effort).toLowerCase() === 'high' ? 'HIGH' : 'MEDIUM';
+
+          findings.push({
+            projectId,
+            organizationId,
+            fingerprint: fp,
+            source: p.platform === 'GA4' ? 'ANALYTICS' : 'SEARCH_CONSOLE',
+            category: 'SEO',
+            title: String(p.title),
+            summary: String(p.whyItMatters || p.evidence || 'Priority action from your Traffic & Business Improvement Report.'),
+            recommendedAction: steps,
+            evidence: [
+              ...(p.evidence ? [{ label: 'Report Evidence', value: String(p.evidence), source: 'Traffic Improvement Report' }] : []),
+              ...(p.measureBy ? [{ label: 'Measure By', value: String(p.measureBy), source: 'Traffic Improvement Report' }] : []),
+            ],
+            potential,
+            effort,
+            confidence: 88,
+            impact: potential === 'HIGH' ? 88 : 75,
+            fixClass: effort === 'LOW' ? 'APPROVAL' : 'MANUAL',
+            affectedPages: [],
+            affectedCount: 1,
+            detailType: 'REPORT_PLAN',
+            detailRef: latestReportRow.id || fp,
+          });
+        }
+      } else if (project.businessProfile?.city) {
+        const city = project.businessProfile.city;
+        const businessName = project.businessProfile.businessName || domain;
+        const offerings = project.businessProfile.offerings?.slice(0, 2).join(', ') || project.businessProfile.industry || 'core services';
+        const fp = `traffic::report-location-gap::${projectId}::${slug(city)}`;
+        seenFingerprints.add(fp);
+        findings.push({
+          projectId,
+          organizationId,
+          fingerprint: fp,
+          source: 'SEARCH_CONSOLE',
+          category: 'SEO',
+          title: `Capture local search clicks and visitors in ${city} for ${businessName}`,
+          summary: `Website Audit detected that ${businessName} operates in ${city} (${offerings}). Ensure dedicated local landing page copy and snippets win clicks from ${city} buyers.`,
+          recommendedAction: `1. Include "${offerings} in ${city}" in your homepage and service page title tags and H1s.\n2. Add LocalBusiness JSON-LD schema with areaServed: "${city}".\n3. Generate a Traffic Report to measure city-level clicks and sessions.`,
+          evidence: [
+            { label: 'Detected Business City', value: city, source: 'Website Business Audit' },
+            { label: 'Core Offerings', value: offerings, source: 'Website Business Audit' },
+          ],
+          potential: 'HIGH',
+          effort: 'LOW',
+          confidence: 88,
+          impact: 86,
+          fixClass: 'APPROVAL',
+          affectedPages: [],
+          affectedCount: 1,
+          detailType: 'REPORT_PLAN',
+          detailRef: fp,
+        });
+      }
+    } catch (err: any) {
+      this.logger.debug(`Traffic report snapshot inspection skipped: ${err.message}`);
+    }
 
     // 1. Search Console real query data if available in prisma
     try {

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GoogleAlertsService } from './google-alerts.service';
@@ -71,8 +71,13 @@ export class GoogleOverviewController {
 
   @Post('report')
   @ApiOperation({ summary: 'Improvement report: Search Console and Analytics 4 read by Sarvam, with what to do first' })
-  report(@Param('projectId') projectId: string, @Req() req: any, @Query('days') days?: string) {
-    return this.reportService.generate(projectId, req.organizationId, parseGoogleWindow(days));
+  report(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+    @Query('days') days?: string,
+    @Body() body?: { targetCities?: string[] },
+  ) {
+    return this.reportService.generate(projectId, req.organizationId, parseGoogleWindow(days), body?.targetCities);
   }
 
   @Get('report/latest')
