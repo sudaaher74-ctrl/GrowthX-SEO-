@@ -559,6 +559,7 @@ export interface GrowthOpportunity {
   detailType?: string | null;
   detailRef?: string | null;
   affectedCount?: number;
+  resolvedAt?: string | null;
   detectedAt: string;
   lastSeenAt: string;
 }

@@ -427,7 +427,7 @@ export function GitHubFixesLogView({
 
       entries.push({
         id: `finding-${f.id}`,
-        timestamp: f.resolvedAt || f.detectedAt,
+        timestamp: f.lastTransitionAt || f.resolvedAt || f.detectedAt,
         category: "PLAN_ACTION",
         moduleId: modGroup?.id ?? "WEBSITE",
         moduleLabel: modGroup?.label ?? f.source,
