@@ -36,6 +36,7 @@ import {
 import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibility-journey-results";
+import { GapPlanModal } from "./gap-plan-modal";
 
 const STEPS = [
   { id: "review", label: "1. Prompts" },
@@ -485,6 +486,11 @@ export function PromptsSection({
   const [expandedGap, setExpandedGap] = useState<number | null>(0);
   const [filterCategory, setFilterCategory] = useState<PromptCategory | "ALL">("ALL");
   const [cmoToast, setCmoToast] = useState<string | null>(null);
+  const [activePlanGap, setActivePlanGap] = useState<{
+    comp: { domain: string; name: string; count: number };
+    promptText: string;
+    priority: string;
+  } | null>(null);
 
   const inputClass =
     "w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm text-brand-950 focus:border-primary-500 focus:outline-none";
@@ -1269,12 +1275,14 @@ export function PromptsSection({
                           variant="secondary"
                           icon={<Sparkles size={14} className="text-primary-600" />}
                           onClick={() => {
-                            setCmoToast(
-                              `CMO Strategy Queued: Prepared "${draft.businessName} vs ${comp.name}" comparison page brief in Fix Engine.`,
-                            );
+                            setActivePlanGap({
+                              comp,
+                              promptText: item.promptText,
+                              priority: item.priority,
+                            });
                           }}
                         >
-                          Ask CMO
+                          Get a plan
                         </ActionButton>
                       </div>
                     ))}
@@ -1285,6 +1293,21 @@ export function PromptsSection({
           })}
         </div>
       </div>
+
+      {/* AI Strategy Plan Modal for Competitor Gaps */}
+      {activePlanGap && (
+        <GapPlanModal
+          businessName={draft.businessName}
+          competitor={activePlanGap.comp}
+          promptText={activePlanGap.promptText}
+          priority={activePlanGap.priority}
+          onClose={() => setActivePlanGap(null)}
+          onSaveToFixEngine={(msg) => {
+            setCmoToast(msg);
+            setActivePlanGap(null);
+          }}
+        />
+      )}
     </div>
   );
 }
