@@ -165,4 +165,46 @@ describe('EngineerAgentService', () => {
     release();
     await first;
   });
+
+  it('fixes cross-tab findings via startForFindings and records before/after change evidence', async () => {
+    prisma.growthOpportunity = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'finding_traffic_1',
+          source: 'SEARCH_CONSOLE',
+          title: 'Zero search clicks in Pune — build local traffic plan',
+          summary: 'Website Audit detected Pune as a target market, but Search Console recorded 0 clicks.',
+          recommendedAction: 'Update the homepage title to include Pune A2 Milk Delivery.',
+          affectedPages: ['https://acme.in/'],
+        },
+      ]),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'Pune A2 Milk Delivery' }),
+      act({ tool: 'finish', summary: 'Added Pune title.' }),
+    );
+
+    const { done } = await service.startForFindings('proj_1', 'org_1', { findingIds: ['finding_traffic_1'] });
+    const finished: any = await done;
+
+    expect(finished.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    const editStep = finished.steps.find((s: any) => s.change);
+    expect(editStep).toBeDefined();
+    expect(editStep.change).toMatchObject({
+      issueId: 'finding_traffic_1',
+      sourceModule: 'SEARCH_CONSOLE',
+      findingTitle: 'Zero search clicks in Pune — build local traffic plan',
+      before: 'Old title',
+      after: 'Pune A2 Milk Delivery',
+      file: 'app/page.tsx',
+    });
+    expect(prisma.growthOpportunity.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'finding_traffic_1' },
+        data: expect.objectContaining({ lifecycle: 'VERIFYING' }),
+      }),
+    );
+  });
 });

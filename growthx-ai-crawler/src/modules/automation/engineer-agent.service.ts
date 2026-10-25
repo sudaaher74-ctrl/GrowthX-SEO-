@@ -14,6 +14,29 @@ interface RunStep {
   step: string;
   detail?: string;
   ok: boolean;
+  change?: {
+    issueId: string;
+    url: string;
+    field: string;
+    before: string | null;
+    after: string;
+    why: string;
+    file: string;
+    measuredAt: string | null;
+    source?: string;
+    beforeSource?: string;
+    sourceModule?: string;
+    findingTitle?: string;
+  };
+}
+
+export interface FindingRunContext {
+  id: string;
+  source: string;
+  title: string;
+  summary: string;
+  recommendedAction: string;
+  affectedPages: string[];
 }
 
 interface Action {
@@ -116,7 +139,12 @@ export class EngineerAgentService {
    * takes minutes, longer than a web request is allowed to.
    * `done` resolves with the finished run, and never rejects.
    */
-  async start(projectId: string, organizationId: string, instructionInput: string) {
+  async start(
+    projectId: string,
+    organizationId: string,
+    instructionInput: string,
+    findingsContext: FindingRunContext[] = [],
+  ) {
     const instruction = (instructionInput ?? '').trim();
     if (instruction.length < MIN_INSTRUCTION) throw new BadRequestException('Describe the change you want in a sentence or two.');
     if (instruction.length > MAX_INSTRUCTION) throw new BadRequestException(`Keep the instruction under ${MAX_INSTRUCTION} characters.`);
@@ -136,7 +164,7 @@ export class EngineerAgentService {
         // Recorded as a fixes run: the enum has no separate kind, and the steps say what was asked.
         data: { repositoryId: repo.id, projectId, kind: AutomationRunKind.FIXES, status: AutomationRunStatus.RUNNING },
       });
-      const done = this.execute(run.id, repo, projectId, organizationId, instruction)
+      const done = this.execute(run.id, repo, projectId, organizationId, instruction, findingsContext)
         .catch((error: any) => {
           this.logger.error(`Engineer run ${run.id} could not be recorded: ${error?.message}`);
           return run;
@@ -149,13 +177,75 @@ export class EngineerAgentService {
     }
   }
 
+  /**
+   * Starts a GitHub fix run for selected findings across all Fix Engine tabs
+   * (Website Audit, Traffic, Competitor Intelligence, AI Visibility, Backlink Intelligence).
+   */
+  async startForFindings(
+    projectId: string,
+    organizationId: string,
+    options?: { findingIds?: string[]; sourceModule?: string },
+  ) {
+    const where: Record<string, unknown> = { projectId };
+    if (options?.findingIds && options.findingIds.length > 0) {
+      where.id = { in: options.findingIds };
+    } else {
+      where.status = { not: 'DISMISSED' };
+      where.lifecycle = { notIn: ['DISMISSED', 'RESOLVED'] };
+      if (options?.sourceModule && options.sourceModule !== 'ALL') {
+        where.source = options.sourceModule;
+      }
+    }
+
+    const rows =
+      (await this.prisma.growthOpportunity?.findMany({
+        where: where as any,
+        orderBy: { priority: 'desc' },
+        take: 8,
+      })) ?? [];
+
+    if (rows.length === 0) {
+      throw new BadRequestException('No matching findings in Fix Engine to apply via GitHub. Refresh your plan or select findings first.');
+    }
+
+    const findingsContext: FindingRunContext[] = rows.map((r: any) => ({
+      id: r.id,
+      source: r.source || 'WEBSITE',
+      title: r.title,
+      summary: r.summary,
+      recommendedAction: r.recommendedAction,
+      affectedPages: Array.isArray(r.affectedPages) ? r.affectedPages : [],
+    }));
+
+    const lines: string[] = [
+      `Fix the following ${findingsContext.length} issue(s) from Fix Engine in the website repository:`,
+    ];
+    for (let i = 0; i < findingsContext.length; i++) {
+      const f = findingsContext[i];
+      const pagesPart = f.affectedPages.length > 0 ? ` | Pages: ${f.affectedPages.slice(0, 3).join(', ')}` : '';
+      lines.push(
+        `${i + 1}. [${f.source}] ${f.title}${pagesPart}\n   Problem: ${clip(f.summary, 180)}\n   Fix: ${clip(f.recommendedAction, 260)}`,
+      );
+    }
+
+    const instruction = clip(lines.join('\n'), MAX_INSTRUCTION);
+    return this.start(projectId, organizationId, instruction, findingsContext);
+  }
+
   /** Starts a run and waits for it to finish. */
   async run(projectId: string, organizationId: string, instruction: string) {
     const { done } = await this.start(projectId, organizationId, instruction);
     return done;
   }
 
-  private async execute(runId: string, repo: any, projectId: string, organizationId: string, instruction: string) {
+  private async execute(
+    runId: string,
+    repo: any,
+    projectId: string,
+    organizationId: string,
+    instruction: string,
+    findingsContext: FindingRunContext[] = [],
+  ) {
     const steps: RunStep[] = [this.step('instruction', clip(instruction, 300), true)];
     let dir = '';
     let token = '';
@@ -173,7 +263,17 @@ export class EngineerAgentService {
       steps.push(this.step('branch', branch, true));
 
       const box = new RepoSandbox(dir);
-      const outcome = await this.work(box, instruction, repo.framework, context.packageManager, organizationId, projectId, steps, runId);
+      const outcome = await this.work(
+        box,
+        instruction,
+        repo.framework,
+        context.packageManager,
+        organizationId,
+        projectId,
+        steps,
+        runId,
+        findingsContext,
+      );
 
       if (box.changed.size === 0) {
         return this.finish(runId, AutomationRunStatus.FAILED, steps, {
@@ -197,6 +297,8 @@ export class EngineerAgentService {
       const prUrl = await this.git.createPullRequest(token, repo.owner, repo.name, `Reigel engineer: ${title}`, branch, repo.defaultBranch, this.prBody(instruction, outcome.summary, changed));
       steps.push(this.step('pull_request', prUrl, true));
 
+      await this.recordProofAndTransitions(projectId, runId, prUrl, steps, findingsContext).catch(() => undefined);
+
       return this.finish(runId, AutomationRunStatus.AWAITING_REVIEW, steps, { branch, pullRequestUrl: prUrl, filesChanged: changed });
     } catch (error: any) {
       const reason = this.redact(String(error?.message ?? error), token);
@@ -218,11 +320,13 @@ export class EngineerAgentService {
     projectId: string,
     steps: RunStep[],
     runId: string,
+    findingsContext: FindingRunContext[] = [],
   ): Promise<{ summary: string }> {
     const history: { call: string; result: string }[] = [];
     const rootListing = await box.list('');
     const deadline = Date.now() + MAX_MINUTES * 60_000;
     let malformed = 0;
+    let editIndex = 0;
 
     for (let turn = 1; turn <= MAX_TURNS; turn++) {
       if (Date.now() > deadline) {
@@ -275,13 +379,100 @@ export class EngineerAgentService {
       }
       const label = `${action.tool}${action.path ? ` ${action.path}` : action.pattern ? ` "${clip(action.pattern, 40)}"` : ''}`;
       history.push({ call: label, result });
-      steps.push(this.step(action.tool, clip(ok ? label : `${label}: ${result}`, 240), ok));
+
+      const stepEntry: RunStep = this.step(action.tool, clip(ok ? label : `${label}: ${result}`, 240), ok);
+      if (ok && (action.tool === 'edit' || action.tool === 'create') && action.path) {
+        const matchedFinding =
+          findingsContext[editIndex % Math.max(findingsContext.length, 1)] ?? findingsContext[0];
+        editIndex += 1;
+        stepEntry.change = {
+          issueId: matchedFinding?.id ?? `engineer:${runId}:${action.path}:${editIndex}`,
+          url: matchedFinding?.affectedPages?.[0] ?? '',
+          field: action.tool === 'create' ? 'NEW_FILE_CREATED' : 'CODE_AND_SEO_UPDATE',
+          before: action.tool === 'edit' ? clip(action.old ?? '', 1200) : null,
+          beforeSource: 'REPOSITORY',
+          after: clip(action.tool === 'edit' ? (action.new ?? '') : (action.content ?? ''), 1200),
+          why: matchedFinding
+            ? `[${matchedFinding.source}] ${matchedFinding.title} — ${matchedFinding.recommendedAction}`
+            : clip(instruction, 400),
+          file: action.path,
+          measuredAt: new Date().toISOString(),
+          sourceModule: matchedFinding?.source ?? 'WEBSITE',
+          findingTitle: matchedFinding?.title ?? clip(instruction.split('\n')[0], 90),
+        };
+      }
+      steps.push(stepEntry);
       // Progress the page can show while the run is still going.
       await this.prisma.automationRun.update({ where: { id: runId }, data: { steps: steps as any } }).catch(() => undefined);
     }
 
     steps.push(this.step('stopped', `turn limit of ${MAX_TURNS} reached`, false));
     return { summary: `Stopped after ${MAX_TURNS} turns; the change may be incomplete.` };
+  }
+
+  private async recordProofAndTransitions(
+    projectId: string,
+    runId: string,
+    pullRequestUrl: string,
+    steps: RunStep[],
+    findingsContext: FindingRunContext[],
+  ) {
+    const changeSteps = steps.filter((s) => s.change);
+    for (const s of changeSteps) {
+      const ch = s.change!;
+      await this.prisma.fixSnapshot?.create({
+        data: {
+          projectId,
+          automationRunId: runId,
+          url: ch.url || ch.file,
+          snapshotType: 'BEFORE',
+          title: ch.field === 'META_TITLE' ? ch.before : ch.findingTitle ?? null,
+          contentSnippet: ch.before,
+        },
+      }).catch(() => undefined);
+
+      await this.prisma.fixSnapshot?.create({
+        data: {
+          projectId,
+          automationRunId: runId,
+          url: ch.url || ch.file,
+          snapshotType: 'PROPOSED',
+          title: ch.field === 'META_TITLE' ? ch.after : ch.findingTitle ?? null,
+          contentSnippet: ch.after,
+        },
+      }).catch(() => undefined);
+
+      await this.prisma.fixImpactLedgerEvent?.create({
+        data: {
+          projectId,
+          automationRunId: runId,
+          eventType: 'PR_CREATED',
+          title: ch.findingTitle ? `GitHub PR prepared: ${ch.findingTitle}` : `GitHub PR prepared for ${ch.file}`,
+          description: ch.why,
+          actor: 'REIGEL_ENGINEER',
+          affectedUrl: ch.url || ch.file,
+          pullRequestUrl,
+          verificationStatus: 'AWAITING_APPROVAL',
+          evidenceData: {
+            sourceModule: ch.sourceModule ?? 'WEBSITE',
+            file: ch.file,
+            field: ch.field,
+            before: ch.before,
+            after: ch.after,
+          } as any,
+        },
+      }).catch(() => undefined);
+    }
+
+    for (const f of findingsContext) {
+      await this.prisma.growthOpportunity?.update({
+        where: { id: f.id },
+        data: {
+          lifecycle: 'VERIFYING' as any,
+          lastTransitionAt: new Date(),
+        },
+      }).catch(() => undefined);
+    }
   }
 
   private runTool(box: RepoSandbox, a: Action): Promise<string> {

@@ -28,7 +28,7 @@ interface RunStep {
   step: string;
   detail?: string;
   ok: boolean;
-  change?: { issueId: string; url: string; field: string; before: string | null; after: string; why: string; file: string; measuredAt: string | null; source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string };
+  change?: { issueId: string; url: string; field: string; before: string | null; after: string; why: string; file: string; measuredAt: string | null; source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string; sourceModule?: string; findingTitle?: string };
 }
 
 /** How many fixes one run will attempt, so a PR stays reviewable. */

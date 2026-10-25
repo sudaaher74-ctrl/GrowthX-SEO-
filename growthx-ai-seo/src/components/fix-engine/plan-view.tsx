@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, GitPullRequest, RefreshCw } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { useFindings, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
@@ -51,7 +51,11 @@ function groupOf(source: string) {
  * (add to plan, dismiss); it does not change your website, and nothing here is
  * shown as fixed unless a later check confirmed it.
  */
-export function PlanView() {
+export function PlanView({
+  onOpenGitHubFixes,
+}: {
+  onOpenGitHubFixes?: (findingId?: string) => void;
+} = {}) {
   const { projectId } = useWorkspace();
   const [group, setGroup] = useState<string>("ALL");
   const findings = useFindings(projectId, { limit: 200 });
@@ -104,9 +108,20 @@ export function PlanView() {
             </Chip>
           ))}
         </div>
-        <ActionButton disabled={refresh.isPending} icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />} onClick={() => refresh.mutate()}>
-          {refresh.isPending ? "Analysing…" : "Refresh plan"}
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenGitHubFixes && (
+            <ActionButton
+              variant="primary"
+              icon={<GitPullRequest size={12} />}
+              onClick={() => onOpenGitHubFixes()}
+            >
+              Fix with GitHub &amp; Log →
+            </ActionButton>
+          )}
+          <ActionButton disabled={refresh.isPending} icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />} onClick={() => refresh.mutate()}>
+            {refresh.isPending ? "Analysing…" : "Refresh plan"}
+          </ActionButton>
+        </div>
       </div>
       {refresh.error && <StatusNote tone="bad">{errorMessage(refresh.error)}</StatusNote>}
 
@@ -124,7 +139,13 @@ export function PlanView() {
         ) : (
           <ul className="divide-y">
             {active.map((f) => (
-              <FindingRow key={f.id} finding={f} busy={transition.isPending} onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })} />
+              <FindingRow
+                key={f.id}
+                finding={f}
+                busy={transition.isPending}
+                onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
+                onOpenGitHubFixes={onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined}
+              />
             ))}
           </ul>
         )}
@@ -134,7 +155,17 @@ export function PlanView() {
   );
 }
 
-function FindingRow({ finding: f, busy, onMove }: { finding: GrowthOpportunity; busy: boolean; onMove: (to: string, reason?: string) => void }) {
+function FindingRow({
+  finding: f,
+  busy,
+  onMove,
+  onOpenGitHubFixes,
+}: {
+  finding: GrowthOpportunity;
+  busy: boolean;
+  onMove: (to: string, reason?: string) => void;
+  onOpenGitHubFixes?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [reason, setReason] = useState("");
@@ -199,6 +230,15 @@ function FindingRow({ finding: f, busy, onMove }: { finding: GrowthOpportunity; 
           <div className="flex flex-wrap items-center gap-2">
             {lifecycle === "DETECTED" && (
               <ActionButton disabled={busy} onClick={() => onMove("QUEUED")}>Add to plan</ActionButton>
+            )}
+            {onOpenGitHubFixes && (
+              <ActionButton
+                variant="primary"
+                icon={<GitPullRequest size={12} />}
+                onClick={onOpenGitHubFixes}
+              >
+                Fix with GitHub →
+              </ActionButton>
             )}
             {["DETECTED", "QUEUED"].includes(lifecycle) && !dismissing && (
               <button type="button" onClick={() => setDismissing(true)} className={cn("text-[12px] font-semibold text-brand-500 hover:text-error-600")}>

@@ -137,6 +137,27 @@ export class AutomationController {
     return this.engineer.start(projectId, req.organizationId, body.instruction).then((r) => r.run);
   }
 
+  @Post('runs/plan-fixes')
+  @ApiOperation({ summary: 'Apply selected Fix Engine findings across all tabs via GitHub and open a pull request' })
+  @ApiParam({ name: 'projectId' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        findingIds: { type: 'array', items: { type: 'string' } },
+        sourceModule: { type: 'string', example: 'ALL' },
+      },
+    },
+  })
+  runPlanFixes(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body?: { findingIds?: string[]; sourceModule?: string },
+  ) {
+    return this.engineer.startForFindings(projectId, req.organizationId, body).then((r) => r.run);
+  }
+
   @Post('runs/content')
   @ApiOperation({ summary: 'Commit drafted pages to the repo and open a PR' })
   @ApiParam({ name: 'projectId' })

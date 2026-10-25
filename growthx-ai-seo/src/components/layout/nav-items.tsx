@@ -131,6 +131,10 @@ export function useMainNav(): { mainNav: NavItem[] } {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
+      children: [
+        { id: "improvement", label: "Improvement", href: "/fix-engine?tab=improvement", tab: "improvement", isDefault: true },
+        { id: "github-fixes", label: "GitHub Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
+      ],
     },
   ];
 

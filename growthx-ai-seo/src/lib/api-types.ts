@@ -1140,6 +1140,7 @@ export interface FixChangeReport {
     issueId: string; url: string; field: string; before: string | null; after: string;
     why: string; file: string; measuredAt: string | null;
     source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string;
+    sourceModule?: string; findingTitle?: string;
     liveValue: string | null; checkedAt: string | null;
     verification: 'MATCHED' | 'DIFFERENT' | 'NOT_CHECKED';
   }[];
@@ -1149,7 +1150,24 @@ export interface AutomationRun {
   id: string;
   kind: "FIXES" | "CONTENT";
   status: "RUNNING" | "AWAITING_REVIEW" | "FAILED";
-  steps: { at: string; step: string; detail?: string; ok: boolean }[];
+  steps: {
+    at: string;
+    step: string;
+    detail?: string;
+    ok: boolean;
+    change?: {
+      issueId: string;
+      url: string;
+      field: string;
+      before: string | null;
+      after: string;
+      why: string;
+      file: string;
+      measuredAt: string | null;
+      sourceModule?: string;
+      findingTitle?: string;
+    };
+  }[];
   error: string | null;
   branch: string | null;
   pullRequestUrl: string | null;
