@@ -1097,9 +1097,18 @@ export const api = {
   /** Starts the engineer on a plain-words instruction. Returns at once with the run (RUNNING); poll the runs. */
   runEngineer: (projectId: string, instruction: string) =>
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, { instruction }),
-  /** Starts a GitHub fix run for selected Fix Engine findings across all tabs. */
-  runPlanFixes: (projectId: string, body?: { findingIds?: string[]; sourceModule?: string }) =>
-    post<AutomationRun>(`/api/projects/${projectId}/automation/runs/plan-fixes`, body ?? {}),
+  /** Starts a GitHub fix run for selected Fix Engine findings across all tabs via the live engineer endpoint. */
+  runPlanFixes: async (
+    projectId: string,
+    body?: { findingIds?: string[]; sourceModule?: string; instruction?: string },
+  ) => {
+    if (body?.instruction) {
+      return post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, {
+        instruction: body.instruction,
+      });
+    }
+    return post<AutomationRun>(`/api/projects/${projectId}/automation/runs/plan-fixes`, body ?? {});
+  },
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
   listFixChanges: (projectId: string) => get<import('./api-types').FixChangeReport[]>(`/api/projects/${projectId}/automation/changes`),
 

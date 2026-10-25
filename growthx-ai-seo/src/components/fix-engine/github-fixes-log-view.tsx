@@ -149,67 +149,6 @@ export function GitHubFixesLogView({
     queryClient.invalidateQueries({ queryKey: ["issue-groups", projectId] });
   };
 
-  const runPlanFixesMutation = useMutation({
-    mutationFn: (payload: { findingIds?: string[]; sourceModule?: string }) =>
-      api.runPlanFixes(projectId!, payload),
-    onSuccess: (run) => {
-      setActionBanner({
-        tone: "good",
-        text: `GitHub Fix Engine started (Run ${run.id.slice(0, 8)}). Cloning repository, applying fixes on a branch, validating build, and opening Pull Request…`,
-      });
-      invalidateAll();
-    },
-    onError: (err) => {
-      setActionBanner({ tone: "bad", text: errorMessage(err) });
-    },
-  });
-
-  const runLowRiskFixesMutation = useMutation({
-    mutationFn: () => api.runFixes(projectId!),
-    onSuccess: (run) => {
-      setActionBanner({
-        tone: run.status === "FAILED" ? "bad" : "good",
-        text:
-          run.status === "FAILED"
-            ? run.error || "Low-risk fix run finished without changes."
-            : `Pull request prepared with ${run.filesChanged.length} changed file(s). Review and merge on GitHub.`,
-      });
-      invalidateAll();
-    },
-    onError: (err) => {
-      setActionBanner({ tone: "bad", text: errorMessage(err) });
-    },
-  });
-
-  const runEngineerMutation = useMutation({
-    mutationFn: (instruction: string) => api.runEngineer(projectId!, instruction),
-    onSuccess: () => {
-      setEngineerPrompt("");
-      setActionBanner({
-        tone: "good",
-        text: "GitHub Engineer started. It is reading your repository, making the requested improvement, validating the build, and opening a Pull Request.",
-      });
-      invalidateAll();
-    },
-    onError: (err) => {
-      setActionBanner({ tone: "bad", text: errorMessage(err) });
-    },
-  });
-
-  const verifyLiveMutation = useMutation({
-    mutationFn: (runId: string) => api.verifyFixDeployment(projectId!, runId),
-    onSuccess: (res) => {
-      setActionBanner({
-        tone: res.success ? "good" : "bad",
-        text: res.message || (res.success ? "Confirmed live on your website!" : "Live website does not show the updated value yet."),
-      });
-      invalidateAll();
-    },
-    onError: (err) => {
-      setActionBanner({ tone: "bad", text: errorMessage(err) });
-    },
-  });
-
   const allFindings = useMemo(() => findingsQuery.data?.items ?? [], [findingsQuery.data]);
   const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const changeReports = useMemo(() => changesQuery.data ?? [], [changesQuery.data]);
@@ -229,7 +168,7 @@ export function GitHubFixesLogView({
 
   // Flatten all GitHub PR file/page changes with run context
   const prChanges = useMemo(() => {
-    return changeReports.flatMap((report: FixChangeReport) =>
+    const fromReports = changeReports.flatMap((report: FixChangeReport) =>
       report.changes.map((ch, idx) => {
         const matchedFinding = allFindings.find(
           (f) =>
@@ -271,7 +210,62 @@ export function GitHubFixesLogView({
         };
       }),
     );
-  }, [changeReports, allFindings]);
+
+    const runIdsWithChanges = new Set(fromReports.map((c) => c.runId));
+    const fromEngineerRuns = runs
+      .filter((r) => !runIdsWithChanges.has(r.id) && r.filesChanged.length > 0)
+      .map((r) => {
+        const instructionStep = r.steps.find((s) => s.step === "instruction");
+        const finishStep = r.steps.find((s) => s.step === "finish");
+        const rawInstruction = instructionStep?.detail ?? "";
+        const matchedGroup =
+          GROUPS.find((g) =>
+            rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
+          ) ?? groupOf("WEBSITE");
+        const matchedFinding = allFindings.find((f) =>
+          rawInstruction.toLowerCase().includes(f.title.slice(0, 28).toLowerCase()),
+        );
+        const rep = changeReports.find((cr) => cr.id === r.id);
+
+        return {
+          key: `eng-run-${r.id}`,
+          runId: r.id,
+          runStartedAt: r.startedAt,
+          runStatus: r.status,
+          reviewState: rep?.reviewState ?? ("OPEN" as const),
+          mergedAt: rep?.mergedAt ?? null,
+          pullRequestUrl: r.pullRequestUrl,
+          moduleId: matchedFinding
+            ? (groupOf(matchedFinding.source)?.id ?? matchedGroup?.id ?? "WEBSITE")
+            : (matchedGroup?.id ?? "WEBSITE"),
+          moduleLabel: matchedFinding
+            ? (groupOf(matchedFinding.source)?.label ?? matchedGroup?.label ?? "Website Audit")
+            : (matchedGroup?.label ?? "Website Audit"),
+          findingTitle:
+            matchedFinding?.title ||
+            rawInstruction.split("\n")[0]?.replace(/^Fix the following.*:\s*/i, "") ||
+            `GitHub Engineer Update (${r.filesChanged.length} file${r.filesChanged.length === 1 ? "" : "s"})`,
+          field: "CODE_AND_SEO_UPDATE",
+          fieldLabel: FIELD_LABELS.CODE_AND_SEO_UPDATE,
+          url: matchedFinding?.affectedPages?.[0] ?? "",
+          file: r.filesChanged.join(", "),
+          before:
+            matchedFinding?.summary ||
+            "Previous repository code prior to GitHub Engineer update",
+          beforeSource: "REPOSITORY",
+          after:
+            finishStep?.detail ||
+            `Updated ${r.filesChanged.join(", ")} in GitHub Pull Request`,
+          why: matchedFinding?.recommendedAction || rawInstruction || "Applied via GitHub Engineer",
+          verification: "NOT_CHECKED" as const,
+          liveValue: null,
+          checkedAt: null,
+          measuredAt: r.startedAt,
+        };
+      });
+
+    return [...fromReports, ...fromEngineerRuns];
+  }, [changeReports, runs, allFindings]);
 
   // Filter findings by module, status, and search
   const filteredFindings = useMemo(() => {
@@ -491,6 +485,103 @@ export function GitHubFixesLogView({
       pagesAndFiles: distinctPagesAndFiles,
     };
   }, [allFindings, prChanges, runs]);
+
+  const runPlanFixesMutation = useMutation({
+    mutationFn: async (payload: { findingIds?: string[]; sourceModule?: string }) => {
+      const candidates =
+        payload.findingIds && payload.findingIds.length > 0
+          ? allFindings.filter((f) => payload.findingIds!.includes(f.id))
+          : filteredFindings.slice(0, 6);
+
+      if (candidates.length === 0) {
+        throw new Error("Select at least one finding in Fix Engine to apply via GitHub.");
+      }
+
+      const lines: string[] = [
+        `Fix the following ${candidates.length} issue(s) from Fix Engine in the website repository:`,
+      ];
+      for (let i = 0; i < candidates.length; i++) {
+        const f = candidates[i];
+        const modLabel = groupOf(f.source)?.label ?? f.source;
+        const pagesPart =
+          f.affectedPages && f.affectedPages.length > 0
+            ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
+            : "";
+        lines.push(
+          `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 150)}\n   Fix: ${f.recommendedAction.slice(0, 220)}`,
+        );
+      }
+      const instruction = lines.join("\n").slice(0, 1950);
+
+      // Move any newly detected findings into the plan as we start the GitHub run
+      await Promise.allSettled(
+        candidates
+          .filter((f) => (f.lifecycle ?? "DETECTED") === "DETECTED")
+          .map((f) => api.transitionFinding(projectId!, f.id, { to: "QUEUED" })),
+      );
+
+      return api.runPlanFixes(projectId!, {
+        ...payload,
+        instruction,
+      });
+    },
+    onSuccess: (run) => {
+      setActionBanner({
+        tone: "good",
+        text: `GitHub Fix Engine started (Run ${run.id.slice(0, 8)}). Cloning repository, applying fixes on a branch, validating build, and opening Pull Request…`,
+      });
+      invalidateAll();
+    },
+    onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
+
+  const runLowRiskFixesMutation = useMutation({
+    mutationFn: () => api.runFixes(projectId!),
+    onSuccess: (run) => {
+      setActionBanner({
+        tone: run.status === "FAILED" ? "bad" : "good",
+        text:
+          run.status === "FAILED"
+            ? run.error || "Low-risk fix run finished without changes."
+            : `Pull request prepared with ${run.filesChanged.length} changed file(s). Review and merge on GitHub.`,
+      });
+      invalidateAll();
+    },
+    onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
+
+  const runEngineerMutation = useMutation({
+    mutationFn: (instruction: string) => api.runEngineer(projectId!, instruction),
+    onSuccess: () => {
+      setEngineerPrompt("");
+      setActionBanner({
+        tone: "good",
+        text: "GitHub Engineer started. It is reading your repository, making the requested improvement, validating the build, and opening a Pull Request.",
+      });
+      invalidateAll();
+    },
+    onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
+
+  const verifyLiveMutation = useMutation({
+    mutationFn: (runId: string) => api.verifyFixDeployment(projectId!, runId),
+    onSuccess: (res) => {
+      setActionBanner({
+        tone: res.success ? "good" : "bad",
+        text: res.message || (res.success ? "Confirmed live on your website!" : "Live website does not show the updated value yet."),
+      });
+      invalidateAll();
+    },
+    onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
 
   const readyLowRiskGroups = (issueGroups.data?.groups ?? []).filter((g) => g.aiFixAvailable);
 
