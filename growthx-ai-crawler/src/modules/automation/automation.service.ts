@@ -89,17 +89,31 @@ export class AutomationService {
       autoMerge?: boolean;
     },
   ) {
-    if (!input.owner || !input.name || !input.accessToken) {
+    if (!input.owner || !input.name) {
       throw new BadRequestException('owner, name and accessToken are required.');
     }
 
+    const owner = input.owner.trim();
+    const name = input.name.trim().replace(/\.git$/i, '');
+
     // Tolerate what people paste: stray spaces or a line break, or the word "Bearer".
-    const accessToken = input.accessToken.replace(/^\s*(bearer|token)\s+/i, '').trim();
+    let accessToken = (input.accessToken ?? '').replace(/^\s*(bearer|token)\s+/i, '').trim();
+    if (!accessToken || accessToken === 'ghp_oauth_session_verified' || accessToken === '__REUSE_LINKED_GITHUB_TOKEN__') {
+      const existingRepo = await this.prisma.siteRepository.findFirst?.({
+        where: { owner },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (existingRepo?.accessTokenEncrypted) {
+        const decrypted = this.security.decryptCredentials(existingRepo.accessTokenEncrypted);
+        if (decrypted) accessToken = decrypted.trim();
+      }
+    }
+    if (!accessToken || accessToken === 'ghp_oauth_session_verified' || accessToken === '__REUSE_LINKED_GITHUB_TOKEN__') {
+      throw new BadRequestException('owner, name and accessToken are required.');
+    }
     if (/\s/.test(accessToken)) {
       throw new BadRequestException('The token contains spaces or line breaks. Paste only the token itself.');
     }
-    const owner = input.owner.trim();
-    const name = input.name.trim().replace(/\.git$/i, '');
 
     // Check it works now, not at the first run.
     let verified: { defaultBranch: string; canPush: boolean };

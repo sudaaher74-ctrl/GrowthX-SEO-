@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { LoadingState } from "@/components/ui/truthful-state";
-import { useFindings, useIssueGroups, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
+import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
+import { useFindings, useIssueGroups, useProfile, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import type { AutomationRun, FixChangeReport } from "@/lib/api-types";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
@@ -2136,103 +2137,16 @@ function RepoConnectForm({
   existingRepo: { owner: string; name: string; defaultBranch: string; framework: string } | null;
   onConnected: () => void;
 }) {
-  const [owner, setOwner] = useState(existingRepo?.owner ?? "");
-  const [name, setName] = useState(existingRepo?.name ?? "");
-  const [branch, setBranch] = useState(existingRepo?.defaultBranch ?? "main");
-  const [framework, setFramework] = useState(existingRepo?.framework ?? "nextjs");
-  const [token, setToken] = useState("");
-
-  const connect = useMutation({
-    mutationFn: () =>
-      api.connectRepository(projectId!, {
-        owner: owner.trim(),
-        name: name.trim(),
-        accessToken: token.trim(),
-        defaultBranch: branch.trim() || "main",
-        framework,
-      }),
-    onSuccess: () => {
-      setToken("");
-      onConnected();
-    },
-  });
-
-  const field =
-    "mt-1 h-9 w-full rounded-lg border bg-white px-3 text-[12.5px] text-brand-950 outline-none focus:border-primary-500";
+  const profile = useProfile();
 
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        connect.mutate();
-      }}
-    >
-      <p className="text-[12.5px] font-semibold text-brand-950">
-        Connect your website&apos;s GitHub repository so Fix Engine can prepare Pull Requests for issues across all tabs.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-[11px] font-medium text-brand-600">
-          GitHub Owner / Org
-          <input
-            className={field}
-            value={owner}
-            onChange={(e) => setOwner(e.target.value)}
-            placeholder="acme-inc"
-            required
-          />
-        </label>
-        <label className="text-[11px] font-medium text-brand-600">
-          Repository Name
-          <input
-            className={field}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="website"
-            required
-          />
-        </label>
-        <label className="text-[11px] font-medium text-brand-600">
-          Default Branch
-          <input
-            className={field}
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-            placeholder="main"
-          />
-        </label>
-        <label className="text-[11px] font-medium text-brand-600">
-          Framework
-          <select
-            className={field}
-            value={framework}
-            onChange={(e) => setFramework(e.target.value)}
-          >
-            <option value="nextjs">Next.js</option>
-            <option value="static-html">Static HTML</option>
-            <option value="unknown">Auto-detect / Other</option>
-          </select>
-        </label>
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="flex-1 text-[11px] font-medium text-brand-600">
-          GitHub Fine-Grained Personal Access Token (Contents &amp; Pull requests: Read and Write)
-          <input
-            className={field}
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="github_pat_…"
-            required
-          />
-        </label>
-        <ActionButton variant="primary" disabled={connect.isPending} icon={<GitPullRequest size={12} />}>
-          {connect.isPending ? "Verifying & Connecting…" : "Connect GitHub Repository"}
-        </ActionButton>
-      </div>
-      {connect.error && <StatusNote tone="bad">{errorMessage(connect.error)}</StatusNote>}
-    </form>
+    <GitHubAgentConnectWorkflow
+      projectId={projectId}
+      userEmail={profile.data?.email}
+      existingRepo={existingRepo}
+      mode="inline"
+      onConnected={() => onConnected()}
+    />
   );
 }
 

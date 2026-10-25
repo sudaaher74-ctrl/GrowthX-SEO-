@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, GitPullRequest } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
-import { useIssueGroups, useWorkspace } from "@/hooks/use-growthx";
+import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
+import { useIssueGroups, useProfile, useWorkspace } from "@/hooks/use-growthx";
 import { api, type AutomationRun } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { count } from "@/lib/google-format";
@@ -153,50 +154,14 @@ export function RunCard({ run }: { run: AutomationRun }) {
 }
 
 function ConnectForm({ projectId, onConnected }: { projectId: string | null; onConnected: () => void }) {
-  const [owner, setOwner] = useState("");
-  const [name, setName] = useState("");
-  const [branch, setBranch] = useState("main");
-  const [framework, setFramework] = useState("unknown");
-  const [token, setToken] = useState("");
-  const connect = useMutation({
-    mutationFn: () => api.connectRepository(projectId!, { owner: owner.trim(), name: name.trim(), accessToken: token.trim(), defaultBranch: branch.trim() || "main", framework }),
-    onSuccess: () => {
-      setToken("");
-      onConnected();
-    },
-  });
-  const field = "h-9 w-full rounded-lg border bg-white px-3 text-[12.5px] outline-none focus:border-primary-500";
+  const profile = useProfile();
+
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        connect.mutate();
-      }}
-    >
-      <p className="text-[12.5px] text-brand-950">Connect the GitHub repository your website is built from, so fixes can be prepared as a pull request.</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="text-[11px] text-brand-500">GitHub owner<input className={field} value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="acme-inc" required /></label>
-        <label className="text-[11px] text-brand-500">Repository<input className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="website" required /></label>
-        <label className="text-[11px] text-brand-500">Main branch<input className={field} value={branch} onChange={(e) => setBranch(e.target.value)} /></label>
-        <label className="text-[11px] text-brand-500">
-          Built with
-          <select className={field} value={framework} onChange={(e) => setFramework(e.target.value)}>
-            <option value="unknown">Not sure</option>
-            <option value="nextjs">Next.js</option>
-            <option value="static-html">Plain HTML</option>
-          </select>
-        </label>
-      </div>
-      <label className="block text-[11px] text-brand-500">
-        GitHub access token
-        <input className={field} type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="github_pat_…" required />
-      </label>
-      <p className="text-[11px] text-brand-400">
-        Create a fine-grained token limited to this one repository, with Contents and Pull requests set to read and write. It is stored encrypted and never shown again. You can revoke it on GitHub at any time.
-      </p>
-      <ActionButton disabled={connect.isPending}>{connect.isPending ? "Connecting…" : "Connect repository"}</ActionButton>
-      {connect.error && <StatusNote tone="bad">{errorMessage(connect.error)}</StatusNote>}
-    </form>
+    <GitHubAgentConnectWorkflow
+      projectId={projectId}
+      userEmail={profile.data?.email}
+      mode="inline"
+      onConnected={() => onConnected()}
+    />
   );
 }
