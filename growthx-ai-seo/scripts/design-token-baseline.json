@@ -14,7 +14,7 @@
   "components/content/create-article-modal.tsx": 7,
   "components/layout/sidebar.tsx": 2,
   "components/settings/ai-configuration-tab.tsx": 16,
-  "components/settings/integration-logos.tsx": 10,
+  "components/settings/integration-logos.tsx": 19,
   "components/ui/badge.tsx": 41,
   "components/ui/button.tsx": 28,
   "components/ui/command-palette.tsx": 11,
