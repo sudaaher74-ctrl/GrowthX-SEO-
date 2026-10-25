@@ -74,7 +74,7 @@ export function Sidebar({
 
             <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border-color)" }}>
               <NavLink 
-                item={{ label: "Integrations", href: "/integrations", icon: LayoutGrid }} 
+                item={{ label: "Integrations", href: "/settings?tab=integrations", icon: LayoutGrid }} 
                 pathname={pathname} 
                 onNavigate={() => setMobileOpen?.(false)} 
               />

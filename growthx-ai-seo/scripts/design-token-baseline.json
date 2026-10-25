@@ -1,8 +1,6 @@
 {
   "app/(dashboard)/admin/page.tsx": 20,
   "app/(dashboard)/error.tsx": 11,
-  "app/(dashboard)/integrations/page.tsx": 19,
-  "app/(dashboard)/settings/page.tsx": 17,
   "app/(dashboard)/website/page.tsx": 28,
   "app/auth/callback/page.tsx": 11,
   "app/error.tsx": 12,
@@ -11,15 +9,12 @@
   "app/login/page.tsx": 4,
   "app/opengraph-image.tsx": 3,
   "app/register/page.tsx": 4,
-  "components/ai-visibility/ai-kpi-card.tsx": 21,
-  "components/ai-visibility/ai-visibility-competitors-tab.tsx": 66,
-  "components/ai-visibility/ai-visibility-gauge.tsx": 14,
-  "components/ai-visibility/ai-visibility-overview-tab.tsx": 12,
   "components/auth/auth-illustration.tsx": 24,
   "components/auth/auth-shell.tsx": 4,
   "components/content/create-article-modal.tsx": 7,
   "components/layout/sidebar.tsx": 2,
   "components/settings/ai-configuration-tab.tsx": 16,
+  "components/settings/integration-logos.tsx": 28,
   "components/ui/badge.tsx": 41,
   "components/ui/button.tsx": 28,
   "components/ui/command-palette.tsx": 11,
@@ -27,8 +22,6 @@
   "components/ui/truthful-state.tsx": 11,
   "components/voice/aiva-orb.tsx": 1,
   "components/voice/aiva-panel.tsx": 32,
-  "components/website/audit-report-pdf/seo-audit-report-modal.tsx": 17,
-  "components/website/cwv-benchmark-bar.tsx": 51,
   "components/website/donut-chart.tsx": 5,
   "components/website/gauge-score.tsx": 30,
   "components/website/pages/discovered-not-crawled-panel.tsx": 41,
@@ -38,6 +31,5 @@
   "components/website/tabs/content-tab.tsx": 110,
   "components/website/tabs/issues-tab.tsx": 82,
   "components/website/tabs/overview-tab.tsx": 81,
-  "components/website/tabs/pages-tab.tsx": 22,
-  "components/website/tabs/performance-tab.tsx": 146
+  "components/website/tabs/pages-tab.tsx": 22
 }
