@@ -20,7 +20,7 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
   const { projectId } = useWorkspace();
   const pathname = usePathname();
 
-  if (pathname === "/google") {
+  if (pathname === "/google" || pathname === "/google/traffic") {
     return (
       <div className="space-y-4 pb-12">
         {children}

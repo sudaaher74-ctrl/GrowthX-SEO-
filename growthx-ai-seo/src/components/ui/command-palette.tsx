@@ -46,7 +46,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, competitor crawl diff & market gaps" },
 
     // Extended Workspace & Tools
-    { id: "nav-google", title: "Google", category: "Navigation", icon: SearchIcon, href: "/google", subtitle: "Search Console and Analytics, in one place" },
+    { id: "nav-traffic", title: "Traffic", category: "Navigation", icon: SearchIcon, href: "/google", subtitle: "Visitors, search queries, landing pages & channels" },
     { id: "nav-ai", title: "AI Visibility", category: "Navigation", icon: Eye, href: "/ai-visibility", subtitle: "How ChatGPT, Gemini, Perplexity and Claude describe you" },
     { id: "nav-fix", title: "Fix Engine", category: "Navigation", icon: Wrench, href: "/fix-engine", subtitle: "Your improvement plan, and changes as a pull request" },
     { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
