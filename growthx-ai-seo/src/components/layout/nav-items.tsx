@@ -66,7 +66,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
 
 
   // The workflow, aligned with the agency platform navigation:
-  // Dashboard, Website Audit, Google, Competitor Intelligence, AI Visibility, Fix Engine, Proof of Impact
+  // Dashboard, Website Audit, Traffic, Competitor Intelligence, Backlink Intelligence, AI Visibility, Fix Engine
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
