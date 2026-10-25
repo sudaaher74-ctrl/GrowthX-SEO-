@@ -13,9 +13,12 @@ import {
   Database,
   Globe,
   LayoutGrid,
+  Pencil,
+  Plus,
   RefreshCw,
   Sparkles,
   Target,
+  Trash2,
 } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { visibilityJourneyApi } from "@/lib/api-client";
@@ -268,8 +271,13 @@ function GoogleAiIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 type PromptCategory = "best-of" | "jobs-to-be-done" | "competitor" | "branded";
 
 function categorizePrompt(q: BuyerQuestion, businessName: string): PromptCategory {
+  const intent = (q.intent || "").toLowerCase().trim();
+  if (intent === "branded" || intent === "brand") return "branded";
+  if (intent === "competitor" || intent === "comparison") return "competitor";
+  if (intent === "problem" || intent === "action" || intent === "jobs-to-be-done" || intent === "job") return "jobs-to-be-done";
+  if (intent === "best-of" || intent === "best of" || intent === "recommendation") return "best-of";
+
   const text = (q.text || "").toLowerCase();
-  const intent = (q.intent || "").toLowerCase();
   const bName = (businessName || "").toLowerCase().trim();
 
   if (intent.includes("brand") || (bName.length > 2 && text.includes(bName))) {
@@ -422,6 +430,7 @@ export function PromptsSection({
   onViewResults?: () => void;
 }) {
   const [draft, setDraft] = useState(brief);
+  const [isEditing, setIsEditing] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState<number | null>(0);
   const [expandedGap, setExpandedGap] = useState<number | null>(0);
   const [filterCategory, setFilterCategory] = useState<PromptCategory | "ALL">("ALL");
@@ -429,8 +438,6 @@ export function PromptsSection({
 
   const inputClass =
     "w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm text-brand-950 focus:border-primary-500 focus:outline-none";
-
-
 
   // 1. Calculate stats for the 4 Okara category cards
   const categories: { key: PromptCategory; label: string; cardTone: "error" | "warning" | "success" }[] = [
@@ -479,6 +486,16 @@ export function PromptsSection({
     .filter(
       (item) => filterCategory === "ALL" || item.category === filterCategory,
     );
+
+  const promptsToDisplay = isEditing
+    ? draft.questions.map((q, originalIndex) => ({
+        q,
+        originalIndex,
+        category: categorizePrompt(q, draft.businessName),
+        chatGpt: getEngineCitation(q.text, "ChatGPT", answers, draft.businessName),
+        googleAi: getEngineCitation(q.text, "Google AI", answers, draft.businessName),
+      }))
+    : displayedPrompts;
 
   // 3. Build Gap Tasks (Screenshots 3, 4, 5)
   // Extract prompts with competitor citations or comparison intents
@@ -702,7 +719,7 @@ export function PromptsSection({
         </div>
       )}
 
-      {/* Section 1: Tracked Prompts Panel (Okara style, Screenshot 1) */}
+      {/* Section 1: Tracked Prompts Panel (Okara style, Screenshot 1 & 2) */}
       <div className="overflow-hidden rounded-xl border border-line bg-surface-1 shadow-card">
         <div className="flex flex-col justify-between gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
@@ -712,205 +729,383 @@ export function PromptsSection({
             <div>
               <h3 className="text-sm font-bold text-brand-950">Tracked prompts</h3>
               <p className="text-xs text-brand-500">
-                Who each AI engine cites. Open a row for the answer.
+                {isEditing
+                  ? "Changes save as you make them. A reworded prompt is checked again on the next run."
+                  : "Who each AI engine cites. Open a row for the answer."}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {!locked && (
-              <ActionButton
-                variant="primary"
-                disabled={pending || !checks}
-                onClick={() => onRun(draft)}
-                icon={<Check size={14} />}
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-800 dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
               >
-                Confirm & check {draft.questions.length} prompts
-              </ActionButton>
-            )}
-            {hasScan && onViewResults && (
-              <ActionButton
-                variant="secondary"
-                onClick={onViewResults}
-                icon={<ArrowRight size={14} />}
-              >
-                View answers
-              </ActionButton>
-            )}
-          </div>
-        </div>
-
-        {/* Table column headers */}
-        <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
-          <div className="flex-1">Prompt</div>
-          <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
-            <ChatGptIcon className="h-3.5 w-3.5 text-brand-600" />
-            <span className="normal-case font-medium text-brand-700">ChatGPT</span>
-          </div>
-          <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
-            <GoogleAiIcon className="h-3.5 w-3.5" />
-            <span className="normal-case font-medium text-brand-700">Google AI</span>
-          </div>
-        </div>
-
-        {/* Prompts list */}
-        <div className="divide-y divide-line">
-          {displayedPrompts.map(({ q, originalIndex, category, chatGpt, googleAi }) => {
-            const isExpanded = expandedPrompt === originalIndex;
-            const categoryBadgeTone =
-              category === "best-of" || category === "jobs-to-be-done"
-                ? "bad"
-                : category === "competitor"
-                  ? "warn"
-                  : "good";
-
-            return (
-              <div key={originalIndex} className="transition-colors hover:bg-surface-2/30">
-                {/* Row Header */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setExpandedPrompt(isExpanded ? null : originalIndex)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setExpandedPrompt(isExpanded ? null : originalIndex);
-                    }
-                  }}
-                  className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3.5 text-left"
-                >
-                  <div className="flex flex-1 items-start gap-2.5">
-                    <button
-                      type="button"
-                      aria-label={isExpanded ? "Collapse row" : "Expand row"}
-                      className="mt-0.5 text-brand-400 hover:text-brand-600"
-                    >
-                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold leading-snug text-brand-950">
-                        {q.text || <span className="italic text-brand-400">Empty prompt wording</span>}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-brand-500">
-                        <Pill tone={categoryBadgeTone}>
-                          {category === "best-of"
-                            ? "Best-of"
-                            : category === "jobs-to-be-done"
-                              ? "Jobs to be done"
-                              : category === "competitor"
-                                ? "Competitor"
-                                : "Branded"}
-                        </Pill>
-                        {q.offering && <span>· {q.offering}</span>}
-                        {q.location && <span>· {q.location}</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Engine Indicators */}
-                  <div className="flex items-center">
-                    <div className="flex w-36 items-center justify-center sm:w-44">
-                      {chatGpt.status === "recommended" ? (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="ChatGPT recommended your business">
-                          <Check size={13} />
-                        </span>
-                      ) : chatGpt.status === "competitor" ? (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={chatGpt.label}>
-                          {chatGpt.competitor?.slice(0, 1).toUpperCase() || "!"}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-sm text-brand-400">—</span>
-                      )}
-                    </div>
-                    <div className="flex w-36 items-center justify-center sm:w-44">
-                      {googleAi.status === "recommended" ? (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="Google AI recommended your business">
-                          <Check size={13} />
-                        </span>
-                      ) : googleAi.status === "competitor" ? (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={googleAi.label}>
-                          {googleAi.competitor?.slice(0, 1).toUpperCase() || "!"}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-sm text-brand-400">—</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="border-t border-line bg-surface-2/40 p-4 space-y-4">
-                    {/* Side-by-side comparison cards (Okara Screenshot 1) */}
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {/* ChatGPT Card */}
-                      <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <ChatGptIcon className="h-4 w-4 text-brand-700" />
-                            <span className="text-xs font-bold text-brand-950">ChatGPT</span>
-                          </div>
-                          <span
-                            className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                              chatGpt.status === "recommended"
-                                ? "border-success-200 bg-success-50 text-success-700"
-                                : chatGpt.status === "competitor"
-                                  ? "border-error-200 bg-error-50 text-error-700"
-                                  : "border-line bg-surface-2 text-brand-600"
-                            }`}
-                          >
-                            {chatGpt.label}
-                          </span>
-                        </div>
-                        {chatGpt.quote ? (
-                          <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
-                            &ldquo;{chatGpt.quote}&rdquo;
-                          </blockquote>
-                        ) : (
-                          <p className="text-xs text-brand-500">
-                            {chatGpt.status === "pending"
-                              ? "Prompt will be sent to ChatGPT during the check."
-                              : "No quote saved for this answer."}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Google AI Card */}
-                      <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <GoogleAiIcon className="h-4 w-4" />
-                            <span className="text-xs font-bold text-brand-950">Google AI</span>
-                          </div>
-                          <span
-                            className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                              googleAi.status === "recommended"
-                                ? "border-success-200 bg-success-50 text-success-700"
-                                : googleAi.status === "competitor"
-                                  ? "border-error-200 bg-error-50 text-error-700"
-                                  : "border-line bg-surface-2 text-brand-600"
-                            }`}
-                          >
-                            {googleAi.label}
-                          </span>
-                        </div>
-                        {googleAi.quote ? (
-                          <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
-                            &ldquo;{googleAi.quote}&rdquo;
-                          </blockquote>
-                        ) : (
-                          <p className="text-xs text-brand-500">
-                            {googleAi.status === "pending"
-                              ? "Prompt will be sent to Google AI during the check."
-                              : "No quote saved for this answer."}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <Check size={14} />
+                Done
+              </button>
+            ) : (
+              <>
+                {!locked && (
+                  <ActionButton
+                    variant="primary"
+                    disabled={pending || !checks}
+                    onClick={() => onRun(draft)}
+                    icon={<Check size={14} />}
+                  >
+                    Confirm & check {draft.questions.length} prompts
+                  </ActionButton>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs transition-colors hover:bg-surface-2 hover:text-brand-950"
+                >
+                  <Pencil size={13} />
+                  Edit
+                </button>
+                {hasScan && onViewResults && (
+                  <ActionButton
+                    variant="secondary"
+                    onClick={onViewResults}
+                    icon={<ArrowRight size={14} />}
+                  >
+                    View answers
+                  </ActionButton>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Table container with horizontal scroll for smaller screens */}
+        <div className="overflow-x-auto">
+          <div className="min-w-[700px]">
+            {/* Table column headers */}
+            <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
+              <div className="flex-1">Prompt</div>
+              <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
+                <ChatGptIcon className="h-3.5 w-3.5 text-brand-600" />
+                <span className="normal-case font-medium text-brand-700">ChatGPT</span>
               </div>
-            );
-          })}
+              <div className="flex w-36 items-center justify-center gap-1.5 sm:w-44">
+                <GoogleAiIcon className="h-3.5 w-3.5" />
+                <span className="normal-case font-medium text-brand-700">Google AI</span>
+              </div>
+            </div>
+
+            {/* Prompts list */}
+            <div className="divide-y divide-line">
+              {promptsToDisplay.map(({ q, originalIndex, category, chatGpt, googleAi }) => {
+                if (isEditing) {
+                  return (
+                    <div
+                      key={originalIndex}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2/20"
+                    >
+                      {/* Left: Input, Category select, Trash */}
+                      <div className="flex flex-1 items-center gap-2.5 min-w-[320px]">
+                        <input
+                          type="text"
+                          value={q.text}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDraft((d) => ({
+                              ...d,
+                              questions: d.questions.map((item, i) =>
+                                i === originalIndex ? { ...item, text: val } : item,
+                              ),
+                            }));
+                          }}
+                          placeholder="Enter prompt wording..."
+                          className="flex-1 rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm text-brand-950 placeholder:text-brand-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                        <div className="w-36 shrink-0">
+                          <select
+                            value={
+                              category === "jobs-to-be-done"
+                                ? "Problem"
+                                : category === "best-of"
+                                  ? "Best Of"
+                                  : category === "competitor"
+                                    ? "Competitor"
+                                    : "Branded"
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newIntent =
+                                val === "Problem"
+                                  ? "problem"
+                                  : val === "Best Of"
+                                    ? "best-of"
+                                    : val === "Competitor"
+                                      ? "competitor"
+                                      : "branded";
+                              setDraft((d) => ({
+                                ...d,
+                                questions: d.questions.map((item, i) =>
+                                  i === originalIndex ? { ...item, intent: newIntent } : item,
+                                ),
+                              }));
+                            }}
+                            className="w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm font-medium text-brand-950 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                          >
+                            <option value="Problem">Problem</option>
+                            <option value="Best Of">Best Of</option>
+                            <option value="Competitor">Competitor</option>
+                            <option value="Branded">Branded</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraft((d) => ({
+                              ...d,
+                              questions: d.questions.filter((_, i) => i !== originalIndex),
+                            }));
+                          }}
+                          className="rounded-lg p-2 text-brand-400 transition-colors hover:bg-surface-2 hover:text-error-600"
+                          title="Delete prompt"
+                          aria-label="Delete prompt"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      {/* Right: Engine Indicators */}
+                      <div className="flex items-center shrink-0">
+                        <div className="flex w-36 items-center justify-center sm:w-44">
+                          {chatGpt.status === "recommended" ? (
+                            <span
+                              className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
+                              title="ChatGPT recommended your business"
+                            >
+                              <Check size={13} />
+                            </span>
+                          ) : chatGpt.status === "competitor" ? (
+                            <span
+                              className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
+                              title={chatGpt.label}
+                            >
+                              {chatGpt.competitor?.slice(0, 1).toUpperCase() || "!"}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-sm text-brand-400">—</span>
+                          )}
+                        </div>
+                        <div className="flex w-36 items-center justify-center sm:w-44">
+                          {googleAi.status === "recommended" ? (
+                            <span
+                              className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700"
+                              title="Google AI recommended your business"
+                            >
+                              <Check size={13} />
+                            </span>
+                          ) : googleAi.status === "competitor" ? (
+                            <span
+                              className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700"
+                              title={googleAi.label}
+                            >
+                              {googleAi.competitor?.slice(0, 1).toUpperCase() || "!"}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-sm text-brand-400">—</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Normal expandable row
+                const isExpanded = expandedPrompt === originalIndex;
+                const categoryBadgeTone =
+                  category === "best-of" || category === "jobs-to-be-done"
+                    ? "bad"
+                    : category === "competitor"
+                      ? "warn"
+                      : "good";
+
+                return (
+                  <div key={originalIndex} className="transition-colors hover:bg-surface-2/30">
+                    {/* Row Header */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setExpandedPrompt(isExpanded ? null : originalIndex)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedPrompt(isExpanded ? null : originalIndex);
+                        }
+                      }}
+                      className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3.5 text-left"
+                    >
+                      <div className="flex flex-1 items-start gap-2.5 min-w-0">
+                        <button
+                          type="button"
+                          aria-label={isExpanded ? "Collapse row" : "Expand row"}
+                          className="mt-0.5 text-brand-400 hover:text-brand-600"
+                        >
+                          {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        <div className="space-y-1 min-w-0">
+                          <p className="text-sm font-semibold leading-snug text-brand-950 truncate">
+                            {q.text || <span className="italic text-brand-400">Empty prompt wording</span>}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-brand-500">
+                            <Pill tone={categoryBadgeTone}>
+                              {category === "best-of"
+                                ? "Best-of"
+                                : category === "jobs-to-be-done"
+                                  ? "Jobs to be done"
+                                  : category === "competitor"
+                                    ? "Competitor"
+                                    : "Branded"}
+                            </Pill>
+                            {q.offering && <span>· {q.offering}</span>}
+                            {q.location && <span>· {q.location}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Engine Indicators */}
+                      <div className="flex items-center shrink-0">
+                        <div className="flex w-36 items-center justify-center sm:w-44">
+                          {chatGpt.status === "recommended" ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="ChatGPT recommended your business">
+                              <Check size={13} />
+                            </span>
+                          ) : chatGpt.status === "competitor" ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={chatGpt.label}>
+                              {chatGpt.competitor?.slice(0, 1).toUpperCase() || "!"}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-sm text-brand-400">—</span>
+                          )}
+                        </div>
+                        <div className="flex w-36 items-center justify-center sm:w-44">
+                          {googleAi.status === "recommended" ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-success-200 bg-success-50 text-success-700" title="Google AI recommended your business">
+                              <Check size={13} />
+                            </span>
+                          ) : googleAi.status === "competitor" ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-error-200 bg-error-50 text-xs font-bold text-error-700" title={googleAi.label}>
+                              {googleAi.competitor?.slice(0, 1).toUpperCase() || "!"}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-sm text-brand-400">—</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="border-t border-line bg-surface-2/40 p-4 space-y-4">
+                        {/* Side-by-side comparison cards (Okara Screenshot 1) */}
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {/* ChatGPT Card */}
+                          <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <ChatGptIcon className="h-4 w-4 text-brand-700" />
+                                <span className="text-xs font-bold text-brand-950">ChatGPT</span>
+                              </div>
+                              <span
+                                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                                  chatGpt.status === "recommended"
+                                    ? "border-success-200 bg-success-50 text-success-700"
+                                    : chatGpt.status === "competitor"
+                                      ? "border-error-200 bg-error-50 text-error-700"
+                                      : "border-line bg-surface-2 text-brand-600"
+                                }`}
+                              >
+                                {chatGpt.label}
+                              </span>
+                            </div>
+                            {chatGpt.quote ? (
+                              <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
+                                &ldquo;{chatGpt.quote}&rdquo;
+                              </blockquote>
+                            ) : (
+                              <p className="text-xs text-brand-500">
+                                {chatGpt.status === "pending"
+                                  ? "Prompt will be sent to ChatGPT during the check."
+                                  : "No quote saved for this answer."}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Google AI Card */}
+                          <div className="rounded-lg border border-line bg-surface-1 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <GoogleAiIcon className="h-4 w-4" />
+                                <span className="text-xs font-bold text-brand-950">Google AI</span>
+                              </div>
+                              <span
+                                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                                  googleAi.status === "recommended"
+                                    ? "border-success-200 bg-success-50 text-success-700"
+                                    : googleAi.status === "competitor"
+                                      ? "border-error-200 bg-error-50 text-error-700"
+                                      : "border-line bg-surface-2 text-brand-600"
+                                }`}
+                              >
+                                {googleAi.label}
+                              </span>
+                            </div>
+                            {googleAi.quote ? (
+                              <blockquote className="border-l-2 border-primary-500 pl-2.5 text-xs italic text-brand-700">
+                                &ldquo;{googleAi.quote}&rdquo;
+                              </blockquote>
+                            ) : (
+                              <p className="text-xs text-brand-500">
+                                {googleAi.status === "pending"
+                                  ? "Prompt will be sent to Google AI during the check."
+                                  : "No quote saved for this answer."}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add prompt button in edit mode */}
+            {isEditing && (
+              <div className="border-t border-line bg-surface-2/20 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft((d) => ({
+                      ...d,
+                      questions: [
+                        ...d.questions,
+                        {
+                          text: "",
+                          offering: "",
+                          location: "",
+                          intent: "best-of",
+                          rationale: "",
+                          evidenceIds: [],
+                        },
+                      ],
+                    }));
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700"
+                >
+                  <Plus size={14} />
+                  Add another prompt
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
