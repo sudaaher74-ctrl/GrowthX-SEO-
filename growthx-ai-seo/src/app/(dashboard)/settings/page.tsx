@@ -34,7 +34,6 @@ import {
   GitHubLogo,
   GooglePlacesLogo,
   GoogleGLogo,
-  GmailLogo,
 } from "@/components/settings/integration-logos";
 import {
   useConnectRepository,
@@ -271,15 +270,11 @@ function accountLabel(provider: GoogleProviderStatus | undefined): string {
 }
 
 function IntegrationsView() {
-  const { projectId, orgId } = useWorkspace();
+  const { projectId } = useWorkspace();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const profile = useProfile();
   const user = profile.data;
-
-  const portfolio = usePortfolio(orgId);
-  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) || portfolio.data?.clients[0];
-  const siteDomain = clientRow?.domain;
 
   const repo = useRepository(projectId);
   const connectRepo = useConnectRepository(projectId);
@@ -303,6 +298,12 @@ function IntegrationsView() {
   const [selectedRepoName, setSelectedRepoName] = useState("GrowthX-SEO-");
   const [customPat, setCustomPat] = useState("");
   const [repoSearch, setRepoSearch] = useState("");
+  const [fetchedRepos, setFetchedRepos] = useState<
+    Array<{ name: string; description: string | null; default_branch: string }>
+  >([]);
+  const [isFetchingRepos, setIsFetchingRepos] = useState(false);
+  const [fetchRepoError, setFetchRepoError] = useState("");
+
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpTimer, setOtpTimer] = useState(45);
   const [otpError, setOtpError] = useState("");
@@ -316,6 +317,43 @@ function IntegrationsView() {
       setGmailAddress(user.email);
     }
   }, [user?.email, gmailAddress]);
+
+  // Fetch real repositories from GitHub API when reaching Step 2
+  const loadRealRepositories = async (owner: string, token?: string) => {
+    if (!owner.trim()) return;
+    setIsFetchingRepos(true);
+    setFetchRepoError("");
+    try {
+      const headers: Record<string, string> = {};
+      if (token?.trim()) {
+        headers["Authorization"] = `Bearer ${token.trim()}`;
+      }
+      const url = token?.trim()
+        ? "https://api.github.com/user/repos?sort=updated&per_page=20"
+        : `https://api.github.com/users/${encodeURIComponent(owner.trim())}/repos?sort=updated&per_page=20`;
+
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        throw new Error(`GitHub returned status ${res.status}`);
+      }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const parsed = data.map((r: any) => ({
+          name: r.name,
+          description: r.description,
+          default_branch: r.default_branch || "main",
+        }));
+        setFetchedRepos(parsed);
+        if (parsed.length > 0 && !selectedRepoName) {
+          setSelectedRepoName(parsed[0].name);
+        }
+      }
+    } catch {
+      setFetchRepoError("Could not automatically list repositories. You can enter your repository name directly below.");
+    } finally {
+      setIsFetchingRepos(false);
+    }
+  };
 
   // OTP Countdown timer
   useEffect(() => {
@@ -409,8 +447,14 @@ function IntegrationsView() {
     setOtpTimer(45);
     setOtpError("");
     setIsSuccess(false);
-    if (repo.data?.owner) setSelectedRepoOwner(repo.data.owner);
-    if (repo.data?.name) setSelectedRepoName(repo.data.name);
+    const owner = repo.data?.owner || "sudaaher74-ctrl";
+    setSelectedRepoOwner(owner);
+    if (repo.data?.name) {
+      setSelectedRepoName(repo.data.name);
+    } else {
+      setSelectedRepoName("GrowthX-SEO-");
+    }
+    loadRealRepositories(owner, customPat);
     setGithubModalOpen(true);
   };
 
@@ -471,7 +515,6 @@ function IntegrationsView() {
         });
       }, 1200);
     } catch (err) {
-      // If backend requires live GitHub PAT verification
       setOtpError(errorMessage(err) || "Failed to verify repository access.");
     } finally {
       setIsVerifyingOtp(false);
@@ -496,25 +539,9 @@ function IntegrationsView() {
   const isGa4Connected = ga4?.status === "CONNECTED";
   const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
 
-  // Pre-filtered repository candidates
-  const suggestedRepos = [
-    {
-      owner: selectedRepoOwner || "sudaaher74-ctrl",
-      name: siteDomain ? `${siteDomain.replace(/\..+$/, "")}-web` : "seo-frontend-app",
-      desc: "Primary website & production web application",
-      branch: "main",
-    },
-    {
-      owner: selectedRepoOwner || "sudaaher74-ctrl",
-      name: "GrowthX-SEO-",
-      desc: "Autonomous Fix Engine & technical remediation repository",
-      branch: "main",
-    },
-  ].filter(
-    (r) =>
-      !repoSearch ||
-      r.name.toLowerCase().includes(repoSearch.toLowerCase()) ||
-      r.owner.toLowerCase().includes(repoSearch.toLowerCase())
+  // Filter real fetched repositories
+  const filteredRepos = fetchedRepos.filter(
+    (r) => !repoSearch || r.name.toLowerCase().includes(repoSearch.toLowerCase())
   );
 
   return (
@@ -559,7 +586,7 @@ function IntegrationsView() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Google Search Console */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
             <div>
               <div className="flex items-start gap-3.5">
                 <GoogleSearchConsoleLogo />
@@ -584,7 +611,7 @@ function IntegrationsView() {
               </div>
 
               {isGscConnected && (
-                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
                   <p>
                     <span className="font-semibold text-brand-700">Account:</span> {accountLabel(gsc)}
                   </p>
@@ -624,7 +651,7 @@ function IntegrationsView() {
                     <button
                       type="button"
                       onClick={() => setShowGscPicker(!showGscPicker)}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {showGscPicker ? "Hide Picker" : "Change Property"}
                     </button>
@@ -632,7 +659,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={syncGoogle.isPending}
                       onClick={() => syncGoogle.mutate("search_console")}
-                      className="rounded-lg border border-brand-200 bg-white p-1 text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 p-1 text-brand-700 hover:bg-brand-50"
                       title="Sync Now"
                     >
                       <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
@@ -641,7 +668,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={disconnectGoogle.isPending}
                       onClick={() => disconnectGoogle.mutate("search_console")}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
                     </button>
@@ -651,7 +678,7 @@ function IntegrationsView() {
                     type="button"
                     disabled={authorizeGoogle.isPending || !projectId}
                     onClick={() => authorizeGoogle.mutate("search_console")}
-                    className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     <span>Connect Google</span>
                   </button>
@@ -661,7 +688,7 @@ function IntegrationsView() {
           </div>
 
           {/* Google Analytics 4 */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
             <div>
               <div className="flex items-start gap-3.5">
                 <GoogleAnalyticsLogo />
@@ -686,7 +713,7 @@ function IntegrationsView() {
               </div>
 
               {isGa4Connected && (
-                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
                   <p>
                     <span className="font-semibold text-brand-700">Account:</span> {accountLabel(ga4)}
                   </p>
@@ -726,7 +753,7 @@ function IntegrationsView() {
                     <button
                       type="button"
                       onClick={() => setShowGa4Picker(!showGa4Picker)}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {showGa4Picker ? "Hide Picker" : "Change Property"}
                     </button>
@@ -734,7 +761,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={syncGoogle.isPending}
                       onClick={() => syncGoogle.mutate("analytics")}
-                      className="rounded-lg border border-brand-200 bg-white p-1 text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 p-1 text-brand-700 hover:bg-brand-50"
                       title="Sync Now"
                     >
                       <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
@@ -743,7 +770,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={disconnectGoogle.isPending}
                       onClick={() => disconnectGoogle.mutate("analytics")}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
                     </button>
@@ -753,7 +780,7 @@ function IntegrationsView() {
                     type="button"
                     disabled={authorizeGoogle.isPending || !projectId}
                     onClick={() => authorizeGoogle.mutate("analytics")}
-                    className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     <span>Connect GA4</span>
                   </button>
@@ -763,7 +790,7 @@ function IntegrationsView() {
           </div>
 
           {/* Google Places & Business Profile */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
             <div>
               <div className="flex items-start gap-3.5">
                 <GooglePlacesLogo />
@@ -783,7 +810,7 @@ function IntegrationsView() {
               </div>
 
               {localSeo.data?.businessName && (
-                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
                   <p>
                     <span className="font-semibold text-brand-700">Business:</span> {localSeo.data.businessName}
                   </p>
@@ -817,7 +844,7 @@ function IntegrationsView() {
                 onClick={() => {
                   window.location.href = "/clients?tab=local";
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50"
               >
                 <span>View Local SEO</span>
               </button>
@@ -837,7 +864,7 @@ function IntegrationsView() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* GitHub Repository Card */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-2xs transition-colors hover:border-brand-300">
+          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
             <div>
               <div className="flex items-start gap-3.5">
                 <GitHubLogo />
@@ -857,7 +884,7 @@ function IntegrationsView() {
               </div>
 
               {isGitHubConnected && (
-                <div className="mt-4 rounded-xl bg-brand-50/60 p-3 text-[11px] text-brand-600 space-y-1">
+                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
                   <p>
                     <span className="font-semibold text-brand-700">Repository:</span> {repo.data?.owner}/{repo.data?.name}
                   </p>
@@ -890,7 +917,7 @@ function IntegrationsView() {
                     <button
                       type="button"
                       onClick={openGitHubModal}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       Change
                     </button>
@@ -898,7 +925,7 @@ function IntegrationsView() {
                       type="button"
                       disabled={connectRepo.isPending}
                       onClick={handleDisconnectGitHub}
-                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       {connectRepo.isPending ? "Disconnecting…" : "Disconnect"}
                     </button>
@@ -907,7 +934,7 @@ function IntegrationsView() {
                   <button
                     type="button"
                     onClick={openGitHubModal}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     <span>Connect Repository</span>
                   </button>
@@ -920,12 +947,12 @@ function IntegrationsView() {
 
       {/* GitHub Okara-Style Connect Modal (Gmail Login -> Select Repo -> Verify OTP) */}
       {githubModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-3xl border bg-white p-6 shadow-2xl transition-all">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-3xl border border-brand-200 bg-surface-1 p-6 shadow-2xl transition-all">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-brand-100 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-100 text-brand-950">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-950">
                   <GitHubLogo className="h-8 w-8 border-none" />
                 </div>
                 <div>
@@ -953,7 +980,7 @@ function IntegrationsView() {
                       : "text-brand-400"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold shadow-2xs">
                   {githubStep > 1 ? "✓" : "1"}
                 </span>
                 <span className="truncate">1. Gmail Login</span>
@@ -968,7 +995,7 @@ function IntegrationsView() {
                       : "text-brand-400"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold shadow-2xs">
                   {githubStep > 2 ? "✓" : "2"}
                 </span>
                 <span className="truncate">2. Select Repo</span>
@@ -979,7 +1006,7 @@ function IntegrationsView() {
                   githubStep === 3 ? "bg-primary-50 text-primary-700" : "text-brand-400"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold shadow-2xs">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold shadow-2xs">
                   3
                 </span>
                 <span className="truncate">3. Verify OTP</span>
@@ -989,9 +1016,9 @@ function IntegrationsView() {
             {/* Step 1: Connect via Gmail Login */}
             {githubStep === 1 && (
               <div className="space-y-4 py-1">
-                <div className="rounded-2xl border border-brand-200/80 bg-brand-50/50 p-4">
+                <div className="rounded-2xl border border-brand-200/80 bg-surface-2 p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-1 shadow-2xs">
                       <GoogleGLogo className="h-5 w-5" />
                     </div>
                     <div>
@@ -1014,7 +1041,7 @@ function IntegrationsView() {
                         value={gmailAddress}
                         onChange={(e) => setGmailAddress(e.target.value)}
                         placeholder="your-name@gmail.com"
-                        className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                        className="w-full rounded-xl border bg-surface-1 py-2 pl-9 pr-3 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
                       />
                     </div>
                   </div>
@@ -1031,15 +1058,18 @@ function IntegrationsView() {
                   <button
                     type="button"
                     onClick={() => setGithubModalOpen(false)}
-                    className="rounded-xl border border-brand-200 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     disabled={!gmailAddress.trim()}
-                    onClick={() => setGithubStep(2)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-950 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
+                    onClick={() => {
+                      setGithubStep(2);
+                      loadRealRepositories(selectedRepoOwner, customPat);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     <GoogleGLogo className="h-3.5 w-3.5" />
                     <span>Continue with Gmail</span>
@@ -1052,80 +1082,115 @@ function IntegrationsView() {
             {/* Step 2: Select Repository */}
             {githubStep === 2 && (
               <div className="space-y-4 py-1">
-                <div className="flex items-center justify-between rounded-xl bg-brand-50 p-2.5 text-[11px]">
+                <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 text-[11px]">
                   <span className="text-brand-500">Connected Gmail:</span>
                   <span className="font-semibold text-brand-950 flex items-center gap-1.5">
                     <Check size={12} className="text-success-600" /> {gmailAddress}
                   </span>
                 </div>
 
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="text-xs font-bold text-brand-950">Choose Repository</label>
-                    <div className="relative w-44">
-                      <Search size={12} className="absolute left-2.5 top-2 text-brand-400" />
+                {/* GitHub Account Selector & Search */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                        GitHub Username / Org
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          required
+                          value={selectedRepoOwner}
+                          onChange={(e) => setSelectedRepoOwner(e.target.value)}
+                          placeholder="e.g. sudaaher74-ctrl"
+                          className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => loadRealRepositories(selectedRepoOwner, customPat)}
+                          className="shrink-0 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
+                          title="Refresh Repositories"
+                        >
+                          <RefreshCw size={13} className={isFetchingRepos ? "animate-spin" : ""} />
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-brand-700 mb-1">
+                        Selected Repository
+                      </label>
                       <input
                         type="text"
-                        placeholder="Filter repos…"
-                        value={repoSearch}
-                        onChange={(e) => setRepoSearch(e.target.value)}
-                        className="w-full rounded-lg border bg-white py-1 pl-7 pr-2 text-[11px] text-brand-900"
+                        required
+                        value={selectedRepoName}
+                        onChange={(e) => setSelectedRepoName(e.target.value)}
+                        placeholder="e.g. GrowthX-SEO-"
+                        className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {suggestedRepos.map((r) => {
-                      const isSelected = selectedRepoOwner === r.owner && selectedRepoName === r.name;
-                      return (
-                        <div
-                          key={r.name}
-                          onClick={() => {
-                            setSelectedRepoOwner(r.owner);
-                            setSelectedRepoName(r.name);
-                          }}
-                          className={`cursor-pointer rounded-xl border p-3 transition ${
-                            isSelected
-                              ? "border-primary-500 bg-primary-50/40 ring-1 ring-primary-500"
-                              : "border-brand-200 bg-white hover:border-brand-300 hover:bg-brand-50/50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <GitBranch size={14} className={isSelected ? "text-primary-600" : "text-brand-400"} />
-                              <span className="text-xs font-bold text-brand-950">{r.owner}/{r.name}</span>
-                            </div>
-                            {isSelected && (
-                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white">
-                                ✓
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-[11px] text-brand-500">{r.desc}</p>
-                        </div>
-                      );
-                    })}
-
-                    {/* Custom Repository option */}
-                    <div className="rounded-xl border border-brand-200 bg-brand-50/40 p-3 space-y-2">
-                      <p className="text-[11px] font-bold text-brand-700">Custom Repository Details</p>
-                      <div className="grid grid-cols-2 gap-2">
+                  {/* Real Repositories List */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="text-xs font-bold text-brand-950">Choose Repository</label>
+                      <div className="relative w-40">
+                        <Search size={12} className="absolute left-2.5 top-2 text-brand-400" />
                         <input
                           type="text"
-                          placeholder="Owner / Org"
-                          value={selectedRepoOwner}
-                          onChange={(e) => setSelectedRepoOwner(e.target.value)}
-                          className="w-full rounded-lg border bg-white p-1.5 text-xs text-brand-900"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Repository Name"
-                          value={selectedRepoName}
-                          onChange={(e) => setSelectedRepoName(e.target.value)}
-                          className="w-full rounded-lg border bg-white p-1.5 text-xs text-brand-900"
+                          placeholder="Search repos…"
+                          value={repoSearch}
+                          onChange={(e) => setRepoSearch(e.target.value)}
+                          className="w-full rounded-lg border bg-surface-1 py-1 pl-7 pr-2 text-[11px] text-brand-900"
                         />
                       </div>
                     </div>
+
+                    {isFetchingRepos ? (
+                      <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand-200 p-6 text-xs text-brand-500">
+                        <Loader2 size={15} className="animate-spin text-primary-600" />
+                        <span>Fetching repositories for {selectedRepoOwner}…</span>
+                      </div>
+                    ) : filteredRepos.length > 0 ? (
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                        {filteredRepos.map((r) => {
+                          const isSelected = selectedRepoName === r.name;
+                          return (
+                            <div
+                              key={r.name}
+                              onClick={() => setSelectedRepoName(r.name)}
+                              className={`cursor-pointer rounded-xl border p-2.5 transition ${
+                                isSelected
+                                  ? "border-primary-500 bg-primary-50/40 ring-1 ring-primary-500"
+                                  : "border-brand-200 bg-surface-1 hover:border-brand-300 hover:bg-surface-2"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 truncate">
+                                  <GitBranch
+                                    size={13}
+                                    className={isSelected ? "text-primary-600 shrink-0" : "text-brand-400 shrink-0"}
+                                  />
+                                  <span className="text-xs font-bold text-brand-950 truncate">{r.name}</span>
+                                </div>
+                                {isSelected && (
+                                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white">
+                                    ✓
+                                  </span>
+                                )}
+                              </div>
+                              {r.description && (
+                                <p className="mt-0.5 text-[10.5px] text-brand-500 truncate">{r.description}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-brand-200 p-3.5 text-center text-xs text-brand-500 space-y-1">
+                        <p>{fetchRepoError || "Enter your repository name directly in the box above."}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1138,7 +1203,7 @@ function IntegrationsView() {
                     placeholder="ghp_... (or leave blank if authorized via OAuth)"
                     value={customPat}
                     onChange={(e) => setCustomPat(e.target.value)}
-                    className="w-full rounded-xl border bg-white p-2 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                    className="w-full rounded-xl border bg-surface-1 p-2 text-xs text-brand-900 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
                   />
                   <p className="mt-1 text-[10.5px] text-brand-400">
                     Required for private repositories to create automated technical pull requests.
@@ -1149,7 +1214,7 @@ function IntegrationsView() {
                   <button
                     type="button"
                     onClick={() => setGithubStep(1)}
-                    className="rounded-xl border border-brand-200 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
                   >
                     Back
                   </button>
@@ -1160,7 +1225,7 @@ function IntegrationsView() {
                       setGithubStep(3);
                       setOtpTimer(45);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     <span>Send Verification OTP</span>
                     <ArrowRight size={13} />
@@ -1198,7 +1263,7 @@ function IntegrationsView() {
                       value={digit}
                       onChange={(e) => handleOtpChange(idx, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      className="h-12 w-11 rounded-xl border border-brand-300 text-center text-lg font-bold text-brand-950 shadow-2xs focus:border-primary-600 focus:outline-hidden focus:ring-2 focus:ring-primary-100"
+                      className="h-12 w-11 rounded-xl border border-brand-300 bg-surface-1 text-center text-lg font-bold text-brand-950 shadow-2xs focus:border-primary-600 focus:outline-hidden focus:ring-2 focus:ring-primary-100"
                     />
                   ))}
                 </div>
@@ -1234,7 +1299,7 @@ function IntegrationsView() {
                   <button
                     type="button"
                     onClick={() => setGithubStep(2)}
-                    className="rounded-xl border border-brand-200 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    className="rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
                   >
                     Back
                   </button>
@@ -1242,7 +1307,7 @@ function IntegrationsView() {
                     type="button"
                     disabled={isVerifyingOtp || isSuccess || otpDigits.join("").length < 6}
                     onClick={handleVerifyOtpAndConnect}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-6 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-6 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
                   >
                     {isVerifyingOtp ? (
                       <>

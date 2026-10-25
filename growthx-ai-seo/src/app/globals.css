@@ -612,7 +612,16 @@ body {
 }
 .dash-dark .bg-white { background-color: var(--color-surface-1); }
 /* A lime button carries dark text, not the white the light theme puts on indigo. */
-.dash-dark .bg-primary-600 { color: var(--color-signal-ink); }
+.dash-dark .bg-primary-600,
+.dash-dark .bg-primary-600 *,
+.dash-dark .bg-primary-700,
+.dash-dark .bg-primary-700 * {
+  color: var(--color-signal-ink) !important;
+}
+.dash-dark .bg-primary-600 svg,
+.dash-dark .bg-primary-700 svg {
+  stroke: var(--color-signal-ink) !important;
+}
 .dash-dark [data-nav-active="true"] {
   background-color: var(--color-signal-400);
   color: var(--color-signal-ink);
