@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, LayoutGrid, LogOut, Moon, MoreHorizontal, Settings, Sun, FileText } from "lucide-react";
+import { Check, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -73,16 +73,6 @@ export function Sidebar({
             </div>
 
             <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border-color)" }}>
-              <NavLink 
-                item={{ label: "Integrations", href: "/settings?tab=integrations", icon: LayoutGrid }} 
-                pathname={pathname} 
-                onNavigate={() => setMobileOpen?.(false)} 
-              />
-              <NavLink 
-                item={{ label: "Reports", href: "/reports", icon: FileText }} 
-                pathname={pathname} 
-                onNavigate={() => setMobileOpen?.(false)} 
-              />
               <NavLink 
                 item={{ label: "Settings", href: "/settings", icon: Settings }} 
                 pathname={pathname} 
