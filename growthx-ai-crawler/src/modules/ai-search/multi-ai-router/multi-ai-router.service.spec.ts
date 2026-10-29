@@ -532,6 +532,31 @@ describe('MultiAiRouterService', () => {
       expect(tokens.settleAiUsage.mock.calls[0][0].provider).toBe(result.provider);
     });
 
+    it('falls through when the caller rejects repaired or incomplete JSON and charges only the usable response', async () => {
+      const { service, tokens } = withTokens();
+      const anthropic = anthropicStub({ content: [{ type: 'text', text: '{"tool":"edit","new":"unfinished' }] });
+      const valid = '{"tool":"read","path":"page.jsx"}';
+      stubClients(service, { anthropic, gemini: geminiStub(valid), openai: openAiStub(valid) });
+      const validateResponse = jest.fn((text: string) => {
+        try { return JSON.parse(text).tool === 'read'; } catch { return false; }
+      });
+      const result = await service.generate({ prompt: 'x', organizationId: 'org-1', jsonSchema: { type: 'object' }, validateResponse });
+      expect(result.provider).not.toBe(AiProvider.ANTHROPIC);
+      expect(validateResponse).toHaveBeenCalledWith('{"tool":"edit","new":"unfinished');
+      expect(tokens.settleAiUsage).toHaveBeenCalledTimes(1);
+      expect(tokens.settleAiUsage.mock.calls[0][0].provider).toBe(result.provider);
+    });
+
+    it('does not switch an explicitly pinned provider when caller validation fails', async () => {
+      const { service, tokens } = withTokens();
+      const anthropic = anthropicStub({ content: [{ type: 'text', text: '{"tool":"edit"}' }] });
+      const openai = openAiStub();
+      stubClients(service, { anthropic, openai });
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1', provider: AiProvider.ANTHROPIC, validateResponse: () => false })).rejects.toThrow('unusable response');
+      expect(openai.create).not.toHaveBeenCalled();
+      expect(tokens.settleAiUsage).not.toHaveBeenCalled();
+    });
+
     it('does not charge for an answer the vendor declined to give', async () => {
       const { service, tokens } = withTokens({ env: { GEMINI_API_KEY: '', OPENAI_API_KEY: '' } });
       stubClients(service, { anthropic: anthropicStub({ stop_reason: 'refusal', content: [] }) });

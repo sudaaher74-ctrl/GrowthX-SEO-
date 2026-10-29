@@ -303,7 +303,11 @@ export class MultiAiRouterService {
       if (!allowed.includes(targetProvider)) {
          throw new ServiceUnavailableException(`${targetProvider} is not configured.`);
       }
-      return this.invokeAndRecord(targetProvider, request, task);
+      const completion = await this.invokeAndRecord(targetProvider, request, task);
+      if (request.validateResponse && !request.validateResponse(completion.text)) {
+        throw new ServiceUnavailableException(`${targetProvider} returned an unusable response.`);
+      }
+      return completion;
     }
 
     const chain = this.chainFor(task);
@@ -340,6 +344,14 @@ export class MultiAiRouterService {
         if (request.jsonSchema && !this.parsesAsJson(completion.text)) {
           this.logger.warn(`${provider} returned output that is not valid JSON; trying the next provider.`);
           lastError = new Error(`${provider} returned unparseable JSON.`);
+          continue;
+        }
+
+        // Code actions cannot use the generic extractor's truncated-JSON repair:
+        // a repaired partial edit can delete code or omit its replacement.
+        if (request.validateResponse && !request.validateResponse(completion.text)) {
+          this.logger.warn(`${provider} returned a response rejected by the caller; trying the next provider.`);
+          lastError = new Error(`${provider} returned an unusable response.`);
           continue;
         }
 

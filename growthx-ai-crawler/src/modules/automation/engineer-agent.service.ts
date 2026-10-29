@@ -92,6 +92,8 @@ Rules:
 - Prefer editing actual website HTML/TSX/JSX page files (like index.html or src/app/page.tsx) rather than large .md strategy files.
 - Never create audit-message constants, placeholder files, or standalone notes as a substitute for implementing a fix. New helpers must be connected to existing website code.
 - For page titles, locate the routes and rendered page components and update their actual metadata.
+- A page title means the document <title> metadata, not its visible H1. Preserve visible headings and content unless the instruction explicitly asks to change them.
+- Use "summary" only with "finish", in one short sentence. Edit actions contain only tool, path, old and new; do not put reasoning or commentary in any field.
 - If a fix needs unavailable configuration or cannot be implemented safely, finish without changes and explain the limitation.
 - Change only what the instruction asks for. Do not reformat, rename or tidy anything else.
 - Follow the code style and framework already used in the repository.
@@ -195,6 +197,22 @@ export function parseAction(text: string): Action | null {
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+/** Require complete, usable tool arguments; never repair a truncated code edit. */
+export function isUsableAction(text: string): boolean {
+  const action = parseAction(text);
+  if (!action || !TOOLS.includes(action.tool as typeof TOOLS[number])) return false;
+  const has = (key: keyof Action) => typeof action[key] === 'string' && String(action[key]).trim().length > 0;
+  switch (action.tool) {
+    case 'list': return action.path === undefined || typeof action.path === 'string';
+    case 'read': return has('path');
+    case 'search': return has('pattern');
+    case 'edit': return has('path') && has('old') && typeof action.new === 'string' && action.old !== action.new;
+    case 'create': return has('path') && has('content');
+    case 'finish': return has('summary');
+    default: return false;
+  }
+}
 
 /**
  * A Claude Code-style engineer for a customer's repository.
@@ -342,6 +360,7 @@ export class EngineerAgentService {
 
       dir = await this.git.cloneRepository(`https://github.com/${repo.owner}/${repo.name}.git`, token, repo.name);
       steps.push(this.step('clone', `${repo.owner}/${repo.name}`, true));
+      await this.prisma.automationRun.update({ where: { id: runId }, data: { steps: steps as any } });
 
       const context = await this.repoUnderstanding.analyzeRepository(dir);
       const branch = `growthx-ai/engineer-${Date.now()}`;
@@ -443,11 +462,12 @@ export class EngineerAgentService {
         organizationId,
         projectId,
         jsonSchema: ACTION_SCHEMA as unknown as Record<string, unknown>,
+        validateResponse: isUsableAction,
         maxTokens: 8000,
       });
 
       const action = completion.refused ? null : parseAction(completion.text);
-      if (!action || !action.tool || !(TOOLS as readonly string[]).includes(action.tool)) {
+      if (!action || !action.tool || !isUsableAction(completion.text) || completion.refused) {
         malformed += 1;
         history.push({
           call: '(invalid reply)',
