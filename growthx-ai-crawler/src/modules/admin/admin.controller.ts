@@ -41,6 +41,12 @@ export class AdminController {
     return this.adminService.getStats();
   }
 
+  @Get('user-models')
+  @ApiOperation({ summary: 'Get AI model usage breakdown by user and organization' })
+  async getUserModelBreakdown() {
+    return this.adminService.getUserModelBreakdown();
+  }
+
   @Get('users')
   @ApiOperation({ summary: 'Get platform users directory' })
   async getUsers() {

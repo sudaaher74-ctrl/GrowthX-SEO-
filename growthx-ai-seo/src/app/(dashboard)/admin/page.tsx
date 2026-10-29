@@ -11,6 +11,7 @@ import {
   TenantStat,
   AdminSystemHealth,
   AdminUserItem,
+  AdminUserModelUsage,
   ApiError,
 } from "@/lib/api-client";
 import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
@@ -205,16 +206,25 @@ function AdminConsole() {
   const [workerQueues, setWorkerQueues] = useState<QueueStat[]>([]);
   const [apiCosts, setApiCosts] = useState<ApiCostStat[]>([]);
   const [tenants, setTenants] = useState<TenantStat[]>([]);
-  const [totals, setTotals] = useState<{ tenants: number; users: number; projects: number } | null>(null);
+  const [totals, setTotals] = useState<{
+    tenants: number;
+    users: number;
+    projects: number;
+    loggedInUsers: number;
+    activeSessions: number;
+  } | null>(null);
   const [failedCalls, setFailedCalls] = useState<string[]>([]);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [grantTo, setGrantTo] = useState<TenantStat | null>(null);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [userModels, setUserModels] = useState<AdminUserModelUsage[]>([]);
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
 
   // Filtering states
   const [tenantSearch, setTenantSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
+  const [userModelSearch, setUserModelSearch] = useState("");
+  const [userLoginFilter, setUserLoginFilter] = useState<"all" | "online" | "offline">("all");
 
   // Platform Feature Flags / Settings
   const [featureFlags, setFeatureFlags] = useState({
@@ -237,8 +247,11 @@ function AdminConsole() {
       health: api.getAdminSystemHealth(),
       users: api.getAdminUsers(),
       stats: api.getAdminStats(),
+      userModels: api.getAdminUserModels(),
     };
-    const [queues, costs, tenantsData, health, usersData, statsData] = await Promise.allSettled(Object.values(calls));
+    const [queues, costs, tenantsData, health, usersData, statsData, userModelsData] = await Promise.allSettled(
+      Object.values(calls),
+    );
     const failures: string[] = [];
     const take = <T,>(r: PromiseSettledResult<unknown>, label: string, apply: (v: T) => void) => {
       if (r.status === "fulfilled") apply(r.value as T);
@@ -255,7 +268,12 @@ function AdminConsole() {
     take<TenantStat[]>(tenantsData, "tenants", setTenants);
     take<AdminSystemHealth>(health, "system health", setSystemHealth);
     take<AdminUserItem[]>(usersData, "users", setUsers);
-    take<{ tenants: number; users: number; projects: number }>(statsData, "totals", setTotals);
+    take<{ tenants: number; users: number; projects: number; loggedInUsers: number; activeSessions: number }>(
+      statsData,
+      "totals",
+      setTotals,
+    );
+    take<AdminUserModelUsage[]>(userModelsData, "user models", setUserModels);
     setFailedCalls(failures);
   };
 
@@ -305,16 +323,37 @@ function AdminConsole() {
     });
   }, [tenants, tenantSearch]);
 
+  const onlineCount = useMemo(() => {
+    return totals?.loggedInUsers ?? users.filter((u) => u.isLoggedIn).length;
+  }, [totals, users]);
+
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
+      if (userLoginFilter === "online" && !u.isLoggedIn) return false;
+      if (userLoginFilter === "offline" && u.isLoggedIn) return false;
       const q = userSearch.toLowerCase();
+      const models = (u.modelsUsed || []).join(" ").toLowerCase();
       return (
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.organizationName.toLowerCase().includes(q)
+        u.organizationName.toLowerCase().includes(q) ||
+        models.includes(q)
       );
     });
-  }, [users, userSearch]);
+  }, [users, userSearch, userLoginFilter]);
+
+  const filteredUserModels = useMemo(() => {
+    const q = userModelSearch.toLowerCase();
+    if (!q) return userModels;
+    return userModels.filter(
+      (m) =>
+        m.userName.toLowerCase().includes(q) ||
+        m.userEmail.toLowerCase().includes(q) ||
+        m.organizationName.toLowerCase().includes(q) ||
+        m.model.toLowerCase().includes(q) ||
+        m.provider.toLowerCase().includes(q),
+    );
+  }, [userModels, userModelSearch]);
 
   const totalCompletedJobs = useMemo(() => {
     return workerQueues.reduce((acc, q) => acc + q.completed, 0);
@@ -413,7 +452,12 @@ function AdminConsole() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <Stat featured label="Active Tenants" value={String(totals?.tenants ?? tenants.length)} sub="Organizations" icon={<Building2 size={15} />} />
-        <Stat label="Platform Users" value={String(totals?.users ?? users.length)} sub="Registered accounts" icon={<Users size={15} />} />
+        <Stat
+          label="Platform Users"
+          value={String(totals?.users ?? users.length)}
+          sub={`${onlineCount} logged in now`}
+          icon={<Users size={15} />}
+        />
         <Stat label="24h Jobs Finished" value={String(totalCompletedJobs)} sub="BullMQ tasks" icon={<Activity size={15} />} />
         <Stat label="AI Spend MTD" value={`$${totalSpend}`} sub={spendProviders} icon={<Wallet size={15} />} />
       </div>
@@ -609,19 +653,60 @@ function AdminConsole() {
       {/* USERS */}
       {activeTab === "users" && (
         <Card
-          title="Platform Users"
-          subtitle="All registered operator and client accounts across organizations."
-          actions={<SearchBox value={userSearch} onChange={setUserSearch} placeholder="Search users, emails, orgs..." />}
+          title="Platform Users & Login Activity"
+          subtitle="Real-time login status, active sessions, and AI model usage per user."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-full bg-brand-100 p-0.5 dark:bg-brand-800 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setUserLoginFilter("all")}
+                  className={`rounded-full px-3 py-1 transition-colors ${
+                    userLoginFilter === "all"
+                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
+                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                  }`}
+                >
+                  All ({users.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserLoginFilter("online")}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors ${
+                    userLoginFilter === "online"
+                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
+                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                  }`}
+                >
+                  <span className="h-2 w-2 rounded-full bg-success-500 animate-pulse" />
+                  Online ({onlineCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserLoginFilter("offline")}
+                  className={`rounded-full px-3 py-1 transition-colors ${
+                    userLoginFilter === "offline"
+                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
+                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                  }`}
+                >
+                  Offline ({Math.max(0, users.length - onlineCount)})
+                </button>
+              </div>
+              <SearchBox value={userSearch} onChange={setUserSearch} placeholder="Search user, email, org, or model..." />
+            </div>
+          }
         >
-          <Table minWidth={700}>
+          <Table minWidth={850}>
             <thead>
               <tr>
                 <Th>User</Th>
                 <Th>Email</Th>
                 <Th>Organization</Th>
                 <Th>Role</Th>
-                <Th>Joined</Th>
-                <Th>Status</Th>
+                <Th>Login Status</Th>
+                <Th>Last Login</Th>
+                <Th>AI Models Used</Th>
               </tr>
             </thead>
             <tbody>
@@ -630,10 +715,21 @@ function AdminConsole() {
                   <Tr key={u.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-success-100 text-success-700 font-bold flex items-center justify-center text-xs dark:bg-success-500/15 dark:text-success-400">
-                          {u.name.slice(0, 2).toUpperCase()}
+                        <div className="relative">
+                          <div className="h-9 w-9 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-xs dark:bg-brand-800 dark:text-brand-300">
+                            {u.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          {u.isLoggedIn && (
+                            <span
+                              title="Currently logged in"
+                              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success-500 ring-2 ring-white dark:ring-brand-900"
+                            />
+                          )}
                         </div>
-                        <span className={nameCls}>{u.name}</span>
+                        <div>
+                          <span className={`${nameCls} block`}>{u.name}</span>
+                          <span className="text-[11px] text-brand-400">Joined {relativeTime(u.createdAt)}</span>
+                        </div>
                       </div>
                     </Td>
                     <Td><span className={mutedCls}>{u.email}</span></Td>
@@ -641,13 +737,47 @@ function AdminConsole() {
                     <Td>
                       <Pill tone={u.role === "OWNER" ? "good" : u.role === "ADMIN" ? "info" : "default"}>{u.role}</Pill>
                     </Td>
-                    <Td><span className={mutedCls}>{relativeTime(u.createdAt)}</span></Td>
-                    <Td><Pill tone="good">{u.status}</Pill></Td>
+                    <Td>
+                      {u.isLoggedIn ? (
+                        <div className="flex items-center gap-1.5">
+                          <Pill tone="good">ONLINE</Pill>
+                          {(u.activeSessionsCount ?? 0) > 1 && (
+                            <span className="text-[10px] text-brand-400 font-mono">
+                              ({u.activeSessionsCount} active)
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Pill tone="default">OFFLINE</Pill>
+                      )}
+                    </Td>
+                    <Td>
+                      <span className={mutedCls}>
+                        {u.lastLoginAt ? relativeTime(u.lastLoginAt) : "Never"}
+                      </span>
+                    </Td>
+                    <Td>
+                      {u.modelsUsed && u.modelsUsed.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1 max-w-xs">
+                          {u.modelsUsed.map((m) => (
+                            <span
+                              key={m}
+                              className="inline-flex items-center gap-1 rounded-full bg-brand-100 dark:bg-brand-800/80 px-2 py-0.5 font-mono text-[10.5px] font-semibold text-brand-800 dark:text-brand-200"
+                            >
+                              <Zap size={10} className="text-warning-500" />
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-brand-400">None yet</span>
+                      )}
+                    </Td>
                   </Tr>
                 ))
               ) : (
                 <Tr>
-                  <Td colSpan={6} className="text-center py-8 text-xs text-brand-500">
+                  <Td colSpan={7} className="text-center py-8 text-xs text-brand-500">
                     No registered users matching search.
                   </Td>
                 </Tr>
@@ -746,6 +876,86 @@ function AdminConsole() {
                   <Tr>
                     <Td colSpan={5} className="text-center py-8 text-xs text-brand-500">
                       No billable AI runs logged yet. Market research and content intelligence runs record usage here.
+                    </Td>
+                  </Tr>
+                )}
+              </tbody>
+            </Table>
+          </Card>
+
+          <Card
+            title="User & Workspace AI Model Usage"
+            subtitle="Live attribution of which user and organization is using which AI model, total requests, tokens, and spend."
+            actions={
+              <SearchBox
+                value={userModelSearch}
+                onChange={setUserModelSearch}
+                placeholder="Search user, workspace, or model..."
+              />
+            }
+          >
+            <Table minWidth={750}>
+              <thead>
+                <tr>
+                  <Th>User / Account</Th>
+                  <Th>Workspace</Th>
+                  <Th>AI Model</Th>
+                  <Th align="right">Requests</Th>
+                  <Th align="right">Tokens Processed</Th>
+                  <Th align="right">Est. Spend</Th>
+                  <Th align="right">Last Active</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUserModels.length > 0 ? (
+                  filteredUserModels.map((row) => (
+                    <Tr key={`${row.userId}:${row.provider}:${row.model}`}>
+                      <Td>
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-7 w-7 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-[10px] dark:bg-brand-800 dark:text-brand-300">
+                            {row.userName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className={`${nameCls} block`}>{row.userName}</span>
+                            <span className="text-[11px] text-brand-400 font-mono">{row.userEmail}</span>
+                          </div>
+                        </div>
+                      </Td>
+                      <Td>
+                        <span className={nameCls}>{row.organizationName}</span>
+                      </Td>
+                      <Td>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-5 w-5 rounded-full bg-warning-50 dark:bg-warning-500/10 flex items-center justify-center">
+                            <Zap size={11} className="text-warning-500" />
+                          </span>
+                          <span className="font-mono text-xs font-semibold text-brand-900 dark:text-brand-100">
+                            {row.provider} / {row.model}
+                          </span>
+                        </div>
+                      </Td>
+                      <Td align="right">
+                        <span className={`font-mono ${nameCls}`}>{row.calls.toLocaleString()}</span>
+                      </Td>
+                      <Td align="right">
+                        <span className="font-mono text-xs text-brand-700 dark:text-brand-300">
+                          {row.totalTokens.toLocaleString()}
+                        </span>
+                      </Td>
+                      <Td align="right">
+                        <span className="font-mono text-[13px] font-bold text-success-600 dark:text-success-400">
+                          ${row.cost.toFixed(4)}
+                        </span>
+                      </Td>
+                      <Td align="right">
+                        <span className={mutedCls}>{relativeTime(row.lastUsedAt)}</span>
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={7} className="text-center py-8 text-xs text-brand-500">
+                      {userModelSearch ? "No matching model usage found." : "No attributed model calls logged yet."}
                     </Td>
                   </Tr>
                 )}

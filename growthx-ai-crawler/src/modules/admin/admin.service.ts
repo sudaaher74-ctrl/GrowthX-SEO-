@@ -196,20 +196,37 @@ export class AdminService {
   }
 
   /**
-   * Platform totals. The users list is capped at 100 rows for the table, so the
-   * headline numbers cannot be derived from its length once the platform grows
-   * past that.
+   * Platform totals. Includes currently logged-in active users (with active,
+   * unexpired refresh sessions) and total active sessions.
    */
   async getStats() {
-    const [tenants, users, projects] = await Promise.all([
+    const now = new Date();
+    const [tenants, users, projects, activeSessions] = await Promise.all([
       this.prisma.organization.count(),
       this.prisma.user.count(),
       this.prisma.project.count(),
+      this.prisma.refreshSession
+        ? this.prisma.refreshSession.findMany({
+            where: {
+              revokedAt: null,
+              expiresAt: { gt: now },
+            },
+            select: { userId: true },
+          }).catch(() => [])
+        : Promise.resolve([]),
     ]);
-    return { tenants, users, projects };
+    const loggedInUserIds = new Set((activeSessions || []).map((s: { userId: string }) => s.userId));
+    return {
+      tenants,
+      users,
+      projects,
+      loggedInUsers: loggedInUserIds.size,
+      activeSessions: activeSessions ? activeSessions.length : 0,
+    };
   }
 
   async getUsers() {
+    const now = new Date();
     const users = await this.prisma.user.findMany({
       include: {
         memberships: {
@@ -217,14 +234,128 @@ export class AdminService {
             organization: true,
           },
         },
+        sessions: {
+          select: {
+            id: true,
+            expiresAt: true,
+            revokedAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
 
+    const userIds = users.map((u) => u.id);
+    const orgIds = [
+      ...new Set(
+        users.flatMap((u) => u.memberships.map((m) => m.organizationId)).filter(Boolean),
+      ),
+    ];
+
+    // AI model usage via TokenTransaction (has userId or organizationId)
+    const tokenAiUsage = this.prisma.tokenTransaction
+      ? await this.prisma.tokenTransaction.findMany({
+          where: {
+            action: 'AI_USAGE',
+            OR: [
+              { userId: { in: userIds } },
+              { organizationId: { in: orgIds } },
+            ],
+          },
+          select: {
+            userId: true,
+            organizationId: true,
+            detail: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1000,
+        }).catch(() => [])
+      : [];
+
+    // AI model usage via AiUsageRecord (has organizationId)
+    const orgAiRecords = this.prisma.aiUsageRecord
+      ? await this.prisma.aiUsageRecord.findMany({
+          where: {
+            organizationId: { in: orgIds },
+          },
+          select: {
+            organizationId: true,
+            provider: true,
+            model: true,
+            inputTokens: true,
+            outputTokens: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1000,
+        }).catch(() => [])
+      : [];
+
+    const userAiMap = new Map<
+      string,
+      { models: Set<string>; totalCalls: number; lastUsedAt: string | null }
+    >();
+
+    for (const tx of tokenAiUsage) {
+      const targetUserId = tx.userId;
+      if (!targetUserId) continue;
+      const detail = (tx.detail as Record<string, any>) || {};
+      const model = detail.model || detail.provider;
+      if (!userAiMap.has(targetUserId)) {
+        userAiMap.set(targetUserId, { models: new Set(), totalCalls: 0, lastUsedAt: null });
+      }
+      const entry = userAiMap.get(targetUserId)!;
+      entry.totalCalls++;
+      if (model) entry.models.add(model);
+      if (!entry.lastUsedAt || new Date(tx.createdAt) > new Date(entry.lastUsedAt)) {
+        entry.lastUsedAt = tx.createdAt.toISOString();
+      }
+    }
+
+    const orgToUsers = new Map<string, string[]>();
+    for (const u of users) {
+      for (const m of u.memberships) {
+        if (!orgToUsers.has(m.organizationId)) {
+          orgToUsers.set(m.organizationId, []);
+        }
+        orgToUsers.get(m.organizationId)!.push(u.id);
+      }
+    }
+
+    for (const rec of orgAiRecords) {
+      if (!rec.organizationId) continue;
+      const memberUserIds = orgToUsers.get(rec.organizationId) || [];
+      const modelName = `${rec.provider} / ${rec.model}`;
+      for (const uid of memberUserIds) {
+        if (!userAiMap.has(uid)) {
+          userAiMap.set(uid, { models: new Set(), totalCalls: 0, lastUsedAt: null });
+        }
+        const entry = userAiMap.get(uid)!;
+        entry.totalCalls++;
+        entry.models.add(modelName);
+        if (!entry.lastUsedAt || new Date(rec.createdAt) > new Date(entry.lastUsedAt)) {
+          entry.lastUsedAt = rec.createdAt.toISOString();
+        }
+      }
+    }
+
     return users.map((u) => {
       const primaryMembership = u.memberships[0];
       const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email.split('@')[0];
+      const sessions = (u as any).sessions || [];
+      const activeSessions = sessions.filter(
+        (s: any) => !s.revokedAt && s.expiresAt > now,
+      );
+      const isLoggedIn = activeSessions.length > 0;
+      const lastLoginAt = sessions[0]?.createdAt ? sessions[0].createdAt.toISOString() : null;
+
+      const aiData = userAiMap.get(u.id);
+      const modelsUsed = aiData ? Array.from(aiData.models) : [];
 
       return {
         id: u.id,
@@ -234,9 +365,173 @@ export class AdminService {
         organizationName: primaryMembership?.organization?.name || 'Unassigned',
         organizationId: primaryMembership?.organizationId || null,
         createdAt: u.createdAt.toISOString(),
-        status: 'ACTIVE',
+        isLoggedIn,
+        activeSessionsCount: activeSessions.length,
+        lastLoginAt,
+        status: isLoggedIn ? 'ONLINE' : 'OFFLINE',
+        modelsUsed,
+        aiCallsCount: aiData?.totalCalls ?? 0,
+        lastAiUsedAt: aiData?.lastUsedAt ?? null,
       };
     });
+  }
+
+  /**
+   * Detailed breakdown of which user and organization is using which AI model,
+   * with tokens, calls, cost, and recency.
+   */
+  async getUserModelBreakdown() {
+    const [aiRecords, users, tokenUsage] = await Promise.all([
+      this.prisma.aiUsageRecord
+        ? this.prisma.aiUsageRecord.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 2000,
+          }).catch(() => [])
+        : [],
+      this.prisma.user.findMany({
+        include: {
+          memberships: {
+            include: { organization: true },
+          },
+        },
+      }),
+      this.prisma.tokenTransaction
+        ? this.prisma.tokenTransaction.findMany({
+            where: { action: 'AI_USAGE' },
+            orderBy: { createdAt: 'desc' },
+            take: 2000,
+          }).catch(() => [])
+        : [],
+    ]);
+
+    const orgUsersMap = new Map<
+      string,
+      Array<{ id: string; name: string; email: string; orgName: string }>
+    >();
+    const userById = new Map<string, { id: string; name: string; email: string; orgName: string }>();
+
+    for (const u of users) {
+      const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email.split('@')[0];
+      const primaryOrg = u.memberships[0]?.organization?.name || 'Unassigned';
+      userById.set(u.id, {
+        id: u.id,
+        name: fullName,
+        email: u.email,
+        orgName: primaryOrg,
+      });
+      for (const m of u.memberships) {
+        if (!orgUsersMap.has(m.organizationId)) {
+          orgUsersMap.set(m.organizationId, []);
+        }
+        orgUsersMap.get(m.organizationId)!.push({
+          id: u.id,
+          name: fullName,
+          email: u.email,
+          orgName: m.organization.name,
+        });
+      }
+    }
+
+    const breakdown = new Map<
+      string,
+      {
+        userId: string;
+        userName: string;
+        userEmail: string;
+        organizationName: string;
+        provider: string;
+        model: string;
+        calls: number;
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        cost: number;
+        lastUsedAt: string;
+      }
+    >();
+
+    // 1. Incorporate direct TokenTransactions if userId is available
+    for (const tx of tokenUsage) {
+      if (!tx.userId && !tx.organizationId) continue;
+      const detail = (tx.detail as Record<string, any>) || {};
+      const provider = detail.provider || 'AI Router';
+      const model = detail.model || detail.task || 'General AI';
+      const inTokens = detail.inputTokens ?? 0;
+      const outTokens = detail.outputTokens ?? 0;
+
+      const user = tx.userId ? userById.get(tx.userId) : null;
+      const usersInOrg = tx.organizationId ? orgUsersMap.get(tx.organizationId) || [] : [];
+      const assigned = user ? [user] : usersInOrg.length > 0 ? usersInOrg : null;
+      if (!assigned) continue;
+
+      for (const u of assigned) {
+        const key = `${u.id}:${provider}:${model}`;
+        if (!breakdown.has(key)) {
+          breakdown.set(key, {
+            userId: u.id,
+            userName: u.name,
+            userEmail: u.email,
+            organizationName: u.orgName,
+            provider,
+            model,
+            calls: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            cost: 0,
+            lastUsedAt: tx.createdAt.toISOString(),
+          });
+        }
+        const item = breakdown.get(key)!;
+        item.calls++;
+        item.inputTokens += inTokens;
+        item.outputTokens += outTokens;
+        item.totalTokens += inTokens + outTokens;
+        if (new Date(tx.createdAt) > new Date(item.lastUsedAt)) {
+          item.lastUsedAt = tx.createdAt.toISOString();
+        }
+      }
+    }
+
+    // 2. Incorporate AiUsageRecord
+    for (const record of aiRecords) {
+      const usersInOrg = record.organizationId ? orgUsersMap.get(record.organizationId) || [] : [];
+      const assignedUsers =
+        usersInOrg.length > 0
+          ? usersInOrg
+          : [{ id: 'system', name: 'System Background', email: 'system@reigel.in', orgName: 'Platform Worker' }];
+
+      for (const user of assignedUsers) {
+        const key = `${user.id}:${record.provider}:${record.model}`;
+        if (!breakdown.has(key)) {
+          breakdown.set(key, {
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            organizationName: user.orgName,
+            provider: record.provider,
+            model: record.model,
+            calls: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            cost: 0,
+            lastUsedAt: record.createdAt.toISOString(),
+          });
+        }
+        const item = breakdown.get(key)!;
+        item.calls++;
+        item.inputTokens += record.inputTokens;
+        item.outputTokens += record.outputTokens;
+        item.totalTokens += record.inputTokens + record.outputTokens;
+        item.cost += record.estimatedCostUsd ?? 0;
+        if (new Date(record.createdAt) > new Date(item.lastUsedAt)) {
+          item.lastUsedAt = record.createdAt.toISOString();
+        }
+      }
+    }
+
+    return Array.from(breakdown.values()).sort((a, b) => b.totalTokens - a.totalTokens);
   }
 
   async pauseQueues() {

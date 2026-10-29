@@ -1655,6 +1655,27 @@ export interface AdminUserItem {
   organizationId: string | null;
   createdAt: string;
   status: string;
+  isLoggedIn?: boolean;
+  activeSessionsCount?: number;
+  lastLoginAt?: string | null;
+  modelsUsed?: string[];
+  aiCallsCount?: number;
+  lastAiUsedAt?: string | null;
+}
+
+export interface AdminUserModelUsage {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  organizationName: string;
+  provider: string;
+  model: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+  lastUsedAt: string;
 }
 
 // ─────────────────────────────────────────────────── market research
