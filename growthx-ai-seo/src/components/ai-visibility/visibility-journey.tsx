@@ -483,6 +483,7 @@ function PromptsSection({
   onViewResults?: () => void;
 }) {
   const [draft, setDraft] = useState(brief);
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState<number | null>(0);
   const [expandedGap, setExpandedGap] = useState<number | null>(0);
@@ -1290,6 +1291,7 @@ function PromptsSection({
               evidence: `${activePlanGap.comp.count} saved mention or citation references. Website address: ${activePlanGap.comp.domain || "not verified"}.`,
               stagedAt: new Date().toISOString(), status: "STAGED",
             });
+            void queryClient.invalidateQueries({ queryKey: ["saved-plans", projectId] });
             setCmoToast("Review task saved to Fix Engine.");
             setActivePlanGap(null);
           }}

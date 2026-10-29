@@ -157,8 +157,10 @@ interface UnifiedLogEntry {
 
 export function GitHubFixesLogView({
   initialFindingId,
+  initialInstruction,
 }: {
   initialFindingId?: string | null;
+  initialInstruction?: string;
 }) {
   const { projectId } = useWorkspace();
   const queryClient = useQueryClient();
@@ -172,7 +174,7 @@ export function GitHubFixesLogView({
     initialFindingId ? [initialFindingId] : [],
   );
   const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
-  const [engineerPrompt, setEngineerPrompt] = useState("");
+  const [engineerPrompt, setEngineerPrompt] = useState(initialInstruction ?? "");
   const [showRepoConnect, setShowRepoConnect] = useState(false);
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
 

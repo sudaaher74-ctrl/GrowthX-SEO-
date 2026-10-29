@@ -7,6 +7,7 @@ import { useWorkspace } from "@/hooks/use-growthx";
 import { PageHeader, Tabs, StatusNote } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
 import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-view";
+import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 
 const TABS = [
   { id: "improvement", label: "Improvement", icon: Wrench },
@@ -30,6 +31,7 @@ function FixEngineClient() {
   const tab: TabId = rawTab === "github-fixes" || rawTab === "fixes" ? "github-fixes" : "improvement";
   const findingId = searchParams.get("findingId");
   const [statusMessage] = useState<string | null>(null);
+  const [preparedTask, setPreparedTask] = useState<{ projectId: string; instruction: string; revision: number } | null>(null);
 
   const { projectId } = useWorkspace();
   const activeProjectId = projectId ?? "";
@@ -69,6 +71,11 @@ function FixEngineClient() {
         onChange={(nextTab) => setTab(nextTab)}
       />
 
+      <SavedTasksPanel key={activeProjectId} projectId={projectId} onPrepare={instruction => {
+        setPreparedTask(previous => ({ projectId: activeProjectId, instruction, revision: (previous?.revision ?? 0) + 1 }));
+        setTab("github-fixes");
+      }} />
+
       {tab === "improvement" ? (
         <PlanView
           key={activeProjectId}
@@ -76,8 +83,9 @@ function FixEngineClient() {
         />
       ) : (
         <GitHubFixesLogView
-          key={`${activeProjectId}-${findingId ?? "all"}`}
+          key={`${activeProjectId}-${findingId ?? "all"}-${preparedTask?.projectId === activeProjectId ? preparedTask.revision : 0}`}
           initialFindingId={findingId}
+          initialInstruction={preparedTask?.projectId === activeProjectId ? preparedTask.instruction : undefined}
         />
       )}
     </div>
