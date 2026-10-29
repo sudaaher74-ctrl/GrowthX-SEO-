@@ -10,7 +10,7 @@ describe('CompetitorAdapter', () => {
       project: {
         findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1', name: 'Client', websites: [{ domain: 'client.example' }] }),
       },
-      competitorDomain: { findMany: jest.fn().mockResolvedValue([]) },
+      competitorDomain: { findMany: jest.fn().mockResolvedValue([{ id: 'rival-1', domain: 'rival.example' }]) },
       competitorFinding: {
         findMany: jest.fn().mockResolvedValue([
           {
