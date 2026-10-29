@@ -653,13 +653,16 @@ export class MultiAiRouterService {
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: request.prompt });
 
-    const response = await this.openrouter.chat.completions.create({
+    const body = {
       model: modelOverride || this.openrouterModel,
       messages,
       temperature: this.openrouterTemperature,
       max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
       ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
-    } as any);
+    };
+    const response = request.timeoutMs
+      ? await this.openrouter.chat.completions.create(body as any, { timeout: request.timeoutMs, maxRetries: 0 })
+      : await this.openrouter.chat.completions.create(body as any);
 
     return {
       provider: AiProvider.OPENROUTER,

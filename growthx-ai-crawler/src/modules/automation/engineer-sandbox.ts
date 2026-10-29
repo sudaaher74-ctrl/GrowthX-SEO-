@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { patchReactSeo } from '../autonomous-engineer/agents/patch-generation/react-seo-patch';
+import { resolveReactRoute } from './react-route';
 
 /**
  * The only way the engineer touches a customer's repository.
@@ -62,7 +63,7 @@ export class RepoSandbox {
     return content;
   }
 
-  async title(rel: string, value: string): Promise<string> {
+  async title(rel: string, value: string, pathname?: string): Promise<string> {
     const p = this.clean(rel);
     this.assertWritable(p);
     if (!value?.trim() || Array.from(value).length > 60) throw new SandboxError('Use a non-empty document title of at most 60 characters.');
@@ -76,6 +77,16 @@ export class RepoSandbox {
     }
     if (!manifest) { try { await this.source('package.json'); manifest = true; } catch { /* No application manifest. */ } }
     if (!manifest) throw new SandboxError('No application manifest inside this repository.');
+    if (pathname) {
+      if (!pathname.startsWith('/') || pathname.startsWith('//') || pathname.includes('?') || pathname.includes('#')) throw new SandboxError('Use the exact route pathname without query parameters.');
+      for (const name of ['router', 'routes', 'App']) for (const ext of ['jsx', 'tsx', 'js', 'ts']) {
+        const candidate = path.posix.join(app, 'src', `${name}.${ext}`);
+        try { await fs.lstat(path.resolve(this.root, candidate)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }
+        await this.source(candidate);
+      }
+      const routed = await resolveReactRoute(path.resolve(this.root, app), pathname);
+      if (!routed || path.resolve(routed) !== path.resolve(abs)) throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
+    }
     for (const entry of ['main.jsx', 'main.tsx', 'index.jsx', 'index.tsx']) {
       const rel = path.posix.join(app, 'src', entry);
       try { await fs.lstat(path.resolve(this.root, rel)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }

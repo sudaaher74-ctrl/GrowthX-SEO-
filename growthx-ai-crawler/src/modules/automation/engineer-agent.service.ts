@@ -87,7 +87,7 @@ You work by choosing ONE tool per turn and replying with JSON only. Tools:
 - {"tool":"search","pattern":"About us","path":"src"}   find text (plain text, not a pattern) in files
 - {"tool":"edit","path":"...","old":"exact existing text","new":"replacement"}   replace text that appears exactly once
 - {"tool":"create","path":"...","content":"..."}       create a NEW file (never overwrites)
-- {"tool":"metadata","path":"src/pages/Policy.jsx","new":"Refund Policy | Brand"} connect a document title in an existing React page with an existing HelmetProvider (read that page first)
+- {"tool":"metadata","path":"src/pages/Policy.jsx","pattern":"/policy","new":"Refund Policy | Brand"} connect a document title in an existing React page with an existing HelmetProvider; pattern is the exact static route pathname (read the page and router first)
 - {"tool":"finish","summary":"what you changed and why, for the person reviewing it"}
 
 Rules:
@@ -216,7 +216,7 @@ export function isUsableAction(text: string): boolean {
     case 'search': return has('pattern');
     case 'edit': return has('path') && has('old') && typeof action.new === 'string' && action.old !== action.new;
     case 'create': return has('path') && has('content');
-    case 'metadata': return has('path') && has('new');
+    case 'metadata': return has('path') && has('new') && has('pattern');
     case 'finish': return has('summary');
     default: return false;
   }
@@ -425,6 +425,9 @@ export class EngineerAgentService {
       steps.push(this.step('branch', branch, true));
 
       const box = new RepoSandbox(dir);
+      const website = await this.prisma.website?.findFirst({ where: { projectId, scope: 'own' }, select: { domain: true } });
+      let origin = '';
+      if (website?.domain) { try { const url = new URL(website.domain.includes('://') ? website.domain : `https://${website.domain}`); if (['https:', 'http:'].includes(url.protocol)) origin = url.origin; } catch { /* No verified site origin for route evidence. */ } }
       const outcome = await this.work(
         box,
         instruction,
@@ -435,6 +438,7 @@ export class EngineerAgentService {
         steps,
         runId,
         findingsContext,
+        origin,
       );
 
       if (steps.some((step) => step.step === 'stopped')) throw new Error('The engineer stopped before completing the change. Nothing was pushed.');
@@ -487,6 +491,7 @@ export class EngineerAgentService {
     steps: RunStep[],
     runId: string,
     findingsContext: FindingRunContext[] = [],
+    siteOrigin = '',
   ): Promise<{ summary: string }> {
     const history: { call: string; result: string }[] = [];
     const rootListing = await box.list('');
@@ -522,6 +527,7 @@ export class EngineerAgentService {
         jsonSchema: ACTION_SCHEMA as unknown as Record<string, unknown>,
         validateResponse: isUsableAction,
         maxTokens: 8000,
+        timeoutMs: 45000,
       });
 
       const action = completion.refused ? null : parseAction(completion.text);
@@ -572,18 +578,20 @@ export class EngineerAgentService {
         const matchedFinding =
           findingsContext[editIndex % Math.max(findingsContext.length, 1)] ?? findingsContext[0];
         editIndex += 1;
+        const metadataUrl = action.tool === 'metadata' && siteOrigin && action.pattern?.startsWith('/') && !action.pattern.startsWith('//') ? new URL(action.pattern, siteOrigin).href : '';
+        const baseline = metadataUrl ? await this.prisma.page?.findFirst({ where: { url: metadataUrl, statusCode: 200, crawlJob: { website: { projectId, scope: 'own' }, status: 'COMPLETED' } }, orderBy: { crawledAt: 'desc' }, select: { title: true, crawledAt: true } }) : null;
         stepEntry.change = {
           issueId: matchedFinding?.id ?? `engineer:${runId}:${action.path}:${editIndex}`,
-          url: matchedFinding?.affectedPages?.[0] ?? '',
-          field: action.tool === 'create' ? 'NEW_FILE_CREATED' : 'CODE_AND_SEO_UPDATE',
-          before: action.tool === 'edit' ? clip(action.old ?? '', 1200) : action.tool === 'metadata' ? clip(box.originals.get(action.path) ?? '', 1200) : null,
-          beforeSource: 'REPOSITORY',
+          url: metadataUrl || matchedFinding?.affectedPages?.[0] || '',
+          field: metadataUrl ? 'META_TITLE' : action.tool === 'create' ? 'NEW_FILE_CREATED' : 'CODE_AND_SEO_UPDATE',
+          before: metadataUrl ? baseline?.title ?? null : action.tool === 'edit' ? clip(action.old ?? '', 1200) : action.tool === 'metadata' ? clip(box.originals.get(action.path) ?? '', 1200) : null,
+          beforeSource: metadataUrl ? 'SAVED_AUDIT' : 'REPOSITORY',
           after: clip(action.tool === 'edit' || action.tool === 'metadata' ? (action.new ?? '') : (action.content ?? ''), 1200),
           why: matchedFinding
             ? `[${matchedFinding.source}] ${matchedFinding.title} — ${matchedFinding.recommendedAction}`
             : clip(instruction, 400),
           file: action.path,
-          measuredAt: new Date().toISOString(),
+          measuredAt: metadataUrl ? baseline?.crawledAt?.toISOString() ?? null : new Date().toISOString(),
           sourceModule: matchedFinding?.source ?? 'WEBSITE',
           findingTitle: matchedFinding?.title ?? clip(instruction.split('\n')[0], 90),
         };
@@ -675,7 +683,7 @@ export class EngineerAgentService {
       case 'create':
         return box.create(a.path ?? '', a.content ?? '');
       case 'metadata':
-        return box.title(a.path ?? '', a.new ?? '');
+        return box.title(a.path ?? '', a.new ?? '', a.pattern);
       default:
         throw new SandboxError('Unknown tool.');
     }

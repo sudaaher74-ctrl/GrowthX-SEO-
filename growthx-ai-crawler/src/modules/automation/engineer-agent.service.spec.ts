@@ -107,7 +107,7 @@ describe('EngineerAgentService', () => {
     prisma.project = { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org_1' }) };
     const automation = { runFixes: jest.fn().mockResolvedValue({ id: 'queued', status: 'AWAITING_REVIEW' }) };
     const queued = new EngineerAgentService(prisma, router, git, {} as any, validation, {} as any, undefined, automation as any);
-    expect((await queued.executeQueued('queued')).id).toBe('queued');
+    expect((await queued.executeQueued('queued'))?.id).toBe('queued');
     expect(automation.runFixes).toHaveBeenCalledWith('proj_1', 'org_1', ['issue'], 'queued');
     expect(prisma.automationRun.create).not.toHaveBeenCalled();
   });
