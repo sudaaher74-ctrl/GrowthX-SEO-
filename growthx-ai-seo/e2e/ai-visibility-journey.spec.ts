@@ -271,7 +271,7 @@ test("shows measured results, failed checks, competitor evidence and action plan
   await expect(page.getByText("0 / 1", { exact: true })).toHaveCount(2);
   await page.getByRole("combobox", {name:"Filter answers by assistant"}).selectOption("OPENAI");
   await expect(page.getByText("Not mentioned", { exact: true })).toHaveCount(0);
-  await page.getByText("Compare competitors mentioned in the answers",{exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Who appears alongside you?',exact:true})).toBeVisible();
   await expect(
     page.getByText("Possible explanation:", { exact: false }),
   ).toBeVisible();

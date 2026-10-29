@@ -25,7 +25,7 @@ test('one AI Visibility entry keeps prompts and actions together with the main w
   await expect(page.getByRole('tab')).toHaveCount(2);
   await expect(page.getByRole('tab',{name:'1. Prompts'})).toBeVisible();
   await expect(page.getByRole('tab',{name:'2. Take action'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Prepare my questions'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Prepare my prompts'})).toBeVisible();
   await expect(page.getByText('More Views',{exact:true})).toHaveCount(0);
   for(const name of ['Website Audit','Traffic','Competitor Intelligence','AI Visibility']) await expect(page.getByRole('link',{name:new RegExp(`^${name}`)}).first()).toBeVisible();
 });
