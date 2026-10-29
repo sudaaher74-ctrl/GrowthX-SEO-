@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { isAdminSection, type AdminSection } from "@/components/layout/admin-sidebar";
 import Link from "next/link";import { ShieldAlert, Cpu, Activity, Building2, Wallet, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Sliders, Search, Check } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import {
   api,
@@ -178,7 +180,21 @@ function HealthTile({
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState("overview");
+  // useSearchParams needs a Suspense boundary during static prerender.
+  return (
+    <Suspense fallback={null}>
+      <AdminConsole />
+    </Suspense>
+  );
+}
+
+function AdminConsole() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // The sidebar links to /admin?tab=…, so the URL is the source of truth.
+  const tabParam = searchParams.get("tab");
+  const activeTab: AdminSection = isAdminSection(tabParam) ? tabParam : "overview";
+  const setActiveTab = (id: AdminSection) => router.replace(`/admin?tab=${id}`, { scroll: false });
   const [workersPaused, setWorkersPaused] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -323,7 +339,7 @@ export default function AdminPage() {
     return names.slice(0, 3).join(", ") + (names.length > 3 ? "…" : "");
   }, [apiCosts]);
 
-  const tabs = [
+  const tabs: { id: AdminSection; label: string; icon: typeof Server }[] = [
     { id: "overview", label: "System Overview", icon: Server },
     { id: "tenants", label: `Tenants (${tenants.length})`, icon: Database },
     { id: "users", label: `Users (${users.length})`, icon: Users },
