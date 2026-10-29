@@ -35,6 +35,12 @@ export class AdminController {
     return this.adminService.getSystemHealth();
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get platform-wide totals (tenants, users, projects)' })
+  async getStats() {
+    return this.adminService.getStats();
+  }
+
   @Get('users')
   @ApiOperation({ summary: 'Get platform users directory' })
   async getUsers() {

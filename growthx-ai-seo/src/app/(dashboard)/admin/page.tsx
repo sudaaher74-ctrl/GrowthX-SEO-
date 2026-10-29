@@ -11,6 +11,7 @@ import {
   TenantStat,
   AdminSystemHealth,
   AdminUserItem,
+  ApiError,
 } from "@/lib/api-client";
 import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
 import { GrantTokensForm } from "@/components/tokens/grant-tokens-form";
@@ -204,6 +205,9 @@ function AdminConsole() {
   const [workerQueues, setWorkerQueues] = useState<QueueStat[]>([]);
   const [apiCosts, setApiCosts] = useState<ApiCostStat[]>([]);
   const [tenants, setTenants] = useState<TenantStat[]>([]);
+  const [totals, setTotals] = useState<{ tenants: number; users: number; projects: number } | null>(null);
+  const [failedCalls, setFailedCalls] = useState<string[]>([]);
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [grantTo, setGrantTo] = useState<TenantStat | null>(null);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
@@ -222,48 +226,43 @@ function AdminConsole() {
     maxCrawlDepth: 10,
   });
 
+  // Each endpoint is loaded on its own. With Promise.all a single failure (a
+  // 403 from the operator allowlist, Redis being down) left every card at 0
+  // with nothing on screen to say why.
   const loadData = async () => {
-    try {
-      const [queues, costs, tenantsData, healthData, usersData] = await Promise.all([
-        api.getAdminQueues(),
-        api.getAdminCosts(),
-        api.getAdminTenants(),
-        api.getAdminSystemHealth(),
-        api.getAdminUsers(),
-      ]);
-      setWorkerQueues(queues);
-      setApiCosts(costs);
-      setTenants(tenantsData);
-      setSystemHealth(healthData);
-      setUsers(usersData);
-    } catch (err) {
-      console.error("Failed to load admin telemetry:", err);
-    }
+    const calls = {
+      queues: api.getAdminQueues(),
+      costs: api.getAdminCosts(),
+      tenants: api.getAdminTenants(),
+      health: api.getAdminSystemHealth(),
+      users: api.getAdminUsers(),
+      stats: api.getAdminStats(),
+    };
+    const [queues, costs, tenantsData, health, usersData, statsData] = await Promise.allSettled(Object.values(calls));
+    const failures: string[] = [];
+    const take = <T,>(r: PromiseSettledResult<unknown>, label: string, apply: (v: T) => void) => {
+      if (r.status === "fulfilled") apply(r.value as T);
+      else {
+        console.error(`Admin ${label} failed:`, r.reason);
+        const status = r.reason instanceof ApiError ? r.reason.status : null;
+        failures.push(`${label}${status ? ` (${status})` : ""}`);
+        if (status === 403 || status === 401) setAccessDenied(r.reason instanceof Error ? r.reason.message : "Access denied");
+      }
+    };
+    setAccessDenied(null);
+    take<QueueStat[]>(queues, "queues", setWorkerQueues);
+    take<ApiCostStat[]>(costs, "AI spend", setApiCosts);
+    take<TenantStat[]>(tenantsData, "tenants", setTenants);
+    take<AdminSystemHealth>(health, "system health", setSystemHealth);
+    take<AdminUserItem[]>(usersData, "users", setUsers);
+    take<{ tenants: number; users: number; projects: number }>(statsData, "totals", setTotals);
+    setFailedCalls(failures);
   };
 
   useEffect(() => {
-    let active = true;
-    Promise.all([
-      api.getAdminQueues(),
-      api.getAdminCosts(),
-      api.getAdminTenants(),
-      api.getAdminSystemHealth(),
-      api.getAdminUsers(),
-    ])
-      .then(([queues, costs, tenantsData, healthData, usersData]) => {
-        if (!active) return;
-        setWorkerQueues(queues);
-        setApiCosts(costs);
-        setTenants(tenantsData);
-        setSystemHealth(healthData);
-        setUsers(usersData);
-      })
-      .catch((err) => {
-        console.error("Failed to load admin telemetry:", err);
-      });
-    return () => {
-      active = false;
-    };
+    // Deferred so the state updates are not a synchronous setState in the effect body.
+    const timer = setTimeout(() => void loadData(), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleRefresh = async () => {
@@ -395,10 +394,26 @@ function AdminConsole() {
         </div>
       </div>
 
+      {(accessDenied || failedCalls.length > 0) && (
+        <div role="alert" className="rounded-3xl border border-error-200 bg-error-50 px-5 py-4 text-[13px] text-error-700">
+          <p className="font-semibold">
+            {accessDenied ? "The admin API refused this account." : "Some admin data could not be loaded."}
+          </p>
+          <p className="mt-1 text-xs">
+            {accessDenied
+              ? `${accessDenied} Add your login email to PLATFORM_ADMIN_EMAILS on the backend (Render) and redeploy.`
+              : `Failed: ${failedCalls.join(", ")}. Zeros below may be missing data, not real zeros.`}
+          </p>
+          <button type="button" onClick={handleRefresh} className="mt-2 text-xs font-semibold underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <Stat featured label="Active Tenants" value={String(tenants.length)} sub="Organizations" icon={<Building2 size={15} />} />
-        <Stat label="Platform Users" value={String(users.length)} sub="Registered accounts" icon={<Users size={15} />} />
+        <Stat featured label="Active Tenants" value={String(totals?.tenants ?? tenants.length)} sub="Organizations" icon={<Building2 size={15} />} />
+        <Stat label="Platform Users" value={String(totals?.users ?? users.length)} sub="Registered accounts" icon={<Users size={15} />} />
         <Stat label="24h Jobs Finished" value={String(totalCompletedJobs)} sub="BullMQ tasks" icon={<Activity size={15} />} />
         <Stat label="AI Spend MTD" value={`$${totalSpend}`} sub={spendProviders} icon={<Wallet size={15} />} />
       </div>
