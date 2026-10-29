@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../../database/prisma.service';
 import { FindingSyncService } from './finding-sync.service';
 import { LifecycleService } from './lifecycle.service';
+import { measuredFinding } from './finding-evidence';
 
 @ApiTags('Findings')
 @ApiBearerAuth()
@@ -106,7 +107,7 @@ export class FindingsController {
     }
 
     return {
-      items,
+      items: items.map(measuredFinding),
       nextCursor,
       counts: {
         bySource,
@@ -143,7 +144,7 @@ export class FindingsController {
       throw new NotFoundException(`Finding ${id} not found`);
     }
 
-    return finding;
+    return measuredFinding(finding);
   }
 
   @Post(':id/transition')

@@ -11,6 +11,7 @@ import { LIMITS, RepoSandbox, SandboxError } from './engineer-sandbox';
 import { EngineerQueueService } from './engineer-queue.service';
 import { metadataAcceptance } from './metadata-acceptance';
 import { AutomationService } from './automation.service';
+import { measuredFinding } from '../opportunities/finding-evidence';
 
 interface RunStep {
   at: string;
@@ -340,7 +341,7 @@ export class EngineerAgentService {
       throw new BadRequestException('No matching findings in Fix Engine to apply via GitHub. Refresh your plan or select findings first.');
     }
 
-    const findingsContext: FindingRunContext[] = rows.map((r: any) => ({
+    const findingsContext: FindingRunContext[] = rows.map(measuredFinding).map((r: any) => ({
       id: r.id,
       source: r.source || 'WEBSITE',
       title: r.title,
