@@ -118,6 +118,18 @@ export interface Ga4ReportResponse {
   data: Ga4ReportData | null;
 }
 
+export interface Ga4RealtimeResponse {
+  state: 'READY' | 'NOT_CONNECTED' | 'NEEDS_SELECTION' | 'NEEDS_REAUTH';
+  message: string | null;
+  propertyName: string | null;
+  data: {
+    activeUsers: number;
+    countries: { country: string; activeUsers: number }[];
+    windowMinutes: 30;
+    fetchedAt: string;
+  } | null;
+}
+
 /**
  * The GA4 numbers the Dashboard and Google Search pages show.
  *
@@ -133,11 +145,78 @@ export interface Ga4ReportResponse {
 @Injectable()
 export class AnalyticsReportService {
   private readonly logger = new Logger(AnalyticsReportService.name);
+  // Bound memory and coalesce concurrent viewers. Never reuse another project's
+  // result, or a previous property after the workspace changes its selection.
+  private readonly realtimeCache = new Map<string, { expires: number; result: Promise<Ga4RealtimeResponse> }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly oauth: GoogleOAuthService,
   ) {}
+
+  async realtime(projectId: string): Promise<Ga4RealtimeResponse> {
+    const integration = await this.prisma.integration.findUnique({
+      where: { projectId_provider: { projectId, provider: 'analytics' } },
+      select: { status: true, selectedResourceId: true, selectedResourceName: true },
+    });
+    const base = { propertyName: integration?.selectedResourceName ?? null, data: null };
+    if (!integration || integration.status === 'DISCONNECTED') {
+      return { ...base, state: 'NOT_CONNECTED', message: 'Connect Google Analytics 4 in Settings → Integrations.' };
+    }
+    if (integration.status === 'NEEDS_REAUTH') {
+      return { ...base, state: 'NEEDS_REAUTH', message: 'Reconnect Google Analytics 4 to restore access.' };
+    }
+    if (!integration.selectedResourceId) {
+      return { ...base, state: 'NEEDS_SELECTION', message: 'Choose a GA4 property in Settings → Integrations.' };
+    }
+    const propertyId = integration.selectedResourceId;
+    const key = JSON.stringify([projectId, propertyId, integration.selectedResourceName]);
+    const now = Date.now();
+    for (const [id, entry] of this.realtimeCache) if (entry.expires <= now) this.realtimeCache.delete(id);
+    const cached = this.realtimeCache.get(key);
+    if (cached) return cached.result;
+    if (this.realtimeCache.size >= 256) this.realtimeCache.delete(this.realtimeCache.keys().next().value!);
+    const entry = { expires: now + 30_000, result: this.fetchRealtime(projectId, propertyId, base.propertyName) };
+    this.realtimeCache.set(key, entry);
+    try {
+      return await entry.result;
+    } catch (error) {
+      // Brief negative cache prevents a failed provider from being hammered;
+      // failures remain errors, never an invented zero or a stale live count.
+      entry.expires = Date.now() + 5_000;
+      throw error;
+    }
+  }
+
+  private async fetchRealtime(projectId: string, propertyId: string, propertyName: string | null): Promise<Ga4RealtimeResponse> {
+    const auth = await this.oauth.clientFor(projectId, 'analytics');
+    const api = google.analyticsdata({ version: 'v1beta', auth });
+    try {
+      const requestBody = { metrics: [{ name: 'activeUsers' }], minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }] };
+      const [total, countries] = await Promise.all([
+        api.properties.runRealtimeReport({ property: propertyId, requestBody }, { timeout: 10_000, retry: false }),
+        api.properties.runRealtimeReport({
+          property: propertyId,
+          requestBody: { ...requestBody, dimensions: [{ name: 'country' }], limit: '10', orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }] },
+        }, { timeout: 10_000, retry: false }),
+      ]);
+      return {
+        state: 'READY', message: null, propertyName,
+        data: {
+          // Use Google's distinct total, never a sum of geographic buckets.
+          activeUsers: Number(total.data.rows?.[0]?.metricValues?.[0]?.value ?? 0),
+          countries: (countries.data.rows ?? []).map((row) => ({
+            country: row.dimensionValues?.[0]?.value ?? '(not set)',
+            activeUsers: Number(row.metricValues?.[0]?.value ?? 0),
+          })),
+          windowMinutes: 30, fetchedAt: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      await this.handleApiError(projectId, error);
+      throw googleApiClientError('Google Analytics Data API', error);
+    }
+  }
 
   // ── reading ────────────────────────────────────────────────────────────
 

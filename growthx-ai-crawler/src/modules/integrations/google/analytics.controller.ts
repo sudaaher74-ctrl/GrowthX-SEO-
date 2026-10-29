@@ -45,6 +45,12 @@ export class AnalyticsController {
     return this.insights.coverage(projectId);
   }
 
+  @Get('realtime')
+  @ApiOperation({ summary: 'GA4 active users in the last 30 minutes for the selected property' })
+  realtime(@Param('projectId') projectId: string) {
+    return this.reports.realtime(projectId);
+  }
+
   @Get('summary')
   @ApiOperation({ summary: 'Users, sessions, engagement and — where configured — conversions' })
   summary(@Param('projectId') projectId: string, @Query('days') days?: string) {

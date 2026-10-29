@@ -353,6 +353,7 @@ function IntegrationsView() {
     mutationFn: (provider: string) => api.googleDisconnect(projectId!, provider),
     onSuccess: () => {
       setActionNotice({ type: "success", text: "Disconnected integration successfully." });
+      qc.removeQueries({ queryKey: ["ga4-realtime", projectId] });
       qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
       qc.invalidateQueries({ queryKey: ["gsc-summary"] });
       qc.invalidateQueries({ queryKey: ["ga4-summary"] });
@@ -369,6 +370,7 @@ function IntegrationsView() {
     },
     onSuccess: () => {
       setActionNotice({ type: "success", text: "Manual sync triggered successfully." });
+      qc.invalidateQueries({ queryKey: ["ga4-realtime", projectId] });
       qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
       qc.invalidateQueries({ queryKey: ["gsc-summary"] });
       qc.invalidateQueries({ queryKey: ["ga4-summary"] });

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Panel, Tabs } from "@/components/ui/console";
 import { ImprovementReportView } from "@/components/google/improvement-report-view";
+import { RealtimeActivity } from "@/components/google/realtime-activity";
 import {
   CartesianGrid,
   Line,
@@ -193,7 +194,7 @@ function TrafficViewClient() {
   const gscQueries = useGscQueries(projectId);
 
   const reportData: Ga4ReportData | null = report.data?.data ?? null;
-  const isConnected = report.data?.state === "READY" || !!gscSummary.query.data;
+  const ga4State = report.data?.state;
 
   // KPIs
   const totals = reportData?.totals;
@@ -385,10 +386,10 @@ function TrafficViewClient() {
       ) : (
         <>
           {/* ── CONNECTION ALERT (If not connected) ── */}
-      {!isConnected && (
+      {ga4State === "NOT_CONNECTED" && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warning-200 bg-warning-50 px-5 py-3 text-xs text-warning-800">
           <p>
-            Connect Google Search Console & GA4 in <strong>Settings → Integrations</strong> to stream live telemetry.
+            Google Analytics 4 is not connected. Open <strong>Settings → Integrations</strong> to connect it. Search Console is connected separately for search metrics.
           </p>
           <Link
             href="/integrations"
@@ -398,6 +399,15 @@ function TrafficViewClient() {
           </Link>
         </div>
       )}
+      {ga4State && ga4State !== "READY" && ga4State !== "NOT_CONNECTED" && (
+        <Panel padded title={ga4State === "EMPTY" ? "No historical GA4 activity" : "GA4 report status"}>
+          <p className="text-sm text-brand-600">{report.data?.message}</p>
+          {ga4State === "EMPTY" && <p className="mt-2 text-sm text-brand-500">This window ends yesterday. New activity can appear in the realtime panel before it appears in historical reports.</p>}
+          <Link href="/settings?tab=integrations" className="mt-2 inline-block text-sm text-primary-700 underline">Review GA4 integration</Link>
+        </Panel>
+      )}
+      {report.isError && <Panel padded title="Historical GA4 report unavailable"><p role="alert" className="text-sm text-error-700">{report.error.message}</p></Panel>}
+      {report.data?.lastError && <p role="alert" className="text-sm text-error-700">Latest historical refresh failed: {report.data.lastError}. Showing the last saved report.</p>}
 
       {/* ── 4 KPI METRIC CARDS ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -453,7 +463,7 @@ function TrafficViewClient() {
         </div>
       </div>
 
-      <Panel padded title="Realtime activity"><p className="text-sm text-brand-500">Realtime activity is not measured by this saved report. No live visitor count is available.</p></Panel>
+      <RealtimeActivity projectId={projectId} />
 
       {/* ── DAILY TRAFFIC CHART ── */}
       <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
