@@ -2,8 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import { AnalyticsReportService, parseGa4Range } from './analytics-report.service';
 
 const runReport = jest.fn();
+const runRealtimeReport = jest.fn();
 jest.mock('./google-apis', () => ({
-  google: { analyticsdata: () => ({ properties: { runReport: (args: any) => runReport(args) } }) },
+  google: { analyticsdata: () => ({ properties: { runReport: (args: any) => runReport(args), runRealtimeReport: (...args: any[]) => runRealtimeReport(...args) } }) },
 }));
 
 /**
@@ -39,6 +40,73 @@ describe('AnalyticsReportService', () => {
     googleAccountEmail: 'owner@example.com',
     lastSyncedAt: null,
   };
+
+  describe('realtime', () => {
+    beforeEach(() => runRealtimeReport.mockReset());
+
+    it('does not contact Google for disconnected, unselected or revoked integrations', async () => {
+      for (const [integration, state] of [[null, 'NOT_CONNECTED'], [{ ...connected, selectedResourceId: null }, 'NEEDS_SELECTION'], [{ ...connected, status: 'NEEDS_REAUTH' }, 'NEEDS_REAUTH']] as const) {
+        const { service, oauth } = build(integration);
+        expect((await service.realtime('p1')).state).toBe(state);
+        expect(oauth.clientFor).not.toHaveBeenCalled();
+      }
+      expect(runRealtimeReport).not.toHaveBeenCalled();
+    });
+
+    it('uses the selected project property, exact total, bounded requests and coalesces viewers', async () => {
+      runRealtimeReport.mockImplementation(async ({ requestBody }) => ({ data: { rows: requestBody.dimensions ? [
+        { dimensionValues: [{ value: 'India' }], metricValues: [{ value: '8' }] },
+        { dimensionValues: [{ value: 'United States' }], metricValues: [{ value: '9' }] },
+      ] : [{ metricValues: [{ value: '12' }] }] } }));
+      const { service, prisma, oauth } = build(connected);
+      const [a, b] = await Promise.all([service.realtime('p1'), service.realtime('p1')]);
+      expect(a).toEqual(b);
+      expect(a.data?.activeUsers).toBe(12); // country totals must not be added
+      expect(a.data?.countries).toHaveLength(2);
+      expect(a.data?.fetchedAt).toEqual(expect.any(String));
+      expect(oauth.clientFor).toHaveBeenCalledWith('p1', 'analytics');
+      expect(runRealtimeReport).toHaveBeenCalledTimes(2);
+      expect(runRealtimeReport.mock.calls[0]).toEqual([
+        { property: 'properties/1', requestBody: { metrics: [{ name: 'activeUsers' }], minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }] } },
+        { timeout: 10_000, retry: false },
+      ]);
+      await service.realtime('p2');
+      expect(runRealtimeReport).toHaveBeenCalledTimes(4);
+      prisma.integration.findUnique.mockResolvedValue({ ...connected, selectedResourceId: 'properties/2' });
+      await service.realtime('p1');
+      expect(runRealtimeReport.mock.calls[4][0].property).toBe('properties/2');
+    });
+
+    it('returns real zero for successful empty reports, but throws on failed reads', async () => {
+      runRealtimeReport.mockResolvedValue({ data: { rows: [] } });
+      const { service } = build(connected);
+      expect((await service.realtime('empty')).data?.activeUsers).toBe(0);
+      runRealtimeReport.mockRejectedValue({ response: { status: 429, data: { error: { message: 'Quota exceeded' } } } });
+      await expect(service.realtime('quota')).rejects.toThrow(/Quota exceeded/);
+      await expect(service.realtime('quota')).rejects.toThrow(/Quota exceeded/);
+      expect(runRealtimeReport).toHaveBeenCalledTimes(4); // failure cache does not call Google again
+    });
+
+    it('expires cached data and never serves a stale count after a provider failure', async () => {
+      const clock = jest.spyOn(Date, 'now');
+      try {
+        clock.mockReturnValue(100_000);
+        runRealtimeReport.mockResolvedValue({ data: { rows: [{ metricValues: [{ value: '7' }] }] } });
+        const { service } = build(connected);
+        expect((await service.realtime('p1')).data?.activeUsers).toBe(7);
+        clock.mockReturnValue(131_000);
+        runRealtimeReport.mockRejectedValue(new Error('timeout'));
+        await expect(service.realtime('p1')).rejects.toThrow(/timeout/);
+      } finally { clock.mockRestore(); }
+    });
+
+    it('marks revoked access for reauthorization instead of returning an empty report', async () => {
+      runRealtimeReport.mockRejectedValue({ response: { status: 403 } });
+      const { service, oauth } = build(connected);
+      await expect(service.realtime('p1')).rejects.toThrow(/Google refused access/);
+      expect(oauth.markNeedsReauth).toHaveBeenCalledWith('p1', 'analytics', expect.any(String));
+    });
+  });
 
   describe('parseGa4Range', () => {
     it('defaults to 28d and rejects anything the top bar does not offer', () => {

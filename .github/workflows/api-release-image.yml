@@ -1,0 +1,52 @@
+name: API release image
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['growthx-ai-crawler/**', '.github/workflows/api-release-image.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build API image off production
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Record source revision
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: growthx-ai-crawler
+          load: true
+          tags: growthx-crawler:${{ steps.source.outputs.sha }}
+          labels: org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+      - name: Export immutable release image
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          docker save "growthx-crawler:$SOURCE_SHA" | gzip -1 > api-image.tar.gz
+          sha256sum api-image.tar.gz > api-image.tar.gz.sha256
+          printf '%s\n' "$SOURCE_SHA" > source-revision.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-image-${{ steps.source.outputs.sha }}
+          path: |
+            api-image.tar.gz
+            api-image.tar.gz.sha256
+            source-revision.txt
+          compression-level: 0
+          retention-days: 3

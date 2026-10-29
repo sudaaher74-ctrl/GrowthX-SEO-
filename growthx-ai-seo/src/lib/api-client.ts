@@ -964,6 +964,13 @@ export const api = {
   /** Cached exact GA4 report for one workspace and window. */
   ga4Report: (projectId: string, range: Ga4RangeKey) =>
     get<Ga4Report>(`/api/projects/${projectId}/analytics/report?range=${range}`),
+  ga4Realtime: (projectId: string) =>
+    get<{
+      state: "READY" | "NOT_CONNECTED" | "NEEDS_SELECTION" | "NEEDS_REAUTH";
+      message: string | null;
+      propertyName: string | null;
+      data: { activeUsers: number; countries: { country: string; activeUsers: number }[]; windowMinutes: 30; fetchedAt: string } | null;
+    }>(`/api/projects/${projectId}/analytics/realtime`),
   ga4Summary: (projectId: string, days: number) =>
     get<Ga4Summary | null>(`/api/projects/${projectId}/analytics/summary?days=${days}`),
   ga4Timeseries: (projectId: string, days: number) =>

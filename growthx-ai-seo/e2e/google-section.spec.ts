@@ -166,7 +166,7 @@ const DETAIL = {
   windows: { analytics: { start: day(0), end: day(27) } },
 };
 
-async function open(page: Page, path: string, setup: { overview?: OverviewSetup; pages?: unknown; failOverview?: boolean } = {}) {
+async function open(page: Page, path: string, setup: { overview?: OverviewSetup; pages?: unknown; failOverview?: boolean; ga4?: unknown; realtime?: unknown; failRealtime?: boolean } = {}) {
   await page.addInitScript(() => window.localStorage.setItem("growthx.token", "smoke-test-token"));
   await page.route(`${API}/**`, async (route: Route) => {
     const request = route.request();
@@ -180,6 +180,8 @@ async function open(page: Page, path: string, setup: { overview?: OverviewSetup;
     if (p === `${G}/overview`) return setup.failOverview ? json({ message: "Boom" }, 500) : json(overview(setup.overview));
     if (p === `${G}/pages`) return json(setup.pages ?? pages());
     if (p === `${G}/page`) return json(DETAIL);
+    if (p === `/api/projects/${PROJECT}/analytics/report` && setup.ga4) return json(setup.ga4);
+    if (p === `/api/projects/${PROJECT}/analytics/realtime` && setup.realtime) return setup.failRealtime ? json({ message: 'Google quota exceeded' }, 502) : json(setup.realtime);
     return json({}, 404);
   });
   await page.goto(path, { waitUntil: "domcontentloaded" });
@@ -200,8 +202,30 @@ test.describe("Google section, hub", () => {
     await open(page, "/google");
     await expect(page.getByRole('tab',{name:'Traffic Overview',exact:true})).toBeVisible();
     await expect(page.getByRole('tab',{name:'Report',exact:true})).toBeVisible();
-    await expect(page.getByText('Realtime activity is not measured by this saved report. No live visitor count is available.')).toBeVisible();
+    await expect(page.getByText(/Realtime activity is unavailable/)).toBeVisible();
     for (const value of ['84.8%','27.3%','#1.6','$0']) await expect(page.getByText(value,{exact:true})).toHaveCount(0);
+  });
+  test("shows realtime users while an empty historical report stays connected", async ({ page }) => {
+    const ga4 = { state: 'EMPTY', message: 'No historical activity for this window.', propertyName: 'reigel', lastError: null, data: null };
+    const realtime = { state: 'READY', propertyName: 'reigel', message: null, data: { activeUsers: 332, countries: [{ country: 'India', activeUsers: 3 }], windowMinutes: 30, fetchedAt: '2026-10-29T16:00:00Z' } };
+    await open(page, '/google', { ga4, realtime });
+    await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveText('332');
+    await expect(page.getByRole('heading', { name: 'No historical GA4 activity' })).toBeVisible();
+    await expect(page.getByText(/GA4 property: reigel/)).toBeVisible();
+    await expect(page.getByText(/Google Analytics 4 is not connected/)).toHaveCount(0);
+    await expect(page.getByRole('table', { name: 'Realtime users by country' })).toContainText('India');
+    await page.route(`${API}/api/projects/${PROJECT}/analytics/realtime`, (route) => route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ message: 'Google quota exceeded' }) }));
+    await page.getByRole('button', { name: 'Refresh realtime' }).click();
+    await expect(page.getByText(/Realtime activity is unavailable/)).toContainText('Google quota exceeded');
+    await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveCount(0);
+  });
+  test("distinguishes a measured realtime zero from a disconnected property", async ({ page }) => {
+    await open(page, '/google', { realtime: { state: 'READY', propertyName: 'reigel', data: { activeUsers: 0, countries: [], windowMinutes: 30, fetchedAt: new Date().toISOString() } } });
+    await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveText('0');
+    await page.route(`${API}/api/projects/${PROJECT}/analytics/realtime`, (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ state: 'NEEDS_SELECTION', message: 'Choose a GA4 property.', data: null }) }));
+    await page.getByRole('button', { name: 'Refresh realtime' }).click();
+    await expect(page.getByText('Choose a GA4 property.', { exact: false })).toBeVisible();
+    await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveCount(0);
   });
 });
 
