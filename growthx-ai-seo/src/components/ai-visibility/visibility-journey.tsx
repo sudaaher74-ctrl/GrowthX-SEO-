@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
-import { visibilityJourneyApi } from "@/lib/api-client";
+import { api, visibilityJourneyApi } from "@/lib/api-client";
 import {
   journeyRunning,
   providerName,
@@ -35,7 +35,7 @@ import {
 } from "@/lib/visibility-workflow";
 import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
-import { EvidenceLinks, ActionPlan } from "./visibility-journey-results";
+import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
 
 const STEPS = [
@@ -105,6 +105,7 @@ function Journey({ projectId }: { projectId: string }) {
         {tab === "review" && <>
           {run.brief ? (
             <PromptsSection
+              projectId={projectId}
               key={`${run.id}-${run.updatedAt}`}
               brief={run.brief}
               locked={busy || !!run.scanId}
@@ -112,8 +113,6 @@ function Journey({ projectId }: { projectId: string }) {
               pending={check.isPending}
               onRun={(brief) => check.mutate({ id: run.id, brief })}
               answers={data?.answers ?? []}
-              providers={data?.providers ?? []}
-              analysis={run.analysis ?? []}
               hasScan={!!run.scanId}
             />
           ) : (
@@ -121,6 +120,10 @@ function Journey({ projectId }: { projectId: string }) {
               <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
             </Panel>
           )}
+        </>}
+        {tab === "review" && data && data.answers.length > 0 && <>
+          <AnswerResults data={data} />
+          <GapResults data={data} />
         </>}
         {tab === "plan" && data && <>
           <Panel padded title="Your next steps" subtitle="Prioritized actions based on your website evidence and the AI answers we saved."><p className="text-xs text-brand-500">Review the supporting evidence for each action. Changes can be prepared in Fix Engine.</p></Panel>
@@ -457,25 +460,23 @@ function getEngineCitation(
 }
 
 function PromptsSection({
+  projectId,
   brief,
   locked,
   checks,
   pending,
   onRun,
   answers = [],
-  providers = [],
-  analysis = [],
   hasScan,
   onViewResults,
 }: {
+  projectId: string;
   brief: VisibilityBrief;
   locked: boolean;
   checks: number;
   pending: boolean;
   onRun: (brief: VisibilityBrief) => void;
   answers?: VisibilityAnswer[];
-  providers?: { provider: string; configured: boolean; model: string | null; unavailableReason?: string | null }[];
-  analysis?: VisibilityAssessment[];
   hasScan?: boolean;
   onViewResults?: () => void;
 }) {
@@ -507,7 +508,7 @@ function PromptsSection({
       (q) => categorizePrompt(q, draft.businessName) === cat.key,
     );
     const answersForCat = answers.filter((a) =>
-      promptsInCat.some((q) => matchPrompt(q.text, a.promptText)),
+      !a.errorMessage && !!a.rawResponse?.trim() && !!a.analysis && promptsInCat.some((q) => matchPrompt(q.text, a.promptText)),
     );
 
     const total = answersForCat.length;
@@ -515,11 +516,11 @@ function PromptsSection({
       (a) => a.analysis?.recommended || a.analysis?.brandMentioned,
     ).length;
 
-    const pct = total > 0 ? Math.round((cited / total) * 100) : 0;
+    const pct = total > 0 ? Math.round((cited / total) * 100) : null;
     const subtext =
       total > 0
-        ? `cited in ${cited} of ${total} answers`
-        : `cited in 0 of ${promptsInCat.length * (providers.filter((p) => p.configured).length || 2)} answers`;
+        ? `mentioned in ${cited} of ${total} measured answers`
+        : "Not measured — no successfully classified answers";
 
     return {
       ...cat,
@@ -565,7 +566,7 @@ function PromptsSection({
 
   // Check answers first
   for (const q of draft.questions) {
-    const qAnswers = answers.filter((a) => matchPrompt(q.text, a.promptText));
+    const qAnswers = answers.filter((a) => !a.errorMessage && !!a.rawResponse?.trim() && matchPrompt(q.text, a.promptText));
     const competitorsCited = new Map<string, number>();
 
     for (const a of qAnswers) {
@@ -585,23 +586,15 @@ function PromptsSection({
       }
     }
 
-    // Also check analysis gaps if available
-    for (const item of analysis) {
-      for (const gap of item.gaps || []) {
-        if (gap.competitor && matchPrompt(q.text, gap.observation || "")) {
-          competitorsCited.set(gap.competitor, (competitorsCited.get(gap.competitor) || 0) + 1);
-        }
-      }
-    }
-
     if (competitorsCited.size > 0) {
       const topCompetitors = [...competitorsCited.entries()].map(([name, count]) => {
-        const domain = name.includes(".") ? name : `${name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
+        // A recorded brand name is not evidence of its website address.
+        const domain = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(name) ? name : "";
         return { name, domain, count };
       });
       const display = topCompetitors.length > 1
-        ? `${topCompetitors[0].domain} +${topCompetitors.length - 1}`
-        : topCompetitors[0]?.domain || "";
+        ? `${topCompetitors[0].domain || topCompetitors[0].name} +${topCompetitors.length - 1}`
+        : topCompetitors[0]?.domain || topCompetitors[0]?.name || "";
 
       const priority =
         categorizePrompt(q, draft.businessName) === "best-of" || (topCompetitors[0]?.count ?? 0) >= 2
@@ -614,24 +607,6 @@ function PromptsSection({
         priority,
         competitors: topCompetitors,
       });
-    }
-  }
-
-  // If before live scan has run or gaps are empty, dynamically extract from competitor prompts
-  if (gapItems.length === 0) {
-    for (const q of draft.questions) {
-      const cat = categorizePrompt(q, draft.businessName);
-      if (cat === "competitor" || q.intent === "comparison") {
-        const vsMatch = q.text.match(/(?:vs|versus|alternative(?:s)? to|better than|is)\s+([A-Za-z0-9]+)/i);
-        const rivalName = vsMatch?.[1] ? vsMatch[1].trim() : "Industry rival";
-        const rivalDomain = `${rivalName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
-        gapItems.push({
-          promptText: q.text,
-          citedInsteadDisplay: rivalDomain,
-          priority: "High",
-          competitors: [{ name: rivalName, domain: rivalDomain, count: 1 }],
-        });
-      }
     }
   }
 
@@ -759,7 +734,7 @@ function PromptsSection({
                 </div>
               </div>
               <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950 dark:text-brand-50">
-                {cat.pct}%
+                {cat.pct == null ? "—" : `${cat.pct}%`}
               </div>
               <div className="mt-1 text-xs text-brand-400 dark:text-brand-500">{cat.subtext}</div>
             </button>
@@ -796,7 +771,7 @@ function PromptsSection({
               <h3 className="text-sm font-bold text-brand-950">Tracked prompts</h3>
               <p className="text-xs text-brand-500">
                 {isEditing
-                  ? "Changes save as you make them. A reworded prompt is checked again on the next run."
+                  ? "Edits are included when you confirm the next check."
                   : "Who each AI engine cites. Open a row for the answer."}
               </p>
             </div>
@@ -872,9 +847,10 @@ function PromptsSection({
                       className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2/20"
                     >
                       {/* Left: Input, Category select, Trash */}
-                      <div className="flex flex-1 items-center gap-2.5 min-w-[280px]">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
                         <input
                           type="text"
+                          aria-label={`Buyer question ${originalIndex + 1}`}
                           value={q.text}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -941,7 +917,7 @@ function PromptsSection({
                       </div>
 
                       {/* Right: Engine Indicators */}
-                      <div className="flex items-center shrink-0">
+                      <div className="hidden shrink-0 items-center sm:flex">
                         {ENGINES.map((engine) => {
                           const c = citations[engine.key];
                           return (
@@ -1257,11 +1233,11 @@ function PromptsSection({
                           </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-brand-950">{comp.domain}</span>
+                              <span className="text-xs font-bold text-brand-950">{comp.domain || comp.name}</span>
                               <span className="text-xs text-brand-400">· Content Gap</span>
                             </div>
                             <p className="text-xs text-brand-600">
-                              {comp.name} is recommended in {comp.count} prompt{comp.count === 1 ? "" : "s"}. Publish a comparison page:{" "}
+                              {comp.name} appears in {comp.count} saved mention or citation reference{comp.count === 1 ? "" : "s"}. Consider a verified comparison:{" "}
                               <strong className="text-brand-950">
                                 {draft.businessName} vs {comp.name}
                               </strong>
@@ -1301,8 +1277,18 @@ function PromptsSection({
           promptText={activePlanGap.promptText}
           priority={activePlanGap.priority}
           onClose={() => setActivePlanGap(null)}
-          onSaveToFixEngine={(msg) => {
-            setCmoToast(msg);
+          onSaveToFixEngine={async (plan) => {
+            await api.savedPlans.save(projectId, {
+              id: crypto.randomUUID(), projectId,
+              title: `Review ${activePlanGap.comp.name} for ${activePlanGap.promptText}`,
+              category: "CONTENT", source: "AI_VISIBILITY",
+              priority: activePlanGap.priority === "High" ? "HIGH" : "MEDIUM",
+              impact: "Proposed review based on saved answer references; performance lift is not measured.",
+              effortHours: 0, deliverable: plan,
+              evidence: `${activePlanGap.comp.count} saved mention or citation references. Website address: ${activePlanGap.comp.domain || "not verified"}.`,
+              stagedAt: new Date().toISOString(), status: "STAGED",
+            });
+            setCmoToast("Review task saved to Fix Engine.");
             setActivePlanGap(null);
           }}
         />

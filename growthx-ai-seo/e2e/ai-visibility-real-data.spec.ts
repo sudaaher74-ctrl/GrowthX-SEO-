@@ -19,24 +19,23 @@ async function setup(page: Page, options: {empty?:boolean; fail?:boolean}={}) {
   });
 }
 
-test('one AI Visibility entry has three clear steps and keeps the four main workflow sections',async({page})=>{
+test('one AI Visibility entry keeps prompts and actions together with the main workflow sections',async({page})=>{
   await setup(page);
   await page.goto('/ai-visibility');
-  await expect(page.getByRole('tab')).toHaveCount(3);
-  await expect(page.getByRole('tab',{name:'1. Review questions'})).toBeVisible();
-  await expect(page.getByRole('tab',{name:'2. See results'})).toBeVisible();
-  await expect(page.getByRole('tab',{name:'3. Take action'})).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tab',{name:'1. Prompts'})).toBeVisible();
+  await expect(page.getByRole('tab',{name:'2. Take action'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Prepare my questions'})).toBeVisible();
   await expect(page.getByText('More Views',{exact:true})).toHaveCount(0);
-  for(const name of ['Website Audit','Google','Competitor Intelligence','AI Visibility']) await expect(page.getByRole('link',{name:new RegExp(`^${name}`)}).first()).toBeVisible();
+  for(const name of ['Website Audit','Traffic','Competitor Intelligence','AI Visibility']) await expect(page.getByRole('link',{name:new RegExp(`^${name}`)}).first()).toBeVisible();
 });
 
-test('legacy citation and action links enter the same three-step workflow',async({page})=>{
+test('legacy citation and action links enter the current prompts and action workflow',async({page})=>{
   await setup(page);
   await page.goto('/ai-visibility?tab=citations');
-  await expect(page.getByRole('tab',{name:'2. See results'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'1. Prompts'})).toHaveAttribute('aria-selected','true');
   await page.goto('/ai-visibility?tab=root-cause');
-  await expect(page.getByRole('tab',{name:'3. Take action'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'2. Take action'})).toHaveAttribute('aria-selected','true');
 });
 
 test('missing projects and API failures remain explicit without demo results',async({page})=>{

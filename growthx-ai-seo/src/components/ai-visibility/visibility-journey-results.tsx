@@ -184,6 +184,228 @@ export function EvidenceLinks({
   );
 }
 
+export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
+  const [filter, setFilter] = useState("ALL");
+  const [showAll, setShowAll] = useState(false);
+  const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
+  const measured = data.answers.filter((a) => !a.errorMessage && a.analysis);
+  const mentions = measured.filter((a) => a.analysis?.brandMentioned).length;
+  const recommended = measured.filter((a) => a.analysis?.recommended).length;
+  const failed = data.answers.filter((a) => a.errorMessage).length;
+  const visible = data.answers.filter(
+    (a) => filter === "ALL" || a.provider === filter,
+  );
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          label="Answers measured"
+          value={measured.length ? String(measured.length) : "—"}
+          sub={`${data.answers.length} responses saved · ${failed} failed`}
+        />
+        <Kpi
+          label="Business mentioned"
+          value={measured.length ? `${mentions} / ${measured.length}` : "—"}
+          sub="Your name appears in the answer"
+        />
+        <Kpi
+          label="Business recommended"
+          value={measured.length ? `${recommended} / ${measured.length}` : "—"}
+          sub="A positive recommendation with a matching quote"
+        />
+        <Kpi
+          label="Recommendation rate"
+          value={
+            measured.length
+              ? `${Math.round((recommended / measured.length) * 100)}%`
+              : "—"
+          }
+          sub="Of successfully classified answers"
+        />
+      </div>
+      <Panel
+        title="What did each assistant actually say?"
+        subtitle="Saved API answers to your reviewed buyer questions. Consumer apps and Google AI Overviews are not measured here."
+        padded
+      >
+        <label className="mb-4 flex flex-wrap items-center gap-3 text-xs text-brand-600">Assistant
+          <select aria-label="Filter answers by assistant" value={filter} onChange={(e) => {setFilter(e.target.value); setShowAll(false);}} className="rounded-lg border bg-white px-3 py-2 text-sm text-brand-950">
+            {["ALL", ...assistants].map((p) => <option key={p} value={p}>{p === "ALL" ? "All assistants" : providerName(p)}</option>)}
+          </select><span>{visible.length} saved answer{visible.length === 1 ? "" : "s"}</span>
+        </label>
+        <QueryState
+          isEmpty={!visible.length}
+          emptyTitle="No answers saved yet"
+          emptyBody="Review the buyer questions and start the checks. Answers appear here as they are saved."
+        >
+          <div className="divide-y">
+            {(showAll ? visible : visible.slice(0, 5)).map((a) => (
+              <article key={a.id} className="space-y-3 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Pill>{providerName(a.provider)}</Pill>
+                  <span className="text-xs text-brand-400">
+                    {a.model} · {new Date(a.createdAt).toLocaleString()}
+                  </span>
+                  <Pill
+                    tone={
+                      a.errorMessage
+                        ? "bad"
+                        : !a.analysis
+                          ? "warn"
+                          : a.analysis.recommended
+                            ? "good"
+                            : "default"
+                    }
+                  >
+                    {a.errorMessage
+                      ? "Check failed"
+                      : !a.analysis
+                        ? "Awaiting analysis"
+                        : a.analysis.recommended
+                          ? "Recommended"
+                          : a.analysis.brandMentioned
+                            ? "Mentioned only"
+                            : "Not mentioned"}
+                  </Pill>
+                </div>
+                <h3 className="text-base font-semibold leading-7 text-brand-950">
+                  {a.promptText}
+                </h3>
+                {a.errorMessage && (
+                  <p className="text-sm text-error-700">{a.errorMessage}</p>
+                )}
+                {!!a.mentions.filter((m) => !m.isCustomer).length && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-brand-600">
+                    <span>Other brands named:</span>
+                    {a.mentions
+                      .filter((m) => !m.isCustomer)
+                      .map((m) => <Pill key={m.brandName}>{m.brandName}</Pill>)}
+                  </div>
+                )}
+                {a.analysis?.parsedJson?.recommendationQuote && (
+                  <blockquote className="border-l-2 pl-3 text-sm text-brand-700">
+                    {a.analysis.parsedJson.recommendationQuote}
+                  </blockquote>
+                )}
+                {a.rawResponse && (
+                  <details>
+                    <summary className="cursor-pointer rounded-sm py-1 text-sm font-semibold text-primary-700 focus-visible:outline-2 focus-visible:outline-offset-4">
+                      Read complete answer
+                    </summary>
+                    <AnswerDocument text={a.rawResponse} assistant={providerName(a.provider)} />
+                  </details>
+                )}
+                {!!a.citations.length && (
+                  <details className="space-y-1"><summary className="cursor-pointer text-xs text-brand-500">Sources in this answer ({a.citations.length}) · not independently verified</summary>
+                    {a.citations.map(
+                      (c) =>
+                        safeUrl(c.url) && (
+                          <a
+                            key={c.url}
+                            href={safeUrl(c.url)!}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block break-all text-xs text-primary-700"
+                          >
+                            {c.url}
+                          </a>
+                        ),
+                    )}
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+          {visible.length > 5 && <ActionButton onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer answers" : `Show all ${visible.length} answers`}</ActionButton>}
+        </QueryState>
+      </Panel>
+    </div>
+  );
+}
+
+export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
+  const assessments = data.journey?.analysis ?? [];
+  const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
+  const measured = data.answers.filter((a) => a.analysis && !a.errorMessage);
+  const rivals = new Map<string, number>();
+  for (const a of measured)
+    for (const name of new Set(
+      a.mentions.filter((m) => !m.isCustomer).map((m) => m.brandName),
+    ))
+      rivals.set(name, (rivals.get(name) ?? 0) + 1);
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Who appears alongside you?"
+        subtitle="Observed brand mentions across this run, including rivals you have not tracked yet."
+        padded
+      >
+        {rivals.size ? (
+          <div className="flex flex-wrap gap-3">
+            {[...rivals]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, count]) => (
+                <Pill key={name}>
+                  {name} · {count} / {measured.length} answers
+                </Pill>
+              ))}
+          </div>
+        ) : (
+          <p className="text-sm text-brand-500">
+            {measured.length
+              ? "No other brand names were confirmed in the analysed answers."
+              : "Run and analyse the buyer questions to see named competitors."}
+          </p>
+        )}
+      </Panel>
+      <Panel
+        title="Observed differences and possible explanations"
+        subtitle="These are assessments from your saved evidence. They do not reveal an AI model’s internal ranking reasons."
+        padded
+      >
+        <QueryState
+          isEmpty={!assessments.some((a) => a.gaps.length)}
+          emptyTitle="No evidenced competitor gaps yet"
+          emptyBody="A named rival needs answer evidence and a website comparison. Add or crawl it in Competitor Intelligence when evidence is missing."
+        >
+          <div className="space-y-5">
+            {assessments.flatMap((a) =>
+              a.gaps.map((g, i) => (
+                <article
+                  key={`${a.provider}-${i}`}
+                  className="border-b pb-4 last:border-0"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">
+                      {g.competitor}
+                    </h3>
+                    <Pill>{providerName(a.provider)} assessment</Pill>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-brand-600">
+                    <strong className="text-brand-950">Observation: </strong>
+                    {g.observation}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-brand-600">
+                    <strong className="text-brand-950">
+                      Possible explanation:{" "}
+                    </strong>
+                    {g.hypothesis}
+                  </p>
+                  <EvidenceLinks
+                    ids={g.evidenceIds}
+                    context={data.journey?.context ?? null}
+                    answers={data.answers}
+                  />
+                </article>
+              )),
+            )}
+          </div>
+        </QueryState>
+      </Panel>
+    </div>
+  );
+}
+
 export function ActionPlan({ data }: { data: VisibilityJourneyResponse }) {
   const assessments = data.journey?.analysis ?? [];
   const measured = data.answers.filter((answer) => !answer.errorMessage && answer.analysis);

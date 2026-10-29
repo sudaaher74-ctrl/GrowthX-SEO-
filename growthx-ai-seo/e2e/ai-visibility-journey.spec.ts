@@ -165,7 +165,7 @@ test("reviews local questions before checking and preserves missing-source truth
   await page.goto("/ai-visibility/journey");
   await expect(
     page.getByRole("heading", {
-      name: "Review before you run",
+      name: "Tracked prompts",
     }),
   ).toBeVisible();
   await page.getByText("Analysis details", {exact:false}).click();
@@ -178,15 +178,16 @@ test("reviews local questions before checking and preserves missing-source truth
   await expect(
     page.getByText("Connect and sync Search Console.", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", {name:"Show all 20 questions"}).click();
+  await page.getByRole("button", {name:"Edit", exact:true}).click();
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
   ).toHaveCount(20);
   await page
     .getByRole("textbox", { name: "Buyer question 1", exact: true })
     .fill("Which cow milk delivery is best for families in Panvel?");
+  await page.getByRole("button", { name: "Done", exact:true }).click();
   await page
-    .getByRole("button", { name: "Confirm & check 20 questions" })
+    .getByRole("button", { name: "Confirm & check 20 prompts" })
     .click();
   await expect(page.getByRole("status")).toContainText(
     "Asking Gemini and OpenAI",
@@ -274,7 +275,7 @@ test("shows measured results, failed checks, competitor evidence and action plan
   await expect(
     page.getByText("Possible explanation:", { exact: false }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "3. Take action" }).click();
+  await page.getByRole("tab", { name: "2. Take action" }).click();
   await expect(
     page.getByRole("heading", { name: "Create a Panvel delivery page" }),
   ).toBeVisible();
@@ -373,7 +374,7 @@ test("keeps the review usable on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, fixture());
   await page.goto("/ai-visibility/journey?tab=questions");
-  await page.getByRole("button",{name:"Show all 20 questions"}).click();
+  await page.getByRole("button",{name:"Edit", exact:true}).click();
   await expect(
     page.getByRole("textbox", { name: "Buyer question 10", exact: true }),
   ).toBeVisible();
@@ -382,4 +383,45 @@ test("keeps the review usable on a narrow screen", async ({ page }) => {
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("does not invent answer measurements or competitor addresses before a scan", async ({page}) => {
+  const data = fixture();
+  data.journey!.brief!.questions[0].text = "Milquufresh vs Local Dairy";
+  data.journey!.brief!.questions[0].intent = "comparison";
+  await setup(page, data);
+  await page.goto('/ai-visibility');
+  await expect(page.getByText('Not measured — no successfully classified answers',{exact:true})).toHaveCount(4);
+  await expect(page.getByText('0%',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Get a plan',exact:true})).toHaveCount(0);
+  await expect(page.getByText(/localdairy\.com|industryrival\.com/)).toHaveCount(0);
+});
+
+test("saves a review task only after the server acknowledges it and allows retry", async ({page}) => {
+  const data = fixture();
+  data.journey!.status = 'COMPLETE';
+  data.journey!.scanId = 'scan_test';
+  data.answers = [{id:'observed-rival',provider:'GEMINI',model:'fixture-gemini',promptText:data.journey!.brief!.questions[0].text,rawResponse:'Local Dairy is one option.',errorMessage:null,createdAt:'2026-10-14T10:05:00Z',analysis:{brandMentioned:false,recommended:false},mentions:[{brandName:'Local Dairy',isCustomer:false}],citations:[]}];
+  await setup(page,data);
+  let attempts = 0;
+  let saved: Record<string,unknown> | null = null;
+  await page.route(`${API_BASE}/api/projects/project_test/saved-plans`,async route => {
+    attempts++;
+    if (attempts === 1) return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Storage unavailable'})});
+    saved = route.request().postDataJSON();
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(saved)});
+  });
+  await page.goto('/ai-visibility');
+  await page.getByRole('button',{name:'Get a plan',exact:true}).click();
+  const dialog = page.getByRole('dialog',{name:'AI Strategy Plan for Local Dairy'});
+  await expect(dialog.getByText('Website address: Not verified',{exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Send review task to Fix Engine',exact:true}).click();
+  await expect(dialog.getByText('Storage unavailable',{exact:false})).toBeVisible();
+  await expect(page.getByText('Review task saved to Fix Engine.',{exact:true})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Send review task to Fix Engine',exact:true}).click();
+  await expect(page.getByText('Review task saved to Fix Engine.',{exact:true})).toBeVisible();
+  expect(attempts).toBe(2);
+  expect(saved).toMatchObject({source:'AI_VISIBILITY',status:'STAGED'});
+  expect(String(saved!['deliverable'])).toContain('Website address: Not verified');
+  expect(String(saved!['deliverable'])).not.toContain('localdairy.com');
 });
