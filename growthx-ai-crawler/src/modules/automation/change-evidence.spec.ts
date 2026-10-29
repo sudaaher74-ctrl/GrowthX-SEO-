@@ -7,8 +7,10 @@ describe('Fix Engine change evidence', () => {
   const after = new Date('2026-01-03T00:00:00Z');
   const change = { issueId: 'issue', url: 'https://client.test/contact', field: 'META_TITLE', before: 'Home', after: 'Contact', why: 'Each page needs its own title', file: 'contact.jsx', measuredAt: before.toISOString() };
   function setup(pages: any[], steps: any[] = [{ step: 'change', change }]) {
-    const prisma = { siteRepository: { findUnique: jest.fn().mockResolvedValue(null) }, automationRun: { findMany: jest.fn().mockResolvedValue([{ id: 'run', status: 'AWAITING_REVIEW', steps, filesChanged: ['contact.jsx', 'contact.jsx'], startedAt: before, finishedAt: finished }]) }, page: { findMany: jest.fn().mockResolvedValue(pages) } };
+    const run = { id: 'run', status: 'AWAITING_REVIEW', pullRequestUrl: 'https://github.com/customer/website/pull/10', steps, filesChanged: ['contact.jsx', 'contact.jsx'], startedAt: before, finishedAt: finished };
+    const prisma = { siteRepository: { findUnique: jest.fn().mockResolvedValue({ id: 'repo', owner: 'customer', name: 'website', accessTokenEncrypted: 'encrypted' }) }, automationRun: { findMany: jest.fn().mockResolvedValue([run]) }, page: { findMany: jest.fn().mockResolvedValue(pages) } };
     const service = new AutomationService(prisma as any, null!, null!, null!, null!, null!, null!, null!);
+    Object.assign(service, { git: { readPullRequestEvidence: jest.fn().mockResolvedValue({ state: 'MERGED', mergedAt: finished.toISOString(), files: [], routers: [] }) }, security: { decryptCredentials: () => 'test-token' } });
     return { service, prisma };
   }
   const page = (title: string, date = after, extra = {}) => ({ url: change.url, title, statusCode: 200, blockedSuspected: false, crawlJob: { createdAt: date }, ...extra });
@@ -23,6 +25,11 @@ describe('Fix Engine change evidence', () => {
   it('shows a different live value without claiming the fix worked', async () => {
     const { service } = setup([page('Different')]);
     expect((await service.listChanges('customer'))[0].changes[0].verification).toBe('DIFFERENT');
+  });
+  it('does not verify an unmerged proposal from a coincidentally matching crawl', async () => {
+    const { service } = setup([page('Contact')]);
+    Object.assign(service, { git: { readPullRequestEvidence: jest.fn().mockResolvedValue({ state: 'OPEN', mergedAt: null, files: [], routers: [] }) } });
+    expect((await service.listChanges('customer'))[0].changes[0].verification).toBe('NOT_CHECKED');
   });
   it.each([page('Contact', before), page('Contact', after, { statusCode: 403 }), page('Contact', after, { blockedSuspected: true })])('does not verify old or blocked measurements', async measured => {
     const { service } = setup([measured]);

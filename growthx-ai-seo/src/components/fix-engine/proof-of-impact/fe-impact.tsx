@@ -53,9 +53,9 @@ export function FixEngineImpactView({
                 <tr key={win.window} className="hover:bg-brand-50/50">
                   <td className="px-4 py-3 font-semibold text-brand-900">{win.window}</td>
                   <td className="px-4 py-3 font-mono text-brand-600">{win.days}d</td>
-                  <td className="px-4 py-3 font-mono text-brand-900 font-bold">{win.clicks}</td>
-                  <td className="px-4 py-3 font-mono text-brand-600">{win.impressions}</td>
-                  <td className="px-4 py-3 font-mono text-brand-600">{win.ctr}%</td>
+                  <td className="px-4 py-3 font-mono text-brand-900 font-bold">{win.status === "OBSERVED" ? win.clicks : "—"}</td>
+                  <td className="px-4 py-3 font-mono text-brand-600">{win.status === "OBSERVED" ? win.impressions : "—"}</td>
+                  <td className="px-4 py-3 font-mono text-brand-600">{win.status === "OBSERVED" ? `${win.ctr}%` : "—"}</td>
                   <td className="px-4 py-3 font-mono text-brand-600">{win.position ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <Pill tone={win.status === "OBSERVED" ? "good" : "default"}>{win.status}</Pill>
@@ -126,11 +126,11 @@ export function FixEngineImpactView({
                         </div>
                         <div className="flex gap-2 text-[11px] font-mono shrink-0">
                           <span className={p.citedBefore ? "text-success-700" : "text-brand-400"}>
-                            Before: {p.citedBefore ? "Cited" : "Uncited"}
+                            Before: {p.citedBefore == null ? "Not measured" : p.citedBefore ? "Cited" : "Uncited"}
                           </span>
                           <span>→</span>
                           <span className={p.citedAfter ? "text-success-700 font-bold" : "text-brand-400"}>
-                            After: {p.citedAfter ? "Cited" : "Uncited"}
+                            After: {p.citedAfter == null ? "Not measured" : p.citedAfter ? "Cited" : "Uncited"}
                           </span>
                         </div>
                       </div>
@@ -162,7 +162,7 @@ export function FixEngineImpactView({
             <div className="rounded-lg border p-3 bg-brand-50/50">
               <span className="text-[11px] text-brand-500">Engaged Sessions</span>
               <div className="text-lg font-bold font-mono text-brand-950 mt-1">
-                {businessImpact.engagedSessions}
+                {businessImpact.engagedSessions ?? "—"}
               </div>
             </div>
             <div className="rounded-lg border p-3 bg-brand-50/50">
@@ -172,7 +172,7 @@ export function FixEngineImpactView({
             <div className="rounded-lg border p-3 bg-brand-50/50">
               <span className="text-[11px] text-brand-500">Direct Revenue</span>
               <div className="text-lg font-bold font-mono text-brand-950 mt-1">
-                {businessImpact.revenue > 0 ? `$${businessImpact.revenue.toFixed(2)}` : "—"}
+                {businessImpact.revenue != null ? `$${businessImpact.revenue.toFixed(2)}` : "—"}
               </div>
             </div>
           </div>

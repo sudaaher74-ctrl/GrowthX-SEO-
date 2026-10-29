@@ -11,8 +11,10 @@ import { errorMessage } from "@/lib/error-message";
 import { count } from "@/lib/google-format";
 
 const RUN_STATUS: Record<AutomationRun["status"], { label: string; tone: "good" | "bad" | "warn" }> = {
+  PENDING: { label: "Queued", tone: "warn" },
   RUNNING: { label: "Working", tone: "warn" },
-  AWAITING_REVIEW: { label: "Pull request ready for you", tone: "good" },
+  AWAITING_REVIEW: { label: "Draft PR — preview review required", tone: "warn" },
+  MERGED: { label: "Merged — live verification required", tone: "warn" },
   FAILED: { label: "Nothing was changed", tone: "bad" },
 };
 
@@ -23,7 +25,7 @@ export function useAutomationRuns(projectId: string | null) {
     queryFn: () => api.listAutomationRuns(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "RUNNING") ? 4000 : false),
+    refetchInterval: (q) => (q.state.data?.some((r) => ["PENDING", "RUNNING"].includes(r.status)) ? 7500 : false),
   });
 }
 

@@ -11,32 +11,32 @@ export interface ComparisonDiffItem {
   label: string;
   before: string | null;
   after: string | null;
-  status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'UNCHANGED';
+  status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'UNCHANGED' | 'NOT_MEASURED';
 }
 
 export interface TechnicalMetricComparison {
   metric: string;
-  before: string | number;
-  after: string | number;
-  status: 'IMPROVED' | 'UNCHANGED' | 'REGRESSED';
+  before: string | number | null;
+  after: string | number | null;
+  status: 'IMPROVED' | 'UNCHANGED' | 'REGRESSED' | 'NOT_MEASURED';
 }
 
 export interface ModelImpactComparison {
   model: string;
   provider: string;
-  beforeMentionRate: number;
-  afterMentionRate: number;
-  changePt: number;
-  beforeCitationRate: number;
-  afterCitationRate: number;
+  beforeMentionRate: number | null;
+  afterMentionRate: number | null;
+  changePt: number | null;
+  beforeCitationRate: number | null;
+  afterCitationRate: number | null;
 }
 
 export interface PerformanceWindowMetric {
   period: string; // e.g. "Baseline (28d)", "Day 7", "Day 14", "Day 30", "Day 60", "Day 90"
   days: number;
-  clicks: number;
-  impressions: number;
-  ctr: number;
+  clicks: number | null;
+  impressions: number | null;
+  ctr: number | null;
   position: number | null;
   status: 'OBSERVED' | 'PENDING';
 }
@@ -85,7 +85,7 @@ export class ProofOfImpactService {
     });
 
     // 4. Calculate verification breakdown
-    const verifiedSnapshots = snapshots.filter((s) => s.snapshotType === 'VERIFIED_LIVE');
+    const verifiedSnapshots = [...new Map(snapshots.filter((s) => s.snapshotType === 'VERIFIED_LIVE' && s.pageId).map(s => [`${s.automationRunId}:${s.url}`, s])).values()];
     const verifiedUrls = new Set(verifiedSnapshots.map((s) => s.url));
 
     let activeCount = 0;
@@ -179,7 +179,7 @@ export class ProofOfImpactService {
     const items = runs.map((run) => {
       const runSnapshots = snapshots.filter((s) => s.automationRunId === run.id);
       const before = runSnapshots.find((s) => s.snapshotType === 'BEFORE');
-      const verified = runSnapshots.find((s) => s.snapshotType === 'VERIFIED_LIVE');
+      const verified = runSnapshots.find((s) => s.snapshotType === 'VERIFIED_LIVE' && s.pageId);
       const proposed = runSnapshots.find((s) => s.snapshotType === 'PROPOSED');
 
       const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
@@ -253,7 +253,7 @@ export class ProofOfImpactService {
 
     const beforeSnap = snapshots.find((s) => s.snapshotType === 'BEFORE');
     const proposedSnap = snapshots.find((s) => s.snapshotType === 'PROPOSED');
-    const verifiedSnap = snapshots.find((s) => s.snapshotType === 'VERIFIED_LIVE');
+    const verifiedSnap = snapshots.find((s) => s.snapshotType === 'VERIFIED_LIVE' && s.pageId);
 
     const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
     const changeStep = steps.find((s) => s.change);
@@ -280,9 +280,9 @@ export class ProofOfImpactService {
       {
         field: 'title',
         label: 'Page Title',
-        before: beforeSnap?.title || changeStep?.change?.before || null,
-        after: verifiedSnap?.title || changeStep?.change?.after || proposedSnap?.title || null,
-        status: (beforeSnap?.title || changeStep?.change?.before) === (verifiedSnap?.title || changeStep?.change?.after) ? 'UNCHANGED' : 'MODIFIED',
+        before: changeStep?.change?.field === 'META_TITLE' ? changeStep.change.before : beforeSnap?.pageId ? beforeSnap.title : null,
+        after: verifiedSnap?.title ?? (changeStep?.change?.field === 'META_TITLE' ? changeStep.change.after : null),
+        status: !verifiedSnap ? 'NOT_MEASURED' : changeStep?.change?.field === 'META_TITLE' && changeStep.change.before === verifiedSnap.title ? 'UNCHANGED' : 'MODIFIED',
       },
       {
         field: 'metaDescription',
@@ -308,37 +308,39 @@ export class ProofOfImpactService {
       {
         field: 'robotsDirectives',
         label: 'Robots Directives',
-        before: beforeSnap?.robotsDirectives || 'index, follow',
-        after: verifiedSnap?.robotsDirectives || 'index, follow',
-        status: 'UNCHANGED',
+        before: beforeSnap?.robotsDirectives ?? null,
+        after: verifiedSnap?.robotsDirectives ?? null,
+        status: beforeSnap?.robotsDirectives != null && verifiedSnap?.robotsDirectives != null ? (beforeSnap.robotsDirectives === verifiedSnap.robotsDirectives ? 'UNCHANGED' : 'MODIFIED') : 'NOT_MEASURED',
       },
     ];
+
+    for (const item of contentDiff) if (!verifiedSnap || item.before == null || item.after == null) item.status = 'NOT_MEASURED';
 
     // 4. Technical comparison
     const technical: TechnicalMetricComparison[] = [
       {
         metric: 'Technical SEO Issues',
-        before: beforeSnap?.issuesCount ?? 1,
-        after: verifiedSnap?.issuesCount ?? 0,
-        status: (verifiedSnap?.issuesCount ?? 0) < (beforeSnap?.issuesCount ?? 1) ? 'IMPROVED' : 'UNCHANGED',
+        before: beforeSnap?.issuesCount ?? null,
+        after: verifiedSnap?.issuesCount ?? null,
+        status: beforeSnap?.issuesCount == null || verifiedSnap?.issuesCount == null ? 'NOT_MEASURED' : verifiedSnap.issuesCount < beforeSnap.issuesCount ? 'IMPROVED' : verifiedSnap.issuesCount > beforeSnap.issuesCount ? 'REGRESSED' : 'UNCHANGED',
       },
       {
         metric: 'Missing Structured Data',
-        before: beforeSnap?.structuredData ? (Array.isArray(beforeSnap.structuredData) && (beforeSnap.structuredData as any[]).length > 0 ? 'No' : 'Yes') : 'Yes',
-        after: verifiedSnap?.structuredData ? (Array.isArray(verifiedSnap.structuredData) && (verifiedSnap.structuredData as any[]).length > 0 ? 'No' : 'Yes') : 'No',
-        status: 'IMPROVED',
+        before: Array.isArray(beforeSnap?.structuredData) ? beforeSnap.structuredData.length ? 'No' : 'Yes' : null,
+        after: Array.isArray(verifiedSnap?.structuredData) ? verifiedSnap.structuredData.length ? 'No' : 'Yes' : null,
+        status: !Array.isArray(beforeSnap?.structuredData) || !Array.isArray(verifiedSnap?.structuredData) ? 'NOT_MEASURED' : beforeSnap.structuredData.length === verifiedSnap.structuredData.length ? 'UNCHANGED' : verifiedSnap.structuredData.length ? 'IMPROVED' : 'REGRESSED',
       },
       {
         metric: 'Canonical URL Configured',
-        before: beforeSnap?.canonicalUrl ? 'Valid' : 'Missing',
-        after: verifiedSnap?.canonicalUrl || proposedSnap?.canonicalUrl ? 'Valid' : 'Missing',
-        status: 'IMPROVED',
+        before: beforeSnap ? beforeSnap.canonicalUrl ? 'Present' : 'Missing' : null,
+        after: verifiedSnap ? verifiedSnap.canonicalUrl ? 'Present' : 'Missing' : null,
+        status: !beforeSnap || !verifiedSnap ? 'NOT_MEASURED' : beforeSnap.canonicalUrl === verifiedSnap.canonicalUrl ? 'UNCHANGED' : verifiedSnap.canonicalUrl ? 'IMPROVED' : 'REGRESSED',
       },
       {
         metric: 'Internal Links',
-        before: beforeSnap?.internalLinksCount ?? 0,
-        after: verifiedSnap?.internalLinksCount ?? (beforeSnap?.internalLinksCount ?? 0),
-        status: 'UNCHANGED',
+        before: beforeSnap?.internalLinksCount ?? null,
+        after: verifiedSnap?.internalLinksCount ?? null,
+        status: beforeSnap?.internalLinksCount == null || verifiedSnap?.internalLinksCount == null ? 'NOT_MEASURED' : beforeSnap.internalLinksCount === verifiedSnap.internalLinksCount ? 'UNCHANGED' : verifiedSnap.internalLinksCount > beforeSnap.internalLinksCount ? 'IMPROVED' : 'REGRESSED',
       },
     ];
 
@@ -372,17 +374,15 @@ export class ProofOfImpactService {
       },
       level2: {
         label: 'Level 2: Observed Performance Change',
-        status: seoImpact.windows.some((w) => w.status === 'OBSERVED') ? 'OBSERVED' : 'MONITORING',
-        detail: seoImpact.windows.some((w) => w.status === 'OBSERVED')
+        status: seoImpact.windows.some((w) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)') ? 'OBSERVED' : 'MONITORING',
+        detail: seoImpact.windows.some((w) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)')
           ? `Observed ${seoImpact.overallClicksChangePt >= 0 ? '+' : ''}${seoImpact.overallClicksChangePt}% change in organic search clicks over the post-fix window.`
           : 'Monitoring active. Windows are calculated at 7, 14, 30, 60, and 90 days.',
       },
       level3: {
         label: 'Level 3: Estimated Causal Impact',
-        status: verifiedSnap && seoImpact.windows.length >= 2 ? 'ESTIMATED' : 'INCONCLUSIVE',
-        detail: verifiedSnap && seoImpact.windows.length >= 2
-          ? 'Difference-in-differences analysis shows positive trend correlation against hold pages.'
-          : 'Impact attribution inconclusive. Insufficient post-fix time or comparison volume.',
+        status: 'INCONCLUSIVE',
+        detail: 'No causal estimator with a measured control group has been run. Observed changes must not be presented as caused by this fix.',
       },
     };
 
@@ -414,7 +414,7 @@ export class ProofOfImpactService {
       content: contentDiff,
       technical,
       code,
-      seoImpact,
+      seoImpact: { ...seoImpact, baseline: { clicks: seoImpact.windows[0]?.clicks ?? null, impressions: seoImpact.windows[0]?.impressions ?? null, ctr: seoImpact.windows[0]?.ctr ?? null, position: null, days: 28 }, windows: seoImpact.windows.map(w => ({ ...w, window: w.period })), affectedUrl, note: 'Only saved Search Console measurements are shown. Pending windows are not measured results.' },
       aiImpact,
       businessImpact,
       attribution,
@@ -473,7 +473,18 @@ export class ProofOfImpactService {
     if (!['META_TITLE', 'META_DESCRIPTION'].includes(targetField) || typeof expectedValue !== 'string' || !expectedValue.trim()) {
       return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This code change requires a specific live check. A page existing does not prove the fix is deployed.' };
     }
-    const finishedAt = run.finishedAt ? new Date(run.finishedAt).getTime() : NaN;
+    const repository = await this.prisma.siteRepository.findUnique({ where: { projectId } });
+    const pr = run.pullRequestUrl?.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+    if (!repository || !pr || pr[1].toLowerCase() !== repository.owner?.toLowerCase() || pr[2].toLowerCase() !== repository.name?.toLowerCase()) {
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'A pull request in the connected repository is required for deployment verification.' };
+    }
+    let mergedAt: string | null | undefined;
+    try {
+      const review = await this.git.readPullRequestEvidence(this.security.decryptCredentials(repository.accessTokenEncrypted), repository.owner, repository.name, Number(pr[3]));
+      if (review.state === 'MERGED') mergedAt = review.mergedAt;
+    } catch { /* Missing GitHub evidence must not turn into a verified fix. */ }
+    if (!mergedAt) return { success: false, verificationStatus: 'NOT_CHECKED', message: 'GitHub has not confirmed this pull request as merged. Preview proposals are not deployed fixes.' };
+    const finishedAt = new Date(mergedAt).getTime();
     if (!page || !Number.isFinite(finishedAt) || !page.crawledAt || new Date(page.crawledAt).getTime() <= finishedAt) {
       return { success: false, verificationStatus: 'NOT_CHECKED', message: 'Run a new website audit after deploying this pull request, then verify again. Saved audit data predating the fix cannot verify deployment.' };
     }
@@ -494,6 +505,8 @@ export class ProofOfImpactService {
     const now = new Date();
 
     if (isMatched) {
+      const existing = await this.prisma.fixSnapshot.findMany({ where: { projectId, automationRunId: runId, snapshotType: 'VERIFIED_LIVE', pageId: page!.id }, take: 1 });
+      if (existing.length) return { success: true, verificationStatus: 'VERIFIED', liveValue, verifiedAt: existing[0].capturedAt.toISOString() };
       // Create Snapshot C
       await this.prisma.fixSnapshot.create({
         data: {
@@ -507,8 +520,8 @@ export class ProofOfImpactService {
           h1: page?.h1 && page.h1.length > 0 ? page.h1[0] : null,
           canonicalUrl: page?.canonicalUrl || null,
           robotsDirectives: page?.robotsMeta || null,
-          structuredData: (page as any)?.schemas ? (page as any).schemas : [],
-          internalLinksCount: 0,
+          structuredData: (page as any)?.schemas ?? null,
+          internalLinksCount: null,
           issuesCount: page?.issues?.length || 0,
           capturedAt: now,
         },
@@ -591,7 +604,7 @@ export class ProofOfImpactService {
     const snapshots = await this.prisma.fixSnapshot.findMany({
       where: { projectId },
     });
-    const verifiedSnapshots = snapshots.filter((s) => s.snapshotType === 'VERIFIED_LIVE');
+    const verifiedSnapshots = [...new Map(snapshots.filter((s) => s.snapshotType === 'VERIFIED_LIVE' && s.pageId).map(s => [`${s.automationRunId}:${s.url}`, s])).values()];
     const urls = [...new Set(snapshots.map((s) => s.url).filter(Boolean))];
 
     const gscSummary = await this.calculateGscDelta(projectId, urls);
@@ -663,7 +676,7 @@ ${detail.content.map((c) => `- **${c.label}**: \n  - Before: "${c.before || 'Non
 - Observed Delta: ${detail.seoImpact.overallClicksChangePt}% (${detail.seoImpact.label})
 
 ## 4. AI Visibility Impact (5 Monitored Models)
-${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionRate}%, After ${m.afterMentionRate}% (Delta: ${m.changePt >= 0 ? '+' : ''}${m.changePt}pt)`).join('\n')}
+${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionRate == null ? 'unavailable' : `${m.beforeMentionRate}%`}, After ${m.afterMentionRate == null ? 'unavailable' : `${m.afterMentionRate}%`} (Delta: ${m.changePt == null ? 'unavailable' : `${m.changePt >= 0 ? '+' : ''}${m.changePt}pt`})`).join('\n')}
 
 ---
 *Notice: Performance observations reflect recorded metrics from connected Google APIs and AI scans. Changes are labeled as observed performance change and do not constitute independent causal warranty.*
@@ -786,7 +799,7 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
   private async buildRecentFixes(runs: any[], snapshots: any[]) {
     return runs.slice(0, 8).map((r) => {
       const runSnap = snapshots.find((s) => s.automationRunId === r.id);
-      const isVerified = snapshots.some((s) => s.automationRunId === r.id && s.snapshotType === 'VERIFIED_LIVE');
+      const isVerified = snapshots.some((s) => s.automationRunId === r.id && s.snapshotType === 'VERIFIED_LIVE' && s.pageId);
       return {
         id: r.id,
         title: r.error ? `Failed attempt: ${r.error.slice(0, 40)}` : `SEO Fix PR #${r.id.slice(0, 6)}`,
@@ -830,11 +843,11 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
       {
         period: 'Baseline (28d)',
         days: 28,
-        clicks: baseClicks,
-        impressions: baseImp,
-        ctr: Number(baseCtr.toFixed(2)),
+        clicks: baseline._sum.clicks ?? null,
+        impressions: baseline._sum.impressions ?? null,
+        ctr: baseline._sum.impressions == null ? null : Number(baseCtr.toFixed(2)),
         position: null,
-        status: 'OBSERVED',
+        status: baseline._sum.clicks == null && baseline._sum.impressions == null ? 'PENDING' : 'OBSERVED',
       },
     ];
 
@@ -858,19 +871,19 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
         windows.push({
           period: w.name,
           days: w.days,
-          clicks: c,
-          impressions: imp,
-          ctr: Number(ctr.toFixed(2)),
+          clicks: postData._sum.clicks ?? null,
+          impressions: postData._sum.impressions ?? null,
+          ctr: postData._sum.impressions == null ? null : Number(ctr.toFixed(2)),
           position: null,
-          status: 'OBSERVED',
+          status: postData._sum.clicks == null && postData._sum.impressions == null ? 'PENDING' : 'OBSERVED',
         });
       } else {
         windows.push({
           period: w.name,
           days: w.days,
-          clicks: 0,
-          impressions: 0,
-          ctr: 0,
+          clicks: null,
+          impressions: null,
+          ctr: null,
           position: null,
           status: 'PENDING',
         });
@@ -889,44 +902,39 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
   }
 
   private async getFixAiImpact(projectId: string, url: string, fixDate: Date) {
-    const models = [
-      { model: 'Gemini 2.5 Flash', provider: 'GEMINI' },
-      { model: 'GPT-4.1 Mini', provider: 'OPENROUTER' },
-      { model: 'Claude Sonnet 4.6', provider: 'OPENROUTER' },
-      { model: 'Perplexity Sonar', provider: 'PERPLEXITY' },
-      { model: 'Grok 4.3', provider: 'OPENROUTER' },
-    ];
-
     // Read responses before and after fixDate
     const [beforeResponses, afterResponses] = await Promise.all([
       this.prisma.aiVisibilityResponse.findMany({
-        where: { scanRun: { scan: { projectId, createdAt: { lt: fixDate } } } },
-        include: { analysis: true },
+        where: { status: 'SUCCESS', scanRun: { scan: { projectId, createdAt: { lt: fixDate } } } },
+        include: { analysis: true, citations: true },
       }),
       this.prisma.aiVisibilityResponse.findMany({
-        where: { scanRun: { scan: { projectId, createdAt: { gte: fixDate } } } },
-        include: { analysis: true },
+        where: { status: 'SUCCESS', scanRun: { scan: { projectId, createdAt: { gte: fixDate } } } },
+        include: { analysis: true, citations: true },
       }),
     ]);
 
-    const modelComparisons: ModelImpactComparison[] = models.map((m) => {
-      const beforeMatching = beforeResponses.filter((r) => r.provider === m.provider);
-      const afterMatching = afterResponses.filter((r) => r.provider === m.provider);
+    const models = [...new Map([...beforeResponses, ...afterResponses].filter(r => r.model && r.provider).map(r => [`${r.provider}:${r.model}`, { model: r.model, provider: r.provider }])).values()];
+    const modelComparisons = models.map((m) => {
+      const beforeMatching = beforeResponses.filter((r) => r.provider === m.provider && r.model === m.model && r.analysis);
+      const afterMatching = afterResponses.filter((r) => r.provider === m.provider && r.model === m.model && r.analysis);
 
       const beforeMentionCount = beforeMatching.filter((r) => r.analysis?.brandMentioned).length;
       const afterMentionCount = afterMatching.filter((r) => r.analysis?.brandMentioned).length;
 
-      const beforeRate = beforeMatching.length > 0 ? Math.round((beforeMentionCount / beforeMatching.length) * 100) : 0;
-      const afterRate = afterMatching.length > 0 ? Math.round((afterMentionCount / afterMatching.length) * 100) : beforeRate;
+      const beforeRate = beforeMatching.length > 0 ? Math.round((beforeMentionCount / beforeMatching.length) * 100) : null;
+      const afterRate = afterMatching.length > 0 ? Math.round((afterMentionCount / afterMatching.length) * 100) : null;
+      const citationRate = (rows: typeof beforeMatching) => rows.length ? Math.round(rows.filter(r => r.citations?.some(c => c.brandMentioned)).length / rows.length * 100) : null;
 
       return {
         model: m.model,
         provider: m.provider,
         beforeMentionRate: beforeRate,
         afterMentionRate: afterRate,
-        changePt: afterRate - beforeRate,
-        beforeCitationRate: beforeRate,
-        afterCitationRate: afterRate,
+        changePt: beforeRate == null || afterRate == null ? null : afterRate - beforeRate,
+        beforeCitationRate: citationRate(beforeMatching),
+        afterCitationRate: citationRate(afterMatching),
+        beforeScore: beforeRate, afterScore: afterRate, delta: beforeRate == null || afterRate == null ? null : afterRate - beforeRate,
       };
     });
 
@@ -937,32 +945,39 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
     });
 
     return {
+      available: modelComparisons.length > 0,
+      note: 'Rates use saved successful responses for the same provider and model. Missing before/after samples remain unavailable; citation rates use recorded brand citations.',
       models: modelComparisons,
       prompts: prompts.map((p) => ({
         id: p.id,
         text: p.text,
         category: p.category,
         relatedPage: url || 'Site-wide',
+        promptText: p.text, pageUrl: url, citedBefore: beforeResponses.some(r => r.promptId === p.id) ? beforeResponses.some(r => r.promptId === p.id && r.citations?.some(c => c.brandMentioned)) : null, citedAfter: afterResponses.some(r => r.promptId === p.id) ? afterResponses.some(r => r.promptId === p.id && r.citations?.some(c => c.brandMentioned)) : null,
       })),
     };
   }
 
   private async getFixGa4Impact(projectId: string, url: string, fixDate: Date) {
-    if (!url) {
-      return { connected: false, sessions: 0, engagedSessions: 0, conversions: null, revenue: null };
+    let pathname: string | null = null;
+    try { const parsed = new URL(url); if (['http:', 'https:'].includes(parsed.protocol)) pathname = parsed.pathname; } catch { /* Repository paths are not landing pages. */ }
+    if (!pathname) {
+      return { available: false, connected: false, sessions: null, engagedSessions: null, conversions: null, revenue: null, note: 'No affected page is available for a GA4 measurement.' };
     }
 
     const postFixData = await this.prisma.ga4DailyMetric.aggregate({
-      where: { projectId, grain: 'LANDING_PAGE', date: { gte: fixDate } },
+      where: { projectId, grain: 'LANDING_PAGE', landingPage: { in: [url, pathname] }, date: { gte: fixDate } },
       _sum: { sessions: true, conversions: true, revenue: true },
     });
 
     return {
-      connected: true,
-      sessions: postFixData._sum.sessions ?? 0,
-      engagedSessions: Math.round((postFixData._sum.sessions ?? 0) * 0.65),
+      available: postFixData._sum.sessions != null,
+      connected: postFixData._sum.sessions != null,
+      sessions: postFixData._sum.sessions ?? null,
+      engagedSessions: null,
       conversions: postFixData._sum.conversions ?? null,
       revenue: postFixData._sum.revenue ?? null,
+      note: 'Saved GA4 landing-page measurements for this affected page. Engaged session counts are not stored and are unavailable.',
     };
   }
 
@@ -997,6 +1012,6 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
     const clicksDelta = gsc.overallClicksChangePt;
     const level1 = attribution.level1.status;
 
-    return `Reigel detected ${why.toLowerCase()} and prepared an automated fix for ${field}. The change was submitted via GitHub pull request and verified against the live site (${level1 === 'VERIFIED' ? 'deployment confirmed' : 'pending verification'}). During the monitoring period, an observed performance change of ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% in organic clicks was recorded on Search Console.`;
+    return `Prepared change for ${field}: ${why}. ${level1 === 'VERIFIED' ? 'A later saved crawl matched the expected metadata.' : 'Live deployment has not been verified.'} ${gsc.windows?.some((w: PerformanceWindowMetric) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)') ? `Available Search Console records show a ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% change in clicks; this does not establish causation.` : 'No measured post-change Search Console result is available.'}`;
   }
 }

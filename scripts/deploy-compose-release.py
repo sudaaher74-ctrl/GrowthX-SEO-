@@ -71,7 +71,7 @@ if phase == 'prepare':
     (runtime / 'rollback.json').write_text(json.dumps(literal_config(config)))
     for service in ['api', 'worker']:
         config['services'][service]['image'] = image
-        config['services'][service]['stop_grace_period'] = '3m'
+        config['services'][service]['stop_grace_period'] = '15m' if service == 'worker' else '1m'
         # Preserve private/runtime variables while applying keys and defaults
         # declared by this committed release. Otherwise a newly added provider
         # key stays absent forever because only the old container env is copied.
@@ -92,7 +92,10 @@ elif phase == 'backup':
     if dump.exists():
         raise SystemExit('Backup already exists; preserve it and choose a new release for another backup.')
     with dump.open('wb') as f:
-        run(['docker', 'exec', postgres, 'pg_dump', '-U', database['POSTGRES_USER'], '-d', database['POSTGRES_DB'], '-Fc'], stdout=f)
+        compression = os.environ.get('DEPLOY_BACKUP_COMPRESSION', '0')
+        if compression not in [str(i) for i in range(10)]:
+            raise SystemExit('DEPLOY_BACKUP_COMPRESSION must be between 0 and 9.')
+        run(['docker', 'exec', postgres, 'pg_dump', '-U', database['POSTGRES_USER'], '-d', database['POSTGRES_DB'], '-Fc', '-Z', compression], stdout=f)
     with dump.open('rb') as f:
         run(['docker', 'exec', '-i', postgres, 'pg_restore', '--list'], stdin=f, stdout=subprocess.DEVNULL)
     run(['docker', 'exec', f"{config['name']}-redis-1", 'redis-cli', 'BGSAVE'])

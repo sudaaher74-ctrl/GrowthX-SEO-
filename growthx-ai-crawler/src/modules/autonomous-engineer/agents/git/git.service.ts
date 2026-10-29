@@ -58,11 +58,11 @@ export class GitService {
     const url = new URL(repoUrl);
     url.username = 'x-access-token';
     url.password = token.trim();
-    const git: SimpleGit = simpleGit();
+    const git: SimpleGit = simpleGit({ timeout: { block: 120000 } });
 
     this.logger.log(`Cloning ${repoUrl} to ${targetDir}...`);
     try {
-      await git.clone(url.toString(), targetDir);
+      await git.clone(url.toString(), targetDir, ['--depth', '1', '--single-branch', '--no-tags']);
     } catch (error) {
       await this.cleanupRepository(targetDir);
       throw error;
@@ -91,7 +91,7 @@ export class GitService {
     owner: string,
     repo: string,
   ): Promise<{ defaultBranch: string; canPush: boolean }> {
-    const octokit = new Octokit({ auth: token });
+    const octokit = new Octokit({ auth: token, request: { timeout: 30000 } });
     try {
       const { data } = await octokit.rest.repos.get({ owner, repo });
       return { defaultBranch: data.default_branch, canPush: Boolean(data.permissions?.push) };
@@ -144,7 +144,8 @@ export class GitService {
     title: string,
     headBranch: string,
     baseBranch: string,
-    body: string
+    body: string,
+    draft = true,
   ): Promise<string> {
     const octokit = new Octokit({ auth: token });
     
@@ -156,6 +157,7 @@ export class GitService {
       head: headBranch,
       base: baseBranch,
       body,
+      draft,
     });
     
     return response.data.html_url;

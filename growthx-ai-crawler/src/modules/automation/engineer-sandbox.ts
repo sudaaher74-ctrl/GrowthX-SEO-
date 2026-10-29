@@ -1,5 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { patchReactSeo } from '../autonomous-engineer/agents/patch-generation/react-seo-patch';
+import { resolveReactRoute } from './react-route';
 
 /**
  * The only way the engineer touches a customer's repository.
@@ -47,9 +49,60 @@ export const LIMITS = {
 
 export class RepoSandbox {
   readonly changed = new Set<string>();
+  readonly originals = new Map<string, string | null>();
   private realRoot = '';
 
   constructor(readonly root: string) {}
+
+  async source(rel: string): Promise<string> {
+    const abs = await this.inside(this.clean(rel), true);
+    const stat = await fs.stat(abs);
+    if (!stat.isFile() || stat.size > LIMITS.maxFileBytes) throw new SandboxError('File is not readable within sandbox limits.');
+    const content = await fs.readFile(abs, 'utf8');
+    if (content.includes('\0')) throw new SandboxError('Binary file is not readable.');
+    return content;
+  }
+
+  async title(rel: string, value: string, pathname?: string): Promise<string> {
+    const p = this.clean(rel);
+    this.assertWritable(p);
+    if (!value?.trim() || Array.from(value).length > 60) throw new SandboxError('Use a non-empty document title of at most 60 characters.');
+    const before = await this.source(p);
+    const abs = await this.inside(p, true);
+    // Require an app manifest inside the sandbox before using the existing React patcher.
+    let app = path.posix.dirname(p);
+    let manifest = false;
+    while (app !== '.') {
+      try { await this.source(`${app}/package.json`); manifest = true; break; } catch { app = path.posix.dirname(app); }
+    }
+    if (!manifest) { try { await this.source('package.json'); manifest = true; } catch { /* No application manifest. */ } }
+    if (!manifest) throw new SandboxError('No application manifest inside this repository.');
+    if (pathname) {
+      if (!pathname.startsWith('/') || pathname.startsWith('//') || pathname.includes('?') || pathname.includes('#')) throw new SandboxError('Use the exact route pathname without query parameters.');
+      for (const name of ['router', 'routes', 'App']) for (const ext of ['jsx', 'tsx', 'js', 'ts']) {
+        const candidate = path.posix.join(app, 'src', `${name}.${ext}`);
+        try { await fs.lstat(path.resolve(this.root, candidate)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }
+        await this.source(candidate);
+      }
+      const routed = await resolveReactRoute(path.resolve(this.root, app), pathname);
+      if (!routed || path.resolve(routed) !== path.resolve(abs)) throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
+    }
+    for (const entry of ['main.jsx', 'main.tsx', 'index.jsx', 'index.tsx']) {
+      const rel = path.posix.join(app, 'src', entry);
+      try { await fs.lstat(path.resolve(this.root, rel)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }
+      await this.source(rel);
+    }
+    const result = await patchReactSeo(abs, 'title', value);
+    if (!result.applied) throw new SandboxError(result.reason || 'This React page needs manual integration.');
+    const after = await fs.readFile(abs, 'utf8');
+    if (Buffer.byteLength(after) > LIMITS.maxWriteBytes * 2 || after === before) {
+      await fs.writeFile(abs, before);
+      throw new SandboxError('Metadata patch was empty or exceeded the file size limit.');
+    }
+    if (!this.originals.has(p)) this.originals.set(p, before);
+    this.changed.add(p);
+    return `Connected document title in ${p} using the existing Helmet provider. Preview navigation still requires verification.`;
+  }
 
   private async init() {
     if (!this.realRoot) this.realRoot = await fs.realpath(this.root);
@@ -189,6 +242,7 @@ export class RepoSandbox {
     if (text.indexOf(oldText, first + 1) !== -1) throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
     const next = text.slice(0, first) + newText + text.slice(first + oldText.length);
     if (Buffer.byteLength(next) > LIMITS.maxWriteBytes * 2) throw new SandboxError('The file would become too large.');
+    if (!this.originals.has(p)) this.originals.set(p, text);
     await fs.writeFile(abs, next, 'utf8');
     this.changed.add(p);
     return `Edited ${p}.`;
@@ -205,6 +259,7 @@ export class RepoSandbox {
     await fs.mkdir(path.dirname(abs), { recursive: true });
     // Re-check after creating parents: the final location must still be inside.
     await this.inside(p, false);
+    this.originals.set(p, null);
     await fs.writeFile(abs, content, 'utf8');
     this.changed.add(p);
     return `Created ${p}.`;

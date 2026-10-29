@@ -81,24 +81,11 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
 
   const directMatched = allFindings.filter((f) => {
     if (changeSteps.some((cs) => cs.change?.issueId === f.id)) return true;
-    const snippet = f.title.slice(0, 26).toLowerCase().trim();
+    const snippet = f.title.toLowerCase().trim();
     return snippet.length > 5 && rawInstruction.toLowerCase().includes(snippet);
   });
 
-  // Fallback for runs whose 180-char step preview clipped a long preamble before the finding title
-  const fallbackFinding =
-    directMatched.length === 0 && rawInstruction.startsWith("Fix the following")
-      ? ([...allFindings]
-          .filter((f) => (f.lifecycle ?? "DETECTED") === "QUEUED")
-          .sort(
-            (a, b) =>
-              new Date(b.lastTransitionAt || b.detectedAt).getTime() -
-              new Date(a.lastTransitionAt || a.detectedAt).getTime(),
-          )[0] ?? null)
-      : null;
-
-  const matchedFindings =
-    directMatched.length > 0 ? directMatched : fallbackFinding ? [fallbackFinding] : [];
+  const matchedFindings = directMatched;
 
   const groupFromInstruction = GROUPS.find((g) =>
     rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
@@ -132,7 +119,7 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     finishStep?.detail ||
     (run.filesChanged.length > 0
       ? `Modified ${run.filesChanged.join(", ")}${run.branch ? ` on branch ${run.branch}` : ""} and opened GitHub Pull Request.`
-      : run.status === "RUNNING"
+      : ["PENDING", "RUNNING"].includes(run.status)
         ? "GitHub Fix Engine is inspecting repository files and preparing the code/content update…"
         : run.error ||
           (inspectedFiles.length > 0
@@ -205,17 +192,17 @@ export function GitHubFixesLogView({
     queryFn: () => api.listAutomationRuns(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "RUNNING") ? 3500 : false),
+    refetchInterval: (q) => (q.state.data?.some((r) => ["PENDING", "RUNNING"].includes(r.status)) ? 7500 : false),
   });
 
-  const isPollingRuns = (runsQuery.data ?? []).some((r) => r.status === "RUNNING");
+  const isPollingRuns = (runsQuery.data ?? []).some((r) => ["PENDING", "RUNNING"].includes(r.status));
 
   const changesQuery = useQuery({
-    queryKey: ["fix-changes", projectId],
+    queryKey: ["fix-changes", projectId, isPollingRuns],
     queryFn: () => api.listFixChanges(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: isPollingRuns ? 4000 : false,
+    refetchInterval: false,
   });
 
   const ledgerQuery = useQuery({
@@ -223,12 +210,12 @@ export function GitHubFixesLogView({
     queryFn: () => api.getFixImpactLedger(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: isPollingRuns ? 4000 : false,
+    refetchInterval: false,
   });
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["automation-runs", projectId] });
-    queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId, isPollingRuns] });
     queryClient.invalidateQueries({ queryKey: ["proof-of-impact-ledger", projectId] });
     queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
     queryClient.invalidateQueries({ queryKey: ["issue-groups", projectId] });
@@ -239,7 +226,7 @@ export function GitHubFixesLogView({
   const changeReports = useMemo(() => changesQuery.data ?? [], [changesQuery.data]);
   const ledgerEntries = useMemo(() => ledgerQuery.data ?? [], [ledgerQuery.data]);
   const connectedRepo = repoQuery.data ?? null;
-  const isEngineerBusy = runs.some((r) => r.status === "RUNNING");
+  const isEngineerBusy = runs.some((r) => ["PENDING", "RUNNING"].includes(r.status));
 
   // Map each finding ID to its latest GitHub AutomationRun
   const findingRunMap = useMemo(() => {
@@ -263,7 +250,7 @@ export function GitHubFixesLogView({
       const matchesFilter =
         moduleFilter === "ALL" ||
         ctx.moduleId === moduleFilter ||
-        run.status === "RUNNING" ||
+        ["PENDING", "RUNNING"].includes(run.status) ||
         run.id === trackedRunId;
       if (matchesFilter) {
         list.push({ run, ctx });
@@ -449,7 +436,7 @@ export function GitHubFixesLogView({
           ? `Task Complete — GitHub Pull Request opened for "${ctx.headline}" (${run.filesChanged.length} file${run.filesChanged.length === 1 ? "" : "s"} changed)`
           : isComplete
             ? `Task Complete — GitHub Fix Engine finished "${ctx.headline}"`
-            : run.status === "RUNNING"
+            : ["PENDING", "RUNNING"].includes(run.status)
               ? `Task in Progress — Fixing "${ctx.headline}" on GitHub…`
               : `Task Finished Without PR — "${ctx.headline}"`,
         detail: ctx.summaryAfter,
@@ -464,12 +451,12 @@ export function GitHubFixesLogView({
           ? "Task Complete · PR Ready"
           : isComplete
             ? "Task Complete"
-            : run.status === "RUNNING"
+            : ["PENDING", "RUNNING"].includes(run.status)
               ? "In Progress"
               : "Needs Retry",
         statusTone: isComplete
           ? "good"
-          : run.status === "RUNNING"
+          : ["PENDING", "RUNNING"].includes(run.status)
             ? "warn"
             : "bad",
       });
@@ -599,13 +586,13 @@ export function GitHubFixesLogView({
         statusLabel:
           fRun?.status === "AWAITING_REVIEW"
             ? "Task Complete · PR Ready"
-            : fRun?.status === "RUNNING"
+            : ["PENDING", "RUNNING"].includes(fRun?.status ?? "")
               ? "Fixing on GitHub…"
               : LIFECYCLE_LABEL[lc] ?? lc,
         statusTone:
           ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || fRun?.status === "AWAITING_REVIEW"
             ? "good"
-            : fRun?.status === "RUNNING"
+            : ["PENDING", "RUNNING"].includes(fRun?.status ?? "")
               ? "warn"
               : ["QUEUED", "APPROVED", "VERIFYING", "APPLYING"].includes(lc)
                 ? "info"
@@ -766,7 +753,7 @@ export function GitHubFixesLogView({
         text:
           run.status === "FAILED"
             ? run.error || "Low-risk fix run finished without changes."
-            : `Task Complete! Pull request prepared with ${run.filesChanged.length} changed file(s). Review and merge on GitHub.`,
+            : run.status === "PENDING" ? "Audit fixes are queued. The worker will prepare a draft PR for preview review." : `Draft PR prepared with ${run.filesChanged.length} changed file(s). Preview verification is required.`,
       });
       invalidateAll();
     },
@@ -1077,7 +1064,7 @@ export function GitHubFixesLogView({
       {(subSection === "ALL" || subSection === "GITHUB_RUNNER") && (
         <Panel
           title="Fix Issues Across All Tabs with GitHub"
-          subtitle="Connect your website repository once. Select findings from Website Audit, Traffic, Competitor Intelligence, AI Visibility, or Backlink Intelligence and open a verified GitHub Pull Request."
+          subtitle="Connect your website repository once. Select findings from Website Audit, Traffic, Competitor Intelligence, AI Visibility, or Backlink Intelligence and prepare a draft GitHub Pull Request for review."
           actions={
             connectedRepo ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -1127,12 +1114,12 @@ export function GitHubFixesLogView({
                     GitHub Fix Task Status &amp; Completion Confirmation ({count(visibleTaskRuns.length)})
                   </span>
                   <span className="text-[11px] text-brand-400">
-                    {isEngineerBusy ? "Auto-updating every 3.5s…" : "All tasks finished"}
+                    {isEngineerBusy ? "Auto-updating every 7.5s…" : "All tasks finished"}
                   </span>
                 </div>
 
                 {visibleTaskRuns.map(({ run, ctx }) => {
-                  const isRunning = run.status === "RUNNING";
+                  const isRunning = ["PENDING", "RUNNING"].includes(run.status);
                   const isPlaceholder = run.filesChanged.length > 0 && run.filesChanged.every((file) => /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(file));
                   const isSuccess = run.status === "AWAITING_REVIEW" && !isPlaceholder;
                   const unverifiedMatched = ctx.matchedFindings.filter(
@@ -1157,12 +1144,12 @@ export function GitHubFixesLogView({
                             {isRunning ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-bold text-warning-900">
                                 <RefreshCw size={11} className="animate-spin" />
-                                TASK IN PROGRESS
+                                {run.status === "PENDING" ? "TASK QUEUED" : "TASK IN PROGRESS"}
                               </span>
                             ) : isSuccess ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-success-100 px-2.5 py-0.5 text-[11px] font-bold text-success-900">
                                 <CheckCircle2 size={12} />
-                                TASK COMPLETE · {run.pullRequestUrl ? "PULL REQUEST READY" : "FINISHED"}
+                                {run.pullRequestUrl ? "DRAFT PR · PREVIEW REVIEW REQUIRED" : "RUN FINISHED"}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-error-100 px-2.5 py-0.5 text-[11px] font-bold text-error-900">
@@ -1203,7 +1190,7 @@ export function GitHubFixesLogView({
                         )}
                       >
                         {isRunning
-                          ? "GitHub Fix Engine is cloning your repository, applying code/content improvements on a dedicated branch, validating the build, and opening a Pull Request…"
+                          ? (run.status === "PENDING" ? "Your fix is saved in the queue. It will start when worker capacity is available." : "The engineer is preparing a proposed change. A PR is not evidence that the issue is fixed.")
                           : isPlaceholder
                             ? "This run added an audit message rather than changing the affected website pages. Its completion summary is not evidence of a fix."
                           : isSuccess
@@ -1419,7 +1406,7 @@ export function GitHubFixesLogView({
                     ? "Opening GitHub PR…"
                     : selectedFindingIds.length > 0
                       ? `Fix ${count(selectedFindingIds.length)} Selected with GitHub PR`
-                      : `Fix ${moduleFilter === "ALL" ? "All Plan" : GROUPS.find((g) => g.id === moduleFilter)?.label} Issues with GitHub`}
+                      : `Queue next 8 ${moduleFilter === "ALL" ? "plan" : GROUPS.find((g) => g.id === moduleFilter)?.label} findings`}
                 </ActionButton>
               </div>
             </div>
@@ -1438,15 +1425,14 @@ export function GitHubFixesLogView({
                   const fRun = findingRunMap.get(f.id);
                   const matchedPr = prChanges.find(
                     (c) =>
-                      c.findingTitle === f.title ||
-                      (c.url && f.affectedPages?.includes(c.url)),
+                      c.findingTitle === f.title,
                   );
                   const prUrl = fRun?.pullRequestUrl || matchedPr?.pullRequestUrl || null;
                   const isTaskComplete =
                     ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) ||
                     fRun?.status === "AWAITING_REVIEW" ||
                     Boolean(prUrl);
-                  const isTaskRunning = fRun?.status === "RUNNING";
+                  const isTaskRunning = ["PENDING", "RUNNING"].includes(fRun?.status ?? "");
                   const isTaskFailed = fRun?.status === "FAILED" && !isTaskComplete;
 
                   return (
@@ -1810,8 +1796,7 @@ export function GitHubFixesLogView({
                     const lc = f.lifecycle ?? "DETECTED";
                     const matchedPr = prChanges.find(
                       (c) =>
-                        c.findingTitle === f.title ||
-                        (c.url && f.affectedPages?.includes(c.url)),
+                        c.findingTitle === f.title,
                     );
 
                     return (
