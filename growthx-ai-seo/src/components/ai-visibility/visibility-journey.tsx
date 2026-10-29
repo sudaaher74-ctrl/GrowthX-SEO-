@@ -1310,5 +1310,3 @@ function PromptsSection({
     </div>
   );
 }
-
-
