@@ -8,8 +8,9 @@ describe('CompetitorAdapter', () => {
   beforeEach(() => {
     mockPrisma = {
       project: {
-        findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
+        findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1', name: 'Client', websites: [{ domain: 'client.example' }] }),
       },
+      competitorDomain: { findMany: jest.fn().mockResolvedValue([]) },
       competitorFinding: {
         findMany: jest.fn().mockResolvedValue([
           {
