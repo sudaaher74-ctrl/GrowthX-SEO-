@@ -10,7 +10,7 @@ describe('CompetitorAdapter', () => {
       project: {
         findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1', name: 'Client', websites: [{ domain: 'client.example' }] }),
       },
-      competitorDomain: { findMany: jest.fn().mockResolvedValue([{ id: 'rival-1', domain: 'rival.example' }]) },
+      competitorDomain: { findMany: jest.fn().mockResolvedValue([]) },
       competitorFinding: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -53,8 +53,10 @@ describe('CompetitorAdapter', () => {
     const run1 = await adapter.collect('proj-1');
     const run2 = await adapter.collect('proj-1');
 
-    expect(run1).toHaveLength(2);
-    expect(run2).toHaveLength(2);
+    expect(run1).toHaveLength(3);
+    expect(run2).toHaveLength(3);
+    expect(run1[2].fingerprint).toBe('competitor::track-rivals::proj-1');
+    expect(run2[2].fingerprint).toBe(run1[2].fingerprint);
 
     expect(run1[0].fingerprint).toBe(run2[0].fingerprint);
     expect(run1[0].fingerprint).toBe('proj-1::COMPETITOR::TECHNICAL_SEO::competitor-has-50-schema-types');
