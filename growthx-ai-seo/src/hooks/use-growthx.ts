@@ -1,8 +1,7 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
-import { stagingEngine, EMPTY_STAGED_ITEMS, type StagedFixItem } from "@/lib/staging-engine";
 import { supplementPlanFindings } from "@/lib/plan-sources";
 
 const orgListeners = new Set<() => void>();
@@ -284,24 +283,6 @@ export function useProgrammaticMatrix(projectId?: string | null, competitorId?: 
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
   });
-}
-
-/**
- * Staged fix items for a project.
- *
- * The snapshot callbacks must hand React a stable reference — `getStaged`
- * caches per project and the server snapshot is a shared constant, otherwise
- * `useSyncExternalStore` re-renders in a loop and takes the page down.
- */
-export function useStagedFixItems(projectId: string | null): StagedFixItem[] {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => stagingEngine.subscribe(projectId, onStoreChange),
-    [projectId]
-  );
-  const getSnapshot = useCallback(() => stagingEngine.getStaged(projectId), [projectId]);
-  const getServerSnapshot = useCallback(() => EMPTY_STAGED_ITEMS, []);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 export function useLatestCrawl(domain: string | null) {

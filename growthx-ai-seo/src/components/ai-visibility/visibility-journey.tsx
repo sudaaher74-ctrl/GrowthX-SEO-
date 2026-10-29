@@ -35,7 +35,7 @@ import {
 } from "@/lib/visibility-workflow";
 import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
-import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibility-journey-results";
+import { EvidenceLinks, ActionPlan } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
 
 const STEPS = [
@@ -76,7 +76,6 @@ function Journey({ projectId }: { projectId: string }) {
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
   const error = prepare.error || check.error;
-  const hasPlan = Boolean(run?.analysis?.length);
 
   return <div className="space-y-5 pb-12">
     <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
@@ -457,7 +456,7 @@ function getEngineCitation(
   };
 }
 
-export function PromptsSection({
+function PromptsSection({
   brief,
   locked,
   checks,
@@ -1312,5 +1311,4 @@ export function PromptsSection({
   );
 }
 
-export const QuestionReview = PromptsSection;
 

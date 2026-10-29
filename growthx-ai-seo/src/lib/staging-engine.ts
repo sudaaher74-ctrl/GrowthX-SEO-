@@ -75,7 +75,7 @@ const synced = new Set<string>();
 const syncing = new Map<string, Promise<void>>();
 const flushing = new Map<string, Promise<void>>();
 
-export const EMPTY_STAGED_ITEMS: StagedFixItem[] = [];
+const EMPTY_STAGED_ITEMS: StagedFixItem[] = [];
 
 function readJson<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
