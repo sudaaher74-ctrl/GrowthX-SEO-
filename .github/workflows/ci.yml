@@ -22,6 +22,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  watchdog:
+    name: Host watchdog checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate watchdog shell syntax
+        run: bash -n scripts/crawler-watchdog.sh scripts/test-crawler-watchdog.sh
+      - name: Verify bounded tunnel recovery
+        run: bash scripts/test-crawler-watchdog.sh
+
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
