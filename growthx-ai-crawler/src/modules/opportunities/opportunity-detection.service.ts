@@ -351,7 +351,7 @@ export class OpportunityDetectionService {
         summary: `Thin content struggles to rank for competitive search queries. Adding in-depth explanations, FAQs, and benefits will improve topical authority.`,
         evidence: [
           { label: 'Thin Pages Count', value: `${thinPages.length} pages with under 250 words`, source: 'Website Crawl Audit' },
-          { label: 'Search Quality Benchmark', value: 'Comprehensive pages with 600+ words rank significantly higher for commercial search terms', source: 'GrowthX Content Intelligence' },
+          { label: 'Measurement status', value: 'Content length alone does not establish a ranking improvement. Project-specific ranking impact is not measured.', source: 'Data availability' },
         ],
         recommendedAction: 'Expand each page with detailed service specifications, step-by-step process breakdowns, customer testimonials, and an FAQ accordion.',
         potential: 'HIGH',
@@ -449,7 +449,7 @@ export class OpportunityDetectionService {
       summary: 'Consistent NAP data across online directories and localized website landing pages builds strong geo-relevance for local searches.',
       evidence: [
         { label: 'Target Business', value: project?.name || website?.domain || 'Local Business', source: 'Project Profile' },
-        { label: 'Local SEO Factor', value: 'NAP consistency is among the top 3 ranking factors for Google Local Pack placement', source: 'Local Search Ranking Factors' },
+        { label: 'Planning context', value: 'Review business contact details for consistency. Project-specific ranking impact is not measured.', source: 'Data availability' },
       ],
       recommendedAction: 'Ensure business name, phone number, and physical address are formatted identically in the website footer, contact page, and Google Maps listing.',
       potential: 'HIGH',
@@ -466,8 +466,8 @@ export class OpportunityDetectionService {
         title: 'Launch a proactive Google review generation workflow',
         summary: 'Consistent review velocity and 5-star customer feedback are essential for dominating local "near me" search results.',
         evidence: [
-          { label: 'Tracked Reviews', value: '0 automated review requests configured', source: 'GrowthX Local Intelligence' },
-          { label: 'Impact', value: 'Businesses with 20+ recent reviews rank 50% higher in local map packs', source: 'Local SEO Benchmark' },
+          { label: 'Saved review data', value: 'No review records are available in this project. External review-request configuration has not been verified.', source: 'Project data availability' },
+          { label: 'Measurement status', value: 'Project-specific review and ranking lift has not been measured.', source: 'Data availability' },
         ],
         recommendedAction: 'Send automated post-service review invites via SMS or WhatsApp with a direct Google review link.',
         potential: 'MEDIUM',
@@ -504,7 +504,7 @@ export class OpportunityDetectionService {
       summary: `AI engines synthesize direct answers from authoritative sources. Establishing strong third-party mentions and clear entity definitions ensures your brand is recommended as the top solution.`,
       evidence: [
         { label: 'Entity Scope', value: `${businessName} (${domain || 'Primary Domain'})`, source: 'Entity Profile' },
-        { label: 'AI Visibility Shift', value: 'Over 30% of commercial buyer research queries now originate in LLM search interfaces', source: 'GrowthX AI Search Intelligence' },
+        { label: 'Measurement status', value: 'Project-specific AI search demand and referral lift have not been measured for this recommendation.', source: 'Data availability' },
       ],
       recommendedAction: 'Publish clear brand positioning statements, claim Wikidata/Crunchbase profiles, and secure industry directory citations mentioning your primary services.',
       potential: 'HIGH',
