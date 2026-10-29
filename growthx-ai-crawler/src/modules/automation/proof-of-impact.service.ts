@@ -4,6 +4,7 @@ import { GitService } from '../autonomous-engineer/agents/git/git.service';
 import { SecurityService } from '../security/security.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { OWN_SCOPE } from '../crawler/website-scope';
 
 export interface ComparisonDiffItem {
   field: string;
@@ -451,6 +452,9 @@ export class ProofOfImpactService {
 
     const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
     const changeStep = steps.find((s) => s.change);
+    if (steps.filter((step) => step.change).length > 1) {
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This run contains multiple changes. Verify each affected page before confirming the whole run.' };
+    }
     const url = changeStep?.change?.url;
 
     if (!url) {
@@ -459,13 +463,20 @@ export class ProofOfImpactService {
 
     // 1. Fetch latest page from crawler
     const page = await this.prisma.page.findFirst({
-      where: { url, crawlJob: { website: { projectId } } },
+      where: { url, statusCode: 200, blockedSuspected: false, crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
       orderBy: { crawlJob: { createdAt: 'desc' } },
       include: { issues: true },
     });
 
     const targetField = changeStep.change.field;
     const expectedValue = changeStep.change.after;
+    if (!['META_TITLE', 'META_DESCRIPTION'].includes(targetField) || typeof expectedValue !== 'string' || !expectedValue.trim()) {
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This code change requires a specific live check. A page existing does not prove the fix is deployed.' };
+    }
+    const finishedAt = run.finishedAt ? new Date(run.finishedAt).getTime() : NaN;
+    if (!page || !Number.isFinite(finishedAt) || !page.crawledAt || new Date(page.crawledAt).getTime() <= finishedAt) {
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'Run a new website audit after deploying this pull request, then verify again. Saved audit data predating the fix cannot verify deployment.' };
+    }
 
     let isMatched = false;
     let liveValue: string | null = null;
@@ -477,10 +488,6 @@ export class ProofOfImpactService {
       } else if (targetField === 'META_DESCRIPTION') {
         liveValue = page.metaDescription;
         isMatched = page.metaDescription === expectedValue;
-      } else {
-        // Generic schema or text check
-        isMatched = true;
-        liveValue = 'Verified in live audit';
       }
     }
 

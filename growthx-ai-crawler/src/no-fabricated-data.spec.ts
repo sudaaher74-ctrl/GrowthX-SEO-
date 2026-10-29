@@ -101,6 +101,9 @@ describe('no fabricated client data', () => {
     const offenders = grep('(Navi Mumbai|Vashi|Kharghar|CIDCO|MiQuu|milquufresh|aivaenterprises)')
       .filter((line) => !/:\d+:\s*(\/\/|\*|\/\*)/.test(line))
       .filter((line) => !line.includes('/testing/'))
+      // Reviewed geographic lookup vocabulary, not a default client market or metric.
+      // Keep this exception to the exact registry line rather than exempting the service.
+      .filter((line) => !/search-intelligence\/google-report\.service\.ts:\d+:\s*'Mumbai', 'Navi Mumbai', 'Thane', 'Pune', 'Nashik', 'Nagpur', 'Aurangabad', 'Chhatrapati Sambhajinagar',\s*$/.test(line))
       .filter((line) => !KNOWN_UNFIXED.some((file) => line.includes(file)));
 
     expect(offenders).toEqual([]);

@@ -149,6 +149,7 @@ describe('ProofOfImpactService', () => {
         id: 'run_1',
         projectId: 'proj_1',
         status: 'MERGED',
+        finishedAt: new Date('2026-10-28T10:00:00Z'),
         startedAt: new Date('2026-03-01T10:00:00Z'),
         createdAt: new Date('2026-03-01T10:00:00Z'),
         pullRequestUrl: 'https://github.com/acme/repo/pull/42',
@@ -212,6 +213,7 @@ describe('ProofOfImpactService', () => {
       prisma.automationRun.findUnique.mockResolvedValue({
         id: 'run_1',
         projectId: 'proj_1',
+        finishedAt: new Date('2026-10-28T10:00:00Z'),
         status: 'MERGED',
         pullRequestUrl: 'https://github.com/acme/repo/pull/42',
         steps: [
@@ -220,8 +222,8 @@ describe('ProofOfImpactService', () => {
             status: 'COMPLETED',
             change: {
               url: 'https://acme.com/pricing',
-              field: 'title',
-              proposed: 'Fresh Pricing Title',
+              field: 'META_TITLE',
+              after: 'Fresh Pricing Title',
             },
           },
         ],
@@ -231,6 +233,7 @@ describe('ProofOfImpactService', () => {
         id: 'page_1',
         url: 'https://acme.com/pricing',
         title: 'Fresh Pricing Title',
+        crawledAt: new Date('2026-10-29T10:00:00Z'),
         metaDescription: 'Updated pricing description',
         h1: ['Pricing'],
         canonicalUrl: 'https://acme.com/pricing',
@@ -243,6 +246,37 @@ describe('ProofOfImpactService', () => {
       expect(result.verificationStatus).toBe('VERIFIED');
       expect(prisma.fixSnapshot.create).toHaveBeenCalled();
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalled();
+    });
+
+    it.each(['NEW_FILE_CREATED', 'CODE_AND_SEO_UPDATE'])('does not verify a generic %s change just because a page exists', async (field) => {
+      prisma.automationRun.findUnique.mockResolvedValue({
+        id: 'run_1', projectId: 'proj_1', finishedAt: new Date('2026-10-28T10:00:00Z'),
+        steps: [{ change: { url: 'https://acme.com/', field, after: 'export const message = "fixed";' } }],
+      });
+      prisma.page.findFirst.mockResolvedValue({ id: 'page_1', title: 'Home', crawledAt: new Date() });
+      const result = await service.verifyDeployment('proj_1', 'run_1');
+      expect(result.success).toBe(false);
+      expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
+      expect(prisma.fixImpactLedgerEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a matching value from an audit taken before the fix', async () => {
+      prisma.automationRun.findUnique.mockResolvedValue({
+        id: 'run_1', projectId: 'proj_1', finishedAt: new Date('2026-10-29T10:00:00Z'),
+        steps: [{ change: { url: 'https://acme.com/', field: 'META_TITLE', after: 'Home' } }],
+      });
+      prisma.page.findFirst.mockResolvedValue({ title: 'Home', crawledAt: new Date('2026-10-28T10:00:00Z') });
+      expect((await service.verifyDeployment('proj_1', 'run_1')).success).toBe(false);
+      expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
+    });
+
+    it('does not verify a whole run from its first change', async () => {
+      prisma.automationRun.findUnique.mockResolvedValue({
+        id: 'run_1', projectId: 'proj_1',
+        steps: [{ change: { url: 'https://acme.com/' } }, { change: { url: 'https://acme.com/pricing' } }],
+      });
+      expect((await service.verifyDeployment('proj_1', 'run_1')).success).toBe(false);
+      expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
     });
   });
 });

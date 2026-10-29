@@ -686,7 +686,7 @@ function OutreachModal({
   }
 
   const updateMutation = useMutation({
-    mutationFn: (body: any) => api.backlinks.updateRecommendationOutreach(projectId, sourceId, body),
+    mutationFn: (body: Parameters<typeof api.backlinks.updateRecommendationOutreach>[2]) => api.backlinks.updateRecommendationOutreach(projectId, sourceId, body),
     onSuccess: async (res) => {
       setSavedNote(res.message);
       await client.invalidateQueries({ queryKey: ['backlink-recommendation', projectId, sourceId] });
@@ -729,7 +729,7 @@ function OutreachModal({
             <select
               className="mt-1 w-full rounded-md border p-2 text-xs text-brand-900"
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => setStatus(e.target.value as PublisherOutreachState['status'])}
             >
               <option value="ANALYZED">Analyzed</option>
               <option value="QUALIFIED">Qualified</option>

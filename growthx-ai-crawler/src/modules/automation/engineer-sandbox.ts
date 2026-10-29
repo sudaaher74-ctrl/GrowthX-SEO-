@@ -181,6 +181,7 @@ export class RepoSandbox {
     this.assertWritable(p);
     if (typeof oldText !== 'string' || oldText === '') throw new SandboxError('The text to replace is required.');
     if (typeof newText !== 'string') throw new SandboxError('The new text is required.');
+    if (oldText === newText) throw new SandboxError('The replacement must change the file.');
     const abs = await this.inside(p, true);
     const text = await fs.readFile(abs, 'utf8');
     const first = text.indexOf(oldText);

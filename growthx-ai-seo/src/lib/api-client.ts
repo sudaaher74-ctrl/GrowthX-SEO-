@@ -1097,16 +1097,11 @@ export const api = {
   /** Starts the engineer on a plain-words instruction. Returns at once with the run (RUNNING); poll the runs. */
   runEngineer: (projectId: string, instruction: string) =>
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, { instruction }),
-  /** Starts a GitHub fix run for selected Fix Engine findings across all tabs via the live engineer endpoint. */
+  /** Starts a run using findings loaded by the backend within this project. */
   runPlanFixes: async (
     projectId: string,
-    body?: { findingIds?: string[]; sourceModule?: string; instruction?: string },
+    body?: { findingIds?: string[]; sourceModule?: string },
   ) => {
-    if (body?.instruction) {
-      return post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, {
-        instruction: body.instruction,
-      });
-    }
     return post<AutomationRun>(`/api/projects/${projectId}/automation/runs/plan-fixes`, body ?? {});
   },
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
