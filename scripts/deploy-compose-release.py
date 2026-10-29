@@ -71,7 +71,7 @@ if phase == 'prepare':
     (runtime / 'rollback.json').write_text(json.dumps(literal_config(config)))
     for service in ['api', 'worker']:
         config['services'][service]['image'] = image
-        config['services'][service]['stop_grace_period'] = '3m'
+        config['services'][service]['stop_grace_period'] = '15m' if service == 'worker' else '1m'
         # Preserve private/runtime variables while applying keys and defaults
         # declared by this committed release. Otherwise a newly added provider
         # key stays absent forever because only the old container env is copied.

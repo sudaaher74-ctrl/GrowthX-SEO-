@@ -11,6 +11,7 @@ export class EngineerQueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EngineerQueueService.name);
   private jobs?: Queue<{ runId: string }>;
   private worker?: Worker<{ runId: string }>;
+  private workerConnection?: ReturnType<QueueService['getRedisClient']>;
   private reconciling = false;
 
   constructor(private readonly connection: QueueService, private readonly prisma: PrismaService, private readonly moduleRef: ModuleRef) {}
@@ -25,9 +26,11 @@ export class EngineerQueueService implements OnModuleInit, OnModuleDestroy {
     await this.jobs.setGlobalConcurrency(2);
     if (process.env.WORKER_MODE === 'false' || process.env.DISABLE_WORKERS === 'true') return;
     const { EngineerAgentService } = await import('./engineer-agent.service');
+    const workerConnection = redis.duplicate({ maxRetriesPerRequest: null });
+    this.workerConnection = workerConnection;
     this.worker = new Worker('github-engineer', async job => {
       return this.moduleRef.get(EngineerAgentService, { strict: false }).executeQueued(job.data.runId);
-    }, { connection: redis, concurrency: 2, maxStalledCount: 0 });
+    }, { connection: workerConnection, concurrency: 2, maxStalledCount: 0 });
     this.worker.on('error', () => this.logger.warn('Engineer worker connection unavailable.'));
     this.worker.on('failed', (job) => {
       if (!job) return;
@@ -68,6 +71,7 @@ export class EngineerQueueService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     await this.worker?.close();
+    await this.workerConnection?.quit();
     await this.jobs?.close();
   }
 }

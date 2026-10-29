@@ -102,6 +102,16 @@ describe('EngineerAgentService', () => {
     expect(git.cloneRepository).not.toHaveBeenCalled();
   });
 
+  it('executes the existing low-risk pipeline in the worker using the same reserved run', async () => {
+    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({ id: 'queued', projectId: 'proj_1', status: 'PENDING', repository: REPO, steps: [{ step: 'engineer_request', request: { organizationId: 'org_1', operation: { type: 'approved_fixes', ids: ['issue'] } } }] });
+    prisma.project = { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org_1' }) };
+    const automation = { runFixes: jest.fn().mockResolvedValue({ id: 'queued', status: 'AWAITING_REVIEW' }) };
+    const queued = new EngineerAgentService(prisma, router, git, {} as any, validation, {} as any, undefined, automation as any);
+    expect((await queued.executeQueued('queued')).id).toBe('queued');
+    expect(automation.runFixes).toHaveBeenCalledWith('proj_1', 'org_1', ['issue'], 'queued');
+    expect(prisma.automationRun.create).not.toHaveBeenCalled();
+  });
+
   it('rejects the placeholder creation used by old clients without pushing a PR', async () => {
     replies.push(
       act({ tool: 'create', path: 'app/seo-fix-test.js', content: "export const SEO_FIX_TEST = 'Fixed titles';" }),

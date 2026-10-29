@@ -391,6 +391,7 @@ export class EngineerAgentService {
     if (!claim.count) return;
     if (request.operation) {
       if (!this.automation) throw new Error('Queued repository pipeline is unavailable.');
+      if (!['approved_fixes', 'content'].includes(request.operation.type)) throw new BadRequestException('Unknown queued repository operation.');
       return request.operation.type === 'approved_fixes'
         ? this.automation.runFixes(run.projectId, request.organizationId, request.operation.ids, run.id)
         : this.automation.runContent(run.projectId, request.organizationId, request.operation.ids, run.id);
