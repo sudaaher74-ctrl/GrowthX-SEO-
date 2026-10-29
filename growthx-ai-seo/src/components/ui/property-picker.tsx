@@ -73,6 +73,8 @@ export function PropertyPicker({
       // The connection flips to CONNECTED, which is what every panel on the
       // page is gated on.
       qc.invalidateQueries({ queryKey: ["google-connections"] });
+      qc.removeQueries({ queryKey: ["ga4-realtime", projectId] });
+      qc.removeQueries({ queryKey: ["ga4-report", projectId] });
     },
     onError: (err) => setError(errorMessage(err)),
   });
