@@ -15,7 +15,7 @@ import { GrantTokensForm } from "@/components/tokens/grant-tokens-form";
 import { formatTokens, formatTokensExact } from "@/lib/tokens";
 
 
-const CARD = "rounded-[28px] bg-white dark:bg-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04] dark:border-white/[0.06]";
+const CARD = "rounded-[28px] bg-white dark:bg-brand-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04] dark:border-white/[0.06]";
 
 function Card({
   title,
@@ -35,8 +35,8 @@ function Card({
       {(title || actions) && (
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            {title && <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-100">{title}</h2>}
-            {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
+            {title && <h2 className="text-base font-semibold text-brand-950 dark:text-brand-100">{title}</h2>}
+            {subtitle && <p className="text-xs text-brand-500 mt-0.5">{subtitle}</p>}
           </div>
           {actions}
         </div>
@@ -63,8 +63,8 @@ function PillButton({
       onClick={onClick}
       className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold transition-colors ${
         dark
-          ? "bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950"
-          : "bg-white text-zinc-800 shadow-sm border border-black/[0.05] hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-200 dark:border-white/10"
+          ? "bg-brand-950 text-white hover:bg-brand-800 dark:bg-white dark:text-brand-950"
+          : "bg-white text-brand-800 shadow-sm border border-black/[0.05] hover:bg-brand-50 dark:bg-brand-900 dark:text-brand-200 dark:border-white/10"
       }`}
     >
       {icon}
@@ -90,15 +90,15 @@ function Stat({
     <div
       className={`rounded-[28px] p-5 min-h-[140px] flex flex-col justify-between ${
         featured
-          ? "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-          : `${CARD} text-zinc-950 dark:text-zinc-100`
+          ? "bg-gradient-to-br from-success-400 to-success-600 text-white shadow-lg shadow-success-600/20"
+          : `${CARD} text-brand-950 dark:text-brand-100`
       }`}
     >
       <div className="flex items-start justify-between">
-        <span className={`text-[13px] font-medium ${featured ? "text-white/85" : "text-zinc-500"}`}>{label}</span>
+        <span className={`text-[13px] font-medium ${featured ? "text-white/85" : "text-brand-500"}`}>{label}</span>
         <span
           className={`h-8 w-8 rounded-full flex items-center justify-center ${
-            featured ? "bg-white/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+            featured ? "bg-white/20" : "bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300"
           }`}
         >
           {icon}
@@ -108,7 +108,7 @@ function Stat({
         <div className="text-3xl font-bold tracking-tight">{value}</div>
         <span
           className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            featured ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+            featured ? "bg-white/20 text-white" : "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400"
           }`}
         >
           {sub}
@@ -121,13 +121,13 @@ function Stat({
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="relative">
-      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={14} />
+      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400" size={14} />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-64 max-w-full pl-9 pr-4 text-[13px] rounded-full border border-black/[0.08] dark:border-white/10 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+        className="h-10 w-64 max-w-full pl-9 pr-4 text-[13px] rounded-full border border-black/[0.08] dark:border-white/10 bg-white dark:bg-brand-900 text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-2 focus:ring-success-500/40"
       />
     </div>
   );
@@ -140,7 +140,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-700"}`}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-success-500" : "bg-brand-300 dark:bg-brand-700"}`}
     >
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? "left-[22px]" : "left-0.5"}`} />
     </button>
@@ -163,16 +163,16 @@ function HealthTile({
   meta?: string;
 }) {
   return (
-    <div className="rounded-3xl bg-zinc-50 dark:bg-zinc-800/50 p-4 space-y-2">
+    <div className="rounded-3xl bg-brand-50 dark:bg-brand-800/50 p-4 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-zinc-950 dark:text-zinc-100">
-          <span className="h-8 w-8 rounded-full bg-white dark:bg-zinc-900 shadow-sm flex items-center justify-center">{icon}</span>
+        <span className="flex items-center gap-2 text-[13px] font-semibold text-brand-950 dark:text-brand-100">
+          <span className="h-8 w-8 rounded-full bg-white dark:bg-brand-900 shadow-sm flex items-center justify-center">{icon}</span>
           {name}
         </span>
         <Pill tone={tone}>{status}</Pill>
       </div>
-      <p className="text-xs text-zinc-500 leading-relaxed">{desc}</p>
-      {meta && <span className="text-[11px] font-mono font-semibold text-zinc-700 dark:text-zinc-300 block">{meta}</span>}
+      <p className="text-xs text-brand-500 leading-relaxed">{desc}</p>
+      {meta && <span className="text-[11px] font-mono font-semibold text-brand-700 dark:text-brand-300 block">{meta}</span>}
     </div>
   );
 }
@@ -333,26 +333,26 @@ export default function AdminPage() {
   ];
 
   const maxJobs = Math.max(1, ...workerQueues.map((q) => q.completed + q.failed + q.active + q.waiting));
-  const nameCls = "font-semibold text-zinc-950 dark:text-zinc-100 text-[13px]";
-  const mutedCls = "text-[13px] text-zinc-500";
+  const nameCls = "font-semibold text-brand-950 dark:text-brand-100 text-[13px]";
+  const mutedCls = "text-[13px] text-brand-500";
 
   return (
-    <div className="rounded-[36px] bg-[#f3f3f1] dark:bg-zinc-950 p-4 sm:p-7 space-y-5 pb-10">
+    <div className="rounded-[36px] bg-canvas dark:bg-brand-950 p-4 sm:p-7 space-y-5 pb-10">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 text-red-600 border border-red-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider dark:bg-red-500/10 dark:border-red-900/40 dark:text-red-400">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-error-50 text-error-600 border border-error-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider dark:bg-error-500/10 dark:border-error-900/40 dark:text-error-400">
               <ShieldAlert size={12} /> Super Admin
             </span>
             <Pill tone={systemHealth?.status === "HEALTHY" ? "good" : "warn"}>
               {systemHealth?.status || "SYSTEMS OPERATIONAL"}
             </Pill>
           </div>
-          <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 dark:text-zinc-100">
+          <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-brand-950 dark:text-brand-100">
             Reigel Administration
           </h1>
-          <p className="mt-1.5 text-sm text-zinc-500 max-w-xl">
+          <p className="mt-1.5 text-sm text-brand-500 max-w-xl">
             Manage tenant workspaces, platform users, crawler worker queues, and AI model spend.
           </p>
         </div>
@@ -389,7 +389,7 @@ export default function AdminPage() {
 
       {/* Pill tabs */}
       <div className="overflow-x-auto">
-        <div className="inline-flex gap-1 rounded-full bg-white dark:bg-zinc-900 p-1.5 shadow-sm border border-black/[0.04] dark:border-white/[0.06]">
+        <div className="inline-flex gap-1 rounded-full bg-white dark:bg-brand-900 p-1.5 shadow-sm border border-black/[0.04] dark:border-white/[0.06]">
           {tabs.map((t) => {
             const Icon = t.icon;
             const on = activeTab === t.id;
@@ -400,8 +400,8 @@ export default function AdminPage() {
                 onClick={() => setActiveTab(t.id)}
                 className={`inline-flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold whitespace-nowrap transition-colors ${
                   on
-                    ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    ? "bg-brand-950 text-white dark:bg-white dark:text-brand-950"
+                    : "text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-brand-800"
                 }`}
               >
                 <Icon size={14} />
@@ -422,7 +422,7 @@ export default function AdminPage() {
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <HealthTile
-                icon={<Database size={15} className="text-emerald-500" />}
+                icon={<Database size={15} className="text-success-500" />}
                 name="PostgreSQL"
                 status={systemHealth?.database?.status || "CONNECTED"}
                 tone="good"
@@ -430,7 +430,7 @@ export default function AdminPage() {
                 meta={`Latency: ${systemHealth?.database?.latencyMs ?? 2}ms`}
               />
               <HealthTile
-                icon={<Server size={15} className="text-zinc-500" />}
+                icon={<Server size={15} className="text-brand-500" />}
                 name="Redis / BullMQ"
                 status={workersPaused ? "PAUSED" : "CONNECTED"}
                 tone={workersPaused ? "warn" : "good"}
@@ -438,7 +438,7 @@ export default function AdminPage() {
                 meta="Worker Queues: 2 Active"
               />
               <HealthTile
-                icon={<Cpu size={15} className="text-emerald-600" />}
+                icon={<Cpu size={15} className="text-success-600" />}
                 name="Crawler Cluster"
                 status="OPERATIONAL"
                 tone="good"
@@ -446,7 +446,7 @@ export default function AdminPage() {
                 meta="Pool Concurrency: 4 Workers"
               />
               <HealthTile
-                icon={<Zap size={15} className="text-amber-500" />}
+                icon={<Zap size={15} className="text-warning-500" />}
                 name="Multi-AI Router"
                 status="ROUTING"
                 tone="good"
@@ -457,7 +457,7 @@ export default function AdminPage() {
 
           <Card title="Queue Throughput" subtitle="Completed vs failed jobs per queue">
             {workerQueues.length === 0 ? (
-              <p className="text-xs text-zinc-500 py-8 text-center">No queue activity yet.</p>
+              <p className="text-xs text-brand-500 py-8 text-center">No queue activity yet.</p>
             ) : (
               <div className="flex items-end gap-4 h-44">
                 {workerQueues.map((q) => {
@@ -466,22 +466,22 @@ export default function AdminPage() {
                   const failPct = total ? (q.failed / total) * 100 : 0;
                   return (
                     <div key={q.name} className="flex-1 flex flex-col items-center justify-end gap-2 h-full min-w-0">
-                      <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-zinc-100" style={{ height: `${h}%` }}>
-                        <div className="bg-zinc-950 dark:bg-zinc-200" style={{ height: `${100 - failPct}%` }} />
+                      <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-brand-100" style={{ height: `${h}%` }}>
+                        <div className="bg-brand-950 dark:bg-brand-200" style={{ height: `${100 - failPct}%` }} />
                         <div
-                          className="bg-[repeating-linear-gradient(135deg,#10b981_0_4px,#34d399_4px_8px)]"
+                          className="bg-[repeating-linear-gradient(135deg,var(--color-success-500)_0_4px,var(--color-success-400)_4px_8px)]"
                           style={{ height: `${failPct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] text-zinc-500 truncate w-full text-center">{q.name}</span>
+                      <span className="text-[10px] text-brand-500 truncate w-full text-center">{q.name}</span>
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="mt-4 flex items-center gap-4 text-[11px] text-zinc-500">
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-zinc-950 dark:bg-zinc-200" />Completed</span>
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" />Failed</span>
+            <div className="mt-4 flex items-center gap-4 text-[11px] text-brand-500">
+              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-950 dark:bg-brand-200" />Completed</span>
+              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-success-500" />Failed</span>
             </div>
           </Card>
         </div>
@@ -522,7 +522,7 @@ export default function AdminPage() {
                     <Tr key={t.id}>
                       <Td>
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-zinc-950 text-white font-bold flex items-center justify-center text-xs dark:bg-white dark:text-zinc-950">
+                          <div className="h-9 w-9 rounded-full bg-brand-950 text-white font-bold flex items-center justify-center text-xs dark:bg-white dark:text-brand-950">
                             {t.name.slice(0, 2).toUpperCase()}
                           </div>
                           <span className={nameCls}>{t.name}</span>
@@ -534,10 +534,10 @@ export default function AdminPage() {
                         {t.tokens ? (
                           <span title={`${formatTokensExact(t.tokens.available)} available, ${formatTokensExact(t.tokens.monthly)} a month`}>
                             <span className={`${nameCls} font-mono`}>{formatTokens(t.tokens.available)}</span>{" "}
-                            <span className="text-[11px] text-zinc-400">of {formatTokens(t.tokens.monthly)}/mo</span>
+                            <span className="text-[11px] text-brand-400">of {formatTokens(t.tokens.monthly)}/mo</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-400" title="Opened the first time this workspace uses a feature that spends tokens">
+                          <span className="text-xs text-brand-400" title="Opened the first time this workspace uses a feature that spends tokens">
                             Not started
                           </span>
                         )}
@@ -548,13 +548,13 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() => setGrantTo(t)}
-                            className="h-8 rounded-full bg-zinc-950 px-3.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950"
+                            className="h-8 rounded-full bg-brand-950 px-3.5 text-xs font-semibold text-white hover:bg-brand-800 dark:bg-white dark:text-brand-950"
                           >
                             Add tokens
                           </button>
                           <Link
                             href="/clients"
-                            className="inline-flex h-8 items-center gap-1 rounded-full border border-black/10 dark:border-white/10 px-3.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                            className="inline-flex h-8 items-center gap-1 rounded-full border border-black/10 dark:border-white/10 px-3.5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-800"
                           >
                             Inspect <ArrowUpRight size={11} />
                           </Link>
@@ -564,7 +564,7 @@ export default function AdminPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={6} className="text-center py-8 text-xs text-zinc-500">
+                    <Td colSpan={6} className="text-center py-8 text-xs text-brand-500">
                       No organizations found matching search criteria.
                     </Td>
                   </Tr>
@@ -599,7 +599,7 @@ export default function AdminPage() {
                   <Tr key={u.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs dark:bg-emerald-500/15 dark:text-emerald-400">
+                        <div className="h-9 w-9 rounded-full bg-success-100 text-success-700 font-bold flex items-center justify-center text-xs dark:bg-success-500/15 dark:text-success-400">
                           {u.name.slice(0, 2).toUpperCase()}
                         </div>
                         <span className={nameCls}>{u.name}</span>
@@ -616,7 +616,7 @@ export default function AdminPage() {
                 ))
               ) : (
                 <Tr>
-                  <Td colSpan={6} className="text-center py-8 text-xs text-zinc-500">
+                  <Td colSpan={6} className="text-center py-8 text-xs text-brand-500">
                     No registered users matching search.
                   </Td>
                 </Tr>
@@ -655,15 +655,15 @@ export default function AdminPage() {
                 <Tr key={q.name}>
                   <Td>
                     <div className={`flex items-center gap-2 font-mono ${nameCls}`}>
-                      <Server size={13} className="text-zinc-400" />
+                      <Server size={13} className="text-brand-400" />
                       {q.name}
                     </div>
                   </Td>
                   <Td align="right"><span className={`font-mono ${nameCls}`}>{q.active}</span></Td>
                   <Td align="right"><span className={`font-mono ${mutedCls}`}>{q.waiting}</span></Td>
-                  <Td align="right"><span className="font-mono text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">{q.completed}</span></Td>
+                  <Td align="right"><span className="font-mono text-[13px] font-semibold text-success-600 dark:text-success-400">{q.completed}</span></Td>
                   <Td align="right">
-                    <span className={`font-mono text-[13px] font-semibold ${q.failed > 0 ? "text-red-500" : "text-zinc-400"}`}>{q.failed}</span>
+                    <span className={`font-mono text-[13px] font-semibold ${q.failed > 0 ? "text-error-500" : "text-brand-400"}`}>{q.failed}</span>
                   </Td>
                   <Td align="right">
                     <Pill tone={workersPaused ? "warn" : q.failed > 0 ? "bad" : "good"}>
@@ -697,15 +697,15 @@ export default function AdminPage() {
                     <Tr key={c.service}>
                       <Td>
                         <div className={`flex items-center gap-2 ${nameCls}`}>
-                          <span className="h-7 w-7 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
-                            <Zap size={13} className="text-amber-500" />
+                          <span className="h-7 w-7 rounded-full bg-warning-50 dark:bg-warning-500/10 flex items-center justify-center">
+                            <Zap size={13} className="text-warning-500" />
                           </span>
                           {c.service}
                         </div>
                       </Td>
                       <Td align="right"><span className={`font-mono ${mutedCls}`}>{c.tokens}</span></Td>
                       <Td align="right">
-                        <span className="font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">${c.cost.toFixed(4)}</span>
+                        <span className="font-mono text-[13px] font-bold text-success-600 dark:text-success-400">${c.cost.toFixed(4)}</span>
                       </Td>
                       <Td align="right"><Pill tone="info">PRIMARY</Pill></Td>
                       <Td align="right"><Pill tone="good">ACTIVE</Pill></Td>
@@ -713,7 +713,7 @@ export default function AdminPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={5} className="text-center py-8 text-xs text-zinc-500">
+                    <Td colSpan={5} className="text-center py-8 text-xs text-brand-500">
                       No billable AI runs logged yet. Market research and content intelligence runs record usage here.
                     </Td>
                   </Tr>
@@ -743,7 +743,7 @@ export default function AdminPage() {
             </PillButton>
           }
         >
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <div className="divide-y divide-brand-100 dark:divide-brand-800">
             {[
               {
                 key: "localSeoModule" as const,
@@ -759,7 +759,7 @@ export default function AdminPage() {
               <div key={f.key} className="py-4 flex items-center justify-between gap-4">
                 <div>
                   <span className={`${nameCls} block`}>{f.title}</span>
-                  <p className="text-xs text-zinc-500 mt-0.5">{f.desc}</p>
+                  <p className="text-xs text-brand-500 mt-0.5">{f.desc}</p>
                 </div>
                 <Toggle
                   checked={featureFlags[f.key]}
@@ -770,12 +770,12 @@ export default function AdminPage() {
             <div className="py-4 flex items-center justify-between gap-4">
               <div>
                 <span className={`${nameCls} block`}>Max Crawler Concurrency Workers</span>
-                <p className="text-xs text-zinc-500 mt-0.5">Maximum simultaneous headless browser instances per tenant crawl run.</p>
+                <p className="text-xs text-brand-500 mt-0.5">Maximum simultaneous headless browser instances per tenant crawl run.</p>
               </div>
               <select
                 value={featureFlags.maxCrawlConcurrency}
                 onChange={(e) => setFeatureFlags({ ...featureFlags, maxCrawlConcurrency: Number(e.target.value) })}
-                className="h-10 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 px-4 text-[13px] text-zinc-900 dark:text-zinc-100"
+                className="h-10 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-brand-900 px-4 text-[13px] text-brand-900 dark:text-brand-100"
               >
                 {[1, 2, 3, 4, 6, 8, 10].map((c) => (
                   <option key={c} value={c}>{c} Workers</option>
