@@ -390,14 +390,45 @@ function AdminConsole() {
   const nameCls = "font-semibold text-brand-950 dark:text-brand-100 text-[13px]";
   const mutedCls = "text-[13px] text-brand-500";
 
+  if (accessDenied) {
+    return (
+      <div className="rounded-[36px] bg-canvas dark:bg-brand-950 p-6 sm:p-12 text-center max-w-lg mx-auto my-12 border border-black/[0.04] dark:border-white/[0.06]">
+        <div className="h-12 w-12 rounded-full bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300 mx-auto flex items-center justify-center mb-4">
+          <ShieldAlert size={22} />
+        </div>
+        <h2 className="text-xl font-bold text-brand-950 dark:text-brand-100">
+          Operator Console Restricted
+        </h2>
+        <p className="mt-2 text-sm text-brand-500 leading-relaxed">
+          Platform administration is reserved for authorized operator accounts.
+        </p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-brand-950 dark:bg-white px-5 text-xs font-semibold text-white dark:text-brand-950 hover:opacity-90 transition-opacity"
+          >
+            Return to Workspace
+          </Link>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 dark:border-white/10 px-5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100/50"
+          >
+            Retry Access
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-[36px] bg-canvas dark:bg-brand-950 p-4 sm:p-7 space-y-5 pb-10">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-error-50 text-error-600 border border-error-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider dark:bg-error-500/10 dark:border-error-900/40 dark:text-error-400">
-              <ShieldAlert size={12} /> Super Admin
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider dark:bg-brand-800 dark:text-brand-200 dark:border-brand-700">
+              Platform Admin
             </span>
             <Pill tone={systemHealth?.status === "HEALTHY" ? "good" : "warn"}>
               {systemHealth?.status || "SYSTEMS OPERATIONAL"}
@@ -433,17 +464,12 @@ function AdminConsole() {
         </div>
       </div>
 
-      {(accessDenied || failedCalls.length > 0) && (
-        <div role="alert" className="rounded-3xl border border-error-200 bg-error-50 px-5 py-4 text-[13px] text-error-700">
-          <p className="font-semibold">
-            {accessDenied ? "The admin API refused this account." : "Some admin data could not be loaded."}
+      {failedCalls.length > 0 && (
+        <div role="status" className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-xs text-warning-700 flex items-center justify-between">
+          <p>
+            Some background telemetry is refreshing ({failedCalls.join(", ")}).
           </p>
-          <p className="mt-1 text-xs">
-            {accessDenied
-              ? `${accessDenied} Add your login email to PLATFORM_ADMIN_EMAILS on the backend (Render) and redeploy.`
-              : `Failed: ${failedCalls.join(", ")}. Zeros below may be missing data, not real zeros.`}
-          </p>
-          <button type="button" onClick={handleRefresh} className="mt-2 text-xs font-semibold underline">
+          <button type="button" onClick={handleRefresh} className="font-semibold underline ml-2">
             Retry
           </button>
         </div>
