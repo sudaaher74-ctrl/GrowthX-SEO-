@@ -391,10 +391,10 @@ export class OpportunityDetectionService {
         source: 'WEBSITE',
         category: 'CONTENT',
         title: 'Build client case studies & portfolio pages with measurable outcomes',
-        summary: 'Case studies demonstrate E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness) and drastically improve visitor conversion rates.',
+        summary: 'No structured case studies were found in the inspected pages. Publishing verified customer outcomes is a proposed content improvement; conversion impact has not been measured.',
         evidence: [
           { label: 'Current Coverage', value: 'No structured case studies or customer success stories found', source: 'Website Crawl Audit' },
-          { label: 'Conversion Impact', value: 'Social proof and project breakdowns increase conversion rates by over 30%', source: 'Industry Benchmark' },
+          { label: 'Measurement status', value: 'Project-specific conversion lift has not been measured.', source: 'Data availability' },
         ],
         recommendedAction: 'Publish detailed case studies highlighting client challenges, implemented solutions, and tangible results.',
         potential: 'HIGH',
@@ -431,7 +431,7 @@ export class OpportunityDetectionService {
         summary: `Your Google Business Profile has ${gbpProposals.length} pending optimizations to improve 3-pack local map rankings.`,
         evidence: [
           { label: 'Pending Fixes', value: `${gbpProposals.length} proposals ready to apply`, source: 'GBP Audit Engine' },
-          { label: 'Local Visibility', value: 'Complete GBP profiles receive 7x more clicks and direction requests', source: 'Google Local Insights' },
+          { label: 'Measurement status', value: 'Project-specific profile click lift has not been measured.', source: 'Data availability' },
         ],
         recommendedAction: 'Review and apply recommended GBP category, business hours, and description optimizations.',
         potential: 'HIGH',
@@ -520,7 +520,7 @@ export class OpportunityDetectionService {
       title: 'Deploy high-converting lead capture widgets (Instant Quote / WhatsApp Direct)',
       summary: 'Turning organic and search visitors into booked consultations requires frictionless, immediate call-to-action touchpoints.',
       evidence: [
-        { label: 'Conversion Factor', value: 'Direct chat/quote buttons increase lead conversion rate by 2.4x over standard static contact forms', source: 'CRO Benchmark Data' },
+        { label: 'Measurement status', value: 'Project-specific lead conversion lift has not been measured.', source: 'Data availability' },
       ],
       recommendedAction: 'Add a sticky "Get Free Consultation" floating action button and an interactive cost estimator on primary service landing pages.',
       potential: 'HIGH',

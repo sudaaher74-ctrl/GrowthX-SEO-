@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { measuredFinding } from './finding-evidence';
 
 /**
  * Reading and acting on the unified opportunity list.
@@ -48,7 +49,7 @@ export class OpportunitiesService {
     return {
       total,
       byCategory: Object.fromEntries(byCategory.map((row) => [row.category, row._count._all])),
-      opportunities,
+      opportunities: opportunities.map(measuredFinding),
     };
   }
 
