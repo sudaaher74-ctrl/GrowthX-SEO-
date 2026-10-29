@@ -103,6 +103,7 @@ describe('EngineerAgentService', () => {
   });
 
   it('executes the existing low-risk pipeline in the worker using the same reserved run', async () => {
+    prisma.automationRun.updateMany.mockResolvedValue({ count: 1 });
     prisma.automationRun.findUnique = jest.fn().mockResolvedValue({ id: 'queued', projectId: 'proj_1', status: 'PENDING', repository: REPO, steps: [{ step: 'engineer_request', request: { organizationId: 'org_1', operation: { type: 'approved_fixes', ids: ['issue'] } } }] });
     prisma.project = { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org_1' }) };
     const automation = { runFixes: jest.fn().mockResolvedValue({ id: 'queued', status: 'AWAITING_REVIEW' }) };
