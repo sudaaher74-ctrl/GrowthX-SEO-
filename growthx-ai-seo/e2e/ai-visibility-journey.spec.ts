@@ -404,9 +404,11 @@ test("saves a review task only after the server acknowledges it and allows retry
   data.answers = [{id:'observed-rival',provider:'GEMINI',model:'fixture-gemini',promptText:data.journey!.brief!.questions[0].text,rawResponse:'Local Dairy is one option.',errorMessage:null,createdAt:'2026-10-14T10:05:00Z',analysis:{brandMentioned:false,recommended:false},mentions:[{brandName:'Local Dairy',isCustomer:false}],citations:[]}];
   await setup(page,data);
   let attempts = 0;
+  const submittedIds: string[] = [];
   let saved: Record<string,unknown> | null = null;
   await page.route(`${API_BASE}/api/projects/project_test/saved-plans`,async route => {
     attempts++;
+    submittedIds.push(route.request().postDataJSON().id);
     if (attempts === 1) return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Storage unavailable'})});
     saved = route.request().postDataJSON();
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(saved)});
@@ -421,6 +423,7 @@ test("saves a review task only after the server acknowledges it and allows retry
   await dialog.getByRole('button',{name:'Send review task to Fix Engine',exact:true}).click();
   await expect(page.getByText('Review task saved to Fix Engine.',{exact:true})).toBeVisible();
   expect(attempts).toBe(2);
+  expect(submittedIds[0]).toBe(submittedIds[1]);
   expect(saved).toMatchObject({source:'AI_VISIBILITY',status:'STAGED'});
   expect(String(saved!['deliverable'])).toContain('Website address: Not verified');
   expect(String(saved!['deliverable'])).not.toContain('localdairy.com');

@@ -487,6 +487,7 @@ function PromptsSection({
   const [filterCategory, setFilterCategory] = useState<PromptCategory | "ALL">("ALL");
   const [cmoToast, setCmoToast] = useState<string | null>(null);
   const [activePlanGap, setActivePlanGap] = useState<{
+    id: string;
     comp: { domain: string; name: string; count: number };
     promptText: string;
     priority: string;
@@ -1249,6 +1250,7 @@ function PromptsSection({
                           icon={<Sparkles size={14} className="text-primary-600" />}
                           onClick={() => {
                             setActivePlanGap({
+                              id: crypto.randomUUID(),
                               comp,
                               promptText: item.promptText,
                               priority: item.priority,
@@ -1277,7 +1279,7 @@ function PromptsSection({
           onClose={() => setActivePlanGap(null)}
           onSaveToFixEngine={async (plan) => {
             await api.savedPlans.save(projectId, {
-              id: crypto.randomUUID(), projectId,
+              id: activePlanGap.id, projectId,
               title: `Review ${activePlanGap.comp.name} for ${activePlanGap.promptText}`,
               category: "CONTENT", source: "AI_VISIBILITY",
               priority: activePlanGap.priority === "High" ? "HIGH" : "MEDIUM",
