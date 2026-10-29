@@ -424,6 +424,8 @@ function getEngineCitation(
     };
   }
 
+  if (!matchingAnswer.rawResponse?.trim()) return { engine, status: "pending", label: "No saved answer" };
+
   if (matchingAnswer.analysis?.recommended) {
     return {
       engine,
@@ -454,7 +456,7 @@ function getEngineCitation(
   return {
     engine,
     status: "not_cited",
-    label: matchingAnswer.analysis?.brandMentioned ? "Mentioned only" : "Not cited in answer",
+    label: matchingAnswer.analysis?.brandMentioned ? "Mentioned only" : "Not mentioned in answer",
     quote: matchingAnswer.analysis?.parsedJson?.recommendationQuote || null,
   };
 }
@@ -771,7 +773,7 @@ function PromptsSection({
               <p className="text-xs text-brand-500">
                 {isEditing
                   ? "Edits are included when you confirm the next check."
-                  : "Who each AI engine cites. Open a row for the answer."}
+                  : "Saved answer references from each AI engine. Open a row for details."}
               </p>
             </div>
           </div>
@@ -927,12 +929,12 @@ function PromptsSection({
                                   title={`${engine.name}: Recommended your business`}
                                 >
                                   <Check size={11} className="stroke-[2.5]" />
-                                  <span>Cited</span>
+                                  <span>Recommended</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
                                   className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Cited instead: ${c.competitor}`}
+                                  title={`Other reference: ${c.competitor}`}
                                 >
                                   <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
                                   <span className="truncate">{c.competitor || "Rival"}</span>
@@ -1012,12 +1014,12 @@ function PromptsSection({
                                   title={`${engine.name}: Recommended your business`}
                                 >
                                   <Check size={11} className="stroke-[2.5]" />
-                                  <span>Cited</span>
+                                  <span>Recommended</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
                                   className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Cited instead: ${c.competitor}`}
+                                  title={`Other reference: ${c.competitor}`}
                                 >
                                   <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
                                   <span className="truncate">{c.competitor || "Rival"}</span>
@@ -1052,11 +1054,11 @@ function PromptsSection({
                                     </div>
                                     {c.status === "recommended" ? (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400">
-                                        <Check size={11} className="stroke-[2.5]" /> Cited
+                                        <Check size={11} className="stroke-[2.5]" /> Recommended
                                       </span>
                                     ) : c.status === "competitor" ? (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-semibold text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300">
-                                        <ArrowRightLeft size={10} /> Rival cited
+                                        <ArrowRightLeft size={10} /> Rival reference
                                       </span>
                                     ) : c.status === "pending" ? (
                                       <span className="rounded-full border border-brand-200/60 bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-500 dark:border-brand-800 dark:bg-brand-800 dark:text-brand-400">
@@ -1064,7 +1066,7 @@ function PromptsSection({
                                       </span>
                                     ) : (
                                       <span className="rounded-full border border-brand-200/60 bg-brand-100/70 px-2 py-0.5 text-[11px] font-medium text-brand-400 dark:border-brand-800 dark:bg-brand-800/60 dark:text-brand-400">
-                                        {c.label === "Check failed" ? "Check failed" : "Not cited"}
+                                        {c.label === "Check failed" ? "Check failed" : "Not mentioned"}
                                       </span>
                                     )}
                                   </div>
@@ -1073,7 +1075,7 @@ function PromptsSection({
                                     <div className="rounded-lg border border-warning-500/20 bg-warning-500/5 p-2.5 dark:border-warning-400/20 dark:bg-warning-400/5">
                                       <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-warning-700 dark:text-warning-400">
                                         <ArrowRightLeft size={10} />
-                                        <span>Cited Instead</span>
+                                        <span>Other reference</span>
                                       </div>
                                       <p className="mt-1 text-xs font-bold text-brand-950 dark:text-brand-100 break-words" title={c.competitor}>
                                         {c.competitor}
@@ -1148,7 +1150,7 @@ function PromptsSection({
             <div>
               <h3 className="text-sm font-bold text-brand-950">Gap tasks</h3>
               <p className="text-xs text-brand-500">
-                {gapItems.length} prompts where a competitor is cited and you aren’t · {highPriorityGapsCount} high priority · {totalActionsCount} actions
+                {gapItems.length} prompts with other brand or source references · {highPriorityGapsCount} high priority · {totalActionsCount} review candidates
               </p>
             </div>
           </div>
@@ -1157,7 +1159,7 @@ function PromptsSection({
         {/* Table column headers */}
         <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
           <div className="flex-1">Prompt</div>
-          <div className="w-36 text-center sm:w-48">Cited instead</div>
+          <div className="w-36 text-center sm:w-48">Other references</div>
           <div className="w-20 text-center sm:w-28">Gap</div>
           <div className="w-20 text-right sm:w-24">Priority</div>
         </div>
