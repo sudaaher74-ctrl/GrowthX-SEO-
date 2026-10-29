@@ -1134,6 +1134,7 @@ export const api = {
   getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
   getAdminSystemHealth: () => get<AdminSystemHealth>("/api/admin/system-health"),
   getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
+  getAdminStats: () => get<{ tenants: number; users: number; projects: number }>("/api/admin/stats"),
   pauseAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/pause", {}),
   resumeAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/resume", {}),
   retryAdminFailedJobs: () => post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", {}),

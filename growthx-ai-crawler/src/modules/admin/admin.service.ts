@@ -195,6 +195,20 @@ export class AdminService {
     };
   }
 
+  /**
+   * Platform totals. The users list is capped at 100 rows for the table, so the
+   * headline numbers cannot be derived from its length once the platform grows
+   * past that.
+   */
+  async getStats() {
+    const [tenants, users, projects] = await Promise.all([
+      this.prisma.organization.count(),
+      this.prisma.user.count(),
+      this.prisma.project.count(),
+    ]);
+    return { tenants, users, projects };
+  }
+
   async getUsers() {
     const users = await this.prisma.user.findMany({
       include: {

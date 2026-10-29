@@ -1,8 +1,10 @@
 "use client";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
+import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { AdminTopNav } from "@/components/layout/admin-topnav";
 import { auth, renewSession, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
@@ -29,6 +31,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   });
   const router = useRouter();
+  // The super-admin console has its own navigation; the customer sidebar
+  // (workspace, audit workflow, tokens) does not apply to it.
+  const isAdmin = usePathname().startsWith("/admin");
   const { isDark } = useTheme();
 
   const toggleCollapsed = () => {
@@ -89,17 +94,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       >
         {/* The sidebar navigation */}
         <Suspense fallback={null}>
-          <Sidebar
-            collapsed={collapsed}
-            mobileOpen={mobileOpen}
-            setMobileOpen={setMobileOpen}
-          />
+          {isAdmin ? (
+            <AdminSidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+          ) : (
+            <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+          )}
         </Suspense>
-        <TopNav
-          collapsed={collapsed}
-          onToggleCollapse={() => toggleCollapsed()}
-          setMobileOpen={setMobileOpen}
-        />
+        <Suspense fallback={null}>
+          {isAdmin ? (
+            <AdminTopNav
+              collapsed={collapsed}
+              onToggleCollapse={() => toggleCollapsed()}
+              setMobileOpen={setMobileOpen}
+            />
+          ) : (
+            <TopNav
+              collapsed={collapsed}
+              onToggleCollapse={() => toggleCollapsed()}
+              setMobileOpen={setMobileOpen}
+            />
+          )}
+        </Suspense>
         {/* 232px sidebar + 52px header */}
         <main
           className={cn(
@@ -108,7 +123,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
-            <TokenBanner />
+            {!isAdmin && <TokenBanner />}
             {children}
           </div>
         </main>

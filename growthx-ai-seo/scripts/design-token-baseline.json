@@ -1,5 +1,4 @@
 {
-  "app/(dashboard)/admin/page.tsx": 20,
   "app/(dashboard)/error.tsx": 11,
   "app/(dashboard)/website/page.tsx": 27,
   "app/auth/callback/page.tsx": 11,
