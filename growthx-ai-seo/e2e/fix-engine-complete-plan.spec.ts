@@ -40,3 +40,38 @@ test('four-module plan and PDF report include the final findings page and eviden
   await expect(page.getByText('Answer buyer questions', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
 });
+
+test('saved proposals reach the engineer without becoming fabricated detector findings', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('growthx.session','1');
+    localStorage.setItem('growthx.org','org_test');
+    localStorage.setItem('growthx.project','project_test');
+  });
+  let engineerRequests = 0;
+  const task = {id:'saved-review',projectId:'project_test',title:'Review a recorded competitor source',source:'AI_VISIBILITY',category:'CONTENT',priority:'MEDIUM',impact:'Not measured',effortHours:0,deliverable:'Inspect the saved answer and compare actual source pages before proposing an edit.',evidence:'One saved answer reference; website address not verified.',status:'STAGED',stagedAt:'2026-10-29T00:00:00Z'};
+  await page.route(`${API_BASE}/**`,async route => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body:unknown) => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+    if(path === '/auth/me') return json({id:'user_test',role:'OWNER',firstName:'Test'});
+    if(path === '/organizations') return json([{id:'org_test',name:'Test',slug:'test'}]);
+    if(path === '/projects/org/org_test') return json([{id:'project_test',name:'Test'}]);
+    if(path.endsWith('/saved-plans')) return json([task]);
+    if(path.endsWith('/findings/sync')) return json({created:0,updated:0,resolved:0,warnings:[]});
+    if(path.endsWith('/findings')) return json({items:[],nextCursor:null,counts:{total:0,bySource:{},byFixClass:{}}});
+    if(path.endsWith('/engineer') && route.request().method()==='POST') engineerRequests++;
+    if(path.endsWith('/runs') || path.endsWith('/ledger') || path.endsWith('/history')) return json([]);
+    if(path.endsWith('/repo')) return json(null);
+    return json({});
+  });
+  await page.goto('/fix-engine');
+  await expect(page.getByRole('heading',{name:'Saved improvement tasks (1)',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:task.title,exact:true})).toBeVisible();
+  await expect(page.getByText('Build foundational niche backlinks and partner citations',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Balance inbound anchor text distribution with brand-first anchors',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Use in GitHub Engineer',exact:true}).click();
+  const instruction = page.getByRole('textbox',{name:'Custom instruction for the GitHub Engineer',exact:true});
+  await expect(instruction).toHaveValue(new RegExp(task.title));
+  await expect(instruction).toHaveValue(/Inspect the saved answer/);
+  expect((await instruction.inputValue()).length).toBeLessThanOrEqual(2000);
+  expect(engineerRequests).toBe(0);
+});
