@@ -288,7 +288,7 @@ export function GitHubFixesLogView({
 
   // Flatten all GitHub PR file/page changes with run context
   const prChanges = useMemo(() => {
-    const fromReports = changeReports.flatMap((report: FixChangeReport) =>
+    const fromReports = changeReports.filter((report) => Boolean(report.pullRequestUrl)).flatMap((report: FixChangeReport) =>
       report.changes.map((ch, idx) => {
         const matchedFinding = allFindings.find(
           (f) =>
@@ -333,7 +333,7 @@ export function GitHubFixesLogView({
 
     const runIdsWithChanges = new Set(fromReports.map((c) => c.runId));
     const fromEngineerRuns = runs
-      .filter((r) => !runIdsWithChanges.has(r.id) && (r.filesChanged.length > 0 || r.steps.length > 0))
+      .filter((r) => Boolean(r.pullRequestUrl) && !runIdsWithChanges.has(r.id) && (r.filesChanged.length > 0 || r.steps.length > 0))
       .map((r) => {
         const ctx = resolveRunContext(r, allFindings);
         const matchedFinding = ctx.matchedFindings[0];

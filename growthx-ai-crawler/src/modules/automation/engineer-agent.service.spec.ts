@@ -4,12 +4,20 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { AutomationRunStatus } from '@prisma/client';
-import { EngineerAgentService, parseAction } from './engineer-agent.service';
+import { EngineerAgentService, isUsableAction, parseAction } from './engineer-agent.service';
 
 const REPO = { id: 'repo_1', projectId: 'proj_1', owner: 'acme', name: 'site', defaultBranch: 'main', framework: 'nextjs', accessTokenEncrypted: 'enc' };
 const act = (a: object) => ({ text: JSON.stringify(a), refused: false });
 
 describe('parseAction', () => {
+  it('rejects truncated and incomplete edit/create arguments before provider acceptance', () => {
+    expect(isUsableAction('{"tool":"edit","path":"page.jsx","old":"before","new":"after')).toBe(false);
+    expect(isUsableAction('{"tool":"edit","path":"page.jsx","summary":"I will change it"}')).toBe(false);
+    expect(isUsableAction('{"tool":"create","path":"page.jsx"}')).toBe(false);
+    expect(isUsableAction('{"tool":"create","path":"page.jsx","content":""}')).toBe(false);
+    expect(isUsableAction('{"tool":"edit","path":"page.jsx","old":"before","new":"after"}')).toBe(true);
+    expect(isUsableAction('{"tool":"edit","path":"page.jsx","old":"before","new":""}')).toBe(true);
+  });
   it('reads JSON from a reply with fences and chatter', () => {
     expect(parseAction('Sure!\n```json\n{"tool":"list","path":"src"}\n```')).toEqual({ tool: 'list', path: 'src' });
   });
