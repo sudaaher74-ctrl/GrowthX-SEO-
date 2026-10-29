@@ -104,6 +104,9 @@ describe('no fabricated client data', () => {
       // Reviewed geographic lookup vocabulary, not a default client market or metric.
       // Keep this exception to the exact registry line rather than exempting the service.
       .filter((line) => !/search-intelligence\/google-report\.service\.ts:\d+:\s*'Mumbai', 'Navi Mumbai', 'Thane', 'Pune', 'Nashik', 'Nagpur', 'Aurangabad', 'Chhatrapati Sambhajinagar',\s*$/.test(line))
+      // The existing operator bootstrap identity is authorization policy, not
+      // generated customer content. Exempt only these two exact guard lines.
+      .filter((line) => !/modules\/admin\/platform-admin\.guard\.ts:\d+:\s*(if \(!list\.includes\('milquufresh@gmail\.com'\)\) \{|list\.push\('milquufresh@gmail\.com'\);)\s*$/.test(line))
       .filter((line) => !KNOWN_UNFIXED.some((file) => line.includes(file)));
 
     expect(offenders).toEqual([]);
