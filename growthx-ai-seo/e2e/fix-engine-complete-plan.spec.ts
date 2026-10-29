@@ -61,7 +61,7 @@ test('saved proposals reach the engineer without becoming fabricated detector fi
     if(path.endsWith('/engineer') && route.request().method()==='POST') engineerRequests++;
     if(path.endsWith('/runs') || path.endsWith('/ledger') || path.endsWith('/history')) return json([]);
     if(path.endsWith('/repo')) return json(null);
-    return json({});
+    return json(null);
   });
   await page.goto('/fix-engine');
   await expect(page.getByRole('heading',{name:'Saved improvement tasks (1)',exact:true})).toBeVisible();
