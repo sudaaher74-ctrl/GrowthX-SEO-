@@ -100,7 +100,7 @@ test("the Google entry route uses the authoritative unconnected overview", async
 
   await page.goto("/google", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/google$/);
-  await expect(page.getByRole("heading", {name:"Google performance center"})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Traffic",exact:true})).toBeVisible();
   await expect(page.getByText("81.5%", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Direct", { exact: true })).toHaveCount(0);
 });

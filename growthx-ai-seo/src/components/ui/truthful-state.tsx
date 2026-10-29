@@ -4,7 +4,6 @@ import Link from "next/link";
 import { AlertCircle, Database, Info, Loader2, PlugZap, RefreshCw, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type MetricState = "MEASURED" | "ESTIMATED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "NOT_CONNECTED";
 
 interface StateAction {
   label: string;
@@ -251,44 +250,5 @@ export function FailedState({
       )}
     </div>
   );
-}
-
-/** Metric truthfulness badge */
-export function MetricBadge({ state }: { state: MetricState }) {
-  switch (state) {
-    case "MEASURED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Measured
-        </span>
-      );
-    case "ESTIMATED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-          Estimated
-        </span>
-      );
-    case "NOT_CONFIGURED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-brand-100 text-brand-600 border border-brand-200">
-          Not Configured
-        </span>
-      );
-    case "NOT_CONNECTED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-          Not Connected
-        </span>
-      );
-    case "UNAVAILABLE":
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-brand-100 text-brand-500 border border-brand-200">
-          Unavailable
-        </span>
-      );
-  }
 }
 

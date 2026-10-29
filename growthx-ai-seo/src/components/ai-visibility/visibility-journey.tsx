@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
-import { visibilityJourneyApi } from "@/lib/api-client";
+import { api, visibilityJourneyApi } from "@/lib/api-client";
 import {
   journeyRunning,
   providerName,
@@ -76,7 +76,6 @@ function Journey({ projectId }: { projectId: string }) {
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
   const error = prepare.error || check.error;
-  const hasPlan = Boolean(run?.analysis?.length);
 
   return <div className="space-y-5 pb-12">
     <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
@@ -106,6 +105,7 @@ function Journey({ projectId }: { projectId: string }) {
         {tab === "review" && <>
           {run.brief ? (
             <PromptsSection
+              projectId={projectId}
               key={`${run.id}-${run.updatedAt}`}
               brief={run.brief}
               locked={busy || !!run.scanId}
@@ -113,8 +113,6 @@ function Journey({ projectId }: { projectId: string }) {
               pending={check.isPending}
               onRun={(brief) => check.mutate({ id: run.id, brief })}
               answers={data?.answers ?? []}
-              providers={data?.providers ?? []}
-              analysis={run.analysis ?? []}
               hasScan={!!run.scanId}
             />
           ) : (
@@ -122,6 +120,10 @@ function Journey({ projectId }: { projectId: string }) {
               <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
             </Panel>
           )}
+        </>}
+        {tab === "review" && data && data.answers.length > 0 && <>
+          <AnswerResults data={data} />
+          <GapResults data={data} />
         </>}
         {tab === "plan" && data && <>
           <Panel padded title="Your next steps" subtitle="Prioritized actions based on your website evidence and the AI answers we saved."><p className="text-xs text-brand-500">Review the supporting evidence for each action. Changes can be prepared in Fix Engine.</p></Panel>
@@ -422,6 +424,8 @@ function getEngineCitation(
     };
   }
 
+  if (!matchingAnswer.rawResponse?.trim()) return { engine, status: "pending", label: "No saved answer" };
+
   if (matchingAnswer.analysis?.recommended) {
     return {
       engine,
@@ -452,31 +456,29 @@ function getEngineCitation(
   return {
     engine,
     status: "not_cited",
-    label: matchingAnswer.analysis?.brandMentioned ? "Mentioned only" : "Not cited in answer",
+    label: matchingAnswer.analysis?.brandMentioned ? "Mentioned only" : "Not mentioned in answer",
     quote: matchingAnswer.analysis?.parsedJson?.recommendationQuote || null,
   };
 }
 
-export function PromptsSection({
+function PromptsSection({
+  projectId,
   brief,
   locked,
   checks,
   pending,
   onRun,
   answers = [],
-  providers = [],
-  analysis = [],
   hasScan,
   onViewResults,
 }: {
+  projectId: string;
   brief: VisibilityBrief;
   locked: boolean;
   checks: number;
   pending: boolean;
   onRun: (brief: VisibilityBrief) => void;
   answers?: VisibilityAnswer[];
-  providers?: { provider: string; configured: boolean; model: string | null; unavailableReason?: string | null }[];
-  analysis?: VisibilityAssessment[];
   hasScan?: boolean;
   onViewResults?: () => void;
 }) {
@@ -487,6 +489,7 @@ export function PromptsSection({
   const [filterCategory, setFilterCategory] = useState<PromptCategory | "ALL">("ALL");
   const [cmoToast, setCmoToast] = useState<string | null>(null);
   const [activePlanGap, setActivePlanGap] = useState<{
+    id: string;
     comp: { domain: string; name: string; count: number };
     promptText: string;
     priority: string;
@@ -508,7 +511,7 @@ export function PromptsSection({
       (q) => categorizePrompt(q, draft.businessName) === cat.key,
     );
     const answersForCat = answers.filter((a) =>
-      promptsInCat.some((q) => matchPrompt(q.text, a.promptText)),
+      !a.errorMessage && !!a.rawResponse?.trim() && !!a.analysis && promptsInCat.some((q) => matchPrompt(q.text, a.promptText)),
     );
 
     const total = answersForCat.length;
@@ -516,11 +519,11 @@ export function PromptsSection({
       (a) => a.analysis?.recommended || a.analysis?.brandMentioned,
     ).length;
 
-    const pct = total > 0 ? Math.round((cited / total) * 100) : 0;
+    const pct = total > 0 ? Math.round((cited / total) * 100) : null;
     const subtext =
       total > 0
-        ? `cited in ${cited} of ${total} answers`
-        : `cited in 0 of ${promptsInCat.length * (providers.filter((p) => p.configured).length || 2)} answers`;
+        ? `mentioned in ${cited} of ${total} measured answers`
+        : "Not measured — no successfully classified answers";
 
     return {
       ...cat,
@@ -566,43 +569,33 @@ export function PromptsSection({
 
   // Check answers first
   for (const q of draft.questions) {
-    const qAnswers = answers.filter((a) => matchPrompt(q.text, a.promptText));
-    const competitorsCited = new Map<string, number>();
+    const qAnswers = answers.filter((a) => !a.errorMessage && !!a.rawResponse?.trim() && matchPrompt(q.text, a.promptText));
+    const competitorsCited = new Map<string, { count: number; domain: string }>();
 
     for (const a of qAnswers) {
       if (!a.analysis?.recommended) {
         for (const m of a.mentions || []) {
           if (!m.isCustomer && m.brandName) {
-            competitorsCited.set(m.brandName, (competitorsCited.get(m.brandName) || 0) + 1);
+            const existing = competitorsCited.get(m.brandName);
+            competitorsCited.set(m.brandName, { count: (existing?.count ?? 0) + 1, domain: existing?.domain ?? "" });
           }
         }
         for (const c of a.citations || []) {
           const dom = c.domain?.toLowerCase() || "";
           const bClean = draft.businessName.toLowerCase().replace(/[^a-z0-9]/g, "");
           if (dom && !dom.includes(bClean)) {
-            competitorsCited.set(dom, (competitorsCited.get(dom) || 0) + 1);
+            competitorsCited.set(dom, { count: (competitorsCited.get(dom)?.count ?? 0) + 1, domain: dom });
           }
         }
       }
     }
 
-    // Also check analysis gaps if available
-    for (const item of analysis) {
-      for (const gap of item.gaps || []) {
-        if (gap.competitor && matchPrompt(q.text, gap.observation || "")) {
-          competitorsCited.set(gap.competitor, (competitorsCited.get(gap.competitor) || 0) + 1);
-        }
-      }
-    }
-
     if (competitorsCited.size > 0) {
-      const topCompetitors = [...competitorsCited.entries()].map(([name, count]) => {
-        const domain = name.includes(".") ? name : `${name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
-        return { name, domain, count };
-      });
+      // Only a saved citation supplies a website address, even for dotted brand names.
+      const topCompetitors = [...competitorsCited.entries()].map(([name, evidence]) => ({ name, ...evidence }));
       const display = topCompetitors.length > 1
-        ? `${topCompetitors[0].domain} +${topCompetitors.length - 1}`
-        : topCompetitors[0]?.domain || "";
+        ? `${topCompetitors[0].domain || topCompetitors[0].name} +${topCompetitors.length - 1}`
+        : topCompetitors[0]?.domain || topCompetitors[0]?.name || "";
 
       const priority =
         categorizePrompt(q, draft.businessName) === "best-of" || (topCompetitors[0]?.count ?? 0) >= 2
@@ -615,24 +608,6 @@ export function PromptsSection({
         priority,
         competitors: topCompetitors,
       });
-    }
-  }
-
-  // If before live scan has run or gaps are empty, dynamically extract from competitor prompts
-  if (gapItems.length === 0) {
-    for (const q of draft.questions) {
-      const cat = categorizePrompt(q, draft.businessName);
-      if (cat === "competitor" || q.intent === "comparison") {
-        const vsMatch = q.text.match(/(?:vs|versus|alternative(?:s)? to|better than|is)\s+([A-Za-z0-9]+)/i);
-        const rivalName = vsMatch?.[1] ? vsMatch[1].trim() : "Industry rival";
-        const rivalDomain = `${rivalName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
-        gapItems.push({
-          promptText: q.text,
-          citedInsteadDisplay: rivalDomain,
-          priority: "High",
-          competitors: [{ name: rivalName, domain: rivalDomain, count: 1 }],
-        });
-      }
     }
   }
 
@@ -760,7 +735,7 @@ export function PromptsSection({
                 </div>
               </div>
               <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950 dark:text-brand-50">
-                {cat.pct}%
+                {cat.pct == null ? "—" : `${cat.pct}%`}
               </div>
               <div className="mt-1 text-xs text-brand-400 dark:text-brand-500">{cat.subtext}</div>
             </button>
@@ -797,8 +772,8 @@ export function PromptsSection({
               <h3 className="text-sm font-bold text-brand-950">Tracked prompts</h3>
               <p className="text-xs text-brand-500">
                 {isEditing
-                  ? "Changes save as you make them. A reworded prompt is checked again on the next run."
-                  : "Who each AI engine cites. Open a row for the answer."}
+                  ? "Edits are included when you confirm the next check."
+                  : "Saved answer references from each AI engine. Open a row for details."}
               </p>
             </div>
           </div>
@@ -873,9 +848,10 @@ export function PromptsSection({
                       className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2/20"
                     >
                       {/* Left: Input, Category select, Trash */}
-                      <div className="flex flex-1 items-center gap-2.5 min-w-[280px]">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
                         <input
                           type="text"
+                          aria-label={`Buyer question ${originalIndex + 1}`}
                           value={q.text}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -942,7 +918,7 @@ export function PromptsSection({
                       </div>
 
                       {/* Right: Engine Indicators */}
-                      <div className="flex items-center shrink-0">
+                      <div className="hidden shrink-0 items-center sm:flex">
                         {ENGINES.map((engine) => {
                           const c = citations[engine.key];
                           return (
@@ -953,12 +929,12 @@ export function PromptsSection({
                                   title={`${engine.name}: Recommended your business`}
                                 >
                                   <Check size={11} className="stroke-[2.5]" />
-                                  <span>Cited</span>
+                                  <span>Recommended</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
                                   className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Cited instead: ${c.competitor}`}
+                                  title={`Other reference: ${c.competitor}`}
                                 >
                                   <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
                                   <span className="truncate">{c.competitor || "Rival"}</span>
@@ -1038,12 +1014,12 @@ export function PromptsSection({
                                   title={`${engine.name}: Recommended your business`}
                                 >
                                   <Check size={11} className="stroke-[2.5]" />
-                                  <span>Cited</span>
+                                  <span>Recommended</span>
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
                                   className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Cited instead: ${c.competitor}`}
+                                  title={`Other reference: ${c.competitor}`}
                                 >
                                   <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
                                   <span className="truncate">{c.competitor || "Rival"}</span>
@@ -1078,11 +1054,11 @@ export function PromptsSection({
                                     </div>
                                     {c.status === "recommended" ? (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400">
-                                        <Check size={11} className="stroke-[2.5]" /> Cited
+                                        <Check size={11} className="stroke-[2.5]" /> Recommended
                                       </span>
                                     ) : c.status === "competitor" ? (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-semibold text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300">
-                                        <ArrowRightLeft size={10} /> Rival cited
+                                        <ArrowRightLeft size={10} /> Rival reference
                                       </span>
                                     ) : c.status === "pending" ? (
                                       <span className="rounded-full border border-brand-200/60 bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-500 dark:border-brand-800 dark:bg-brand-800 dark:text-brand-400">
@@ -1090,7 +1066,7 @@ export function PromptsSection({
                                       </span>
                                     ) : (
                                       <span className="rounded-full border border-brand-200/60 bg-brand-100/70 px-2 py-0.5 text-[11px] font-medium text-brand-400 dark:border-brand-800 dark:bg-brand-800/60 dark:text-brand-400">
-                                        {c.label === "Check failed" ? "Check failed" : "Not cited"}
+                                        {c.label === "Check failed" ? "Check failed" : "Not mentioned"}
                                       </span>
                                     )}
                                   </div>
@@ -1099,7 +1075,7 @@ export function PromptsSection({
                                     <div className="rounded-lg border border-warning-500/20 bg-warning-500/5 p-2.5 dark:border-warning-400/20 dark:bg-warning-400/5">
                                       <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-warning-700 dark:text-warning-400">
                                         <ArrowRightLeft size={10} />
-                                        <span>Cited Instead</span>
+                                        <span>Other reference</span>
                                       </div>
                                       <p className="mt-1 text-xs font-bold text-brand-950 dark:text-brand-100 break-words" title={c.competitor}>
                                         {c.competitor}
@@ -1174,7 +1150,7 @@ export function PromptsSection({
             <div>
               <h3 className="text-sm font-bold text-brand-950">Gap tasks</h3>
               <p className="text-xs text-brand-500">
-                {gapItems.length} prompts where a competitor is cited and you aren’t · {highPriorityGapsCount} high priority · {totalActionsCount} actions
+                {gapItems.length} prompts with other brand or source references · {highPriorityGapsCount} high priority · {totalActionsCount} review candidates
               </p>
             </div>
           </div>
@@ -1183,7 +1159,7 @@ export function PromptsSection({
         {/* Table column headers */}
         <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
           <div className="flex-1">Prompt</div>
-          <div className="w-36 text-center sm:w-48">Cited instead</div>
+          <div className="w-36 text-center sm:w-48">Other references</div>
           <div className="w-20 text-center sm:w-28">Gap</div>
           <div className="w-20 text-right sm:w-24">Priority</div>
         </div>
@@ -1258,11 +1234,11 @@ export function PromptsSection({
                           </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-brand-950">{comp.domain}</span>
+                              <span className="text-xs font-bold text-brand-950">{comp.domain || comp.name}</span>
                               <span className="text-xs text-brand-400">· Content Gap</span>
                             </div>
                             <p className="text-xs text-brand-600">
-                              {comp.name} is recommended in {comp.count} prompt{comp.count === 1 ? "" : "s"}. Publish a comparison page:{" "}
+                              {comp.name} appears in {comp.count} saved mention or citation reference{comp.count === 1 ? "" : "s"}. Consider a verified comparison:{" "}
                               <strong className="text-brand-950">
                                 {draft.businessName} vs {comp.name}
                               </strong>
@@ -1276,6 +1252,7 @@ export function PromptsSection({
                           icon={<Sparkles size={14} className="text-primary-600" />}
                           onClick={() => {
                             setActivePlanGap({
+                              id: crypto.randomUUID(),
                               comp,
                               promptText: item.promptText,
                               priority: item.priority,
@@ -1302,8 +1279,18 @@ export function PromptsSection({
           promptText={activePlanGap.promptText}
           priority={activePlanGap.priority}
           onClose={() => setActivePlanGap(null)}
-          onSaveToFixEngine={(msg) => {
-            setCmoToast(msg);
+          onSaveToFixEngine={async (plan) => {
+            await api.savedPlans.save(projectId, {
+              id: activePlanGap.id, projectId,
+              title: `Review ${activePlanGap.comp.name} for ${activePlanGap.promptText}`,
+              category: "CONTENT", source: "AI_VISIBILITY",
+              priority: activePlanGap.priority === "High" ? "HIGH" : "MEDIUM",
+              impact: "Proposed review based on saved answer references; performance lift is not measured.",
+              effortHours: 0, deliverable: plan,
+              evidence: `${activePlanGap.comp.count} saved mention or citation references. Website address: ${activePlanGap.comp.domain || "not verified"}.`,
+              stagedAt: new Date().toISOString(), status: "STAGED",
+            });
+            setCmoToast("Review task saved to Fix Engine.");
             setActivePlanGap(null);
           }}
         />
@@ -1311,6 +1298,3 @@ export function PromptsSection({
     </div>
   );
 }
-
-export const QuestionReview = PromptsSection;
-

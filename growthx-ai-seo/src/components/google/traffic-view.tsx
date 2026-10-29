@@ -11,15 +11,12 @@ import {
   Compass,
   FileText,
   Globe,
-  Laptop,
   MapPin,
-  Radio,
   Search,
   Share2,
-  Smartphone,
   Sparkles,
 } from "lucide-react";
-import { Tabs } from "@/components/ui/console";
+import { Panel, Tabs } from "@/components/ui/console";
 import { ImprovementReportView } from "@/components/google/improvement-report-view";
 import {
   CartesianGrid,
@@ -192,7 +189,6 @@ function TrafficViewClient() {
   const { report } = useGa4Report(projectId);
   const gscSummary = useGscSummary(projectId);
   const gscTimeseries = useGscTimeseries(projectId);
-  const deviceBreakdown = useGoogleBreakdown(projectId, "device");
   const countryBreakdown = useGoogleBreakdown(projectId, "country");
   const gscQueries = useGscQueries(projectId);
 
@@ -201,38 +197,28 @@ function TrafficViewClient() {
 
   // KPIs
   const totals = reportData?.totals;
-  const visitorsCount = totals?.activeUsers ?? totals?.sessions ?? 0;
-  const sessionsCount = totals?.sessions ?? 0;
-  const sessionsPerVisitor = visitorsCount > 0 ? (sessionsCount / visitorsCount).toFixed(1) : "1.5";
+  const visitorsCount = totals?.activeUsers ?? null;
+  const sessionsCount = totals?.sessions ?? null;
+  const sessionsPerVisitor = visitorsCount != null && visitorsCount > 0 && sessionsCount != null ? (sessionsCount / visitorsCount).toFixed(1) : "—";
 
-  const searchClicks = gscSummary.query.data?.clicks?.current ?? 0;
-  const searchImpressions = gscSummary.query.data?.impressions?.current ?? 0;
-  const searchCtr = gscSummary.query.data?.ctr?.current ?? 0;
+  const searchClicks = gscSummary.query.data?.clicks?.current ?? null;
+  const searchImpressions = gscSummary.query.data?.impressions?.current ?? null;
+  const searchCtr = gscSummary.query.data?.ctr?.current ?? null;
   const searchPosition = gscSummary.query.data?.position?.current ?? null;
   const positionChangePct = gscSummary.query.data?.position?.changePct;
 
   // Build daily timeline combining GA4 visitors and GSC clicks
   const dailyChartData = useMemo(() => {
-    const map = new Map<string, { date: string; visitors: number; searchClicks: number }>();
+    const map = new Map<string, { date: string; visitors: number | null; searchClicks: number | null }>();
 
     for (const p of gscTimeseries.query.data ?? []) {
-      map.set(p.date, { date: p.date, visitors: 0, searchClicks: p.clicks ?? 0 });
+      map.set(p.date, { date: p.date, visitors: null, searchClicks: p.clicks ?? null });
     }
 
     for (const d of reportData?.daily ?? []) {
-      const existing = map.get(d.date) ?? { date: d.date, visitors: 0, searchClicks: 0 };
-      existing.visitors = d.sessions ?? d.users ?? 0;
+      const existing = map.get(d.date) ?? { date: d.date, visitors: null, searchClicks: null };
+      existing.visitors = d.users ?? null;
       map.set(d.date, existing);
-    }
-
-    if (map.size === 0) {
-      const today = new Date();
-      for (let i = periodDays - 1; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().slice(0, 10);
-        map.set(key, { date: key, visitors: 0, searchClicks: 0 });
-      }
     }
 
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -285,32 +271,16 @@ function TrafficViewClient() {
       .slice(0, 10);
   }, [reportData]);
 
-  // Devices
-  const deviceStats = useMemo(() => {
-    const rows = deviceBreakdown.query.data?.rows ?? [];
-    let desktopClicks = 0;
-    let total = 0;
-    for (const r of rows) {
-      const k = r.key.toUpperCase();
-      total += r.clicks || r.impressions || 0;
-      if (k === "DESKTOP") desktopClicks += r.clicks || r.impressions || 0;
-    }
-    if (total === 0) return { desktop: 67, mobile: 33 };
-    const dPct = Math.round((desktopClicks / total) * 100);
-    const mPct = Math.max(100 - dPct, 0);
-    return { desktop: dPct, mobile: mPct };
-  }, [deviceBreakdown.query.data?.rows]);
-
   // Countries Breakdown
   const countriesBreakdown = useMemo<CountryBreakdownItem[]>(() => {
     const ga4Countries = reportData?.countries ?? [];
     if (ga4Countries.length > 0) {
-      const totalSessions = ga4Countries.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions || c.users || 0), 0) || 1;
+      const totalSessions = ga4Countries.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions ?? c.users ?? 0), 0) || 1;
       return ga4Countries
         .map((c) => {
           const rawCode = COUNTRY_NAME_TO_CODE[c.country.toUpperCase()] || c.country.slice(0, 2).toUpperCase();
           const geo = COUNTRY_COORDINATES[rawCode] || COUNTRY_COORDINATES[c.country.toUpperCase()];
-          const countVal = c.sessions || c.users || 0;
+          const countVal = c.sessions ?? c.users ?? 0;
           return {
             country: c.country,
             code: rawCode,
@@ -325,12 +295,12 @@ function TrafficViewClient() {
 
     const gscRows = countryBreakdown.query.data?.rows ?? [];
     if (gscRows.length > 0) {
-      const totalClicks = gscRows.reduce((sum: number, r: { clicks?: number; impressions?: number }) => sum + (r.clicks || r.impressions || 0), 0) || 1;
+      const totalClicks = gscRows.reduce((sum: number, r: { clicks?: number; impressions?: number }) => sum + (r.clicks ?? 0), 0) || 1;
       return gscRows
         .map((r) => {
           const rawCode = r.key.toUpperCase();
           const geo = COUNTRY_COORDINATES[rawCode];
-          const countVal = r.clicks || r.impressions || 0;
+          const countVal = r.clicks ?? 0;
           return {
             country: geo?.name || r.key.toUpperCase(),
             code: rawCode,
@@ -346,24 +316,16 @@ function TrafficViewClient() {
     return [];
   }, [reportData?.countries, countryBreakdown.query.data?.rows]);
 
-  // Top Country
-  const topCountry = useMemo<CountryBreakdownItem>(() => {
-    if (countriesBreakdown.length > 0) {
-      return countriesBreakdown[0];
-    }
-    return { country: "United States", code: "US", flag: "🇺🇸", count: 0, share: 0, coords: null };
-  }, [countriesBreakdown]);
-
   // Cities Breakdown
   const citiesBreakdown = useMemo<CityBreakdownItem[]>(() => {
     if (!reportData?.cities || reportData.cities.length === 0) {
       return [];
     }
-    const totalSessions = reportData.cities.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions || c.users || 0), 0) || 1;
+    const totalSessions = reportData.cities.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions ?? c.users ?? 0), 0) || 1;
     return reportData.cities
       .filter((c) => c.city && c.city !== "(not set)")
       .map((c) => {
-        const countVal = c.sessions || c.users || 0;
+        const countVal = c.sessions ?? c.users ?? 0;
         const rawCode = COUNTRY_NAME_TO_CODE[c.country?.toUpperCase()] || c.country?.slice(0, 2).toUpperCase() || "";
         const geo = COUNTRY_COORDINATES[rawCode] || COUNTRY_COORDINATES[c.country?.toUpperCase()];
         return {
@@ -406,7 +368,7 @@ function TrafficViewClient() {
             </span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200/60 bg-brand-50/80 px-3 py-1.5 text-xs text-brand-400 shadow-xs">
-            Last audited: {reportData?.endDate ? shortDay(reportData.endDate) : "24 Oct"}
+            Report through: {reportData?.endDate ? shortDay(reportData.endDate) : "Not available"}
           </span>
         </div>
       </div>
@@ -446,10 +408,6 @@ function TrafficViewClient() {
             <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
               {count(visitorsCount)}
             </span>
-            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-error-500">
-              <ArrowDownRight size={13} />
-              84.8%
-            </span>
           </div>
           <p className="mt-2 text-xs text-brand-400">
             {count(sessionsCount)} sessions · {sessionsPerVisitor} per visitor
@@ -461,10 +419,10 @@ function TrafficViewClient() {
           <p className="text-xs font-medium text-brand-400">Revenue</p>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              $0
+              —
             </span>
           </div>
-          <p className="mt-2 text-xs text-brand-400">$0 per visitor</p>
+          <p className="mt-2 text-xs text-brand-400">Revenue is not measured in this report</p>
         </div>
 
         {/* Search clicks */}
@@ -485,108 +443,17 @@ function TrafficViewClient() {
           <p className="text-xs font-medium text-brand-400">Avg. search position</p>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              {searchPosition !== null && searchPosition > 0 ? `#${searchPosition.toFixed(1)}` : "#1.6"}
+              {searchPosition !== null && searchPosition > 0 ? `#${searchPosition.toFixed(1)}` : "—"}
             </span>
             <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-error-500">
-              <ArrowUpRight size={13} />
-              {positionChangePct !== null && positionChangePct !== undefined ? `${Math.abs(positionChangePct)}%` : "27.3%"}
+              {positionChangePct !== null && positionChangePct !== undefined ? `${positionChangePct}% change` : "Change not measured"}
             </span>
           </div>
           <p className="mt-2 text-xs text-brand-400">Lower is better</p>
         </div>
       </div>
 
-      {/* ── LIVE NOW PANEL ── */}
-      <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
-        <div className="flex items-center gap-2">
-          <Radio className="h-4 w-4 text-brand-500" />
-          <h2 className="text-sm font-bold text-brand-950">Live now</h2>
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success-500" />
-          </span>
-          <span className="text-xs text-brand-400">
-            · GA4 realtime · refreshes every 5 minutes
-          </span>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-center">
-          {/* Active Users */}
-          <div className="lg:col-span-3">
-            <p className="text-xs font-medium text-brand-400">Active users right now</p>
-            <p className="mt-1 font-mono text-5xl font-extrabold tracking-tight text-brand-950">
-              0
-            </p>
-            <p className="mt-3 text-xs text-brand-400">Active users, last hour</p>
-            <div className="mt-1.5 flex items-center gap-1">
-              <span className="text-[10px] text-brand-400">-1h</span>
-              <div className="flex flex-1 items-center gap-1">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-1.5 flex-1 rounded-full bg-success-500/80"
-                  />
-                ))}
-              </div>
-              <span className="text-[10px] text-brand-400">now</span>
-            </div>
-          </div>
-
-          {/* Realtime empty notice */}
-          <div className="flex items-center justify-center lg:col-span-5">
-            <p className="text-sm font-medium text-brand-400">
-              Nobody is on your site right now.
-            </p>
-          </div>
-
-          {/* Telemetry Split (Devices & Top Country) */}
-          <div className="space-y-4 border-t border-brand-200/50 pt-4 lg:col-span-4 lg:border-t-0 lg:border-l lg:pl-6">
-            <div>
-              <p className="text-xs font-medium text-brand-400">Devices · last 7 days</p>
-              <div className="mt-2 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Laptop className="h-3.5 w-3.5 text-brand-400" />
-                  <span className="w-16 text-xs font-medium text-brand-950">Desktop</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-200/60">
-                    <div
-                      className="h-full rounded-full bg-success-500"
-                      style={{ width: `${deviceStats.desktop}%` }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-mono text-xs font-semibold text-brand-950">
-                    {deviceStats.desktop}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Smartphone className="h-3.5 w-3.5 text-brand-400" />
-                  <span className="w-16 text-xs font-medium text-brand-950">Mobile</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-200/60">
-                    <div
-                      className="h-full rounded-full bg-success-500"
-                      style={{ width: `${deviceStats.mobile}%` }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-mono text-xs font-semibold text-brand-950">
-                    {deviceStats.mobile}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-brand-400">Top region · search clicks, last 7 days</p>
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-semibold text-brand-950">{topCountry.count}</span>
-                  <span className="text-base leading-none">{topCountry.flag}</span>
-                  <span className="font-medium text-brand-950">{topCountry.country}</span>
-                </div>
-                <span className="font-mono text-success-600 font-semibold">{percent(topCountry.share)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Panel padded title="Realtime activity"><p className="text-sm text-brand-500">Realtime activity is not measured by this saved report. No live visitor count is available.</p></Panel>
 
       {/* ── DAILY TRAFFIC CHART ── */}
       <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
@@ -614,7 +481,7 @@ function TrafficViewClient() {
         </div>
 
         <div className="mt-6 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          {dailyChartData.length === 0 ? <p className="text-sm text-brand-500">No saved daily measurements are available for this period.</p> : <ResponsiveContainer width="100%" height="100%">
             <LineChart data={dailyChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" opacity={0.4} vertical={false} />
               <XAxis
@@ -660,7 +527,7 @@ function TrafficViewClient() {
                 activeDot={{ r: 4, fill: "var(--color-success-500)" }}
               />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer>}
         </div>
       </div>
 

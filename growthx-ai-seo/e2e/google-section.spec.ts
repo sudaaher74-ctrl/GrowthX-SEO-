@@ -194,13 +194,14 @@ test.describe("Google section, hub", () => {
   test("legacy overview opens the Google hub", async ({page}) => {
     await open(page, "/google/overview");
     await expect(page).toHaveURL(/\/google$/);
-    await expect(page.getByRole("heading", {name:"Google performance center"})).toBeVisible();
+    await expect(page.getByRole("heading", {name:"Traffic",exact:true})).toBeVisible();
   });
-  test("offers only existing source and report destinations", async ({page}) => {
+  test("offers the current overview and report destinations without fabricated telemetry", async ({page}) => {
     await open(page, "/google");
-    for (const href of ["/google/search-console", "/google/analytics", "/google/keywords", "/google/pages", "/google/index", "/google/opportunities", "/google/traffic", "/google/report"]) {
-      await expect(page.locator('main a[href="'+href+'"]').first()).toBeVisible();
-    }
+    await expect(page.getByRole('tab',{name:'Traffic Overview',exact:true})).toBeVisible();
+    await expect(page.getByRole('tab',{name:'Report',exact:true})).toBeVisible();
+    await expect(page.getByText('Realtime activity is not measured by this saved report. No live visitor count is available.')).toBeVisible();
+    for (const value of ['84.8%','27.3%','#1.6','$0']) await expect(page.getByText(value,{exact:true})).toHaveCount(0);
   });
 });
 
