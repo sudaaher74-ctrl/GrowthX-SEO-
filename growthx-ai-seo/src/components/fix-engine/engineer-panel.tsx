@@ -30,7 +30,7 @@ export function EngineerPanel() {
   const [text, setText] = useState("");
   const [confirming, setConfirming] = useState(false);
 
-  const busy = runs.data?.some((r) => r.status === "RUNNING") ?? false;
+  const busy = runs.data?.some((r) => ["PENDING", "RUNNING"].includes(r.status)) ?? false;
   const start = useMutation({
     mutationFn: () => api.runEngineer(projectId!, text.trim()),
     onSuccess: () => {

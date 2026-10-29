@@ -1150,7 +1150,7 @@ export interface FixChangeReport {
 export interface AutomationRun {
   id: string;
   kind: "FIXES" | "CONTENT";
-  status: "RUNNING" | "AWAITING_REVIEW" | "FAILED";
+  status: "PENDING" | "RUNNING" | "AWAITING_REVIEW" | "MERGED" | "FAILED";
   steps: {
     at: string;
     step: string;
@@ -2308,14 +2308,14 @@ export interface ContentDiffItem {
   label: string;
   before: string | null;
   after: string | null;
-  status: 'UNCHANGED' | 'MODIFIED';
+  status: 'UNCHANGED' | 'MODIFIED' | 'NOT_MEASURED';
 }
 
 export interface TechnicalMetricComparison {
   metric: string;
-  before: string | number;
-  after: string | number;
-  status: 'IMPROVED' | 'REGRESSED' | 'UNCHANGED';
+  before: string | number | null;
+  after: string | number | null;
+  status: 'IMPROVED' | 'REGRESSED' | 'UNCHANGED' | 'NOT_MEASURED';
 }
 
 export interface CodeComparisonData {
@@ -2330,9 +2330,9 @@ export interface CodeComparisonData {
 export interface SeoImpactWindow {
   window: string;
   days: number;
-  clicks: number;
-  impressions: number;
-  ctr: number;
+  clicks: number | null;
+  impressions: number | null;
+  ctr: number | null;
   position: number | null;
   status: 'OBSERVED' | 'PENDING';
 }
@@ -2359,7 +2359,7 @@ export interface FixDetailData {
   aiImpact: {
     available: boolean;
     models: { model: string; beforeScore: number | null; afterScore: number | null; delta: number | null }[];
-    prompts: { promptText: string; pageUrl: string; citedBefore: boolean; citedAfter: boolean }[];
+    prompts: { promptText: string; pageUrl: string; citedBefore: boolean | null; citedAfter: boolean | null }[];
     note: string;
   };
   businessImpact: {
@@ -2368,7 +2368,7 @@ export interface FixDetailData {
     sessions: number;
     engagedSessions: number;
     conversions: number;
-    revenue: number;
+    revenue: number | null;
     note: string;
   };
   attribution: {

@@ -209,8 +209,8 @@ export function FixEngineBeforeAfterView({
               {technical.map((metric, i) => (
                 <tr key={i} className="hover:bg-brand-50/50">
                   <td className="px-4 py-3 font-medium text-brand-900">{metric.metric}</td>
-                  <td className="px-4 py-3 font-mono text-brand-600">{metric.before}</td>
-                  <td className="px-4 py-3 font-mono text-brand-900 font-semibold">{metric.after}</td>
+                  <td className="px-4 py-3 font-mono text-brand-600">{metric.before ?? "—"}</td>
+                  <td className="px-4 py-3 font-mono text-brand-900 font-semibold">{metric.after ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <Pill
                       tone={

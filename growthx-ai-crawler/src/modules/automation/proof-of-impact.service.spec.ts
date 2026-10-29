@@ -56,7 +56,7 @@ describe('ProofOfImpactService', () => {
         findUnique: jest.fn().mockResolvedValue({ id: 'proj_1', name: 'Acme SEO', websites: [{ id: 'w1', domain: 'acme.com' }] }),
       },
       siteRepository: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'repo_1', defaultBranch: 'main', framework: 'nextjs' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'repo_1', owner: 'acme', name: 'repo', accessTokenEncrypted: 'encrypted', defaultBranch: 'main', framework: 'nextjs' }),
       },
       page: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -67,8 +67,8 @@ describe('ProofOfImpactService', () => {
       providers: [
         ProofOfImpactService,
         { provide: PrismaService, useValue: prisma },
-        { provide: GitService, useValue: { cloneOrUpdate: jest.fn(), getCommitLog: jest.fn() } },
-        { provide: SecurityService, useValue: { decrypt: jest.fn().mockReturnValue('decrypted_token') } },
+        { provide: GitService, useValue: { cloneOrUpdate: jest.fn(), getCommitLog: jest.fn(), readPullRequestEvidence: jest.fn().mockResolvedValue({ state: 'MERGED', mergedAt: '2026-10-28T12:00:00Z' }) } },
+        { provide: SecurityService, useValue: { decryptCredentials: jest.fn().mockReturnValue('decrypted_token') } },
       ],
     }).compile();
 
@@ -88,7 +88,7 @@ describe('ProofOfImpactService', () => {
 
     it('aggregates verified fixes and regression counts correctly', async () => {
       prisma.fixSnapshot.findMany.mockResolvedValue([
-        { id: 's1', snapshotType: 'VERIFIED_LIVE', url: 'https://acme.com/page-1', capturedAt: new Date() },
+        { id: 's1', automationRunId: 'run_1', pageId: 'measured-page', snapshotType: 'VERIFIED_LIVE', url: 'https://acme.com/page-1', capturedAt: new Date() },
         { id: 's2', snapshotType: 'BEFORE', url: 'https://acme.com/page-1', capturedAt: new Date() },
       ]);
       prisma.fixRegressionRecord.findMany.mockResolvedValue([
@@ -126,7 +126,7 @@ describe('ProofOfImpactService', () => {
         },
       ]);
       prisma.fixSnapshot.findMany.mockResolvedValue([
-        { automationRunId: 'run_1', snapshotType: 'VERIFIED_LIVE', url: 'https://acme.com/pricing' },
+        { automationRunId: 'run_1', pageId: 'measured-page', snapshotType: 'VERIFIED_LIVE', url: 'https://acme.com/pricing' },
       ]);
 
       const history = await service.getFixHistory('proj_1');
@@ -173,6 +173,7 @@ describe('ProofOfImpactService', () => {
       prisma.fixSnapshot.findMany.mockResolvedValue([
         {
           id: 'snap_a',
+          pageId: 'baseline-page',
           automationRunId: 'run_1',
           snapshotType: 'BEFORE',
           url: 'https://acme.com/pricing',
@@ -184,6 +185,7 @@ describe('ProofOfImpactService', () => {
         },
         {
           id: 'snap_c',
+          pageId: 'measured-page',
           automationRunId: 'run_1',
           snapshotType: 'VERIFIED_LIVE',
           url: 'https://acme.com/pricing',
@@ -209,6 +211,32 @@ describe('ProofOfImpactService', () => {
   });
 
   describe('verifyDeployment', () => {
+    it('does not infer technical or causal improvements when measurements are missing', async () => {
+      prisma.automationRun.findUnique.mockResolvedValue({ id: 'empty', projectId: 'proj_1', status: 'FAILED', startedAt: new Date(), finishedAt: new Date(), steps: [], filesChanged: [] });
+      const detail = await service.getFixDetail('proj_1', 'empty');
+      expect(detail.technical.every(m => m.before === null && m.after === null && m.status === 'NOT_MEASURED')).toBe(true);
+      expect(detail.aiImpact.models).toEqual([]);
+      expect(detail.businessImpact.available).toBe(false);
+      expect(detail.attribution.level3.status).toBe('INCONCLUSIVE');
+      expect(detail.aiSummary).not.toContain('verified against');
+    });
+
+    it('never makes up engaged sessions from a fixed percentage', async () => {
+      prisma.ga4DailyMetric.aggregate.mockResolvedValue({ _sum: { sessions: 100, conversions: null, revenue: null } });
+      const result = await (service as any).getFixGa4Impact('proj_1', 'https://acme.com/pricing', new Date());
+      expect(result.engagedSessions).toBeNull();
+      expect(result.sessions).toBe(100);
+      expect(prisma.ga4DailyMetric.aggregate.mock.calls[0][0].where.landingPage).toEqual({ in: ['https://acme.com/pricing', '/pricing'] });
+    });
+
+    it('groups actual AI models and derives citation rates from actual citation records', async () => {
+      prisma.aiVisibilityResponse.findMany.mockResolvedValueOnce([{ model: 'actual-model-a', provider: 'OPENROUTER', analysis: { brandMentioned: true }, citations: [], promptId: 'p' }]).mockResolvedValueOnce([{ model: 'actual-model-b', provider: 'OPENROUTER', analysis: { brandMentioned: false }, citations: [{ brandMentioned: true }], promptId: 'p' }]);
+      const result = await (service as any).getFixAiImpact('proj_1', 'https://acme.com/', new Date());
+      expect(result.models).toHaveLength(2);
+      expect(result.models[0]).toMatchObject({ model: 'actual-model-a', beforeMentionRate: 100, beforeCitationRate: 0, afterMentionRate: null, changePt: null });
+      expect(result.models[1]).toMatchObject({ model: 'actual-model-b', beforeMentionRate: null, afterMentionRate: 0, afterCitationRate: 100 });
+    });
+
     it('verifies deployment and emits ledger event when live page matches proposed fix', async () => {
       prisma.automationRun.findUnique.mockResolvedValue({
         id: 'run_1',

@@ -52,7 +52,8 @@ const MAX_ROUTE_DEPTH = 12;
 @Injectable()
 export class AutomationService {
   private readonly logger = new Logger(AutomationService.name);
-  private readonly reviewCache = new Map<string, { at: number; value: Awaited<ReturnType<GitService['readPullRequestEvidence']>> }>();
+  private readonly reviewCache = new Map<string, { at: number; value: Awaited<ReturnType<GitService['readPullRequestEvidence']>>; recovered: RunStep[] }>();
+  private readonly reviewRequests = new Map<string, Promise<{ at: number; value: Awaited<ReturnType<GitService['readPullRequestEvidence']>>; recovered: RunStep[] }>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -169,10 +170,11 @@ export class AutomationService {
    * diff, then merges. `autoMerge` on the repository is an explicit opt-in for
    * publishing straight to the live site.
    */
-  async runFixes(projectId: string, organizationId: string, issueIds?: string[]) {
+  async runFixes(projectId: string, organizationId: string, issueIds?: string[], queuedRunId?: string) {
 
     const repo = await this.requireRepository(projectId);
-    const run = await this.startRun(repo.id, projectId, AutomationRunKind.FIXES);
+    const run = queuedRunId ? await this.prisma.automationRun.findUnique({ where: { id: queuedRunId } }) : await this.startRun(repo.id, projectId, AutomationRunKind.FIXES);
+    if (!run || (queuedRunId && (run.projectId !== projectId || run.repositoryId !== repo.id || run.status !== 'RUNNING'))) throw new BadRequestException('Queued fix run does not match this repository.');
     const steps: RunStep[] = [];
     let workingDir = '';
 
@@ -388,10 +390,11 @@ export class AutomationService {
    * Commits drafted content pages into the client's repository and opens a PR.
    * Only DRAFTED pieces are shipped — a plan without a written body is skipped.
    */
-  async runContent(projectId: string, organizationId: string, pieceIds?: string[]) {
+  async runContent(projectId: string, organizationId: string, pieceIds?: string[], queuedRunId?: string) {
 
     const repo = await this.requireRepository(projectId);
-    const run = await this.startRun(repo.id, projectId, AutomationRunKind.CONTENT);
+    const run = queuedRunId ? await this.prisma.automationRun.findUnique({ where: { id: queuedRunId } }) : await this.startRun(repo.id, projectId, AutomationRunKind.CONTENT);
+    if (!run || (queuedRunId && (run.projectId !== projectId || run.repositoryId !== repo.id || run.status !== 'RUNNING'))) throw new BadRequestException('Queued content run does not match this repository.');
     const steps: RunStep[] = [];
     let workingDir = '';
 
@@ -508,17 +511,26 @@ export class AutomationService {
       const match = run.pullRequestUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
       if (!match || match[1].toLowerCase() !== repo.owner.toLowerCase() || match[2].toLowerCase() !== repo.name.toLowerCase()) continue;
       try {
-        const key = `${projectId}:${repo.id}:${run.pullRequestUrl}`;
+        const key = `${projectId}:${repo.id}:${run.id}:${run.pullRequestUrl}`;
         let cached = this.reviewCache.get(key);
         if (!cached || Date.now() - cached.at > 60000) {
-          const token = this.security.decryptCredentials(repo.accessTokenEncrypted);
-          const value = await this.git.readPullRequestEvidence(token, repo.owner, repo.name, Number(match[3]));
-          cached = { at: Date.now(), value };
-          if (this.reviewCache.size >= 50) this.reviewCache.clear();
-          this.reviewCache.set(key, cached);
+          let pending = this.reviewRequests.get(key);
+          if (!pending) {
+            pending = (async () => {
+              const token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+              const value = await this.git.readPullRequestEvidence(token, repo.owner, repo.name, Number(match[3]));
+              const recovered = await this.recoverTitleChanges(projectId, run, value);
+              const entry = { at: Date.now(), value, recovered };
+              if (this.reviewCache.size >= 50) this.reviewCache.delete(this.reviewCache.keys().next().value!);
+              this.reviewCache.set(key, entry);
+              return entry;
+            })();
+            this.reviewRequests.set(key, pending);
+          }
+          try { cached = await pending; } finally { this.reviewRequests.delete(key); }
         }
         reviews.set(run.id, cached.value);
-        const recovered = await this.recoverTitleChanges(projectId, run, cached.value);
+        const recovered = cached.recovered;
         if (recovered.length) {
           const steps = run.steps as unknown as RunStep[];
           // The final PR may have been edited after preparation. Prefer its exact revision.
@@ -546,7 +558,8 @@ export class AutomationService {
         const change = step.change;
         const page = pages.find(page => page.url === change.url);
         const field = change.field === 'META_TITLE' ? 'title' : change.field === 'META_DESCRIPTION' ? 'metaDescription' : null;
-        const boundary = reviews.get(run.id)?.mergedAt ? new Date(reviews.get(run.id)!.mergedAt!) : run.finishedAt;
+        const review = reviews.get(run.id);
+        const boundary = review?.state === 'MERGED' && review.mergedAt ? new Date(review.mergedAt) : null;
         const checked = Boolean(!change.dynamic && field && page && boundary && page.crawlJob.createdAt > boundary && page.statusCode === 200 && !page.blockedSuspected);
         const liveValue = checked && field ? page![field] : null;
         return [{ ...change, liveValue, checkedAt: checked ? page!.crawlJob.createdAt : null,
@@ -557,6 +570,7 @@ export class AutomationService {
   }
 
   private async recoverTitleChanges(projectId: string, run: { id: string; startedAt: Date }, review: Awaited<ReturnType<GitService['readPullRequestEvidence']>>): Promise<RunStep[]> {
+    if (!review.files.length) return [];
     const pages = await this.prisma.page.findMany({
       where: { crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
       select: { url: true, title: true, statusCode: true, blockedSuspected: true, crawlJob: { select: { createdAt: true } } },

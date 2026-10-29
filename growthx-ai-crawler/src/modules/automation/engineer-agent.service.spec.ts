@@ -81,6 +81,27 @@ describe('EngineerAgentService', () => {
 
   const INSTRUCTION = 'Change the homepage title to New title';
 
+  it('reserves queued work under a database project lock, rather than an API-local set', async () => {
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const tx = { $executeRaw: jest.fn(), automationRun: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'queued', status: 'PENDING' }) } };
+    prisma.$transaction = jest.fn(cb => cb(tx));
+    const queued = new EngineerAgentService(prisma, router, git, {} as any, validation, {} as any, { enqueue } as any);
+    const { run } = await queued.start('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe('PENDING');
+    expect(tx.$executeRaw).toHaveBeenCalled();
+    expect(enqueue).toHaveBeenCalledWith('queued');
+    expect(git.cloneRepository).not.toHaveBeenCalled();
+    tx.automationRun.findFirst.mockResolvedValue({ id: 'busy' });
+    await expect(queued.start('proj_1', 'org_1', INSTRUCTION)).rejects.toThrow('already queued');
+  });
+
+  it('checks the workspace before a queued job can consume repository credentials', async () => {
+    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({ id: 'queued', projectId: 'proj_1', status: 'PENDING', steps: [{ step: 'engineer_request', request: { organizationId: 'other-org' } }] });
+    prisma.project = { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org_1' }) };
+    await expect(service.executeQueued('queued')).rejects.toThrow('workspace');
+    expect(git.cloneRepository).not.toHaveBeenCalled();
+  });
+
   it('rejects the placeholder creation used by old clients without pushing a PR', async () => {
     replies.push(
       act({ tool: 'create', path: 'app/seo-fix-test.js', content: "export const SEO_FIX_TEST = 'Fixed titles';" }),

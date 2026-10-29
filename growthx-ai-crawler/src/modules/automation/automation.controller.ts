@@ -5,7 +5,7 @@ import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
 import { EngineerAgentService } from './engineer-agent.service';
 import { ProofOfImpactService } from './proof-of-impact.service';
-import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength, IsArray, ArrayMaxSize } from 'class-validator';
 
 export class ConnectRepoDto {
   @IsString()
@@ -33,6 +33,20 @@ export class EngineerRunDto {
   @MinLength(8)
   @MaxLength(2000)
   instruction: string;
+}
+
+export class PlanFixesDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(8) @IsString({ each: true })
+  findingIds?: string[];
+  @IsOptional() @IsString() @MaxLength(40)
+  sourceModule?: string;
+}
+
+export class RunSelectionsDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(25) @IsString({ each: true })
+  issueIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(25) @IsString({ each: true })
+  pieceIds?: string[];
 }
 
 /**
@@ -124,8 +138,8 @@ export class AutomationController {
   @ApiOperation({ summary: 'Apply approved SEO fixes to the repo and open a PR' })
   @ApiParam({ name: 'projectId' })
   @ApiBody({ required: false, schema: { type: 'object', properties: { issueIds: { type: 'array', items: { type: 'string' } } } } })
-  runFixes(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: { issueIds?: string[] }) {
-    return this.automation.runFixes(projectId, req.organizationId, body?.issueIds);
+  runFixes(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: RunSelectionsDto) {
+    return this.engineer.startApprovedFixes(projectId, req.organizationId, body?.issueIds).then(r => r.run);
   }
 
   @Post('runs/engineer')
@@ -153,7 +167,7 @@ export class AutomationController {
   runPlanFixes(
     @Req() req: any,
     @Param('projectId') projectId: string,
-    @Body() body?: { findingIds?: string[]; sourceModule?: string },
+    @Body() body?: PlanFixesDto,
   ) {
     return this.engineer.startForFindings(projectId, req.organizationId, body).then((r) => r.run);
   }
@@ -162,8 +176,8 @@ export class AutomationController {
   @ApiOperation({ summary: 'Commit drafted pages to the repo and open a PR' })
   @ApiParam({ name: 'projectId' })
   @ApiBody({ required: false, schema: { type: 'object', properties: { pieceIds: { type: 'array', items: { type: 'string' } } } } })
-  runContent(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: { pieceIds?: string[] }) {
-    return this.automation.runContent(projectId, req.organizationId, body?.pieceIds);
+  runContent(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: RunSelectionsDto) {
+    return this.engineer.startContent(projectId, req.organizationId, body?.pieceIds).then(r => r.run);
   }
 
   @Get('runs')
@@ -172,6 +186,9 @@ export class AutomationController {
   listRuns(@Param('projectId') projectId: string) {
     return this.automation.listRuns(projectId);
   }
+
+  @Get('engineer/status')
+  engineerStatus() { return this.engineer.queueStatus(); }
 
   @Get('changes')
   @ApiOperation({ summary: 'Saved before/after fix evidence and subsequent crawl measurements' })
