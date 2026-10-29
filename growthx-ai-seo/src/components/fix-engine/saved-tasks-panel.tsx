@@ -14,7 +14,7 @@ export function SavedTasksPanel({ projectId, onPrepare }: {
   const plans = useQuery({ queryKey: ["saved-plans", projectId], queryFn: () => api.savedPlans.list(projectId!), enabled: Boolean(projectId), retry: false, staleTime: 60000 });
   if (!projectId) return null;
   const tasks = (plans.data ?? []).filter(task => task.status === "STAGED" || task.status === "APPROVED");
-  return <Panel padded title={`Saved improvement tasks (${tasks.length})`} subtitle="User-saved proposals from your workflow. These are separate from measured audit findings and require review.">
+  return <Panel padded title={`Saved improvement tasks (${plans.isSuccess ? tasks.length : "—"})`} subtitle="User-saved proposals from your workflow. These are separate from measured audit findings and require review.">
     {plans.isLoading && <p className="text-sm text-brand-500">Loading saved tasks…</p>}
     {plans.error && <StatusNote tone="bad">{errorMessage(plans.error)}</StatusNote>}
     {!plans.isLoading && !plans.error && tasks.length === 0 && <p className="text-sm text-brand-500">No saved improvement tasks yet.</p>}
