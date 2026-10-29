@@ -567,31 +567,29 @@ function PromptsSection({
   // Check answers first
   for (const q of draft.questions) {
     const qAnswers = answers.filter((a) => !a.errorMessage && !!a.rawResponse?.trim() && matchPrompt(q.text, a.promptText));
-    const competitorsCited = new Map<string, number>();
+    const competitorsCited = new Map<string, { count: number; domain: string }>();
 
     for (const a of qAnswers) {
       if (!a.analysis?.recommended) {
         for (const m of a.mentions || []) {
           if (!m.isCustomer && m.brandName) {
-            competitorsCited.set(m.brandName, (competitorsCited.get(m.brandName) || 0) + 1);
+            const existing = competitorsCited.get(m.brandName);
+            competitorsCited.set(m.brandName, { count: (existing?.count ?? 0) + 1, domain: existing?.domain ?? "" });
           }
         }
         for (const c of a.citations || []) {
           const dom = c.domain?.toLowerCase() || "";
           const bClean = draft.businessName.toLowerCase().replace(/[^a-z0-9]/g, "");
           if (dom && !dom.includes(bClean)) {
-            competitorsCited.set(dom, (competitorsCited.get(dom) || 0) + 1);
+            competitorsCited.set(dom, { count: (competitorsCited.get(dom)?.count ?? 0) + 1, domain: dom });
           }
         }
       }
     }
 
     if (competitorsCited.size > 0) {
-      const topCompetitors = [...competitorsCited.entries()].map(([name, count]) => {
-        // A recorded brand name is not evidence of its website address.
-        const domain = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(name) ? name : "";
-        return { name, domain, count };
-      });
+      // Only a saved citation supplies a website address, even for dotted brand names.
+      const topCompetitors = [...competitorsCited.entries()].map(([name, evidence]) => ({ name, ...evidence }));
       const display = topCompetitors.length > 1
         ? `${topCompetitors[0].domain || topCompetitors[0].name} +${topCompetitors.length - 1}`
         : topCompetitors[0]?.domain || topCompetitors[0]?.name || "";
