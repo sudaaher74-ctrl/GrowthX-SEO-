@@ -151,65 +151,6 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
   };
 }
 
-function cleanJsSingleLine(input: string): string {
-  return (input || "")
-    .replace(/["'\\`{}\r\n\t]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function buildGitHubFixInstruction(candidates: GrowthOpportunity[]): string {
-  const tag = Date.now().toString(36).slice(-4);
-  const lines: string[] = [];
-  for (let i = 0; i < candidates.length; i++) {
-    const f = candidates[i];
-    const modLabel = groupOf(f.source)?.label ?? f.source;
-    const pagesPart =
-      f.affectedPages && f.affectedPages.length > 0
-        ? ` | Pages: ${f.affectedPages.slice(0, 2).join(", ")}`
-        : "";
-    lines.push(
-      `${i + 1}. [${modLabel}] ${f.title}${pagesPart}\n   Problem: ${f.summary.slice(0, 120)}\n   Fix: ${f.recommendedAction.slice(0, 150)}`,
-    );
-  }
-  const primary = candidates[0];
-  const primaryMod = groupOf(primary.source)?.label ?? primary.source;
-  const safeContent = cleanJsSingleLine(
-    `[${primaryMod}] ${primary.title} — ${primary.recommendedAction}`,
-  ).slice(0, 220);
-  const safeSummary = cleanJsSingleLine(
-    `Applied [${primaryMod}] ${primary.title} improvement in repository source.`,
-  ).slice(0, 160);
-
-  lines.push(
-    `EXECUTION PLAN (2 TURNS ONLY):`,
-    `- Turn 1: Check Root in the prompt. If "frontend-react/" is in Root, use path "frontend-react/src/seo-fix-${tag}.js", otherwise use path "src/seo-fix-${tag}.js". Reply with ONLY this single-line JSON object:`,
-    `{"tool":"create","path":"frontend-react/src/seo-fix-${tag}.js","content":"export const SEO_FIX_${tag.toUpperCase()} = '${safeContent}';"}`,
-    `- Turn 2 (after create succeeds): Reply with ONLY this single-line JSON object:`,
-    `{"tool":"finish","summary":"${safeSummary}"}`,
-    `STRICT JSON RULES: Reply with ONE single-line JSON object per turn. Never output two JSON objects in one turn. Never include newline characters, double quotes, or curly braces inside "content" or "summary".`,
-  );
-  return lines.join("\n").slice(0, 1950);
-}
-
-function buildEngineerInstructionFromPrompt(rawText: string): string {
-  const tag = Date.now().toString(36).slice(-4);
-  const firstLine = (rawText.split("\n")[0] || rawText).trim();
-  const safeContent = cleanJsSingleLine(firstLine).slice(0, 220);
-  const safeSummary = cleanJsSingleLine(`Applied ${firstLine} in repository source.`).slice(0, 160);
-  return [
-    firstLine.slice(0, 300),
-    `EXECUTION PLAN (2 TURNS ONLY):`,
-    `- Turn 1: Check Root in the prompt. If "frontend-react/" is in Root, use path "frontend-react/src/seo-fix-${tag}.js", otherwise use path "src/seo-fix-${tag}.js". Reply with ONLY this single-line JSON object:`,
-    `{"tool":"create","path":"frontend-react/src/seo-fix-${tag}.js","content":"export const SEO_FIX_${tag.toUpperCase()} = '${safeContent}';"}`,
-    `- Turn 2 (after create succeeds): Reply with ONLY this single-line JSON object:`,
-    `{"tool":"finish","summary":"${safeSummary}"}`,
-    `STRICT JSON RULES: Reply with ONE single-line JSON object per turn. Never output two JSON objects in one turn. Never include newline characters, double quotes, or curly braces inside "content" or "summary".`,
-  ]
-    .join("\n")
-    .slice(0, 1950);
-}
-
 interface UnifiedLogEntry {
   id: string;
   timestamp: string;
@@ -762,7 +703,7 @@ export function GitHubFixesLogView({
       ["QUEUED", "APPROVED", "APPLYING", "VERIFYING"].includes(f.lifecycle ?? "DETECTED"),
     );
     const verifiedOrResolved =
-      prChanges.filter((c) => c.verification === "MATCHED" || c.reviewState === "MERGED").length +
+      prChanges.filter((c) => c.verification === "MATCHED").length +
       activeFindings.filter((f) => ["VERIFIED", "MEASURED", "RESOLVED"].includes(f.lifecycle ?? "")).length;
     const prCount = runs.filter((r) => Boolean(r.pullRequestUrl)).length;
     const distinctPagesAndFiles = new Set([
@@ -791,9 +732,6 @@ export function GitHubFixesLogView({
       if (candidates.length === 0) {
         throw new Error("Select at least one finding in Fix Engine to apply via GitHub.");
       }
-
-      const instruction = buildGitHubFixInstruction(candidates);
-
       // Move any newly detected findings into the plan as we start the GitHub run
       await Promise.allSettled(
         candidates
@@ -803,7 +741,7 @@ export function GitHubFixesLogView({
 
       return api.runPlanFixes(projectId!, {
         ...payload,
-        instruction,
+        findingIds: candidates.map((finding) => finding.id),
       });
     },
     onSuccess: (run) => {
@@ -841,9 +779,7 @@ export function GitHubFixesLogView({
     mutationFn: (instruction: string) =>
       api.runEngineer(
         projectId!,
-        instruction.includes("EXECUTION PLAN")
-          ? instruction
-          : buildEngineerInstructionFromPrompt(instruction),
+        instruction.trim(),
       ),
     onSuccess: (run) => {
       setTrackedRunId(run.id);
@@ -984,6 +920,11 @@ export function GitHubFixesLogView({
 
   return (
     <div className="space-y-6">
+      {runs.some((run) => run.filesChanged.length > 0 && run.filesChanged.every((file) => /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(file))) && (
+        <StatusNote tone="bad">
+          Earlier runs created only audit-message placeholder files. Those pull requests do not implement a website fix. Re-run the affected findings and review the actual page changes before merging or confirming them fixed.
+        </StatusNote>
+      )}
       {trackedRun && trackedRun.status !== "RUNNING" ? (
         <StatusNote tone={trackedRun.status === "AWAITING_REVIEW" ? "good" : "bad"}>
           {trackedRun.status === "AWAITING_REVIEW"
@@ -1031,7 +972,7 @@ export function GitHubFixesLogView({
           label="Confirmed Improved"
           value={count(kpiStats.verifiedCount)}
           tone={kpiStats.verifiedCount > 0 ? "good" : "default"}
-          sub="Merged or verified live"
+          sub="Verified live or manually confirmed"
         />
         <Kpi
           label="Pages & Files Tracked"
@@ -1192,7 +1133,8 @@ export function GitHubFixesLogView({
 
                 {visibleTaskRuns.map(({ run, ctx }) => {
                   const isRunning = run.status === "RUNNING";
-                  const isSuccess = run.status === "AWAITING_REVIEW";
+                  const isPlaceholder = run.filesChanged.length > 0 && run.filesChanged.every((file) => /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(file));
+                  const isSuccess = run.status === "AWAITING_REVIEW" && !isPlaceholder;
                   const unverifiedMatched = ctx.matchedFindings.filter(
                     (mf) => !["VERIFIED", "RESOLVED"].includes(mf.lifecycle ?? ""),
                   );
@@ -1224,7 +1166,7 @@ export function GitHubFixesLogView({
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-error-100 px-2.5 py-0.5 text-[11px] font-bold text-error-900">
-                                TASK FINISHED WITHOUT PR · RETRY AVAILABLE
+                                {isPlaceholder ? "PLACEHOLDER ONLY · RE-RUN REQUIRED" : "TASK FINISHED WITHOUT PR · RETRY AVAILABLE"}
                               </span>
                             )}
                             <Pill tone="info">{ctx.moduleLabel}</Pill>
@@ -1262,6 +1204,8 @@ export function GitHubFixesLogView({
                       >
                         {isRunning
                           ? "GitHub Fix Engine is cloning your repository, applying code/content improvements on a dedicated branch, validating the build, and opening a Pull Request…"
+                          : isPlaceholder
+                            ? "This run added an audit message rather than changing the affected website pages. Its completion summary is not evidence of a fix."
                           : isSuccess
                             ? ctx.summaryAfter
                             : run.error ||
@@ -1366,7 +1310,7 @@ export function GitHubFixesLogView({
                                     transition.mutate({
                                       id: mf.id,
                                       to: "RESOLVED",
-                                      reason: `Confirmed fixed via GitHub Run #${run.id.slice(0, 8)}`,
+                                      reason: `Manually confirmed by the site owner for GitHub Run #${run.id.slice(0, 8)}`,
                                     });
                                   }
                                   setActionBanner({
@@ -1375,7 +1319,7 @@ export function GitHubFixesLogView({
                                   });
                                 }}
                               >
-                                Confirm Task Fixed
+                                Manually Confirm Fixed
                               </ActionButton>
                             )}
                             {!isSuccess && (
@@ -1398,7 +1342,7 @@ export function GitHubFixesLogView({
                                     });
                                   } else if (ctx.rawInstruction) {
                                     runEngineerMutation.mutate(
-                                      buildEngineerInstructionFromPrompt(ctx.rawInstruction),
+                                      ctx.rawInstruction.split("EXECUTION PLAN")[0].trim(),
                                     );
                                   }
                                 }}
@@ -1424,7 +1368,7 @@ export function GitHubFixesLogView({
                     : `Select findings below from ${moduleFilter === "ALL" ? "all 5 tabs" : GROUPS.find((g) => g.id === moduleFilter)?.label ?? moduleFilter} to fix via GitHub`}
                 </p>
                 <p className="text-[11.5px] text-brand-500">
-                  Fix Engine clones your repo, edits the relevant pages/metadata/schema/content on a new branch, verifies the build passes, and opens a Pull Request with Before &amp; After proof.
+                  Fix Engine clones your repo, edits the relevant pages/metadata/schema/content on a new branch, validates the changed files, and opens a Pull Request with Before &amp; After proof.
                 </p>
               </div>
 

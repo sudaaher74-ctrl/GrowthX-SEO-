@@ -38,7 +38,7 @@ describe('RepoSandbox', () => {
   });
 
   it('does not follow a symlink out of the repository', async () => {
-    await fs.symlink(outside, path.join(root, 'link'));
+    await fs.symlink(outside, path.join(root, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
     await expect(box.read('link/notes.txt')).rejects.toThrow(/leave the repository/);
     await expect(box.create('link/new.txt', 'x')).rejects.toThrow(/leave the repository/);
     await expect(fs.readFile(path.join(outside, 'new.txt'))).rejects.toThrow();

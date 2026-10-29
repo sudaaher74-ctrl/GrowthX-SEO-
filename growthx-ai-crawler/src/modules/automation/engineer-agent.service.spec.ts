@@ -73,7 +73,50 @@ describe('EngineerAgentService', () => {
 
   const INSTRUCTION = 'Change the homepage title to New title';
 
+  it('rejects the placeholder creation used by old clients without pushing a PR', async () => {
+    replies.push(
+      act({ tool: 'create', path: 'app/seo-fix-test.js', content: "export const SEO_FIX_TEST = 'Fixed titles';" }),
+      act({ tool: 'finish', summary: 'Applied fix.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(git.commitAndPush).not.toHaveBeenCalled();
+    expect(git.createPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not publish an unconnected new helper as a completed fix', async () => {
+    replies.push(
+      act({ tool: 'create', path: 'app/titles.js', content: "export const title = 'New title';" }),
+      act({ tool: 'finish', summary: 'Added title.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('requires reading the target before an edit', async () => {
+    replies.push(
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New title' }),
+      act({ tool: 'finish', summary: 'Done.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not accept a no-op edit as integration for a standalone helper', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'Old title' }),
+      act({ tool: 'create', path: 'app/titles.js', content: "export const title = 'New title';" }),
+      act({ tool: 'finish', summary: 'Done.' }),
+    );
+    expect((await service.run('proj_1', 'org_1', INSTRUCTION)).status).toBe(AutomationRunStatus.FAILED);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
+  });
+
   it('explores, edits, builds, and opens a pull request that is never merged', async () => {
+    validation.validateRepository.mockResolvedValue({ success: true, output: 'Syntax checked; full build disabled.' });
     replies.push(
       act({ tool: 'search', pattern: 'Old title' }),
       act({ tool: 'read', path: 'app/page.tsx' }),
@@ -95,12 +138,15 @@ describe('EngineerAgentService', () => {
     const body = git.createPullRequest.mock.calls[0][6];
     expect(body).toContain(INSTRUCTION);
     expect(body).toContain('Nothing goes live until you merge');
+    expect(body).toContain('Syntax checked; full build disabled.');
+    expect(body).not.toContain('the build passed');
     // The clone holds customer source and is removed.
     await expect(fs.stat(dir)).rejects.toThrow();
   });
 
   it('refuses to change package.json even when the model tries, and reports it back to the model', async () => {
     replies.push(
+      act({ tool: 'read', path: 'package.json' }),
       act({ tool: 'edit', path: 'package.json', old: '"x"', new: '"y"' }),
       act({ tool: 'finish', summary: 'Could not.' }),
     );
@@ -108,13 +154,13 @@ describe('EngineerAgentService', () => {
     expect(run.status).toBe(AutomationRunStatus.FAILED);
     expect(run.error).toMatch(/without changing any files/);
     expect(git.commitAndPush).not.toHaveBeenCalled();
-    const secondPrompt = router.generate.mock.calls[1][0].prompt;
+    const secondPrompt = router.generate.mock.calls[2][0].prompt;
     expect(secondPrompt).toMatch(/cannot be changed/);
   });
 
   it('never pushes a change that does not build', async () => {
     validation.validateRepository.mockResolvedValue({ success: false, output: 'Type error' });
-    replies.push(act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New' }), act({ tool: 'finish', summary: 'x' }));
+    replies.push(act({ tool: 'read', path: 'app/page.tsx' }), act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New' }), act({ tool: 'finish', summary: 'x' }));
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
     expect(run.status).toBe(AutomationRunStatus.FAILED);
     expect(run.error).toMatch(/nothing was pushed/);
@@ -130,6 +176,16 @@ describe('EngineerAgentService', () => {
     expect(git.commitAndPush).not.toHaveBeenCalled();
   });
 
+  it('does not publish partial edits when the turn limit is reached', async () => {
+    router.generate
+      .mockResolvedValueOnce(act({ tool: 'read', path: 'app/page.tsx' }))
+      .mockResolvedValueOnce(act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New title' }))
+      .mockResolvedValue(act({ tool: 'list', path: '' }));
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(git.commitAndPush).not.toHaveBeenCalled();
+  });
+
   it('gives up after repeated unusable replies rather than looping', async () => {
     router.generate.mockResolvedValue({ text: 'no json here', refused: false });
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
@@ -139,7 +195,7 @@ describe('EngineerAgentService', () => {
 
   it('never puts the token in a stored error', async () => {
     git.createPullRequest.mockRejectedValue(new Error('failed for ghp_realtoken123 on https://x-access-token:ghp_realtoken123@github.com/a/b'));
-    replies.push(act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New' }), act({ tool: 'finish', summary: 'x' }));
+    replies.push(act({ tool: 'read', path: 'app/page.tsx' }), act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New' }), act({ tool: 'finish', summary: 'x' }));
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
     expect(run.error).not.toContain('ghp_realtoken123');
   });
