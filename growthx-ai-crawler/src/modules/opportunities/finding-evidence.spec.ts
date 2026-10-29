@@ -10,4 +10,8 @@ describe('Measured finding evidence', () => {
     const finding = { summary: 'Recorded 68 impressions and zero clicks.', evidence: [{ label: 'Clicks', value: '0', source: 'Search Console' }] };
     expect(measuredFinding(finding)).toBe(finding);
   });
+  it('filters saved invented review configuration and market-share claims', () => {
+    const result = measuredFinding({ evidence: [{ value: '0 automated review requests configured', source: 'GrowthX Local Intelligence' }, { value: 'Over 30% of commercial buyer research queries now originate in LLM search interfaces', source: 'GrowthX AI Search Intelligence' }, { value: 'Businesses with 20+ recent reviews rank 50% higher', source: 'Local SEO Benchmark' }] });
+    expect(JSON.stringify(result)).not.toMatch(/30%|50%|automated review requests configured/);
+  });
 });
