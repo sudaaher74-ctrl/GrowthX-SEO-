@@ -716,6 +716,8 @@ export class ProofOfImpactService {
    * between the 30-90 day baseline window and today's live production state.
    */
   async get30d90dProof(projectId: string) {
+    await this.initializeDay1TrackingEvents(projectId);
+
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       include: { websites: { where: { scope: 'own' } } },

@@ -78,16 +78,25 @@ function FixEngineClient() {
         onChange={(nextTab) => setTab(nextTab)}
       />
 
-      <SavedTasksPanel key={activeProjectId} projectId={projectId} onPrepare={instruction => {
-        setPreparedTask(previous => ({ projectId: activeProjectId, instruction, revision: (previous?.revision ?? 0) + 1 }));
-        setTab("github-fixes");
-      }} />
-
       {tab === "improvement" ? (
-        <PlanView
-          key={activeProjectId}
-          onOpenGitHubFixes={(fId) => setTab("github-fixes", fId)}
-        />
+        <div className="space-y-6">
+          <SavedTasksPanel
+            key={activeProjectId}
+            projectId={projectId}
+            onPrepare={(instruction) => {
+              setPreparedTask((previous) => ({
+                projectId: activeProjectId,
+                instruction,
+                revision: (previous?.revision ?? 0) + 1,
+              }));
+              setTab("github-fixes");
+            }}
+          />
+          <PlanView
+            key={activeProjectId}
+            onOpenGitHubFixes={(fId) => setTab("github-fixes", fId)}
+          />
+        </div>
       ) : tab === "github-fixes" ? (
         <GitHubFixesLogView
           key={`${activeProjectId}-${findingId ?? "all"}-${preparedTask?.projectId === activeProjectId ? preparedTask.revision : 0}`}
@@ -98,6 +107,7 @@ function FixEngineClient() {
         <ImpactLedgerProofView
           key={activeProjectId}
           projectId={activeProjectId}
+          onNavigateTab={(targetTab) => setTab(targetTab)}
           onLaunchIteration={(instruction) => {
             setPreparedTask((previous) => ({
               projectId: activeProjectId,

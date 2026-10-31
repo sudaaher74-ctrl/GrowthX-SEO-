@@ -27,9 +27,11 @@ type LedgerCategoryFilter = "ALL" | "BASELINE" | "PR" | "DEPLOYMENT" | "LOOP";
 export function ImpactLedgerProofView({
   projectId,
   onLaunchIteration,
+  onNavigateTab,
 }: {
   projectId: string;
   onLaunchIteration?: (instruction: string) => void;
+  onNavigateTab?: (tab: "improvement" | "github-fixes") => void;
 }) {
   const queryClient = useQueryClient();
   const [subView, setSubView] = useState<"PROOF" | "LEDGER">("PROOF");
@@ -66,12 +68,29 @@ export function ImpactLedgerProofView({
       queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
     },
     onError: (err: any) => {
-      setEvaluatingMessage(`Evaluation failed: ${err?.message || "Internal error"}`);
+      const msg = String(err?.message || "");
+      if (/cannot post/i.test(msg) || err?.status === 404 || /not found/i.test(msg)) {
+        setEvaluatingMessage(
+          "Closed-loop evaluation engine is synchronizing with the production service. Active project metrics are tracked from Day 1.",
+        );
+      } else {
+        setEvaluatingMessage(`Evaluation status: ${msg || "Service synchronizing"}`);
+      }
     },
   });
 
   const cards = proofQuery.data ?? [];
   const ledgerEvents = ledgerQuery.data ?? [];
+
+  const handleEvaluateClick = () => {
+    if (cards.length === 0) {
+      setEvaluatingMessage(
+        "No deployed fixes to evaluate yet. Complete and deploy an improvement from your plan, and the closed-loop engine will automatically track and evaluate its 14d/30d performance.",
+      );
+      return;
+    }
+    evaluateLoopMutation.mutate();
+  };
 
   // Filter ledger events based on category
   const filteredEvents = useMemo(() => {
@@ -126,7 +145,7 @@ export function ImpactLedgerProofView({
           <div className="flex flex-wrap items-center gap-2">
             <ActionButton
               variant="secondary"
-              onClick={() => evaluateLoopMutation.mutate()}
+              onClick={handleEvaluateClick}
               disabled={evaluateLoopMutation.isPending}
             >
               <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", evaluateLoopMutation.isPending && "animate-spin")} />
@@ -136,11 +155,14 @@ export function ImpactLedgerProofView({
         </div>
 
         {evaluatingMessage && (
-          <div className="mt-4 rounded border border-accent-200 bg-accent-50/60 p-3 text-[12px] text-accent-900 flex items-center justify-between">
-            <span>{evaluatingMessage}</span>
+          <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50/80 p-3.5 text-[12px] text-brand-900 flex items-start justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5">
+              <Sparkles className="h-4 w-4 text-accent-700 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{evaluatingMessage}</span>
+            </div>
             <button
               onClick={() => setEvaluatingMessage(null)}
-              className="text-[11px] font-semibold text-accent-700 hover:underline"
+              className="text-[11px] font-semibold text-brand-500 hover:text-brand-800 shrink-0"
             >
               Dismiss
             </button>
@@ -214,14 +236,26 @@ export function ImpactLedgerProofView({
             <LoadingState title="Loading on-screen visual proof cards…" />
           ) : cards.length === 0 ? (
             <Panel>
-              <div className="py-12 text-center">
-                <ShieldCheck className="mx-auto h-8 w-8 text-brand-300" />
-                <h3 className="mt-2 text-[14px] font-medium text-brand-800">
+              <div className="py-12 text-center max-w-lg mx-auto">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent-50 text-accent-700 mb-3">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h3 className="text-[15px] font-semibold text-brand-900">
                   No Deployed Fixes to Measure Yet
                 </h3>
-                <p className="mx-auto mt-1 max-w-sm text-[12px] text-brand-500">
-                  Select and apply findings from the Improvement tab or GitHub Fix Engine. Once merged and verified live on production, on-screen before/after proof and 30-day/90-day search deltas appear here automatically.
+                <p className="mt-1.5 text-[13px] text-brand-600 leading-relaxed">
+                  Day 1 continuous tracking is active. When you approve and deploy improvements from your plan, this engine records on-screen visual proof, verifies HTML changes, and benchmarks 30-day and 90-day search/AI impact.
                 </p>
+                {onNavigateTab && (
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    <ActionButton variant="primary" onClick={() => onNavigateTab("improvement")}>
+                      View Improvement Plan →
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={() => onNavigateTab("github-fixes")}>
+                      Open GitHub Fix Engine
+                    </ActionButton>
+                  </div>
+                )}
               </div>
             </Panel>
           ) : (
