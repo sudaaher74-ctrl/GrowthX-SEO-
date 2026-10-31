@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -33,20 +32,10 @@ import {
   type VisibilityBrief,
   type VisibilityContext,
 } from "@/lib/visibility-workflow";
-import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, Table, Th, Tr, Td } from "@/components/ui/console";
+import { ActionButton, PageHeader, Panel, Pill, StatusNote, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
-import { EvidenceLinks, AnswerResults, GapResults, ActionPlan } from "./visibility-journey-results";
+import { EvidenceLinks, AnswerResults, GapResults } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
-
-const STEPS = [
-  { id: "review", label: "1. Prompts" },
-  { id: "plan", label: "2. Take action" },
-];
-const ALIASES: Record<string, string> = {
-  overview: "review", questions: "review", prompts: "review", sandbox: "review", settings: "review", unified: "review",
-  results: "review", answers: "review", citations: "review", models: "review", history: "review", competitors: "review", "competitor-intelligence": "review", "competitor-comparison": "review",
-  recommendations: "plan", insights: "plan", actions: "plan", gaps: "plan", "root-cause": "plan", "root-cause-analysis": "plan",
-};
 
 export function VisibilityJourneyPage() {
   const workspace = useWorkspace();
@@ -56,22 +45,17 @@ export function VisibilityJourneyPage() {
 }
 
 function Journey({ projectId }: { projectId: string }) {
-  const router = useRouter();
-  const params = useSearchParams();
   const qc = useQueryClient();
   const key = ["visibility-journey", projectId];
   const query = useQuery({ queryKey: key, queryFn: () => visibilityJourneyApi.read(projectId), retry: false,
     refetchInterval: (q) => journeyRunning(q.state.data?.journey?.status) ? 4000 : false });
   const data = query.data;
   const run = data?.journey;
-  const requested = params.get("tab");
-  const tab = requested ? ALIASES[requested] || (STEPS.some((s) => s.id === requested) ? requested : "review") : "review";
-  const setTab = (value: string) => router.replace(`/ai-visibility?tab=${value}`, { scroll: false });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   const prepare = useMutation({ mutationFn: () => visibilityJourneyApi.prepare(projectId), retry: false,
-    onSuccess: () => { void refresh(); setTab("review"); }, onError: () => { void refresh(); } });
+    onSuccess: () => { void refresh(); }, onError: () => { void refresh(); } });
   const check = useMutation({ mutationFn: ({ id, brief }: { id: string; brief?: VisibilityBrief }) => visibilityJourneyApi.check(projectId, id, brief), retry: false,
-    onSuccess: () => { void refresh(); setTab("review"); }, onError: () => { void refresh(); } });
+    onSuccess: () => { void refresh(); }, onError: () => { void refresh(); } });
   const busy = journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
@@ -85,50 +69,42 @@ function Journey({ projectId }: { projectId: string }) {
     <QueryState isLoading={query.isLoading} error={query.error}>
       {error && <StatusNote tone="bad">{error.message}</StatusNote>}
       {data && !configured.length && <StatusNote tone="bad">AI checks are temporarily unavailable. Please contact support.</StatusNote>}
-      <Tabs tabs={STEPS} active={tab} onChange={setTab} />
       {!run && <Panel padded>
         <div className="mx-auto max-w-xl space-y-4 py-8 text-center">
           <Sparkles className="mx-auto text-primary-600" size={28} />
           <h2 className="text-xl font-semibold text-brand-950">See your business through your buyers’ prompts</h2>
-          <p className="text-sm leading-6 text-brand-600">We use your website audit to draft relevant buyer prompts. You review them, we ask the available AI assistants, and you get real answers with a practical action plan.</p>
+          <p className="text-sm leading-6 text-brand-600">We use your website audit to draft relevant buyer prompts. You review them, we ask the available AI assistants, and you get real answers showing where your business is recommended.</p>
           <ActionButton variant="primary" disabled={busy || !configured.length || query.isLoading} onClick={() => prepare.mutate()}>{prepare.isPending ? "Preparing your prompts…" : "Prepare my prompts"}</ActionButton>
           <p className="text-xs text-brand-500">Your Website Audit is the starting point. Connected Google data and audited competitors add context.</p>
         </div>
       </Panel>}
       {run && <>
         {busy && <Panel padded><div role="status" aria-live="polite" className="space-y-3">
-          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.phase === "PREPARE" ? "Understanding your business and preparing prompts" : run.status === "QUEUED" ? "Starting your AI checks" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer prompts` : "Analysing saved answers and preparing your action plan"}</span><span>{run.progress}%</span></div>
+          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.phase === "PREPARE" ? "Understanding your business and preparing prompts" : run.status === "QUEUED" ? "Starting your AI checks" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer prompts` : "Analysing saved answers"}</span><span>{run.progress}%</span></div>
           <progress aria-label="AI Visibility progress" max={100} value={run.progress} className="h-2 w-full accent-primary-600" />
           <p className="text-xs text-brand-500">Progress is saved. You can leave and return without starting again.</p>
         </div></Panel>}
         {run.status === "FAILED" && <StatusNote tone="bad">This analysis needs attention. Open Analysis details below to see what happened and retry.</StatusNote>}
-        {tab === "review" && <>
-          {run.brief ? (
-            <PromptsSection
-              projectId={projectId}
-              key={`${run.id}-${run.updatedAt}`}
-              brief={run.brief}
-              locked={busy || !!run.scanId}
-              checks={configured.length * run.brief.questions.length}
-              pending={check.isPending}
-              onRun={(brief) => check.mutate({ id: run.id, brief })}
-              answers={data?.answers ?? []}
-              hasScan={!!run.scanId}
-            />
-          ) : (
-            <Panel title="Review before you run" subtitle="Check your products, service areas and buyer prompts. Then confirm to start the AI checks." padded>
-              <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
-            </Panel>
-          )}
-        </>}
-        {tab === "review" && data && data.answers.length > 0 && <>
+        {run.brief ? (
+          <PromptsSection
+            projectId={projectId}
+            key={`${run.id}-${run.updatedAt}`}
+            brief={run.brief}
+            locked={busy || !!run.scanId}
+            checks={configured.length * run.brief.questions.length}
+            pending={check.isPending}
+            onRun={(brief) => check.mutate({ id: run.id, brief })}
+            answers={data?.answers ?? []}
+            hasScan={!!run.scanId}
+          />
+        ) : (
+          <Panel title="Review before you run" subtitle="Check your products, service areas and buyer prompts. Then confirm to start the AI checks." padded>
+            <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
+          </Panel>
+        )}
+        {data && data.answers.length > 0 && <>
           <AnswerResults data={data} />
           <GapResults data={data} />
-        </>}
-        {tab === "plan" && data && <>
-          <Panel padded title="Your next steps" subtitle="Prioritized actions based on your website evidence and the AI answers we saved."><p className="text-xs text-brand-500">Review the supporting evidence for each action. Changes can be prepared in Fix Engine.</p></Panel>
-          <ActionPlan data={data} />
-          <ActionButton onClick={() => setTab("review")}>Back to prompts</ActionButton>
         </>}
         <details className="rounded-xl border p-4">
           <summary className="cursor-pointer text-sm font-semibold text-brand-700">Analysis details{run.errors.length ? ` · ${run.errors.length} coverage note${run.errors.length === 1 ? "" : "s"}` : " · sources and assistants"}</summary>

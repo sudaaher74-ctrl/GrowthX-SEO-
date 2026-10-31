@@ -19,23 +19,24 @@ async function setup(page: Page, options: {empty?:boolean; fail?:boolean}={}) {
   });
 }
 
-test('one AI Visibility entry keeps prompts and actions together with the main workflow sections',async({page})=>{
+test('AI Visibility presents the buyer prompts and workflow with the main workflow sections',async({page})=>{
   await setup(page);
   await page.goto('/ai-visibility');
-  await expect(page.getByRole('tab')).toHaveCount(2);
-  await expect(page.getByRole('tab',{name:'1. Prompts'})).toBeVisible();
-  await expect(page.getByRole('tab',{name:'2. Take action'})).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Take action/i })).toHaveCount(0);
+  await expect(page.getByText('Take action')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Prepare my prompts'})).toBeVisible();
   await expect(page.getByText('More Views',{exact:true})).toHaveCount(0);
   for(const name of ['Website Audit','Traffic','Competitor Intelligence','AI Visibility']) await expect(page.getByRole('link',{name:new RegExp(`^${name}`)}).first()).toBeVisible();
 });
 
-test('legacy citation and action links enter the current prompts and action workflow',async({page})=>{
+test('legacy citation and action links enter AI Visibility directly without take action',async({page})=>{
   await setup(page);
   await page.goto('/ai-visibility?tab=citations');
-  await expect(page.getByRole('tab',{name:'1. Prompts'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('button',{name:'Prepare my prompts'})).toBeVisible();
+  await expect(page.getByText('Take action')).toHaveCount(0);
   await page.goto('/ai-visibility?tab=root-cause');
-  await expect(page.getByRole('tab',{name:'2. Take action'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('button',{name:'Prepare my prompts'})).toBeVisible();
+  await expect(page.getByText('Take action')).toHaveCount(0);
 });
 
 test('missing projects and API failures remain explicit without demo results',async({page})=>{
