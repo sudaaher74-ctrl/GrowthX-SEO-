@@ -550,6 +550,7 @@ model Project {
   serpSnapshots             SerpSnapshot[]
   keywordGapSnapshots       KeywordGapSnapshot[]
   keywordDiagnoses          KeywordDiagnosis[]
+  backlinkDomainSnapshots   BacklinkDomainSnapshot[]
   fixSnapshots              FixSnapshot[]
   fixImpactLedgerEvents     FixImpactLedgerEvent[]
   fixRegressionRecords      FixRegressionRecord[]
@@ -4110,6 +4111,45 @@ model SerpSnapshot {
   project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, keyword, checkedAt])
+  @@index([projectId, checkedAt])
+}
+
+/// DataForSEO Backlink Intelligence snapshot for a target domain.
+/// Stores overview metrics, top referring domains, backlinks list, and anchor text analysis.
+model BacklinkDomainSnapshot {
+  id                   String   @id @default(uuid())
+  projectId            String
+  domain               String
+  targetKind           String   @default("OWN") // OWN | COMPETITOR
+  provider             String   @default("dataforseo")
+  checkedAt            DateTime @default(now())
+
+  // Summary Metrics
+  rank                 Int      @default(0)
+  backlinks            Int      @default(0)
+  referringDomains     Int      @default(0)
+  referringMainDomains Int      @default(0)
+  referringIps         Int      @default(0)
+  referringSubnets     Int      @default(0)
+  referringPages       Int      @default(0)
+  dofollow             Int      @default(0)
+  nofollow             Int      @default(0)
+  brokenBacklinks      Int      @default(0)
+  brokenPages          Int      @default(0)
+  spamScore            Float?
+
+  // Aggregated JSON Breakdowns
+  topAnchors           Json     @default("[]")
+  topReferringDomains  Json     @default("[]")
+  backlinksList        Json     @default("[]")
+  rawSummary           Json     @default("{}")
+
+  costUsd              Float?
+  error                String?
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, domain, checkedAt])
+  @@index([domain, checkedAt])
   @@index([projectId, checkedAt])
 }
 

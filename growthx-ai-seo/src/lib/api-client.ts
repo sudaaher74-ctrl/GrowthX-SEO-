@@ -484,6 +484,16 @@ export const api = {
     analyzeRecommendation: (projectId: string, sourceId: string) => post<import('./backlink-recommendations').AnalyzeResponse>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/analyze`, {}),
     pushRecommendationOpportunity: (projectId: string, sourceId: string) => post<{ message: string; opportunityId: string }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/opportunity`, {}),
     updateRecommendationOutreach: (projectId: string, sourceId: string, payload: { status?: string; approvedByUser?: boolean; pitchDraft?: string; contactChannel?: string; outcome?: string }) => post<{ message: string; outreach: import('./backlink-recommendations').PublisherOutreachState }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/outreach`, payload),
+    intelligenceOverview: (projectId: string, domain?: string, refresh?: boolean) =>
+      get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}${refresh ? 'refresh=true' : ''}`),
+    syncIntelligence: (projectId: string, domain?: string, targetKind?: 'OWN' | 'COMPETITOR') =>
+      post<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/sync`, { domain, targetKind }),
+    referringDomains: (projectId: string, domain?: string, limit = 50, offset = 0, refresh?: boolean) =>
+      get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/referring-domains?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${refresh ? '&refresh=true' : ''}`),
+    links: (projectId: string, domain?: string, limit = 50, offset = 0, mode?: string, refresh?: boolean) =>
+      get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/links?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${mode ? `&mode=${mode}` : ''}${refresh ? '&refresh=true' : ''}`),
+    anchors: (projectId: string, domain?: string, limit = 50, offset = 0, refresh?: boolean) =>
+      get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/anchors?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${refresh ? '&refresh=true' : ''}`),
   },
 
   // Mammouth AI Orchestration

@@ -23,6 +23,7 @@ import { BacklinksService } from "./backlinks.service";
 import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 import { BacklinkDiscovery } from "./backlink-discovery.service";
 import { RecommendationService } from "./recommendation.service";
+import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
 
 @ApiTags("Backlink intelligence")
 @ApiBearerAuth()
@@ -35,7 +36,74 @@ export class BacklinksController {
     private readonly analytics: BacklinkAnalyticsService,
     private readonly discovery: BacklinkDiscovery,
     private readonly recommendations: RecommendationService,
+    private readonly intelligence: BacklinkIntelligenceService,
   ) {}
+
+  // ── DataForSEO Backlink Intelligence
+
+  @Get("intelligence")
+  getIntelligenceOverview(
+    @Param("projectId") projectId: string,
+    @Query("domain") domain?: string,
+    @Query("refresh") refresh?: string,
+  ) {
+    return this.intelligence.getOverview(projectId, domain, refresh === "true");
+  }
+
+  @Post("intelligence/sync")
+  syncIntelligence(
+    @Param("projectId") projectId: string,
+    @Body() body?: { domain?: string; targetKind?: "OWN" | "COMPETITOR" },
+  ) {
+    return this.intelligence.syncDomainIntelligence(projectId, body?.domain, body?.targetKind);
+  }
+
+  @Get("intelligence/referring-domains")
+  getReferringDomains(
+    @Param("projectId") projectId: string,
+    @Query("domain") domain?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("refresh") refresh?: string,
+  ) {
+    return this.intelligence.getReferringDomains(projectId, domain, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      forceRefresh: refresh === "true",
+    });
+  }
+
+  @Get("intelligence/links")
+  getBacklinksList(
+    @Param("projectId") projectId: string,
+    @Query("domain") domain?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("mode") mode?: "as_is" | "one_per_domain",
+    @Query("refresh") refresh?: string,
+  ) {
+    return this.intelligence.getBacklinksList(projectId, domain, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      mode,
+      forceRefresh: refresh === "true",
+    });
+  }
+
+  @Get("intelligence/anchors")
+  getAnchorAnalysis(
+    @Param("projectId") projectId: string,
+    @Query("domain") domain?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("refresh") refresh?: string,
+  ) {
+    return this.intelligence.getAnchors(projectId, domain, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      forceRefresh: refresh === "true",
+    });
+  }
 
   @Get()
   async report(

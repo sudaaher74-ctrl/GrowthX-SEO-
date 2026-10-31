@@ -10,6 +10,8 @@ import { PublicBacklinkIndex } from "./public-backlink-index.service";
 import { BacklinkDiscovery } from "./backlink-discovery.service";
 import { RecommendationService } from "./recommendation.service";
 import { BacklinksAdapter } from "./backlinks.adapter";
+import { DataForSeoBacklinksService } from "./dataforseo-backlinks.service";
+import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
 
 @Module({
   imports: [DatabaseModule, QueueModule],
@@ -23,7 +25,9 @@ import { BacklinksAdapter } from "./backlinks.adapter";
     BacklinkDiscovery,
     RecommendationService,
     BacklinksAdapter,
+    DataForSeoBacklinksService,
+    BacklinkIntelligenceService,
   ],
-  exports: [BacklinksService, BacklinksAdapter],
+  exports: [BacklinksService, BacklinksAdapter, DataForSeoBacklinksService, BacklinkIntelligenceService],
 })
 export class BacklinksModule {}
