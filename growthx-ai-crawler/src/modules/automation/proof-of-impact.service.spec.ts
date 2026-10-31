@@ -24,6 +24,8 @@ describe('ProofOfImpactService', () => {
       },
       fixImpactLedgerEvent: {
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockImplementation((args) => Promise.resolve({ id: 'evt_1', ...args.data })),
       },
       automationRun: {
@@ -32,6 +34,12 @@ describe('ProofOfImpactService', () => {
       },
       growthOpportunity: {
         findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(3),
+        create: jest.fn().mockImplementation((args) => Promise.resolve({ id: 'opp_1', ...args.data })),
+      },
+      crawlJob: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'job_1', pagesCrawled: 15, healthScore: 72, startedAt: new Date('2026-10-01T10:00:00Z'), finishedAt: new Date('2026-10-01T10:15:00Z') }),
       },
       gscDailyMetric: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -305,6 +313,267 @@ describe('ProofOfImpactService', () => {
       });
       expect((await service.verifyDeployment('proj_1', 'run_1')).success).toBe(false);
       expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Impact Ledger and Day 1 Tracking', () => {
+    it('initializes Day 1 baseline events when no events exist in project ledger', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj_1',
+        name: 'MilQuu Fresh',
+        organizationId: 'org_1',
+        createdAt: new Date('2026-10-01T08:00:00Z'),
+        websites: [{ id: 'w1', domain: 'milquufresh.in', scope: 'own' }],
+      });
+      prisma.fixImpactLedgerEvent.count.mockResolvedValue(0);
+
+      const ledger = await service.getImpactLedger('proj_1');
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            eventType: 'PROJECT_INITIALIZED',
+            actor: 'SYSTEM',
+            affectedUrl: 'https://milquufresh.in',
+          }),
+        }),
+      );
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            eventType: 'BASELINE_CRAWL_COMPLETED',
+            actor: 'GROWTHX_CRAWLER',
+          }),
+        }),
+      );
+    });
+
+    it('returns evidenceData with each ledger event', async () => {
+      prisma.fixImpactLedgerEvent.count.mockResolvedValue(1);
+      prisma.fixImpactLedgerEvent.findMany.mockResolvedValue([
+        {
+          id: 'evt_99',
+          automationRunId: 'run_1',
+          eventType: 'DEPLOYMENT_VERIFIED',
+          title: 'Live Deployment Verified',
+          description: 'Title changed on live website',
+          actor: 'GROWTHX_VERIFIER',
+          affectedUrl: 'https://milquufresh.in/cart',
+          pullRequestUrl: 'https://github.com/milquu/website/pull/12',
+          verificationStatus: 'VERIFIED',
+          evidenceData: { field: 'META_TITLE', before: 'Cart', after: 'Shopping Cart & Milk Subscription | MilQuu Fresh' },
+          createdAt: new Date('2026-10-20T12:00:00Z'),
+        },
+      ]);
+
+      const events = await service.getImpactLedger('proj_1');
+      expect(events).toHaveLength(1);
+      expect(events[0].evidenceData).toEqual({
+        field: 'META_TITLE',
+        before: 'Cart',
+        after: 'Shopping Cart & Milk Subscription | MilQuu Fresh',
+      });
+      expect(events[0].verificationStatus).toBe('VERIFIED');
+    });
+  });
+
+  describe('On-Screen 30d/90d Proof Cards', () => {
+    it('maps target on-screen elements and before 30-90d vs now metrics truthfully', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj_1',
+        name: 'MilQuu Fresh',
+        organizationId: 'org_1',
+        createdAt: new Date('2026-09-01T08:00:00Z'),
+        websites: [{ id: 'w1', domain: 'milquufresh.in', scope: 'own' }],
+      });
+      prisma.automationRun.findMany.mockResolvedValue([
+        {
+          id: 'run_10',
+          projectId: 'proj_1',
+          status: 'MERGED',
+          pullRequestUrl: 'https://github.com/milquu/website/pull/15',
+          filesChanged: ['frontend-react/src/pages/Cart.jsx'],
+          startedAt: new Date('2026-09-15T10:00:00Z'),
+          steps: [
+            {
+              change: {
+                url: 'https://milquufresh.in/cart',
+                field: 'META_TITLE',
+                file: 'frontend-react/src/pages/Cart.jsx',
+                before: 'Cart - Milquu',
+                after: 'Fresh A2 Milk Cart & Instant Checkout | MilQuu Fresh',
+                why: 'Grow local organic search clicks and snippet CTR in Navi Mumbai',
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.fixSnapshot.findMany.mockResolvedValue([
+        {
+          id: 'snap_v',
+          automationRunId: 'run_10',
+          snapshotType: 'VERIFIED_LIVE',
+          url: 'https://milquufresh.in/cart',
+          title: 'Fresh A2 Milk Cart & Instant Checkout | MilQuu Fresh',
+          pageId: 'page_cart',
+          capturedAt: new Date('2026-09-16T10:00:00Z'),
+        },
+      ]);
+
+      const cards = await service.get30d90dProof('proj_1');
+      expect(cards).toHaveLength(1);
+      const card = cards[0];
+      expect(card.targetElement).toBe('Page Title & SERP Snippet Header');
+      expect(card.before.text).toBe('Cart - Milquu');
+      expect(card.before.timeframe).toBe('Before (30–90 Days Ago)');
+      expect(card.after.text).toBe('Fresh A2 Milk Cart & Instant Checkout | MilQuu Fresh');
+      expect(card.after.timeframe).toBe('Now (Live on Production)');
+      expect(card.after.verificationStatus).toBe('VERIFIED_LIVE');
+    });
+  });
+
+  describe('Closed-Loop Evaluation Engine', () => {
+    it('executes 4-point RCA and triggers Iteration 2 pivot when 14-30d lift is flat', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj_1',
+        name: 'MilQuu Fresh',
+        organizationId: 'org_1',
+        createdAt: new Date('2026-09-01T08:00:00Z'),
+        websites: [{ id: 'w1', domain: 'milquufresh.in', scope: 'own' }],
+      });
+      prisma.automationRun.findMany.mockResolvedValue([
+        {
+          id: 'run_flat',
+          projectId: 'proj_1',
+          status: 'MERGED',
+          pullRequestUrl: 'https://github.com/milquu/website/pull/18',
+          filesChanged: ['frontend-react/src/pages/Cart.jsx'],
+          startedAt: new Date('2026-09-10T10:00:00Z'), // > 14 days ago
+          steps: [
+            {
+              change: {
+                url: 'https://milquufresh.in/cart',
+                field: 'META_TITLE',
+                file: 'frontend-react/src/pages/Cart.jsx',
+                before: 'Cart',
+                after: 'Fresh Milk Delivery Cart',
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.fixSnapshot.findMany.mockResolvedValue([
+        {
+          id: 'snap_flat',
+          automationRunId: 'run_flat',
+          snapshotType: 'VERIFIED_LIVE',
+          url: 'https://milquufresh.in/cart',
+          pageId: 'page_cart',
+          capturedAt: new Date('2026-09-11T10:00:00Z'),
+        },
+      ]);
+      prisma.gscDailyMetric.aggregate.mockResolvedValue({ _sum: { clicks: 0, impressions: 45 } });
+
+      const result = await service.evaluateAndTriggerLoop('proj_1');
+      expect(result.loopTriggeredCount).toBe(1);
+
+      // Verify NO_IMPROVEMENT_DIAGNOSED event created
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            automationRunId: 'run_flat',
+            eventType: 'NO_IMPROVEMENT_DIAGNOSED',
+            actor: 'CLOSED_LOOP_ENGINE',
+          }),
+        }),
+      );
+
+      // Verify adaptive follow-up finding created in GrowthOpportunity
+      expect(prisma.growthOpportunity.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            fingerprint: 'impact-loop-pivot-run_flat-iteration-2',
+            source: 'WEBSITE',
+            category: 'TECHNICAL',
+            title: expect.stringContaining('[Iteration 2 Strategy Pivot]'),
+            status: 'OPEN',
+          }),
+        }),
+      );
+
+      // Verify ITERATION_LOOP_TRIGGERED event created
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            automationRunId: 'run_flat',
+            eventType: 'ITERATION_LOOP_TRIGGERED',
+          }),
+        }),
+      );
+    });
+
+    it('emits IMPACT_CONFIRMED when 14-30d search clicks show positive lift', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj_1',
+        name: 'MilQuu Fresh',
+        organizationId: 'org_1',
+        createdAt: new Date('2026-09-01T08:00:00Z'),
+        websites: [{ id: 'w1', domain: 'milquufresh.in', scope: 'own' }],
+      });
+      prisma.automationRun.findMany.mockResolvedValue([
+        {
+          id: 'run_improved',
+          projectId: 'proj_1',
+          status: 'MERGED',
+          pullRequestUrl: 'https://github.com/milquu/website/pull/20',
+          filesChanged: ['src/app/page.tsx'],
+          startedAt: new Date('2026-09-10T10:00:00Z'),
+          steps: [
+            {
+              change: {
+                url: 'https://milquufresh.in/',
+                field: 'META_TITLE',
+                file: 'src/app/page.tsx',
+                before: 'Home',
+                after: 'Fresh Cow Milk in Navi Mumbai',
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.fixSnapshot.findMany.mockResolvedValue([
+        {
+          id: 'snap_imp',
+          automationRunId: 'run_improved',
+          snapshotType: 'VERIFIED_LIVE',
+          url: 'https://milquufresh.in/',
+          pageId: 'page_home',
+          capturedAt: new Date('2026-09-11T10:00:00Z'),
+        },
+      ]);
+      // Mock positive clicks: baseline 10, post-fix 35
+      prisma.gscDailyMetric.aggregate.mockImplementation((args: any) => {
+        if (args?.where?.date?.lt) {
+          return Promise.resolve({ _sum: { clicks: 10, impressions: 100 } });
+        }
+        return Promise.resolve({ _sum: { clicks: 35, impressions: 300 } });
+      });
+
+      const result = await service.evaluateAndTriggerLoop('proj_1');
+      expect(result.improvedCount).toBe(1);
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj_1',
+            automationRunId: 'run_improved',
+            eventType: 'IMPACT_CONFIRMED',
+          }),
+        }),
+      );
     });
   });
 });

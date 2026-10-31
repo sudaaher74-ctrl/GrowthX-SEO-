@@ -238,6 +238,23 @@ export class AutomationController {
     return this.proofOfImpact.getImpactLedger(projectId);
   }
 
+  @Get('impact/proof-cards')
+  @ApiOperation({ summary: 'Visual before 30/90 days vs now proof cards for website changes' })
+  @ApiParam({ name: 'projectId' })
+  getImpactProofCards(@Param('projectId') projectId: string) {
+    return this.proofOfImpact.get30d90dProof(projectId);
+  }
+
+  @Post('impact/loop/trigger')
+  @ApiOperation({ summary: 'Evaluate 14-30 day search lift and trigger closed-loop feedback pivots if flat' })
+  @ApiParam({ name: 'projectId' })
+  triggerImpactLoop(
+    @Param('projectId') projectId: string,
+    @Body() body?: { runId?: string },
+  ) {
+    return this.proofOfImpact.evaluateAndTriggerLoop(projectId, body?.runId);
+  }
+
   @Get('impact/analytics')
   @ApiOperation({ summary: 'Technical, Search (GSC), AI Visibility, and GA4 Business impact analytics' })
   @ApiParam({ name: 'projectId' })

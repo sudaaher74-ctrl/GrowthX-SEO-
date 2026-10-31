@@ -2426,8 +2426,59 @@ export interface FixLedgerEntry {
   affectedUrl: string | null;
   pullRequestUrl: string | null;
   verificationStatus: string | null;
-  metadata: Record<string, unknown>;
+  evidenceData?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface ProofOfImpactCard {
+  runId: string;
+  title: string;
+  url: string;
+  file: string;
+  field: string;
+  targetElement: string;
+  before: {
+    text: string | null;
+    timeframe: string;
+    clicks: number | null;
+    impressions: number | null;
+    ctr: number | null;
+    aiVisibility: string | null;
+  };
+  after: {
+    text: string | null;
+    timeframe: string;
+    clicks: number | null;
+    clicksDeltaPct: number | null;
+    impressions: number | null;
+    impressionsDeltaPct: number | null;
+    aiVisibility: string | null;
+    verificationStatus: string;
+    verifiedAt: string | null;
+    pullRequestUrl: string | null;
+  };
+  liftStatus: 'IMPROVED' | 'FLAT' | 'MONITORING';
+  metrics30d?: {
+    beforeClicks: number | null;
+    afterClicks: number | null;
+    clicksDeltaPct: number | null;
+    status: string;
+  };
+  metrics90d?: {
+    beforeClicks: number | null;
+    afterClicks: number | null;
+    clicksDeltaPct: number | null;
+    status: string;
+  };
+  loopStatus?: {
+    iteration: number;
+    rca?: string[];
+    pivotOpportunityId?: string;
+    pivotTitle?: string;
+    pivotAction?: string;
+    canLaunchIteration2?: boolean;
+  };
 }
 
 export interface FixImpactReportData {

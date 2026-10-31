@@ -1128,6 +1128,13 @@ export const api = {
     ),
   getFixImpactLedger: (projectId: string) =>
     get<import('./api-types').FixLedgerEntry[]>(`/api/projects/${projectId}/automation/impact/ledger`),
+  getFixProofCards: (projectId: string) =>
+    get<import('./api-types').ProofOfImpactCard[]>(`/api/projects/${projectId}/automation/impact/proof-cards`),
+  triggerImpactLoop: (projectId: string, runId?: string) =>
+    post<{ evaluatedRuns: number; improvedCount: number; loopTriggeredCount: number; results: any[] }>(
+      `/api/projects/${projectId}/automation/impact/loop/trigger`,
+      { runId },
+    ),
   getFixImpactAnalytics: (projectId: string) =>
     get<Record<string, unknown>>(`/api/projects/${projectId}/automation/impact/analytics`),
   getFixImpactReport: (projectId: string, runId?: string) =>
