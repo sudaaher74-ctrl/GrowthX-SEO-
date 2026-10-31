@@ -86,4 +86,41 @@ describe('RepoSandbox', () => {
     expect(out).not.toContain('.env');
     expect(await box.search('(a+)+$')).toBe('No matches.');
   });
+
+  it('rejects invalid read range when start > end with recovery guidance', async () => {
+    await expect(box.read('src/page.tsx', 300, 120)).rejects.toThrow(
+      /Invalid line range: start line \(300\) cannot be greater than end line \(120\)/,
+    );
+  });
+
+  it('rejects start line beyond file length with recovery guidance', async () => {
+    await expect(box.read('src/page.tsx', 50)).rejects.toThrow(
+      /Start line 50 is beyond the end of src\/page\.tsx \(\d+ lines total\)/,
+    );
+  });
+
+  it('rejects non-positive start or end line numbers', async () => {
+    await expect(box.read('src/page.tsx', 0)).rejects.toThrow(/positive integers/);
+    await expect(box.read('src/page.tsx', 1, 0)).rejects.toThrow(/positive integers/);
+    await expect(box.read('src/page.tsx', -5)).rejects.toThrow(/positive integers/);
+  });
+
+  it('rejects reading more than LIMITS.readLines at once with guidance', async () => {
+    await expect(box.read('src/page.tsx', 1, 1 + LIMITS.readLines + 10)).rejects.toThrow(
+      /Cannot read \d+ lines at once/,
+    );
+  });
+
+  it('handles empty files gracefully', async () => {
+    await fs.writeFile(path.join(root, 'src/empty.txt'), '');
+    expect(await box.read('src/empty.txt')).toContain('empty file, 0 lines');
+  });
+
+  it('rejects read when output exceeds LIMITS.readChars instead of silent truncation', async () => {
+    const longLine = 'a'.repeat(500) + '\n';
+    await fs.writeFile(path.join(root, 'src/huge.txt'), longLine.repeat(50));
+    await expect(box.read('src/huge.txt', 1, 50)).rejects.toThrow(
+      /too large.*limit is \d+.*Read a smaller range/,
+    );
+  });
 });

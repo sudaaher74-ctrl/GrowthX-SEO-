@@ -93,6 +93,9 @@ You work by choosing ONE tool per turn and replying with JSON only. Tools:
 
 Rules:
 - Look before you change: find the right file, read it (in 80-120 line ranges), then edit. Copy "old" exactly from what you read.
+- Always provide valid read ranges with start <= end (for example, start: 1, end: 120). Never use start > end.
+- If an edit fails because text was not found, you MUST read the target file again to inspect the exact lines before trying another edit. Never retry an edit without reading the file first.
+- Never repeat an identical failed edit. If an edit fails, check the actual file content, indentation, and surrounding lines.
 - Keep "old" short (2 to 6 exact lines) and "new" concise (3 to 15 lines) so your JSON response is never truncated. Never paste an entire file into "old" or "new".
 - Prefer editing actual website HTML/TSX/JSX page files (like index.html or src/app/page.tsx) rather than large .md strategy files.
 - Never create audit-message constants, placeholder files, or standalone notes as a substitute for implementing a fix. New helpers must be connected to existing website code.
@@ -499,8 +502,11 @@ export class EngineerAgentService {
     const deadline = Date.now() + MAX_MINUTES * 60_000;
     let malformed = 0;
     const readPaths = new Set<string>();
+    const failedEditSignatures = new Set<string>();
+    const failedEditsByFile = new Map<string, number>();
     let editIndex = 0;
     let rejectedFinishes = 0;
+    let consecutiveFailures = 0;
 
     for (let turn = 1; turn <= MAX_TURNS; turn++) {
       if (Date.now() > deadline) {
@@ -509,14 +515,38 @@ export class EngineerAgentService {
       }
 
       const older = history.slice(0, -8).map((h) => `${h.call} -> ${clip(h.result, 200)}`);
-      const recent = history.slice(-8).map((h) => `${h.call} ->\n${clip(h.result, 6000)}`);
+      const recent = history.slice(-8).map((h) => {
+        if (h.call.startsWith('read')) {
+          // File content from read must reach the model in full without silent truncation
+          return `${h.call} ->\n${h.result}`;
+        }
+        if (h.result.length > 6000) {
+          return `${h.call} ->\n${h.result.slice(0, 6000)}\n… [truncated at 6000 chars; narrow query or path]`;
+        }
+        return `${h.call} ->\n${h.result}`;
+      });
+
+      const remainingTurns = MAX_TURNS - turn + 1;
+      let turnNotice = `Turn ${turn} of ${MAX_TURNS}. Reply with one JSON action.`;
+      if (remainingTurns === 1) {
+        turnNotice = `FINAL TURN: This is turn ${MAX_TURNS} of ${MAX_TURNS}. You MUST call {"tool":"finish","summary":"..."} on this turn, or the run will be stopped and all changes discarded.`;
+      } else if (remainingTurns <= 8) {
+        if (box.changed.size > 0) {
+          turnNotice = `URGENT: Turn ${turn} of ${MAX_TURNS} (${remainingTurns} turns left). You have already modified ${[...box.changed].join(', ')}. Conclude your work now by calling {"tool":"finish","summary":"..."}. Incomplete runs that reach turn ${MAX_TURNS} are discarded.`;
+        } else {
+          turnNotice = `URGENT: Turn ${turn} of ${MAX_TURNS} (${remainingTurns} turns left). If the requested change cannot be completed safely, call {"tool":"finish","summary":"..."} now explaining the limitation. Do not exhaust remaining turns on failing retries.`;
+        }
+      } else if (turn >= 10 && box.changed.size === 0) {
+        turnNotice = `Turn ${turn} of ${MAX_TURNS}. You have spent ${turn - 1} turns without editing any files. Locate the target file, read it, apply the change, and finish.`;
+      }
+
       const prompt = [
         `INSTRUCTION FROM THE SITE OWNER:\n${instruction}`,
         findingsContext.length ? `FINDINGS DATA (include every affected page when determining scope):\n${JSON.stringify(findingsContext)}` : '',
         `REPOSITORY: framework ${framework}, package manager ${packageManager}. Root:\n${rootListing}`,
         older.length ? `EARLIER STEPS (short):\n${older.join('\n')}` : '',
         recent.length ? `RECENT STEPS:\n${recent.join('\n\n')}` : 'No steps yet.',
-        `Turn ${turn} of ${MAX_TURNS}. Reply with one JSON action.`,
+        turnNotice,
       ].filter(Boolean).join('\n\n');
 
       const completion = await this.router.generate({
@@ -558,18 +588,52 @@ export class EngineerAgentService {
 
       let result: string;
       let ok = true;
+      const actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
       try {
-        const actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
-        if ((action.tool === 'edit' || action.tool === 'metadata') && !readPaths.has(actionPath)) throw new SandboxError('Read the target file before editing it.');
+        if ((action.tool === 'edit' || action.tool === 'metadata') && !readPaths.has(actionPath)) {
+          throw new SandboxError(`Read ${actionPath} before editing it. A fresh read is required to inspect the exact lines.`);
+        }
+        if (action.tool === 'edit') {
+          const editSig = `${actionPath}:::${action.old}`;
+          if (failedEditSignatures.has(editSig)) {
+            throw new SandboxError(
+              `Repeated edit attempt: this exact replacement text in ${actionPath} already failed previously. Do not repeat identical failed edits. Read the file again to copy the actual text, or finish if the change cannot be made safely.`,
+            );
+          }
+          const fileFailures = failedEditsByFile.get(actionPath) ?? 0;
+          if (fileFailures >= 3) {
+            throw new SandboxError(
+              `Too many failed edit attempts on ${actionPath} (${fileFailures}). Stop attempting edits on this file. Call "finish" and explain what could not be found.`,
+            );
+          }
+        }
         if ((action.tool === 'create' || action.tool === 'edit') && (/\bSEO_FIX_[A-Z0-9_]+\b/.test(action.content ?? action.new ?? '') || /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(actionPath))) {
           throw new SandboxError('Audit-message placeholder files are not a website fix. Edit the actual page or connected component.');
         }
         result = await this.runTool(box, action);
         if (action.tool === 'read') readPaths.add(actionPath);
+        consecutiveFailures = 0;
       } catch (error: any) {
         if (!(error instanceof SandboxError) && error?.code !== 'ENOENT' && error?.code !== 'EISDIR') throw error;
         ok = false;
         result = `Error: ${error instanceof SandboxError ? error.message : `${action.path ?? ''} could not be used.`}`;
+        if (action.tool === 'edit' || action.tool === 'metadata') {
+          // Require a fresh read after failed edits
+          readPaths.delete(actionPath);
+          result += ` A fresh read of ${actionPath} is required before attempting another edit in this file.`;
+          if (action.tool === 'edit' && typeof action.old === 'string') {
+            failedEditSignatures.add(`${actionPath}:::${action.old}`);
+          }
+          const fileFailures = (failedEditsByFile.get(actionPath) ?? 0) + 1;
+          failedEditsByFile.set(actionPath, fileFailures);
+          if (fileFailures >= 2) {
+            result += ` (Warning: ${fileFailures} failed edit attempts on ${actionPath}. If target code is missing or different, call finish with a summary explaining the limitation.)`;
+          }
+        }
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 5) {
+          result += ` (Notice: 5 consecutive actions have failed. Conclude your run by calling "finish" with a summary explaining what blocked the change.)`;
+        }
       }
       const label = `${action.tool}${action.path ? ` ${action.path}` : action.pattern ? ` "${clip(action.pattern, 40)}"` : ''}${action.tool === 'read' ? `:${action.start ?? 1}-${action.end ?? 120}` : ''}`;
       history.push({ call: label, result });

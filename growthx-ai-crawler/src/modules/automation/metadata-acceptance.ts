@@ -42,7 +42,10 @@ export async function metadataAcceptance(box: RepoSandbox): Promise<string[]> {
         await box.source(rel);
       }
       const routed = await resolveReactRoute(path.resolve(box.root, app), entry.route);
-      if (!routed || path.resolve(routed) !== path.resolve(box.root, component)) {
+      const resolvedComponent = path.resolve(box.root, component);
+      const realRouted = routed ? await fs.realpath(routed).catch(() => path.resolve(routed)) : null;
+      const realComponent = await fs.realpath(resolvedComponent).catch(() => resolvedComponent);
+      if (!realRouted || realRouted !== realComponent) {
         errors.push(`${entry.route}: could not trace the declared source page through explicit React Router routes. Do not claim runtime integration without a supported route.`);
         continue;
       }

@@ -311,4 +311,73 @@ describe('EngineerAgentService', () => {
       }),
     );
   });
+
+  it('requires a fresh read after a failed edit before allowing another edit', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'New title' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Other text', new: 'New title' }),
+      act({ tool: 'finish', summary: 'Gave up.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
+    const thirdPrompt = router.generate.mock.calls[3][0].prompt;
+    expect(thirdPrompt).toMatch(/fresh read.*required|Read app\/page\.tsx before editing it/);
+  });
+
+  it('rejects repeated identical failed edit attempts with clear guidance', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'New title' }),
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'Different title' }),
+      act({ tool: 'finish', summary: 'Could not find text.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    const fifthPrompt = router.generate.mock.calls[4][0].prompt;
+    expect(fifthPrompt).toMatch(/Repeated edit attempt/);
+  });
+
+  it('delivers read file content to model prompt without silent 6000-char truncation', async () => {
+    const longContent = 'A'.repeat(80) + '\n';
+    await fs.writeFile(path.join(dir, 'app/long.tsx'), longContent.repeat(100));
+    replies.push(
+      act({ tool: 'read', path: 'app/long.tsx', start: 1, end: 100 }),
+      act({ tool: 'finish', summary: 'done' }),
+    );
+    await service.run('proj_1', 'org_1', INSTRUCTION);
+    const secondPrompt = router.generate.mock.calls[1][0].prompt;
+    expect(secondPrompt).toContain('app/long.tsx:1-100');
+    expect(secondPrompt).toContain('100: AAAAA');
+  });
+
+  it('provides urgent turn budget guidance when turns are running low', async () => {
+    for (let i = 0; i < 24; i++) {
+      replies.push(act({ tool: 'list', path: '' }));
+    }
+    replies.push(act({ tool: 'finish', summary: 'Finished near limit' }));
+    await service.run('proj_1', 'org_1', INSTRUCTION);
+    const turn25Prompt = router.generate.mock.calls[24][0].prompt;
+    expect(turn25Prompt).toMatch(/URGENT: Turn 25 of 30/);
+  });
+
+  it('blocks repeated edit attempts on a file after multiple failures', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad1', new: 'n1' }),
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad2', new: 'n2' }),
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad3', new: 'n3' }),
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad4', new: 'n4' }),
+      act({ tool: 'finish', summary: 'stopped' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    const lastPrompt = router.generate.mock.calls[8][0].prompt;
+    expect(lastPrompt).toMatch(/Too many failed edit attempts/);
+  });
 });

@@ -85,7 +85,9 @@ export class RepoSandbox {
         await this.source(candidate);
       }
       const routed = await resolveReactRoute(path.resolve(this.root, app), pathname);
-      if (!routed || path.resolve(routed) !== path.resolve(abs)) throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
+      const realRouted = routed ? await fs.realpath(routed).catch(() => path.resolve(routed)) : null;
+      const realAbs = await fs.realpath(abs).catch(() => path.resolve(abs));
+      if (!realRouted || realRouted !== realAbs) throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
     }
     for (const entry of ['main.jsx', 'main.tsx', 'index.jsx', 'index.tsx']) {
       const rel = path.posix.join(app, 'src', entry);
@@ -182,14 +184,73 @@ export class RepoSandbox {
     if (stat.size > LIMITS.maxFileBytes) throw new SandboxError(`${p} is too large to read (${stat.size} bytes).`);
     const text = await fs.readFile(abs, 'utf8');
     if (text.includes('\0')) throw new SandboxError(`${p} is a binary file.`);
+
     const lines = text.split('\n');
-    const from = Math.max(1, Math.floor(start) || 1);
-    const to = Math.min(lines.length, Math.floor(end ?? from + LIMITS.readLines - 1), from + LIMITS.readLines - 1);
-    let out = lines
-      .slice(from - 1, to)
-      .map((l, i) => `${from + i}: ${l}`)
-      .join('\n');
-    if (out.length > LIMITS.readChars) out = `${out.slice(0, LIMITS.readChars)}\n… (cut; read a smaller range)`;
+    if (text.length === 0 || (lines.length === 1 && lines[0] === '')) {
+      return `${p} (empty file, 0 lines)`;
+    }
+
+    const numStart = typeof start === 'number' ? start : typeof start === 'string' && String(start).trim() !== '' ? Number(start) : NaN;
+    if (isNaN(numStart) || !Number.isFinite(numStart)) {
+      throw new SandboxError(`Invalid start line "${start}". Line numbers must be positive integers starting from 1.`);
+    }
+    const from = Math.floor(numStart);
+    if (from < 1) {
+      throw new SandboxError(`Invalid start line ${start}. Line numbers must be positive integers starting from 1.`);
+    }
+
+    let to: number;
+    if (end !== undefined && end !== null) {
+      const numEnd = typeof end === 'number' ? end : typeof end === 'string' && String(end).trim() !== '' ? Number(end) : NaN;
+      if (isNaN(numEnd) || !Number.isFinite(numEnd)) {
+        throw new SandboxError(`Invalid end line "${end}". Line numbers must be positive integers.`);
+      }
+      const rawEnd = Math.floor(numEnd);
+      if (rawEnd < 1) {
+        throw new SandboxError(`Invalid end line ${rawEnd}. Line numbers must be positive integers starting from 1.`);
+      }
+      if (from > rawEnd) {
+        throw new SandboxError(
+          `Invalid line range: start line (${from}) cannot be greater than end line (${rawEnd}). Read with start <= end (for example, start: ${Math.min(from, rawEnd)}, end: ${Math.min(lines.length, Math.max(from, rawEnd, Math.min(from, rawEnd) + 100))}). File ${p} has ${lines.length} lines.`,
+        );
+      }
+      const requestedLines = rawEnd - from + 1;
+      if (requestedLines > LIMITS.readLines) {
+        throw new SandboxError(
+          `Cannot read ${requestedLines} lines at once (maximum is ${LIMITS.readLines} lines). Read a smaller range (for example, start: ${from}, end: ${from + LIMITS.readLines - 1}).`,
+        );
+      }
+      to = Math.min(lines.length, rawEnd);
+    } else {
+      to = Math.min(lines.length, from + LIMITS.readLines - 1);
+    }
+
+    if (from > lines.length) {
+      throw new SandboxError(
+        `Start line ${from} is beyond the end of ${p} (${lines.length} lines total). Read a valid range within 1 to ${lines.length} (for example, start: ${Math.max(1, lines.length - 100)}, end: ${lines.length}).`,
+      );
+    }
+
+    if (from > to) {
+      throw new SandboxError(
+        `Empty read range: lines ${from}-${to} in ${p} (${lines.length} lines total). Read a valid range within 1 to ${lines.length}.`,
+      );
+    }
+
+    const selectedLines = lines.slice(from - 1, to);
+    if (selectedLines.length === 0) {
+      throw new SandboxError(
+        `Empty read range: no lines found in range ${from}-${to} for ${p} (${lines.length} lines total). Read a valid range within 1 to ${lines.length}.`,
+      );
+    }
+
+    const out = selectedLines.map((l, i) => `${from + i}: ${l}`).join('\n');
+    if (out.length > LIMITS.readChars) {
+      throw new SandboxError(
+        `Read output for ${p} (lines ${from}-${to}) is too large (${out.length} characters, limit is ${LIMITS.readChars}). Read a smaller range of 60-100 lines (for example, start: ${from}, end: ${from + Math.min(80, to - from)}) so file content reaches you without truncation.`,
+      );
+    }
+
     return `${p} (lines ${from}-${to} of ${lines.length})\n${out}`;
   }
 
