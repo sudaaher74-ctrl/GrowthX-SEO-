@@ -28,7 +28,6 @@ import { PerformanceTab } from "@/components/website/tabs/performance-tab";
 import { PagesTab } from "@/components/website/tabs/pages-tab";
 import { ContentTab } from "@/components/website/tabs/content-tab";
 import { IssuesTab } from "@/components/website/tabs/issues-tab";
-import { OverviewTab } from "@/components/website/tabs/overview-tab";
 
 import type { WebsiteTabId as TabId } from "@/components/website/tabs/tab-id";
 
@@ -37,7 +36,7 @@ function WebsiteAuditClient() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryDomain = searchParams.get("domain");
-  const tabParam = searchParams.get("tab") as TabId | null;
+  const tabParam = searchParams.get("tab");
 
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
@@ -64,7 +63,6 @@ function WebsiteAuditClient() {
   const issueGroups = useIssueGroups(auditProjectId);
 
   const VALID_TABS: TabId[] = [
-    "overview",
     "technical-seo",
     "performance",
     "pages",
@@ -74,8 +72,16 @@ function WebsiteAuditClient() {
   ];
 
   const activeTab: TabId = tabParam && (VALID_TABS as string[]).includes(tabParam)
-    ? tabParam
+    ? (tabParam as TabId)
     : "technical-seo";
+
+  useEffect(() => {
+    if (tabParam === "overview") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "technical-seo");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [tabParam, pathname, router, searchParams]);
   const [crawling, setCrawling] = useState(false);
   const [crawlActionError, setCrawlActionError] = useState<string | null>(null);
   const [crawlActionMessage, setCrawlActionMessage] = useState<string | null>(null);
@@ -173,7 +179,6 @@ function WebsiteAuditClient() {
     badge?: string | number;
     badgeTone?: "danger" | "info" | "default";
   }[] = [
-    { id: "overview", label: "Overview" },
     {
       id: "technical-seo",
       label: "Technical health",
@@ -198,10 +203,6 @@ function WebsiteAuditClient() {
 
   // Dynamic Header Titles and Subtitles based on Active Tab
   const headerContent = {
-    overview: {
-      title: "Your website at a glance",
-      subtitle: "How healthy your website is, what's wrong and what to do first.",
-    },
     "technical-seo": {
       title: "Technical health",
       subtitle: "Problems that stop Google from finding, reading or showing your pages, and how to fix each one.",
@@ -239,8 +240,8 @@ function WebsiteAuditClient() {
           <ChevronRight size={12} className="text-brand-400" />
           <span>Website Audit</span>
           <ChevronRight size={12} className="text-brand-400" />
-          <span className="font-semibold text-brand-950 capitalize">
-            {activeTab.replace(/-/g, " ")}
+          <span className="font-semibold text-brand-950">
+            {tabs.find((t) => t.id === activeTab)?.label ?? activeTab.replace(/-/g, " ")}
           </span>
         </div>
 
@@ -407,16 +408,6 @@ function WebsiteAuditClient() {
           <StatusNote>Loaded {allPages.length.toLocaleString()} of {totalPages.toLocaleString()} crawled pages. Page details and breakdowns use this sample; the crawl total covers the whole job.</StatusNote>
         )}
         {/* Render Tab Content based on activeTab */}
-        {activeTab === "overview" && (
-          <OverviewTab
-            totalPages={totalPages}
-            crawl={crawl.data ?? null}
-            issues={allIssues}
-            pages={allPages}
-            onSwitchTab={selectTab}
-          />
-        )}
-
         {activeTab === "technical-seo" && (
           <TechnicalSeoTab
             totalPages={totalPages}

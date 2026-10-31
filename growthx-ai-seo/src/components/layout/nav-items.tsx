@@ -81,7 +81,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       tagTone: "danger",
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
       children: [
-        { id: "overview", label: "Overview", href: "/website?tab=overview", tab: "overview" },
         { id: "technical-seo", label: "Technical health", href: "/website?tab=technical-seo", tab: "technical-seo", isDefault: true },
         { id: "performance", label: "Speed", href: "/website?tab=performance", tab: "performance" },
         { id: "pages", label: "Pages", href: "/website?tab=pages", tab: "pages" },

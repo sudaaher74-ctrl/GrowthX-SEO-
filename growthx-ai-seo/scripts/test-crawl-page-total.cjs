@@ -25,13 +25,7 @@ assert.equal(crawlPageTotal(0, 0, 0), 0);
 assert.equal(crawlPageTotal(0, undefined, 100), 0);
 assert.equal(crawlPageTotal(undefined, undefined, 100), 100);
 assert.equal(crawlPageTotal(NaN, -1, 20), 20);
-const { OverviewTab } = require('../src/components/website/tabs/overview-tab.tsx');
 const { PagesKpis } = require('../src/components/website/pages/pages-kpis.tsx');
-const pages = Array.from({ length: 100 }, () => ({ statusCode: 200 }));
-const overview = renderToStaticMarkup(React.createElement(OverviewTab, {
-  crawl: { pagesCrawled: 757 }, totalPages: 757, pages, issues: [], onSwitchTab() {},
-}));
-assert.match(overview, />757</);
 const kpis = renderToStaticMarkup(React.createElement(PagesKpis, {
   totalPages: 757, successfulCount: 100, pagesCount: 100, pagesDelta: null,
   erroredCount: 0, redirectedCount: 0, blockedCount: 0, unreachableCount: 0,
@@ -42,4 +36,4 @@ const kpis = renderToStaticMarkup(React.createElement(PagesKpis, {
 }));
 assert.match(kpis, />757</);
 assert.match(kpis, /Status counts below describe the loaded pages/);
-console.log('Crawl totals: 6 count cases and 2 rendered dashboard cards passed.');
+console.log('Crawl totals: 6 count cases and rendered dashboard card passed.');

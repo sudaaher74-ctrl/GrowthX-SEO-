@@ -7,7 +7,6 @@
  * which turned a typo in a tab name into a silent no-op.
  */
 export type WebsiteTabId =
-  | "overview"
   | "technical-seo"
   | "performance"
   | "pages"

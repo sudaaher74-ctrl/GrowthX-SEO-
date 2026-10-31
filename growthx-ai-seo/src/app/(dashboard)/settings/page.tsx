@@ -868,7 +868,7 @@ function WebsitesView() {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = `/website?tab=overview`;
+                  window.location.href = `/website`;
                 }}
                 className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
               >
