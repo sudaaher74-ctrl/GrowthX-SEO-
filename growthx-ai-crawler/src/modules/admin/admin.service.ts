@@ -239,7 +239,7 @@ export class AdminService {
     from.setUTCDate(from.getUTCDate() - windowDays + 1);
 
     const usageWhere = { createdAt: { gte: from } };
-    const [aiTotals, unpricedCalls, activeOrgRows, crawlStatuses, newUsers, aiDaily, crawlDaily, userDaily, byOrganization] = await Promise.all([
+    const [aiTotals, unpricedCalls, activeOrgRows, crawlStatuses, newUsers, sessionUsers, aiDaily, crawlDaily, userDaily, byOrganization] = await Promise.all([
       this.prisma.aiUsageRecord.aggregate({
         where: usageWhere,
         _count: { _all: true },
@@ -257,6 +257,12 @@ export class AdminService {
         _count: { _all: true },
       }),
       this.prisma.user.count({ where: usageWhere }),
+      // Count distinct accounts because refresh-token rotation can issue several sessions per active account.
+      this.prisma.refreshSession.findMany({
+        where: { createdAt: { gte: from } },
+        distinct: ['userId'],
+        select: { userId: true },
+      }),
       this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
         SELECT TO_CHAR(DATE_TRUNC('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
         FROM "AiUsageRecord"
@@ -331,6 +337,7 @@ export class AdminService {
         unpricedCalls,
         organizationsUsingAi: activeOrgRows.length,
         newUsers,
+        usersWithSessionActivity: sessionUsers.length,
         crawlerRuns: crawlStatuses.reduce((sum, row) => sum + row._count._all, 0),
         completedCrawls: crawlCount('COMPLETED'),
         failedCrawls: crawlCount('FAILED'),
