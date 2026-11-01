@@ -1132,7 +1132,15 @@ export const api = {
   getFixImpactDetail: (projectId: string, runId: string) =>
     get<import('./api-types').FixDetailData>(`/api/projects/${projectId}/automation/impact/fixes/${runId}`),
   verifyFixDeployment: (projectId: string, runId: string) =>
-    post<{ success: boolean; verificationStatus: string; liveValue?: string | null; verifiedAt?: string; message?: string }>(
+    post<{
+      success: boolean;
+      verificationStatus: "VERIFIED" | "PENDING_DEPLOYMENT" | "UNSUPPORTED" | "NOT_CHECKED";
+      liveValue?: string | null;
+      verifiedAt?: string;
+      mergedAt?: string;
+      results?: Array<{ url: string; field: string; verificationStatus: string; liveValue: string | null; message: string }>;
+      message?: string;
+    }>(
       `/api/projects/${projectId}/automation/impact/fixes/${runId}/verify`,
       {},
     ),

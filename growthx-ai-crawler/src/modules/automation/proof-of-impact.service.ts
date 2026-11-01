@@ -1,10 +1,32 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { GitService } from '../autonomous-engineer/agents/git/git.service';
 import { SecurityService } from '../security/security.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { FetcherService } from '../crawler/fetcher.service';
 import { OWN_SCOPE } from '../crawler/website-scope';
+import * as cheerio from 'cheerio';
+import { createHash } from 'crypto';
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function expectedAltPattern(change: any): RegExp | null {
+  const after = typeof change.after === 'string' ? change.after : '';
+  const template = after.match(/alt\s*=\s*\{\s*`([^`]*)`\s*\}/i);
+  if (template) {
+    const pieces = template[1].split(/\$\{[^}]+\}/g);
+    const pattern = pieces.map(escapeRegExp).join('[^<>]{1,160}');
+    return new RegExp(`^${pattern}$`, 'i');
+  }
+  const quoted = after.match(/alt\s*=\s*(['"])(.*?)\1/i);
+  if (quoted?.[2]?.trim()) return new RegExp(`^${escapeRegExp(quoted[2].trim())}$`, 'i');
+  if (change.field === 'ALT_TEXT' && after.trim() && !/[<>`{}]/.test(after)) {
+    return new RegExp(`^${escapeRegExp(after.trim())}$`, 'i');
+  }
+  return null;
+}
 
 export interface ComparisonDiffItem {
   field: string;
@@ -42,8 +64,11 @@ export interface PerformanceWindowMetric {
 }
 
 @Injectable()
-export class ProofOfImpactService {
+export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ProofOfImpactService.name);
+  private autoVerifyTimer?: ReturnType<typeof setInterval>;
+  private autoVerifyRunning = false;
+  private readonly verificationRequests = new Map<string, Promise<any>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +77,58 @@ export class ProofOfImpactService {
     @Optional() private readonly aiRouter?: MultiAiRouterService,
     @Optional() private readonly fetcher?: FetcherService,
   ) {}
+
+  onModuleInit(): void {
+    this.autoVerifyTimer = setInterval(() => void this.verifyMergedPullRequests(), 60_000);
+    this.autoVerifyTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.autoVerifyTimer) clearInterval(this.autoVerifyTimer);
+  }
+
+  private async verifyMergedPullRequests(): Promise<void> {
+    if (this.autoVerifyRunning || !this.fetcher) return;
+    this.autoVerifyRunning = true;
+    try {
+      const runs = await this.prisma.automationRun.findMany({
+        where: { status: { in: ['AWAITING_REVIEW', 'MERGED'] }, pullRequestUrl: { not: null } },
+        orderBy: { startedAt: 'desc' },
+        take: 25,
+        select: { id: true, projectId: true, steps: true },
+      });
+      for (const run of runs) {
+        const changes = Array.isArray(run.steps) ? (run.steps as any[]).filter((step) => step.change).map((step) => step.change) : [];
+        if (!changes.length) continue;
+        const [snapshots, unsupported] = await Promise.all([
+          this.prisma.fixSnapshot.findMany({
+            where: { projectId: run.projectId, automationRunId: run.id, snapshotType: 'VERIFIED_LIVE' },
+            select: { url: true, contentSnippet: true },
+          }),
+          this.prisma.fixImpactLedgerEvent.findMany({
+            where: { projectId: run.projectId, automationRunId: run.id, eventType: 'LIVE_VERIFICATION_UNSUPPORTED' },
+            select: { affectedUrl: true, evidenceData: true },
+          }),
+        ]);
+        const allSettled = changes.every((change) => {
+          const field = String(change.field || '').toUpperCase();
+          return snapshots.some((snapshot) => snapshot.url === change.url && snapshot.contentSnippet?.startsWith(`${field}:`)) ||
+            unsupported.some((event) => event.affectedUrl === change.url && (event.evidenceData as any)?.field === field);
+        });
+        if (allSettled) continue;
+        try {
+          const result = await this.verifyDeployment(run.projectId, run.id);
+          if (result.verificationStatus === 'VERIFIED') this.logger.log(`Automatically verified merged Fix Engine run ${run.id} on the live website.`);
+        } catch (error: any) {
+          this.logger.warn(`Automatic live verification failed for run ${run.id}: ${error?.message || 'unknown error'}`);
+        }
+      }
+    } catch (error: any) {
+      this.logger.warn(`Merged PR verification sweep failed: ${error?.message || 'unknown error'}`);
+    } finally {
+      this.autoVerifyRunning = false;
+    }
+  }
 
   /**
    * FIX ENGINE OVERVIEW DASHBOARD
@@ -447,6 +524,15 @@ export class ProofOfImpactService {
    * Re-crawls affected page to check if PR changes are actually deployed on live site.
    */
   async verifyDeployment(projectId: string, runId: string) {
+    const key = `${projectId}:${runId}`;
+    const current = this.verificationRequests.get(key);
+    if (current) return current;
+    const request = this.verifyDeploymentOnce(projectId, runId).finally(() => this.verificationRequests.delete(key));
+    this.verificationRequests.set(key, request);
+    return request;
+  }
+
+  private async verifyDeploymentOnce(projectId: string, runId: string) {
     const run = await this.prisma.automationRun.findUnique({
       where: { id: runId },
     });
@@ -455,27 +541,9 @@ export class ProofOfImpactService {
     }
 
     const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
-    const changeStep = steps.find((s) => s.change);
-    if (steps.filter((step) => step.change).length > 1) {
-      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This run contains multiple changes. Verify each affected page before confirming the whole run.' };
-    }
-    const url = changeStep?.change?.url;
-
-    if (!url) {
-      return { success: false, message: 'No URL associated with this fix to verify.' };
-    }
-
-    // 1. Fetch latest page from crawler
-    const page = await this.prisma.page.findFirst({
-      where: { url, statusCode: 200, blockedSuspected: false, crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
-      orderBy: { crawlJob: { createdAt: 'desc' } },
-      include: { issues: true },
-    });
-
-    const targetField = changeStep.change.field;
-    const expectedValue = changeStep.change.after;
-    if (!['META_TITLE', 'META_DESCRIPTION'].includes(targetField) || typeof expectedValue !== 'string' || !expectedValue.trim()) {
-      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This code change requires a specific live check. A page existing does not prove the fix is deployed.' };
+    const changes = steps.filter((step) => step.change).map((step) => step.change);
+    if (changes.length === 0) {
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This run has no page-level change evidence, so Reigel cannot safely verify it automatically.' };
     }
     const repository = await this.prisma.siteRepository.findUnique({ where: { projectId } });
     const pr = run.pullRequestUrl?.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
@@ -488,89 +556,188 @@ export class ProofOfImpactService {
       if (review.state === 'MERGED') mergedAt = review.mergedAt;
     } catch { /* Missing GitHub evidence must not turn into a verified fix. */ }
     if (!mergedAt) return { success: false, verificationStatus: 'NOT_CHECKED', message: 'GitHub has not confirmed this pull request as merged. Preview proposals are not deployed fixes.' };
-    const finishedAt = new Date(mergedAt).getTime();
-    if (!page || !Number.isFinite(finishedAt) || !page.crawledAt || new Date(page.crawledAt).getTime() <= finishedAt) {
-      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'Run a new website audit after deploying this pull request, then verify again. Saved audit data predating the fix cannot verify deployment.' };
-    }
-
-    let isMatched = false;
-    let liveValue: string | null = null;
-
-    if (page) {
-      if (targetField === 'META_TITLE') {
-        liveValue = page.title;
-        isMatched = page.title === expectedValue;
-      } else if (targetField === 'META_DESCRIPTION') {
-        liveValue = page.metaDescription;
-        isMatched = page.metaDescription === expectedValue;
+    if (!this.fetcher) {
+      if (changes.length === 1 && ['META_TITLE', 'META_DESCRIPTION'].includes(String(changes[0].field).toUpperCase())) {
+        const change = changes[0];
+        const page = await this.prisma.page.findFirst({
+          where: { url: change.url, statusCode: 200, blockedSuspected: false, crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
+          orderBy: { crawlJob: { createdAt: 'desc' } }, include: { issues: true },
+        });
+        const mergedTime = new Date(mergedAt).getTime();
+        const liveValue = change.field === 'META_TITLE' ? page?.title ?? null : page?.metaDescription ?? null;
+        const matches = Boolean(page?.crawledAt && new Date(page.crawledAt).getTime() > mergedTime && liveValue === change.after);
+        if (matches && page) {
+          const now = new Date();
+          await this.prisma.fixSnapshot.create({ data: {
+            projectId, automationRunId: runId, url: change.url, snapshotType: 'VERIFIED_LIVE', pageId: page.id,
+            title: page.title || null, metaDescription: page.metaDescription || null,
+            h1: page.h1?.[0] || null, issuesCount: page.issues?.length || 0,
+            contentSnippet: `${String(change.field).toUpperCase()}: ${liveValue}`, capturedAt: now,
+          } });
+          await this.prisma.fixImpactLedgerEvent.create({ data: {
+            projectId, automationRunId: runId, eventType: 'DEPLOYMENT_VERIFIED', title: 'Live Website Change Verified',
+            description: `Verified ${change.field} on the live page after GitHub merged the pull request.`,
+            affectedUrl: change.url, pullRequestUrl: run.pullRequestUrl, verificationStatus: 'VERIFIED',
+          } });
+          return { success: true, verificationStatus: 'VERIFIED', liveValue, verifiedAt: now.toISOString() };
+        }
       }
+      return { success: false, verificationStatus: 'NOT_CHECKED', message: 'Live page checking is unavailable on this service. No fix has been marked complete.' };
     }
 
-    const now = new Date();
+    const website = await this.prisma.website.findFirst({
+      where: { projectId, scope: OWN_SCOPE },
+      select: { domain: true, url: true },
+    });
+    if (!website) return { success: false, verificationStatus: 'NOT_CHECKED', message: 'No owned website is connected to this project.' };
+    const baseHost = new URL(website.url.startsWith('http') ? website.url : `https://${website.domain}`).hostname.toLowerCase().replace(/^www\./, '');
+    const results: Array<{ url: string; field: string; verificationStatus: string; liveValue: string | null; message: string }> = [];
 
-    if (isMatched) {
-      const existing = await this.prisma.fixSnapshot.findMany({ where: { projectId, automationRunId: runId, snapshotType: 'VERIFIED_LIVE', pageId: page!.id }, take: 1 });
-      if (existing.length) return { success: true, verificationStatus: 'VERIFIED', liveValue, verifiedAt: existing[0].capturedAt.toISOString() };
-      // Create Snapshot C
+    for (const change of changes) {
+      const url = typeof change.url === 'string' ? change.url : '';
+      const targetField = String(change.field || '').toUpperCase();
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(url); } catch {
+        results.push({ url, field: targetField, verificationStatus: 'NOT_CHECKED', liveValue: null, message: 'No valid affected page URL is attached to this change.' });
+        continue;
+      }
+      if (parsedUrl.hostname.toLowerCase().replace(/^www\./, '') !== baseHost) {
+        results.push({ url, field: targetField, verificationStatus: 'NOT_CHECKED', liveValue: null, message: 'The affected page is outside this project’s website, so it was not fetched.' });
+        continue;
+      }
+
+      const existing = await this.prisma.fixSnapshot.findMany({
+        where: { projectId, automationRunId: runId, snapshotType: 'VERIFIED_LIVE', url },
+        orderBy: { capturedAt: 'desc' },
+        take: 20,
+      });
+      const saved = existing.find((snapshot) => snapshot.contentSnippet?.startsWith(`${targetField}:`));
+      if (saved) {
+        results.push({ url, field: targetField, verificationStatus: 'VERIFIED', liveValue: saved.contentSnippet!.slice(targetField.length + 1).trim(), message: 'This change was already confirmed on the live page.' });
+        continue;
+      }
+
+      let liveValue: string | null = null;
+      let liveHtml = '';
+      let liveTitle: string | null = null;
+      let liveDescription: string | null = null;
+      let liveH1: string | null = null;
+      let isMatched = false;
+      let unsupported = false;
+      if (await this.prisma.fixImpactLedgerEvent.findMany({
+        where: { projectId, automationRunId: runId, eventType: 'LIVE_VERIFICATION_UNSUPPORTED', affectedUrl: url },
+        select: { evidenceData: true },
+      }).then((events) => events.some((event) => (event.evidenceData as any)?.field === targetField))) {
+        results.push({ url, field: targetField, verificationStatus: 'UNSUPPORTED', liveValue: null, message: 'This change needs a fix-specific verification rule and remains unverified.' });
+        continue;
+      }
+      try {
+        const response = await this.fetcher.fetchPage(url, targetField === 'ALT_TEXT' || targetField === 'CODE_AND_SEO_UPDATE');
+        if (response.statusCode < 200 || response.statusCode >= 400 || !response.html) {
+          results.push({ url, field: targetField, verificationStatus: 'PENDING_DEPLOYMENT', liveValue: null, message: `Live page returned HTTP ${response.statusCode || 'no response'}; the deployment could not be confirmed. Reigel will retry.` });
+          continue;
+        }
+        let responseHost = '';
+        try { responseHost = new URL(response.finalUrl || url).hostname.toLowerCase().replace(/^www\./, ''); } catch { /* Invalid final URL cannot prove deployment. */ }
+        if (responseHost !== baseHost) {
+          results.push({ url, field: targetField, verificationStatus: 'NOT_CHECKED', liveValue: null, message: 'The page redirected outside this project’s website, so Reigel did not use it as verification.' });
+          continue;
+        }
+        liveHtml = response.html;
+        const $ = cheerio.load(response.html);
+        liveTitle = $('title').first().text().trim() || null;
+        liveDescription = $('meta[name="description"]').attr('content')?.trim() || null;
+        liveH1 = $('h1').first().text().trim() || null;
+        const expectedValue = typeof change.after === 'string' ? change.after.trim() : '';
+        if (targetField === 'META_TITLE') {
+          liveValue = liveTitle;
+          isMatched = Boolean(expectedValue && liveValue === expectedValue);
+        } else if (targetField === 'META_DESCRIPTION') {
+          liveValue = liveDescription;
+          isMatched = Boolean(expectedValue && liveValue === expectedValue);
+        } else if (targetField === 'ALT_TEXT' || (targetField === 'CODE_AND_SEO_UPDATE' && /alt\s*=|alt text|image.*blind/i.test(`${change.after || ''} ${change.why || ''}`))) {
+          const pattern = expectedAltPattern(change);
+          const liveAltTexts = $('img').toArray().map((image) => $(image).attr('alt')?.trim() || '').filter(Boolean);
+          liveValue = liveAltTexts.join(' · ') || null;
+          isMatched = Boolean(pattern && liveAltTexts.some((alt) => pattern.test(alt)));
+          unsupported = !pattern;
+        } else if (['FAQ_SCHEMA', 'PRODUCT_SCHEMA', 'ORGANIZATION_SCHEMA', 'BREADCRUMB_SCHEMA'].includes(targetField)) {
+          const schemaType = ({ FAQ_SCHEMA: 'FAQPage', PRODUCT_SCHEMA: 'Product', ORGANIZATION_SCHEMA: 'Organization', BREADCRUMB_SCHEMA: 'BreadcrumbList' } as Record<string, string>)[targetField];
+          const types: string[] = [];
+          $('script[type="application/ld+json"]').each((_, node) => {
+            try {
+              const parsed = JSON.parse($(node).html() || 'null');
+              const values = Array.isArray(parsed) ? parsed : [parsed];
+              for (const value of values) if (typeof value?.['@type'] === 'string') types.push(value['@type']);
+            } catch { /* Invalid JSON-LD cannot count as proof. */ }
+          });
+          liveValue = types.join(', ') || null;
+          isMatched = types.includes(schemaType);
+        } else {
+          unsupported = true;
+          liveValue = `${response.statusCode} · page fetched`;
+        }
+        if (unsupported) {
+          const existingEvents = await this.prisma.fixImpactLedgerEvent.findMany({
+            where: { projectId, automationRunId: runId, eventType: 'LIVE_VERIFICATION_UNSUPPORTED', affectedUrl: url },
+            select: { evidenceData: true },
+          });
+          const hasSameUnsupportedCheck = existingEvents.some((event) => (event.evidenceData as any)?.field === targetField);
+          if (!hasSameUnsupportedCheck) await this.prisma.fixImpactLedgerEvent.create({
+            data: {
+              projectId, automationRunId: runId, eventType: 'LIVE_VERIFICATION_UNSUPPORTED',
+              title: 'Live check needs a fix-specific rule',
+              description: `The merged change to ${targetField || 'website code'} was checked on the live page, but this type of change has no safe automatic assertion yet. It remains unverified.`,
+              affectedUrl: url, pullRequestUrl: run.pullRequestUrl, verificationStatus: 'UNSUPPORTED',
+              evidenceData: { field: targetField, liveValue },
+            },
+          });
+          results.push({ url, field: targetField, verificationStatus: 'UNSUPPORTED', liveValue, message: 'The live page was checked, but this change needs a fix-specific verification rule. It remains unverified.' });
+          continue;
+        }
+      } catch (error: any) {
+        results.push({ url, field: targetField, verificationStatus: 'PENDING_DEPLOYMENT', liveValue: null, message: `Live check failed (${error?.message || 'fetch error'}); Reigel will retry.` });
+        continue;
+      }
+
+      if (!isMatched) {
+        results.push({ url, field: targetField, verificationStatus: 'PENDING_DEPLOYMENT', liveValue, message: 'GitHub confirms the merge, but the live page does not show the expected change yet. Reigel will retry.' });
+        continue;
+      }
+
+      const now = new Date();
+      const proof = targetField === 'META_TITLE' ? liveTitle : targetField === 'META_DESCRIPTION' ? liveDescription : liveValue;
       await this.prisma.fixSnapshot.create({
         data: {
-          projectId,
-          automationRunId: runId,
-          url,
-          snapshotType: 'VERIFIED_LIVE',
-          pageId: page?.id || null,
-          title: page?.title || null,
-          metaDescription: page?.metaDescription || null,
-          h1: page?.h1 && page.h1.length > 0 ? page.h1[0] : null,
-          canonicalUrl: page?.canonicalUrl || null,
-          robotsDirectives: page?.robotsMeta || null,
-          structuredData: (page as any)?.schemas ?? null,
-          internalLinksCount: null,
-          issuesCount: page?.issues?.length || 0,
+          projectId, automationRunId: runId, url, snapshotType: 'VERIFIED_LIVE',
+          title: liveTitle, metaDescription: liveDescription, h1: liveH1,
+          contentSnippet: `${targetField}: ${proof || 'verified'}`,
+          htmlContentHash: createHash('sha256').update(liveHtml).digest('hex'),
           capturedAt: now,
         },
       });
-
-      // Emit Ledger Events
       await this.prisma.fixImpactLedgerEvent.create({
         data: {
-          projectId,
-          automationRunId: runId,
-          eventType: 'DEPLOYMENT_VERIFIED',
-          title: 'Live Website Deployment Confirmed',
-          description: `Verified that changes to ${targetField} are live on ${url}.`,
-          affectedUrl: url,
-          pullRequestUrl: run.pullRequestUrl,
-          verificationStatus: 'VERIFIED',
+          projectId, automationRunId: runId, eventType: 'DEPLOYMENT_VERIFIED',
+          title: 'Live Website Change Verified',
+          description: `Verified ${targetField} on the live page after GitHub merged the pull request.`,
+          affectedUrl: url, pullRequestUrl: run.pullRequestUrl,
+          verificationStatus: 'VERIFIED', evidenceData: { field: targetField, liveValue: proof, mergedAt },
         },
       });
-
-      await this.prisma.fixImpactLedgerEvent.create({
-        data: {
-          projectId,
-          automationRunId: runId,
-          eventType: 'TECHNICAL_FIX_CONFIRMED',
-          title: 'Technical Fix Confirmed',
-          description: `Fix "${changeStep.change.why || targetField}" verified successfully.`,
-          affectedUrl: url,
-          verificationStatus: 'VERIFIED',
-        },
-      });
-
-      return {
-        success: true,
-        verificationStatus: 'VERIFIED',
-        liveValue,
-        verifiedAt: now.toISOString(),
-      };
-    } else {
-      return {
-        success: false,
-        verificationStatus: 'NOT_CHECKED',
-        liveValue: liveValue || 'Unavailable',
-        message: 'Deployment verification unavailable: live page does not yet reflect the intended change.',
-      };
+      results.push({ url, field: targetField, verificationStatus: 'VERIFIED', liveValue: proof, message: 'The expected change is confirmed on the live page.' });
     }
+
+    const allVerified = results.length > 0 && results.every((result) => result.verificationStatus === 'VERIFIED');
+    return {
+      success: allVerified,
+      verificationStatus: allVerified ? 'VERIFIED' : results.some((result) => result.verificationStatus === 'UNSUPPORTED') ? 'UNSUPPORTED' : 'PENDING_DEPLOYMENT',
+      mergedAt,
+      results,
+      message: allVerified
+        ? `Verified all ${results.length} changed page${results.length === 1 ? '' : 's'} live after merge.`
+        : results.find((result) => result.verificationStatus !== 'VERIFIED')?.message || 'The merged changes are still being checked.',
+    };
   }
 
   /**
