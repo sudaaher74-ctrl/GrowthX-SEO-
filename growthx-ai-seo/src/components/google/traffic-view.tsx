@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -148,6 +148,25 @@ const TRAFFIC_TABS = [
 
 type TrafficTabId = (typeof TRAFFIC_TABS)[number]["id"];
 
+function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateKeysBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  for (let date = start; date <= end; date = shiftDateKey(date, 1)) dates.push(date);
+  return dates;
+}
+
 /**
  * TrafficView
  *
@@ -185,6 +204,11 @@ function TrafficViewClient() {
   const periodDays = usePeriodDays();
   const [trafficOriginMode, setTrafficOriginMode] = useState<"channels" | "sites">("channels");
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
+  const [todayDate, setTodayDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTodayDate(localDateKey(new Date()));
+  }, []);
 
   // Queries
   const { report } = useGa4Report(projectId);
@@ -222,8 +246,18 @@ function TrafficViewClient() {
       map.set(d.date, existing);
     }
 
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [gscTimeseries.query.data, reportData?.daily, periodDays]);
+    const endDate = todayDate ?? reportData?.endDate ?? Array.from(map.keys()).sort().at(-1);
+    if (!endDate) return [];
+    const startDate = reportData?.startDate ?? shiftDateKey(endDate, -(periodDays - 1));
+    return dateKeysBetween(startDate, endDate).map((date) => map.get(date) ?? {
+      date,
+      visitors: null,
+      searchClicks: null,
+    });
+  }, [gscTimeseries.query.data, reportData?.daily, reportData?.endDate, reportData?.startDate, periodDays, todayDate]);
+
+  const latestVisitorDate = [...dailyChartData].reverse().find((day) => day.visitors !== null)?.date;
+  const latestSearchClickDate = [...dailyChartData].reverse().find((day) => day.searchClicks !== null)?.date;
 
   // Channels / Sources Breakdown
   const channelBreakdown = useMemo<TrafficOriginItem[]>(() => {
@@ -474,7 +508,7 @@ function TrafficViewClient() {
               <h2 className="text-sm font-bold text-brand-950">Daily traffic</h2>
             </div>
             <p className="mt-1 text-xs text-brand-400">
-              Search Console data lags about three days
+              Latest reported — Visitors: {latestVisitorDate ? shortDay(latestVisitorDate) : "not available"} · Search clicks: {latestSearchClickDate ? shortDay(latestSearchClickDate) : "not available"}. Search Console can lag up to 3 days; blank dates are awaiting data.
             </p>
           </div>
 
