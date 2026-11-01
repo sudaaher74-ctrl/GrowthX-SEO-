@@ -95,7 +95,7 @@ export function LandingHeader() {
                   Log in
                 </Link>
                 <Link
-                  href="/register"
+                  href="/create-account"
                   className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
                 >
                   Start free audit
@@ -147,7 +147,7 @@ export function LandingHeader() {
               </Link>
             )}
             <Link
-              href={signedIn ? "/dashboard" : "/register"}
+              href={signedIn ? "/dashboard" : "/create-account"}
               className="flex items-center justify-center gap-2 bg-series-6 hover:bg-series-6/90 text-white text-sm font-semibold px-4 py-3 rounded-xl"
             >
               {signedIn ? "Go to Dashboard" : "Start free audit"} <ArrowRight size={14} />
