@@ -316,28 +316,30 @@ describe('EngineerAgentService', () => {
     replies.push(
       act({ tool: 'read', path: 'app/page.tsx' }),
       act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'New title' }),
-      act({ tool: 'edit', path: 'app/page.tsx', old: 'Other text', new: 'New title' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: '<title>Old title</title>', new: '<title>New title</title>' }),
       act({ tool: 'finish', summary: 'Gave up.' }),
     );
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
-    expect(run.status).toBe(AutomationRunStatus.FAILED);
-    expect(git.createPullRequest).not.toHaveBeenCalled();
-    const thirdPrompt = router.generate.mock.calls[3][0].prompt;
-    expect(thirdPrompt).toMatch(/fresh read.*required|Read app\/page\.tsx before editing it/);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    const thirdPrompt = router.generate.mock.calls[2][0].prompt;
+    expect(thirdPrompt).toMatch(/next action must be a narrow fresh read/);
+    expect(run.filesChanged).toEqual(['app/page.tsx']);
   });
 
   it('rejects repeated identical failed edit attempts with clear guidance', async () => {
     replies.push(
       act({ tool: 'read', path: 'app/page.tsx' }),
       act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'New title' }),
-      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 10 }),
       act({ tool: 'edit', path: 'app/page.tsx', old: 'Non-existent text', new: 'Different title' }),
       act({ tool: 'finish', summary: 'Could not find text.' }),
     );
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
     expect(run.status).toBe(AutomationRunStatus.FAILED);
-    const fifthPrompt = router.generate.mock.calls[4][0].prompt;
-    expect(fifthPrompt).toMatch(/Repeated edit attempt/);
+    expect(router.generate).toHaveBeenCalledTimes(4);
+    expect(run.error).toMatch(/stopped before completing/);
   });
 
   it('delivers read file content to model prompt without silent 6000-char truncation', async () => {
@@ -369,15 +371,27 @@ describe('EngineerAgentService', () => {
       act({ tool: 'edit', path: 'app/page.tsx', old: 'bad1', new: 'n1' }),
       act({ tool: 'read', path: 'app/page.tsx' }),
       act({ tool: 'edit', path: 'app/page.tsx', old: 'bad2', new: 'n2' }),
-      act({ tool: 'read', path: 'app/page.tsx' }),
-      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad3', new: 'n3' }),
-      act({ tool: 'read', path: 'app/page.tsx' }),
-      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad4', new: 'n4' }),
-      act({ tool: 'finish', summary: 'stopped' }),
+      act({ tool: 'search', path: '', pattern: 'anything' }),
     );
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
     expect(run.status).toBe(AutomationRunStatus.FAILED);
-    const lastPrompt = router.generate.mock.calls[8][0].prompt;
-    expect(lastPrompt).toMatch(/Too many failed edit attempts/);
+    expect(router.generate).toHaveBeenCalledTimes(4);
+    expect(run.error).toMatch(/stopped before completing/);
+  });
+
+  it('stops after the second failed edit instead of spending the remaining model turn budget', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 10 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad1', new: 'n1' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 10 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'bad2', new: 'n2' }),
+      ...Array.from({ length: 26 }, () => act({ tool: 'search', path: '', pattern: 'anything' })),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.FAILED);
+    expect(router.generate).toHaveBeenCalledTimes(4);
+    const savedSteps = prisma.automationRun.update.mock.calls.at(-1)[0].data.steps;
+    expect(savedSteps.some((step: any) => step.step === 'stopped' && /recovery limit reached after two failed edits/.test(step.detail))).toBe(true);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
   });
 });

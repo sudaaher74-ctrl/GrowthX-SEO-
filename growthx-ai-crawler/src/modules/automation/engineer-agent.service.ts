@@ -502,11 +502,13 @@ export class EngineerAgentService {
     const deadline = Date.now() + MAX_MINUTES * 60_000;
     let malformed = 0;
     const readPaths = new Set<string>();
+    const readAfterFailure = new Set<string>();
     const failedEditSignatures = new Set<string>();
     const failedEditsByFile = new Map<string, number>();
     let editIndex = 0;
     let rejectedFinishes = 0;
     let consecutiveFailures = 0;
+    let recoveryLimitReached = false;
 
     for (let turn = 1; turn <= MAX_TURNS; turn++) {
       if (Date.now() > deadline) {
@@ -593,6 +595,9 @@ export class EngineerAgentService {
         if ((action.tool === 'edit' || action.tool === 'metadata') && !readPaths.has(actionPath)) {
           throw new SandboxError(`Read ${actionPath} before editing it. A fresh read is required to inspect the exact lines.`);
         }
+        if ((action.tool === 'edit' || action.tool === 'metadata') && failedEditsByFile.has(actionPath) && !readAfterFailure.has(actionPath)) {
+          throw new SandboxError(`A previous edit to ${actionPath} failed. Read the exact target section again before trying a different edit.`);
+        }
         if (action.tool === 'edit') {
           const editSig = `${actionPath}:::${action.old}`;
           if (failedEditSignatures.has(editSig)) {
@@ -601,7 +606,7 @@ export class EngineerAgentService {
             );
           }
           const fileFailures = failedEditsByFile.get(actionPath) ?? 0;
-          if (fileFailures >= 3) {
+          if (fileFailures >= 2) {
             throw new SandboxError(
               `Too many failed edit attempts on ${actionPath} (${fileFailures}). Stop attempting edits on this file. Call "finish" and explain what could not be found.`,
             );
@@ -611,7 +616,10 @@ export class EngineerAgentService {
           throw new SandboxError('Audit-message placeholder files are not a website fix. Edit the actual page or connected component.');
         }
         result = await this.runTool(box, action);
-        if (action.tool === 'read') readPaths.add(actionPath);
+        if (action.tool === 'read') {
+          readPaths.add(actionPath);
+          if (failedEditsByFile.has(actionPath)) readAfterFailure.add(actionPath);
+        }
         consecutiveFailures = 0;
       } catch (error: any) {
         if (!(error instanceof SandboxError) && error?.code !== 'ENOENT' && error?.code !== 'EISDIR') throw error;
@@ -620,19 +628,21 @@ export class EngineerAgentService {
         if (action.tool === 'edit' || action.tool === 'metadata') {
           // Require a fresh read after failed edits
           readPaths.delete(actionPath);
-          result += ` A fresh read of ${actionPath} is required before attempting another edit in this file.`;
+          readAfterFailure.delete(actionPath);
+          result += ` The next action must be a narrow fresh read of the exact section to change in ${actionPath}; use start/end around the relevant lines, then copy the returned text exactly. Do not repeat this edit.`;
           if (action.tool === 'edit' && typeof action.old === 'string') {
             failedEditSignatures.add(`${actionPath}:::${action.old}`);
           }
           const fileFailures = (failedEditsByFile.get(actionPath) ?? 0) + 1;
           failedEditsByFile.set(actionPath, fileFailures);
           if (fileFailures >= 2) {
-            result += ` (Warning: ${fileFailures} failed edit attempts on ${actionPath}. If target code is missing or different, call finish with a summary explaining the limitation.)`;
+            result += ` (Stop: ${fileFailures} edits in ${actionPath} failed. Call finish now and explain the limitation; do not continue searching or retrying.)`;
           }
         }
         consecutiveFailures += 1;
+        recoveryLimitReached = (action.tool === 'edit' || action.tool === 'metadata') && (failedEditsByFile.get(actionPath) ?? 0) >= 2;
         if (consecutiveFailures >= 5) {
-          result += ` (Notice: 5 consecutive actions have failed. Conclude your run by calling "finish" with a summary explaining what blocked the change.)`;
+          result += ` (Stop: 5 consecutive actions failed. Call finish now with a summary explaining what blocked the change.)`;
         }
       }
       const label = `${action.tool}${action.path ? ` ${action.path}` : action.pattern ? ` "${clip(action.pattern, 40)}"` : ''}${action.tool === 'read' ? `:${action.start ?? 1}-${action.end ?? 120}` : ''}`;
@@ -664,6 +674,10 @@ export class EngineerAgentService {
       steps.push(stepEntry);
       // Progress the page can show while the run is still going.
       await this.prisma.automationRun.update({ where: { id: runId }, data: { steps: steps as any } }).catch(() => undefined);
+      if (recoveryLimitReached) {
+        steps.push(this.step('stopped', `recovery limit reached after two failed edits in ${actionPath}`, false));
+        return { summary: `Stopped after two failed edits to ${actionPath}; no pull request was created.` };
+      }
     }
 
     steps.push(this.step('stopped', `turn limit of ${MAX_TURNS} reached`, false));
