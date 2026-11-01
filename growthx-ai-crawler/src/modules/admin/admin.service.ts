@@ -225,6 +225,121 @@ export class AdminService {
     };
   }
 
+  /**
+   * Usage counters for the operator dashboard. These are platform events we
+   * actually store: routed AI calls, crawler jobs, and user registrations.
+   * A valid refresh session is reported separately by getStats; it is not
+   * presented as a live page-view or a measure of recent activity.
+   */
+  async getUsageMetrics(days = 30) {
+    const windowDays = Math.min(90, Math.max(7, Math.floor(days)));
+    const end = new Date();
+    const from = new Date(end);
+    from.setUTCHours(0, 0, 0, 0);
+    from.setUTCDate(from.getUTCDate() - windowDays + 1);
+
+    const usageWhere = { createdAt: { gte: from } };
+    const [aiTotals, unpricedCalls, activeOrgRows, crawlStatuses, newUsers, aiDaily, crawlDaily, userDaily, byOrganization] = await Promise.all([
+      this.prisma.aiUsageRecord.aggregate({
+        where: usageWhere,
+        _count: { _all: true },
+        _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
+      }),
+      this.prisma.aiUsageRecord.count({ where: { ...usageWhere, estimatedCostUsd: null } }),
+      this.prisma.aiUsageRecord.findMany({
+        where: { ...usageWhere, organizationId: { not: null } },
+        distinct: ['organizationId'],
+        select: { organizationId: true },
+      }),
+      this.prisma.crawlJob.groupBy({
+        by: ['status'],
+        where: usageWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.user.count({ where: usageWhere }),
+      this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
+        SELECT TO_CHAR(DATE_TRUNC('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+        FROM "AiUsageRecord"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1 ORDER BY 1
+      `,
+      this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
+        SELECT TO_CHAR(DATE_TRUNC('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+        FROM "CrawlJob"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1 ORDER BY 1
+      `,
+      this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
+        SELECT TO_CHAR(DATE_TRUNC('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+        FROM "User"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1 ORDER BY 1
+      `,
+      this.prisma.aiUsageRecord.groupBy({
+        by: ['organizationId'],
+        where: { ...usageWhere, organizationId: { not: null } },
+        _count: { _all: true },
+        _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
+      }),
+    ]);
+
+    const daily = Array.from({ length: windowDays }, (_, index) => {
+      const day = new Date(from);
+      day.setUTCDate(from.getUTCDate() + index);
+      return { date: day.toISOString().slice(0, 10), aiCalls: 0, crawlerRuns: 0, newUsers: 0 };
+    });
+    const byDate = new Map(daily.map((item) => [item.date, item]));
+    const addSeries = (rows: Array<{ day: string; count: number }>, key: 'aiCalls' | 'crawlerRuns' | 'newUsers') => {
+      for (const row of rows) {
+        const day = byDate.get(row.day);
+        if (day) day[key] = Number(row.count);
+      }
+    };
+    addSeries(aiDaily, 'aiCalls');
+    addSeries(crawlDaily, 'crawlerRuns');
+    addSeries(userDaily, 'newUsers');
+
+    const organizationIds = byOrganization
+      .map((row) => row.organizationId)
+      .filter((id): id is string => Boolean(id));
+    const organizations = organizationIds.length
+      ? await this.prisma.organization.findMany({ where: { id: { in: organizationIds } }, select: { id: true, name: true } })
+      : [];
+    const organizationNames = new Map(organizations.map((org) => [org.id, org.name]));
+    const topOrganizations = byOrganization
+      .filter((row) => row.organizationId)
+      .sort((a, b) => b._count._all - a._count._all)
+      .slice(0, 8)
+      .map((row) => ({
+        id: row.organizationId!,
+        name: organizationNames.get(row.organizationId!) ?? 'Unknown organization',
+        calls: row._count._all,
+        tokens: (row._sum.inputTokens ?? 0) + (row._sum.outputTokens ?? 0),
+        estimatedCostUsd: row._sum.estimatedCostUsd,
+      }));
+
+    const crawlCount = (status: string) => crawlStatuses.find((row) => row.status === status)?._count._all ?? 0;
+    return {
+      windowDays,
+      from: from.toISOString(),
+      through: end.toISOString(),
+      summary: {
+        aiCalls: aiTotals._count._all,
+        inputTokens: aiTotals._sum.inputTokens ?? 0,
+        outputTokens: aiTotals._sum.outputTokens ?? 0,
+        estimatedCostUsd: aiTotals._sum.estimatedCostUsd,
+        unpricedCalls,
+        organizationsUsingAi: activeOrgRows.length,
+        newUsers,
+        crawlerRuns: crawlStatuses.reduce((sum, row) => sum + row._count._all, 0),
+        completedCrawls: crawlCount('COMPLETED'),
+        failedCrawls: crawlCount('FAILED'),
+      },
+      daily,
+      topOrganizations,
+    };
+  }
+
   async getUsers() {
     const now = new Date();
     const users = await this.prisma.user.findMany({
