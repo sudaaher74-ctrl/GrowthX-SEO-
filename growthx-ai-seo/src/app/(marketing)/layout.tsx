@@ -4,7 +4,6 @@ import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 export const metadata: Metadata = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  alternates: { canonical: "/" },
   openGraph: { title: SITE_TITLE, description: SITE_DESCRIPTION, url: SITE_URL },
 };
 

@@ -1,5 +1,5 @@
 /** Public origin of the marketing site. Used for metadata, the sitemap and structured data. */
-export const SITE_URL = "https://growthx.in";
+export const SITE_URL = "https://www.reigel.in";
 
 export const SITE_TITLE = "Reigel: find what's costing you customers, then fix it";
 export const SITE_DESCRIPTION =

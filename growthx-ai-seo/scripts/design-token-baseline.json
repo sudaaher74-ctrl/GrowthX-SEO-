@@ -7,7 +7,6 @@
   "app/legal/privacy/page.tsx": 2,
   "app/login/page.tsx": 4,
   "app/opengraph-image.tsx": 3,
-  "app/register/page.tsx": 4,
   "components/auth/auth-illustration.tsx": 24,
   "components/auth/auth-shell.tsx": 4,
   "components/content/create-article-modal.tsx": 7,

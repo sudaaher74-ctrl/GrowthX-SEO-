@@ -1646,6 +1646,33 @@ export interface AdminSystemHealth {
   timestamp: string;
 }
 
+export interface AdminUsageMetrics {
+  windowDays: number;
+  from: string;
+  through: string;
+  summary: {
+    aiCalls: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number | null;
+    unpricedCalls: number;
+    organizationsUsingAi: number;
+    newUsers: number;
+    usersWithSessionActivity: number;
+    crawlerRuns: number;
+    completedCrawls: number;
+    failedCrawls: number;
+  };
+  daily: Array<{ date: string; aiCalls: number; crawlerRuns: number; newUsers: number }>;
+  topOrganizations: Array<{
+    id: string;
+    name: string;
+    calls: number;
+    tokens: number;
+    estimatedCostUsd: number | null;
+  }>;
+}
+
 export interface AdminUserItem {
   id: string;
   email: string;

@@ -87,7 +87,7 @@ export function TrustSection() {
                 Create a free account, paste your URL, and get a ranked fix list. Fixes arrive as pull requests you approve.
               </p>
               <Link
-                href="/register"
+                href="/create-account"
                 className="w-full block text-center text-[12.5px] font-bold text-white bg-series-6 hover:bg-series-6/90 rounded-xl py-2.5 transition-colors shadow-sm"
               >
                 Start free audit →

@@ -175,7 +175,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUsageMetrics, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -413,7 +413,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // Clearing the session used to leave the caller on the dashboard, where
     // every query then failed with a different error. Send them to sign in —
     // except when they are already on an auth page, which would loop.
-    const onAuthPage = ["/login", "/register", "/auth/callback"].includes(window.location.pathname);
+    const onAuthPage = ["/login", "/register", "/create-account", "/auth/callback"].includes(window.location.pathname);
     if (!onAuthPage && process.env.NODE_ENV !== "production") {
       console.warn("Bypassing 401 redirect in development mode.");
     } else if (!onAuthPage) {
@@ -1170,6 +1170,7 @@ export const api = {
     get<{ tenants: number; users: number; projects: number; loggedInUsers: number; activeSessions: number }>(
       "/api/admin/stats",
     ),
+  getAdminUsage: () => get<AdminUsageMetrics>("/api/admin/usage"),
   getAdminUserModels: () => get<AdminUserModelUsage[]>("/api/admin/user-models"),
   pauseAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/pause", {}),
   resumeAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/resume", {}),

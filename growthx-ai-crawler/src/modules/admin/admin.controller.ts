@@ -41,6 +41,12 @@ export class AdminController {
     return this.adminService.getStats();
   }
 
+  @Get('usage')
+  @ApiOperation({ summary: 'Get measured platform usage for the last 30 days' })
+  async getUsageMetrics() {
+    return this.adminService.getUsageMetrics();
+  }
+
   @Get('user-models')
   @ApiOperation({ summary: 'Get AI model usage breakdown by user and organization' })
   async getUserModelBreakdown() {
