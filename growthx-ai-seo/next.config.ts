@@ -59,6 +59,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/register",
+        destination: "/",
+        permanent: true,
+      },
+      {
         source: "/local",
         destination: "/google-business-profile",
         permanent: false,
