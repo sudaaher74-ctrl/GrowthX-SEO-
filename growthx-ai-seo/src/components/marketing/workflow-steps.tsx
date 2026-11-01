@@ -393,7 +393,7 @@ export function WorkflowSteps() {
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/register"
+                  href="/create-account"
                   className="inline-flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
                 >
                   <span>Start free audit →</span>
