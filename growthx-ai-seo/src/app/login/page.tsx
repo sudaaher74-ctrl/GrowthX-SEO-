@@ -326,7 +326,7 @@ export default function LoginPage() {
         <div className="flex items-center justify-end gap-2 text-xs text-brand-400">
           <span>New to Reigel?</span>
           <Link
-            href="/register"
+            href="/create-account"
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-brand-800 text-white font-bold hover:bg-brand-900 transition-all cursor-pointer"
           >
             <span>Create an account</span>
