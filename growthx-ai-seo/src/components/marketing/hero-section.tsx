@@ -233,7 +233,7 @@ function DashboardMockup() {
                         </div>
                       </div>
 
-                      <Link href="/register" className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
+                      <Link href="/create-account" className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
                         <span>View Plan</span>
                         <ArrowRight size={9} />
                       </Link>
@@ -342,7 +342,7 @@ function DashboardMockup() {
                         <div className="text-right flex items-center gap-2">
                           <span className="text-[10px] font-bold text-success-400">{fix.value}</span>
                           <Link
-                            href="/register"
+                            href="/create-account"
                             className="px-2 py-1 rounded bg-series-6 text-white text-[9px] font-bold hover:bg-series-6/90"
                           >
                             Review
