@@ -9,7 +9,6 @@ import {
   buildActionPlan,
   buildRecommendationGaps,
   calculateReadiness,
-  computeExpectedOutcome,
   CustomerBusinessContext,
   EnrichedRecommendationReport,
   generatePitchDraft,
@@ -40,6 +39,7 @@ export class RecommendationService {
     const competitorSources = await this.prisma.backlinkSource.findMany({
       where: {
         projectId,
+        discovery: { not: "DATAFORSEO" },
         links: { some: { targetKind: "COMPETITOR" } },
       },
       select: {
@@ -65,7 +65,7 @@ export class RecommendationService {
 
     const verifiedLinks = await this.prisma.backlink.count({
       where: {
-        source: { projectId },
+        source: { projectId, discovery: { not: "DATAFORSEO" } },
         targetKind: "OWN",
         status: "VERIFIED",
       },
@@ -76,7 +76,6 @@ export class RecommendationService {
       competitorsMentioned: competitorHosts.size,
       highFitOpportunities: highFitCount,
       earnedBacklinks: verifiedLinks,
-      estimatedTraffic: `${(totalOpportunities * 45).toLocaleString()}`,
     };
   }
 
@@ -219,7 +218,6 @@ export class RecommendationService {
     const gaps = buildRecommendationGaps(article, customerContext);
     const readiness = calculateReadiness(article, customerContext, gaps);
     const actionPlan = buildActionPlan(customerContext, article, gaps);
-    const expectedOutcome = computeExpectedOutcome(article);
     const pitchDraft = generatePitchDraft(customerContext, article);
 
     const outreach: PublisherOutreachState = {
@@ -236,7 +234,6 @@ export class RecommendationService {
       gaps,
       readiness,
       actionPlan,
-      expectedOutcome,
       outreach,
     };
 

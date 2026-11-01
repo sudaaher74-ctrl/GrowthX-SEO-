@@ -584,13 +584,14 @@ export class AutomationService {
           return event.automationRunId === run.id && event.affectedUrl === change.url && evidence?.field === String(change.field).toUpperCase();
         });
         const legacyChecked = Boolean(!change.dynamic && field && page && boundary && page.crawlJob.createdAt > boundary && page.statusCode === 200 && !page.blockedSuspected);
-        const checked = Boolean(verified || legacyChecked);
+        const hasMeasurement = Boolean(verified || legacyChecked);
         const liveValue = verified?.contentSnippet
           ? verified.contentSnippet.slice(proofPrefix.length).trim()
           : legacyChecked && field ? page![field] : null;
+        const checked = hasMeasurement && liveValue !== null;
         return [{ ...change, liveValue,
           checkedAt: verified?.capturedAt ?? (legacyChecked ? page!.crawlJob.createdAt : null),
-          verification: checked ? 'MATCHED' : unsupported ? 'UNSUPPORTED' : legacyChecked && liveValue !== change.after ? 'DIFFERENT' : 'NOT_CHECKED' }];
+          verification: checked ? (liveValue === change.after ? 'MATCHED' : 'DIFFERENT') : unsupported ? 'UNSUPPORTED' : 'NOT_CHECKED' }];
       }),
       skipped: (run.steps as unknown as RunStep[]).filter(step => step.step === 'skipped').map(step => step.detail),
     }));

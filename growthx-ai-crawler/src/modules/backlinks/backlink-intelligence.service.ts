@@ -3,12 +3,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { bareDomain, ownSite } from '../search-intelligence/own-site';
 import {
   DataForSeoBacklinkItem,
-  DataForSeoBacklinksError,
   DataForSeoBacklinksService,
   DataForSeoReferringDomainItem,
   DataForSeoAnchorItem,
 } from './dataforseo-backlinks.service';
-import { hostOf, kindOf } from './backlink-evidence';
 
 export interface BacklinkOverviewResponse {
   domain: string;
@@ -16,6 +14,7 @@ export interface BacklinkOverviewResponse {
   provider: string;
   checkedAt: string;
   isCached: boolean;
+  isStale: boolean;
   metrics: {
     rank: number;
     backlinks: number;
@@ -87,15 +86,12 @@ export class BacklinkIntelligenceService {
     return { domain: clean, targetKind: 'OWN' };
   }
 
-  /**
-   * 1. GET TARGET DOMAIN OVERVIEW
-   * Returns cached snapshot if available within TTL, otherwise calls DataForSEO.
-   */
+  /** GET the latest stored provider snapshot without starting a billable sync. */
   async getOverview(
     projectId: string,
     explicitDomain?: string,
     forceRefresh = false,
-  ): Promise<BacklinkOverviewResponse> {
+  ): Promise<BacklinkOverviewResponse | null> {
     const { domain, targetKind } = await this.resolveDomain(projectId, explicitDomain);
 
     const latest = await this.prisma.backlinkDomainSnapshot.findFirst({
@@ -103,10 +99,12 @@ export class BacklinkIntelligenceService {
       orderBy: { checkedAt: 'desc' },
     });
 
-    const isFresh = latest && Date.now() - latest.checkedAt.getTime() < this.CACHE_TTL_MS;
-
-    if (!forceRefresh && latest && isFresh) {
+    if (!forceRefresh && latest) {
       return this.formatSnapshotResponse(latest, true);
+    }
+
+    if (!forceRefresh && !latest) {
+      return null;
     }
 
     try {
@@ -126,7 +124,8 @@ export class BacklinkIntelligenceService {
   /**
    * 2. SYNC DOMAIN INTELLIGENCE FROM DATAFORSEO
    * Calls DataForSEO summary, referring domains, backlinks list, and anchors in parallel.
-   * Caches results in BacklinkDomainSnapshot and syncs links into BacklinkSource & Backlink.
+   * Caches the provider result in BacklinkDomainSnapshot. Provider observations
+   * are kept separate from direct Reigel source-page verification.
    */
   async syncDomainIntelligence(
     projectId: string,
@@ -190,11 +189,6 @@ export class BacklinkIntelligenceService {
         } as any,
         costUsd: totalCostUsd > 0 ? totalCostUsd : null,
       },
-    });
-
-    // Synchronize newly discovered backlinks into BacklinkSource and Backlink
-    this.ingestBacklinksToProjectDatabase(projectId, backlinksRes.items, targetKind).catch((err) => {
-      this.logger.warn(`Background ingestion of DataForSEO backlinks for ${target} failed: ${err.message}`);
     });
 
     return this.formatSnapshotResponse(snapshot, false);
@@ -306,68 +300,6 @@ export class BacklinkIntelligenceService {
   }
 
   /**
-   * Ingests DataForSEO discovered backlinks into the project's native BacklinkSource and Backlink tables.
-   */
-  private async ingestBacklinksToProjectDatabase(
-    projectId: string,
-    items: DataForSeoBacklinkItem[],
-    targetKind: 'OWN' | 'COMPETITOR',
-  ): Promise<void> {
-    if (!items.length) return;
-
-    for (const item of items.slice(0, 50)) {
-      if (!item.urlFrom || !item.urlTo) continue;
-
-      try {
-        let origin: string;
-        try {
-          origin = new URL(item.urlFrom).origin;
-        } catch {
-          origin = `https://${item.domainFrom}`;
-        }
-
-        const source = await this.prisma.backlinkSource.upsert({
-          where: { projectId_sourceUrl: { projectId, sourceUrl: item.urlFrom } },
-          create: {
-            projectId,
-            sourceUrl: item.urlFrom,
-            origin,
-            discovery: 'DATAFORSEO',
-            status: 'VERIFIED',
-            lastAttemptAt: item.lastSeen ? new Date(item.lastSeen) : new Date(),
-          },
-          update: {
-            lastAttemptAt: item.lastSeen ? new Date(item.lastSeen) : new Date(),
-          },
-        });
-
-        await this.prisma.backlink.upsert({
-          where: { sourceId_targetUrl: { sourceId: source.id, targetUrl: item.urlTo } },
-          create: {
-            sourceId: source.id,
-            targetUrl: item.urlTo,
-            targetHost: hostOf(item.urlTo),
-            targetKind,
-            status: item.isBroken ? 'LOST' : 'VERIFIED',
-            anchorText: item.anchor,
-            followState: item.dofollow ? 'FOLLOW' : 'NOFOLLOW',
-            firstObservedAt: item.firstSeen ? new Date(item.firstSeen) : new Date(),
-            lastVerifiedAt: item.lastSeen ? new Date(item.lastSeen) : new Date(),
-          },
-          update: {
-            anchorText: item.anchor,
-            followState: item.dofollow ? 'FOLLOW' : 'NOFOLLOW',
-            lastVerifiedAt: item.lastSeen ? new Date(item.lastSeen) : new Date(),
-            status: item.isBroken ? 'LOST' : 'VERIFIED',
-          },
-        });
-      } catch (err: any) {
-        // Continue processing other rows
-      }
-    }
-  }
-
-  /**
    * Helper to format snapshot database record to BacklinkOverviewResponse.
    */
   private formatSnapshotResponse(snapshot: any, isCached: boolean): BacklinkOverviewResponse {
@@ -379,6 +311,7 @@ export class BacklinkIntelligenceService {
       provider: snapshot.provider || 'dataforseo',
       checkedAt: snapshot.checkedAt.toISOString(),
       isCached,
+      isStale: Date.now() - snapshot.checkedAt.getTime() >= this.CACHE_TTL_MS,
       metrics: {
         rank: snapshot.rank,
         backlinks: snapshot.backlinks,

@@ -117,7 +117,6 @@ export function RecommendationDiscovery({
   const gaps = fullReport?.gaps ?? [];
   const readiness = fullReport?.readiness;
   const actionPlan = fullReport?.actionPlan ?? [];
-  const expectedOutcome = fullReport?.expectedOutcome;
 
   return (
     <div className="space-y-6">
@@ -126,37 +125,22 @@ export function RecommendationDiscovery({
         <Kpi
           label="Total Opportunities"
           value={kpis ? String(kpis.totalOpportunities) : '—'}
-          delta={24}
-          deltaSuffix="%"
-          sub="Relevant publisher opportunities"
+          sub="Pages linking to saved competitors"
         />
         <Kpi
           label="Competitors Mentioned"
           value={kpis ? String(kpis.competitorsMentioned) : '—'}
-          delta={18}
-          deltaSuffix="%"
-          sub="Articles featuring your competitors"
+          sub="Unique competing domains observed"
         />
         <Kpi
           label="High Fit Opportunities"
           value={kpis ? String(kpis.highFitOpportunities) : '—'}
-          delta={35}
-          deltaSuffix="%"
-          sub="Best chances for inclusion"
+          sub="Based on saved article analyses"
         />
         <Kpi
           label="Earned Backlinks"
           value={kpis ? String(kpis.earnedBacklinks) : '—'}
-          delta={100}
-          deltaSuffix="%"
-          sub="Successfully acquired"
-        />
-        <Kpi
-          label="Estimated Traffic"
-          value={kpis ? kpis.estimatedTraffic : '—'}
-          delta={62}
-          deltaSuffix="%"
-          sub="Potential monthly visitors"
+          sub="Directly verified links to your site"
         />
       </div>
 
@@ -595,50 +579,6 @@ export function RecommendationDiscovery({
             )}
           </Panel>
 
-          {/* SECTION 5: Expected Outcome */}
-          <Panel
-            title="5. Expected Outcome"
-            subtitle="Projected impact upon earning placement."
-            padded
-          >
-            {expectedOutcome ? (
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">Potential Backlink</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">
-                    {expectedOutcome.potentialBacklink}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">Est. Traffic</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">
-                    {expectedOutcome.estimatedMonthlyTraffic}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">DA Boost</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">
-                    {expectedOutcome.domainAuthorityBoost}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">Potential Backlink</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">1 link</p>
-                </div>
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">Est. Traffic</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">500 – 2K</p>
-                </div>
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-400">DA Boost</p>
-                  <p className="mt-1 text-base font-bold text-brand-950">+2 to +5</p>
-                </div>
-              </div>
-            )}
-          </Panel>
         </div>
       </div>
 

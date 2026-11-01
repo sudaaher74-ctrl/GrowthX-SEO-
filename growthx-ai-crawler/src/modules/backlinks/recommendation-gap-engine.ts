@@ -1,4 +1,4 @@
-import { ArticleAnalysis, ArticleCriterion, EvidenceClass } from "./recommendation-article";
+import { ArticleAnalysis, EvidenceClass } from "./recommendation-article";
 
 export type RecommendationGap = {
   factor: string;
@@ -34,12 +34,6 @@ export type ActionPlanItem = {
   dependencies?: string[];
 };
 
-export type ExpectedOutcome = {
-  potentialBacklink: string;
-  estimatedMonthlyTraffic: string;
-  domainAuthorityBoost: string;
-};
-
 export type PublisherOutreachState = {
   status: "DISCOVERED" | "ANALYZED" | "QUALIFIED" | "READY_FOR_REVIEW" | "CONTACTED" | "RESPONSE_PENDING" | "FEATURED" | "REJECTED" | "CLOSED";
   approvedByUser: boolean;
@@ -54,7 +48,6 @@ export type EnrichedRecommendationReport = {
   gaps: RecommendationGap[];
   readiness: RecommendationReadiness;
   actionPlan: ActionPlanItem[];
-  expectedOutcome: ExpectedOutcome;
   outreach: PublisherOutreachState;
 };
 
@@ -363,18 +356,4 @@ Best regards,
 [Your Name / Title]
 ${brand}
 https://${customer.domain}`;
-}
-
-/**
- * Computes realistic expected outcomes based on publisher prominence and editorial fit.
- */
-export function computeExpectedOutcome(analysis: ArticleAnalysis): ExpectedOutcome {
-  const wordCount = analysis.wordCount;
-  const isHighVolume = wordCount > 1200 || analysis.listicle;
-
-  return {
-    potentialBacklink: analysis.ownLinked ? "Already linked (active)" : "1 editorial link or brand mention",
-    estimatedMonthlyTraffic: isHighVolume ? "500 - 2,000" : "150 - 500",
-    domainAuthorityBoost: "+2 to +5",
-  };
 }

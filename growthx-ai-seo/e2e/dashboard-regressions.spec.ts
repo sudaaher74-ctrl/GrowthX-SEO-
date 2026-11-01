@@ -47,7 +47,7 @@ test("all Website Audit tabs remain selectable after Full Report", async ({ page
   });
 
   await page.goto("/website?tab=report", { waitUntil: "domcontentloaded" });
-  const tabs = ["Overview", "Technical health", "Speed", "Pages", "Content", "Problems to fix", "Full Report"];
+  const tabs = ["Technical health", "Speed", "Pages", "Content", "Problems to fix", "Full Report"];
   for (const name of tabs) {
     const tab = page.getByRole("tab", { name: new RegExp(name, "i") });
     await tab.click();

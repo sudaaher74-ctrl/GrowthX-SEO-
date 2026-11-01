@@ -67,9 +67,10 @@ export function ImpactLedgerProofView({
       queryClient.invalidateQueries({ queryKey: ["impact-ledger-stream", projectId] });
       queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
     },
-    onError: (err: any) => {
-      const msg = String(err?.message || "");
-      if (/cannot post/i.test(msg) || err?.status === 404 || /not found/i.test(msg)) {
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err ?? "");
+      const status = typeof err === "object" && err !== null && "status" in err ? err.status : null;
+      if (/cannot post/i.test(msg) || status === 404 || /not found/i.test(msg)) {
         setEvaluatingMessage(
           "Closed-loop evaluation engine is synchronizing with the production service. Active project metrics are tracked from Day 1.",
         );
@@ -81,6 +82,7 @@ export function ImpactLedgerProofView({
 
   const cards = proofQuery.data ?? [];
   const ledgerEvents = ledgerQuery.data ?? [];
+  const [now] = useState(() => Date.now());
 
   const handleEvaluateClick = () => {
     if (cards.length === 0) {
@@ -119,7 +121,7 @@ export function ImpactLedgerProofView({
   // Calculate days active since earliest event
   const earliestEvent = ledgerEvents[ledgerEvents.length - 1];
   const daysActive = earliestEvent
-    ? Math.max(1, Math.floor((Date.now() - new Date(earliestEvent.createdAt).getTime()) / 86400000))
+    ? Math.max(1, Math.floor((now - new Date(earliestEvent.createdAt).getTime()) / 86400000))
     : 1;
 
   return (

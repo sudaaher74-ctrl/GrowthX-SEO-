@@ -5,7 +5,6 @@ export type RecommendationStats = {
   competitorsMentioned: number;
   highFitOpportunities: number;
   earnedBacklinks: number;
-  estimatedTraffic: string;
 };
 
 export type RecommendationGap = {
@@ -40,12 +39,6 @@ export type ActionPlanItem = {
   category: 'WEBSITE' | 'DOCUMENTATION' | 'PITCH' | 'CONTACT' | 'MONITORING';
   priority: 'High' | 'Medium' | 'Low';
   dependencies?: string[];
-};
-
-export type ExpectedOutcome = {
-  potentialBacklink: string;
-  estimatedMonthlyTraffic: string;
-  domainAuthorityBoost: string;
 };
 
 export type PublisherOutreachState = {
@@ -87,7 +80,6 @@ export type EnrichedRecommendationReport = {
   gaps: RecommendationGap[];
   readiness: RecommendationReadiness;
   actionPlan: ActionPlanItem[];
-  expectedOutcome: ExpectedOutcome;
   outreach: PublisherOutreachState;
 };
 
