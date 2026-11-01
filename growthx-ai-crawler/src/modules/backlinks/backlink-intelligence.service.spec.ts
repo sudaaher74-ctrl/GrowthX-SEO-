@@ -172,13 +172,10 @@ describe('BacklinkIntelligenceService', () => {
       expect(dataforseo.getDomainSummary).not.toHaveBeenCalled();
     });
 
-    it('calls DataForSEO and persists snapshot when no cache exists', async () => {
-      const overview = await service.getOverview('proj_1', 'milquufresh.in');
-      expect(overview.isCached).toBe(false);
-      expect(overview.metrics.backlinks).toBe(450);
-      expect(overview.metrics.rank).toBe(380);
-      expect(dataforseo.getDomainSummary).toHaveBeenCalledWith('milquufresh.in');
-      expect(prisma.backlinkDomainSnapshot.create).toHaveBeenCalled();
+    it('does not trigger a billable DataForSEO sync when no snapshot exists', async () => {
+      await expect(service.getOverview('proj_1', 'milquufresh.in')).resolves.toBeNull();
+      expect(dataforseo.getDomainSummary).not.toHaveBeenCalled();
+      expect(prisma.backlinkDomainSnapshot.create).not.toHaveBeenCalled();
     });
 
     it('returns cached snapshot with warning if live DataForSEO sync fails', async () => {
@@ -218,29 +215,12 @@ describe('BacklinkIntelligenceService', () => {
     });
   });
 
-  describe('syncDomainIntelligence and Link Ingestion', () => {
-    it('syncs discovered backlinks into database BacklinkSource and Backlink tables', async () => {
+  describe('syncDomainIntelligence', () => {
+    it('stores provider snapshot separately from direct source verification', async () => {
       await service.syncDomainIntelligence('proj_1', 'milquufresh.in');
-      expect(prisma.backlinkSource.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { projectId_sourceUrl: { projectId: 'proj_1', sourceUrl: 'https://dairyreview.com/post' } },
-          create: expect.objectContaining({
-            projectId: 'proj_1',
-            sourceUrl: 'https://dairyreview.com/post',
-            discovery: 'DATAFORSEO',
-          }),
-        }),
-      );
-
-      expect(prisma.backlink.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({
-            targetUrl: 'https://milquufresh.in/',
-            anchorText: 'Pure A2 Milk',
-            followState: 'FOLLOW',
-          }),
-        }),
-      );
+      expect(prisma.backlinkDomainSnapshot.create).toHaveBeenCalled();
+      expect(prisma.backlinkSource.upsert).not.toHaveBeenCalled();
+      expect(prisma.backlink.upsert).not.toHaveBeenCalled();
     });
   });
 

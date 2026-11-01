@@ -485,9 +485,9 @@ export const api = {
     pushRecommendationOpportunity: (projectId: string, sourceId: string) => post<{ message: string; opportunityId: string }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/opportunity`, {}),
     updateRecommendationOutreach: (projectId: string, sourceId: string, payload: { status?: string; approvedByUser?: boolean; pitchDraft?: string; contactChannel?: string; outcome?: string }) => post<{ message: string; outreach: import('./backlink-recommendations').PublisherOutreachState }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/recommendations/${encodeURIComponent(sourceId)}/outreach`, payload),
     intelligenceOverview: (projectId: string, domain?: string, refresh?: boolean) =>
-      get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}${refresh ? 'refresh=true' : ''}`),
+      get<import('./backlink-intelligence').BacklinkOverviewResponse | null>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}${refresh ? 'refresh=true' : ''}`),
     syncIntelligence: (projectId: string, domain?: string, targetKind?: 'OWN' | 'COMPETITOR') =>
-      post<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/sync`, { domain, targetKind }),
+      post<import('./backlink-intelligence').BacklinkOverviewResponse>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/sync`, { domain, targetKind }),
     referringDomains: (projectId: string, domain?: string, limit = 50, offset = 0, refresh?: boolean) =>
       get<any>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/referring-domains?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${refresh ? '&refresh=true' : ''}`),
     links: (projectId: string, domain?: string, limit = 50, offset = 0, mode?: string, refresh?: boolean) =>

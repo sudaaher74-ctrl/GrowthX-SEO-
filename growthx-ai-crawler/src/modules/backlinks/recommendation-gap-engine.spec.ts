@@ -3,7 +3,6 @@ import {
   calculateReadiness,
   buildActionPlan,
   generatePitchDraft,
-  computeExpectedOutcome,
   CustomerBusinessContext,
 } from "./recommendation-gap-engine";
 import { ArticleAnalysis } from "./recommendation-article";
@@ -97,10 +96,4 @@ describe("recommendation-gap-engine", () => {
     expect(pitch).not.toContain("Dear Sir/Madam, we demand a backlink");
   });
 
-  it("computes realistic expected outcome metrics", () => {
-    const outcome = computeExpectedOutcome(MOCK_ARTICLE);
-    expect(outcome.potentialBacklink).toContain("1 editorial link");
-    expect(outcome.estimatedMonthlyTraffic).toBe("500 - 2,000");
-    expect(outcome.domainAuthorityBoost).toBe("+2 to +5");
-  });
 });

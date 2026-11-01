@@ -875,7 +875,7 @@ export class BacklinksService {
       openActions,
     ] = await Promise.all([
       this.prisma.backlinkSource.findMany({
-        where: { projectId },
+        where: { projectId, discovery: { not: "DATAFORSEO" } },
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         skip: offset,
         take: 25,
@@ -889,21 +889,23 @@ export class BacklinksService {
           _count: { select: { links: true } },
         },
       }),
-      this.prisma.backlinkSource.count({ where: { projectId } }),
+      this.prisma.backlinkSource.count({ where: { projectId, discovery: { not: "DATAFORSEO" } } }),
       this.prisma.backlink.count({
         where: {
           ...where,
+          source: { discovery: { not: "DATAFORSEO" } },
           targetKind: "OWN",
           status: "VERIFIED",
           lastVerifiedAt: { gte: recent },
         },
       }),
       this.prisma.backlink.count({
-        where: { ...where, targetKind: "OWN", status: "LOST" },
+        where: { ...where, source: { discovery: { not: "DATAFORSEO" } }, targetKind: "OWN", status: "LOST" },
       }),
       this.prisma.backlink.findMany({
         where: {
           ...where,
+          source: { discovery: { not: "DATAFORSEO" } },
           status: "VERIFIED",
           lastVerifiedAt: { gte: recent },
         },
@@ -927,6 +929,7 @@ export class BacklinksService {
       this.prisma.backlinkSource.findMany({
         where: {
           projectId,
+          discovery: { not: "DATAFORSEO" },
           links: {
             some: {
               targetKind: "OWN",

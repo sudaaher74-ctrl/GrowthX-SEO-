@@ -11,6 +11,7 @@ import type { BacklinkMutationResult, BacklinkSource } from '@/lib/backlinks';
 import { BacklinkAnalysis } from './backlink-analysis';
 import { BacklinkDiscoveryPanel } from './backlink-discovery';
 import { RecommendationDiscovery } from './recommendation-discovery';
+import { BacklinkOverview } from './backlink-overview';
 
 const date = (value: string | null) => (value ? new Date(value).toLocaleString() : 'Not checked');
 const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -41,10 +42,8 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [note, setNote] = useState('');
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
-  const [showDiscoveryTool, setShowDiscoveryTool] = useState(false);
 
-  // Default directly to the new Recommendation Intelligence 3.0 view
-  const [tab, setTab] = useState<'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('recommendations');
+  const [tab, setTab] = useState<'overview' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
 
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset],
@@ -103,20 +102,18 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
     <div className="space-y-5">
       <PageHeader
         title="Backlink Intelligence"
-        subtitle="Discover where your competitors are being recommended, understand why, and get a personalized plan to earn similar backlinks."
+        subtitle="See what the backlink index reports, what Reigel has checked, and what needs your attention."
         actions={
           <>
             <Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine">
               Fix Engine
             </Link>
-            <ActionButton onClick={() => setShowDiscoveryTool(!showDiscoveryTool)}>
-              {showDiscoveryTool ? 'Hide Discovery Tool' : 'Discover Candidates'}
-            </ActionButton>
-            <ActionButton onClick={() => setTab('evidence')}>Add / Import Sources</ActionButton>
+            <ActionButton onClick={() => setTab('evidence')}>Add source URLs</ActionButton>
             <ActionButton
               disabled={busy}
               onClick={() => {
                 void report.refetch();
+                void client.invalidateQueries({ queryKey: ['backlink-intelligence', projectId] });
                 void client.invalidateQueries({ queryKey: ['backlink-profile', projectId] });
                 void client.invalidateQueries({ queryKey: ['backlink-explorer', projectId] });
                 void client.invalidateQueries({ queryKey: ['backlink-changes', projectId] });
@@ -124,20 +121,18 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
                 void client.invalidateQueries({ queryKey: ['backlink-recommendation-stats', projectId] });
               }}
             >
-              Refresh
+              Refresh page data
             </ActionButton>
             <ActionButton
               variant="primary"
               disabled={busy || !data?.queue.available}
               onClick={() => mutation.mutate({ kind: 'verify' })}
             >
-              Verify Next 25 Sources
+              Verify next 25 sources
             </ActionButton>
           </>
         }
       />
-
-      {showDiscoveryTool ? <BacklinkDiscoveryPanel projectId={projectId} /> : null}
 
       {note ? (
         <div role="status">
@@ -160,11 +155,12 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       <nav aria-label="Backlink intelligence navigation" className="flex flex-wrap gap-2 border-b pb-3">
         {(
           [
-            { id: 'recommendations', label: 'Recommendation Intelligence' },
-            { id: 'explorer', label: 'Backlink Explorer & Reports' },
-            { id: 'evidence', label: 'Source Evidence' },
-            { id: 'actions', label: 'Next Actions' },
-            { id: 'prospects', label: 'Competitor Sources' },
+            { id: 'overview', label: 'Overview' },
+            { id: 'recommendations', label: 'Opportunities' },
+            { id: 'explorer', label: 'Profile & reports' },
+            { id: 'evidence', label: 'Source checks' },
+            { id: 'actions', label: 'Next actions' },
+            { id: 'prospects', label: 'Competitor sources' },
           ] as const
         ).map((item) => (
           <ActionButton
@@ -178,7 +174,9 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         ))}
       </nav>
 
-      {/* TAB 1: NEW DESIGN (Primary, Default) */}
+      {tab === 'overview' ? <BacklinkOverview projectId={projectId} report={data} onSources={() => setTab('evidence')} onOpportunities={() => setTab('actions')} /> : null}
+
+      {/* Opportunities */}
       {tab === 'recommendations' ? (
         <RecommendationDiscovery projectId={projectId} onAddSources={() => setTab('evidence')} />
       ) : null}
