@@ -1658,6 +1658,7 @@ export interface AdminUsageMetrics {
     unpricedCalls: number;
     organizationsUsingAi: number;
     newUsers: number;
+    usersWithSessionActivity: number;
     crawlerRuns: number;
     completedCrawls: number;
     failedCrawls: number;
