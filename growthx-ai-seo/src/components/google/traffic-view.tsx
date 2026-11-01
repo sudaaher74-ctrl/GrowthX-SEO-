@@ -40,7 +40,7 @@ import type { Ga4ReportData } from "@/lib/api-client";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 
-/** Geographic coordinates (SVG 800x360 projection) & flags for key countries */
+/** Geographic coordinates in a 800×360 equirectangular map projection. */
 const COUNTRY_COORDINATES: Record<string, { x: number; y: number; flag: string; name: string }> = {
   IN: { x: 550, y: 175, flag: "🇮🇳", name: "India" },
   INDIA: { x: 550, y: 175, flag: "🇮🇳", name: "India" },
@@ -48,43 +48,37 @@ const COUNTRY_COORDINATES: Record<string, { x: number; y: number; flag: string; 
   US: { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
   USA: { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
   "UNITED STATES": { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
-  GB: { x: 375, y: 80, flag: "🇬🇧", name: "United Kingdom" },
-  UK: { x: 375, y: 80, flag: "🇬🇧", name: "United Kingdom" },
-  GBR: { x: 375, y: 80, flag: "🇬🇧", name: "United Kingdom" },
-  "UNITED KINGDOM": { x: 375, y: 80, flag: "🇬🇧", name: "United Kingdom" },
-  CA: { x: 165, y: 70, flag: "🇨🇦", name: "Canada" },
-  CAN: { x: 165, y: 70, flag: "🇨🇦", name: "Canada" },
-  CANADA: { x: 165, y: 70, flag: "🇨🇦", name: "Canada" },
-  DE: { x: 415, y: 85, flag: "🇩🇪", name: "Germany" },
-  DEU: { x: 415, y: 85, flag: "🇩🇪", name: "Germany" },
-  GERMANY: { x: 415, y: 85, flag: "🇩🇪", name: "Germany" },
-  AU: { x: 675, y: 285, flag: "🇦🇺", name: "Australia" },
-  AUS: { x: 675, y: 285, flag: "🇦🇺", name: "Australia" },
-  AUSTRALIA: { x: 675, y: 285, flag: "🇦🇺", name: "Australia" },
-  FR: { x: 395, y: 95, flag: "🇫🇷", name: "France" },
-  FRA: { x: 395, y: 95, flag: "🇫🇷", name: "France" },
-  FRANCE: { x: 395, y: 95, flag: "🇫🇷", name: "France" },
-  JP: { x: 715, y: 125, flag: "🇯🇵", name: "Japan" },
-  JPN: { x: 715, y: 125, flag: "🇯🇵", name: "Japan" },
-  JAPAN: { x: 715, y: 125, flag: "🇯🇵", name: "Japan" },
-  SG: { x: 605, y: 205, flag: "🇸🇬", name: "Singapore" },
-  SGP: { x: 605, y: 205, flag: "🇸🇬", name: "Singapore" },
-  SINGAPORE: { x: 605, y: 205, flag: "🇸🇬", name: "Singapore" },
-  AE: { x: 495, y: 155, flag: "🇦🇪", name: "United Arab Emirates" },
-  ARE: { x: 495, y: 155, flag: "🇦🇪", name: "United Arab Emirates" },
-  UAE: { x: 495, y: 155, flag: "🇦🇪", name: "United Arab Emirates" },
-  BR: { x: 255, y: 265, flag: "🇧🇷", name: "Brazil" },
-  BRA: { x: 255, y: 265, flag: "🇧🇷", name: "Brazil" },
-  BRAZIL: { x: 255, y: 265, flag: "🇧🇷", name: "Brazil" },
-  NL: { x: 405, y: 80, flag: "🇳🇱", name: "Netherlands" },
-  NLD: { x: 405, y: 80, flag: "🇳🇱", name: "Netherlands" },
-  NETHERLANDS: { x: 405, y: 80, flag: "🇳🇱", name: "Netherlands" },
-  IT: { x: 415, y: 105, flag: "🇮🇹", name: "Italy" },
-  ITA: { x: 415, y: 105, flag: "🇮🇹", name: "Italy" },
-  ITALY: { x: 415, y: 105, flag: "🇮🇹", name: "Italy" },
-  ES: { x: 380, y: 110, flag: "🇪🇸", name: "Spain" },
-  ESP: { x: 380, y: 110, flag: "🇪🇸", name: "Spain" },
-  SPAIN: { x: 380, y: 110, flag: "🇪🇸", name: "Spain" },
+  GB: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, UK: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, GBR: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, "UNITED KINGDOM": { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" },
+  CA: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" }, CAN: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" }, CANADA: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" },
+  DE: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" }, DEU: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" }, GERMANY: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" },
+  AU: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" }, AUS: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" }, AUSTRALIA: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" },
+  FR: { x: 408, y: 99, flag: "🇫🇷", name: "France" }, FRA: { x: 408, y: 99, flag: "🇫🇷", name: "France" }, FRANCE: { x: 408, y: 99, flag: "🇫🇷", name: "France" },
+  JP: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" }, JPN: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" }, JAPAN: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" },
+  SG: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" }, SGP: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" }, SINGAPORE: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" },
+  AE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" }, ARE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" }, UAE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" },
+  BR: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" }, BRA: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" }, BRAZIL: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" },
+  NL: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" }, NLD: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" }, NETHERLANDS: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" },
+  IT: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" }, ITA: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" }, ITALY: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" },
+  ES: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" }, ESP: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" }, SPAIN: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" },
+  MX: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" }, MEX: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" }, MEXICO: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" },
+  CN: { x: 610, y: 117, flag: "🇨🇳", name: "China" }, CHN: { x: 610, y: 117, flag: "🇨🇳", name: "China" }, CHINA: { x: 610, y: 117, flag: "🇨🇳", name: "China" },
+  KR: { x: 655, y: 116, flag: "🇰🇷", name: "South Korea" }, KOR: { x: 655, y: 116, flag: "🇰🇷", name: "South Korea" },
+  ID: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" }, IDN: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" }, INDONESIA: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" },
+  RU: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" }, RUS: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" }, RUSSIA: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" },
+  ZA: { x: 422, y: 254, flag: "🇿🇦", name: "South Africa" }, ZAF: { x: 422, y: 254, flag: "🇿🇦", name: "South Africa" },
+  NG: { x: 408, y: 157, flag: "🇳🇬", name: "Nigeria" }, NGA: { x: 408, y: 157, flag: "🇳🇬", name: "Nigeria" },
+  SE: { x: 425, y: 71, flag: "🇸🇪", name: "Sweden" }, SWE: { x: 425, y: 71, flag: "🇸🇪", name: "Sweden" },
+  CH: { x: 411, y: 100, flag: "🇨🇭", name: "Switzerland" }, CHE: { x: 411, y: 100, flag: "🇨🇭", name: "Switzerland" },
+  PL: { x: 427, y: 92, flag: "🇵🇱", name: "Poland" }, POL: { x: 427, y: 92, flag: "🇵🇱", name: "Poland" },
+  TR: { x: 462, y: 116, flag: "🇹🇷", name: "Türkiye" }, TUR: { x: 462, y: 116, flag: "🇹🇷", name: "Türkiye" },
+  TH: { x: 585, y: 151, flag: "🇹🇭", name: "Thailand" }, THA: { x: 585, y: 151, flag: "🇹🇭", name: "Thailand" },
+  VN: { x: 603, y: 144, flag: "🇻🇳", name: "Vietnam" }, VNM: { x: 603, y: 144, flag: "🇻🇳", name: "Vietnam" },
+  PH: { x: 660, y: 145, flag: "🇵🇭", name: "Philippines" }, PHL: { x: 660, y: 145, flag: "🇵🇭", name: "Philippines" },
+  PK: { x: 523, y: 132, flag: "🇵🇰", name: "Pakistan" }, PAK: { x: 523, y: 132, flag: "🇵🇰", name: "Pakistan" },
+  BD: { x: 562, y: 137, flag: "🇧🇩", name: "Bangladesh" }, BGD: { x: 562, y: 137, flag: "🇧🇩", name: "Bangladesh" },
+  AR: { x: 255, y: 248, flag: "🇦🇷", name: "Argentina" }, ARG: { x: 255, y: 248, flag: "🇦🇷", name: "Argentina" },
+  CL: { x: 240, y: 253, flag: "🇨🇱", name: "Chile" }, CHL: { x: 240, y: 253, flag: "🇨🇱", name: "Chile" },
+  CO: { x: 235, y: 154, flag: "🇨🇴", name: "Colombia" }, COL: { x: 235, y: 154, flag: "🇨🇴", name: "Colombia" },
 };
 
 const COUNTRY_NAME_TO_CODE: Record<string, string> = {
@@ -102,7 +96,39 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
   NETHERLANDS: "NL",
   ITALY: "IT",
   SPAIN: "ES",
+  MEXICO: "MX",
+  CHINA: "CN",
+  INDONESIA: "ID",
+  RUSSIA: "RU",
+  "SOUTH AFRICA": "ZA",
+  NIGERIA: "NG",
+  SWEDEN: "SE",
+  SWITZERLAND: "CH",
+  POLAND: "PL",
+  TÜRKIYE: "TR",
+  TURKEY: "TR",
+  THAILAND: "TH",
+  VIETNAM: "VN",
+  PHILIPPINES: "PH",
+  PAKISTAN: "PK",
+  BANGLADESH: "BD",
+  ARGENTINA: "AR",
+  CHILE: "CL",
+  COLOMBIA: "CO",
 };
+
+const MAP_CONTINENTS = [
+  // Low-detail continent silhouettes in the same equirectangular projection.
+  "M58 65 79 50 112 40 145 46 172 54 196 52 222 63 239 78 233 91 217 99 212 113 199 121 187 143 174 151 169 170 157 189 151 209 140 219 131 210 124 192 116 178 107 165 98 154 91 136 81 122 72 102 64 83Z",
+  "M183 194 199 188 217 194 233 208 243 229 246 251 239 278 230 302 222 328 211 344 202 329 198 305 191 282 187 257 179 231Z",
+  "M365 75 379 66 393 67 402 77 397 89 386 94 378 89Z",
+  "M382 98 399 92 417 96 430 106 426 119 412 124 396 119 385 111Z",
+  "M394 130 416 127 435 138 447 157 451 182 445 208 436 233 425 259 411 271 400 256 393 232 387 206 380 181 379 158Z",
+  "M419 85 435 69 457 62 478 59 498 55 521 57 544 52 568 55 590 59 615 59 642 66 666 70 688 78 713 84 734 96 750 110 747 126 735 139 719 149 703 161 684 171 664 181 645 194 626 199 608 192 591 184 573 176 557 166 539 163 522 151 506 142 490 132 475 120 459 112 442 107 429 99Z",
+  "M449 188 465 181 481 187 492 200 487 216 477 229 462 226 452 212Z",
+  "M631 221 650 215 672 219 693 228 710 242 717 258 708 274 693 282 674 280 657 270 644 256 635 240Z",
+  "M740 222 758 215 777 219 790 230 790 244 777 252 760 248 748 239Z",
+];
 
 /** Normalizes URL path for clean display */
 function pathOf(urlOrPath: string): string {
@@ -723,43 +749,41 @@ function TrafficViewClient() {
           </div>
 
           {/* World Map SVG Projection */}
-          <div className="mt-5 relative w-full overflow-hidden rounded-xl border border-brand-200/60 bg-surface-1 p-3">
+          <div className="mt-5 relative w-full overflow-hidden rounded-xl border border-brand-200/60 bg-surface-1 p-3 sm:p-4">
             <svg
               viewBox="0 0 800 360"
-              className="w-full h-auto"
-              style={{ minHeight: "220px" }}
+              className="h-auto w-full"
+              role="img"
               aria-label="World Traffic Map"
             >
-              {/* Map grid lines */}
               <defs>
+                <linearGradient id="traffic-map-ocean" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-surface-1)" />
+                  <stop offset="100%" stopColor="var(--color-brand-50)" />
+                </linearGradient>
+                <radialGradient id="traffic-map-heat">
+                  <stop offset="0%" stopColor="var(--color-signal-400)" stopOpacity=".3" />
+                  <stop offset="100%" stopColor="var(--color-signal-400)" stopOpacity="0" />
+                </radialGradient>
                 <pattern id="traffic-map-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--color-brand-200)" strokeWidth="0.5" opacity="0.3" />
+                  <path d="M40 0H0V40" fill="none" stroke="var(--color-brand-300)" strokeWidth=".6" opacity=".25" />
                 </pattern>
               </defs>
+              <rect width="800" height="360" rx="12" fill="url(#traffic-map-ocean)" />
               <rect width="800" height="360" fill="url(#traffic-map-grid)" />
-
-              {/* Continents Outline */}
-              <g fill="var(--color-brand-200)" opacity="0.45" stroke="var(--color-brand-300)" strokeWidth="0.5">
-                {/* North America */}
-                <path d="M 90,65 C 115,50 155,42 195,48 C 235,55 245,80 235,105 C 220,120 195,138 185,158 C 172,175 158,195 148,220 C 138,225 128,205 132,185 C 122,170 95,145 90,125 C 80,100 85,80 90,65 Z" />
-                {/* Greenland */}
-                <path d="M 275,32 C 295,28 312,38 308,58 C 292,68 278,62 275,45 Z" />
-                {/* South America */}
-                <path d="M 215,225 C 240,220 268,235 282,265 C 295,295 285,330 270,358 C 255,378 238,368 232,338 C 222,308 208,278 202,248 C 198,235 205,228 215,225 Z" />
-                {/* Europe */}
-                <path d="M 375,68 C 395,58 430,52 450,68 C 465,85 450,110 438,120 C 412,128 392,122 378,108 C 368,92 365,78 375,68 Z" />
-                {/* Africa */}
-                <path d="M 385,145 C 425,135 460,150 475,180 C 490,215 480,255 465,295 C 450,330 430,340 415,325 C 395,295 385,255 375,215 C 365,175 370,155 385,145 Z" />
-                {/* Asia */}
-                <path d="M 465,58 C 505,48 575,48 645,62 C 695,78 735,108 725,142 C 705,168 665,182 635,202 C 605,222 565,212 540,188 C 515,168 485,152 470,122 C 460,98 455,72 465,58 Z" />
-                {/* Australia */}
-                <path d="M 645,265 C 675,255 715,270 730,295 C 740,320 720,345 690,350 C 660,350 640,330 640,300 C 640,280 645,270 645,265 Z" />
+              <g fill="none" stroke="var(--color-brand-300)" strokeWidth=".8" opacity=".24">
+                {[60, 120, 180, 240, 300].map((y) => <path key={`lat-${y}`} d={`M0 ${y}H800`} />)}
+                {[160, 320, 480, 640].map((x) => <path key={`lon-${x}`} d={`M${x} 0V360`} />)}
+              </g>
+              <g fill="var(--color-brand-200)" stroke="var(--color-brand-400)" strokeWidth="1" opacity=".62">
+                {MAP_CONTINENTS.filter((d) => d !== "M0 0").map((d, i) => <path key={i} d={d} />)}
               </g>
 
-              {/* Country Beacons (Real Active Country Coordinates) */}
+              {/* Visitor concentration halos and country markers */}
               {countriesBreakdown.map((item: CountryBreakdownItem) => {
                 if (!item.coords) return null;
                 const isHovered = hoveredCountry === item.country;
+                const radius = 10 + Math.sqrt(item.share) * 34;
                 return (
                   <g
                     key={item.country}
@@ -767,32 +791,31 @@ function TrafficViewClient() {
                     onMouseEnter={() => setHoveredCountry(item.country)}
                     onMouseLeave={() => setHoveredCountry(null)}
                   >
-                    {/* Pulsing Outer Radar Circle */}
                     <circle
                       cx={item.coords.x}
                       cy={item.coords.y}
-                      r={isHovered ? 16 : 10}
-                      fill="var(--color-signal-400)"
-                      opacity={isHovered ? 0.4 : 0.25}
-                      className="animate-pulse"
+                      r={radius}
+                      fill="url(#traffic-map-heat)"
                     />
-                    {/* Beacon Center Dot */}
+                    <circle cx={item.coords.x} cy={item.coords.y} r={isHovered ? 12 : 9} fill="var(--color-signal-400)" opacity=".2" />
                     <circle
                       cx={item.coords.x}
                       cy={item.coords.y}
-                      r={isHovered ? 5.5 : 4}
+                      r={isHovered ? 5 : 3.5}
                       fill="var(--color-signal-400)"
                       stroke="var(--color-surface-1)"
-                      strokeWidth="1.5"
+                      strokeWidth="2"
                     />
-                    {/* Country Code Label */}
                     <text
                       x={item.coords.x + 8}
-                      y={item.coords.y + 4}
+                      y={item.coords.y - 8}
                       fill="var(--color-brand-950)"
-                      fontSize="10"
-                      fontWeight="bold"
+                      fontSize="11"
+                      fontWeight="700"
                       fontFamily="var(--font-mono)"
+                      stroke="var(--color-surface-1)"
+                      strokeWidth="3"
+                      paintOrder="stroke"
                     >
                       {item.code}
                     </text>
