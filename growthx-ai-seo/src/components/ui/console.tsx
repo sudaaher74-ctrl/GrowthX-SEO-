@@ -234,12 +234,18 @@ export function Tabs<T extends string>({
  * own copy of this in raw emerald, which is off-palette and was the only green
  * in the app that ignored the success tokens.
  */
-export function StatusNote({ children, tone = "good" }: { children: React.ReactNode; tone?: "good" | "bad" }) {
+export function StatusNote({ children, tone = "good" }: { children: React.ReactNode; tone?: "good" | "warn" | "info" | "bad" }) {
   return (
     <div
       className={cn(
         "rounded-xl border px-4 py-2.5 text-[12px]",
-        tone === "good" ? "bg-success-50 text-success-700" : "bg-error-50 text-error-700",
+        tone === "good"
+          ? "border-success-200 bg-success-50 text-success-700"
+          : tone === "warn"
+            ? "border-warning-200 bg-warning-50 text-warning-700"
+            : tone === "info"
+              ? "border-accent-200 bg-accent-50 text-accent-700"
+              : "border-error-200 bg-error-50 text-error-700",
       )}
     >
       {children}

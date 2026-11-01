@@ -548,6 +548,21 @@ export class AutomationService {
       select: { url: true, title: true, metaDescription: true, statusCode: true, blockedSuspected: true, crawlJob: { select: { createdAt: true } } },
       orderBy: { crawlJob: { createdAt: 'desc' } },
     }) : [];
+    const runIds = runs.map((run) => run.id);
+    const verifiedSnapshots = runIds.length && this.prisma.fixSnapshot?.findMany
+      ? await this.prisma.fixSnapshot.findMany({
+        where: { projectId, automationRunId: { in: runIds }, snapshotType: 'VERIFIED_LIVE' },
+        orderBy: { capturedAt: 'desc' },
+        select: { automationRunId: true, url: true, contentSnippet: true, capturedAt: true },
+      })
+      : [];
+    const unsupportedChecks = runIds.length && this.prisma.fixImpactLedgerEvent?.findMany
+      ? await this.prisma.fixImpactLedgerEvent.findMany({
+        where: { projectId, automationRunId: { in: runIds }, eventType: 'LIVE_VERIFICATION_UNSUPPORTED' },
+        orderBy: { createdAt: 'desc' },
+        select: { automationRunId: true, affectedUrl: true, evidenceData: true },
+      })
+      : [];
     return runs.map(run => ({
       id: run.id, status: run.status, reviewState: reviews.get(run.id)?.state ?? 'UNKNOWN', mergedAt: reviews.get(run.id)?.mergedAt ?? null,
       evidenceError: evidenceErrors.has(run.id) ? 'Could not refresh GitHub evidence. Saved evidence is shown; try refreshing again.' : null,
@@ -560,10 +575,22 @@ export class AutomationService {
         const field = change.field === 'META_TITLE' ? 'title' : change.field === 'META_DESCRIPTION' ? 'metaDescription' : null;
         const review = reviews.get(run.id);
         const boundary = review?.state === 'MERGED' && review.mergedAt ? new Date(review.mergedAt) : null;
-        const checked = Boolean(!change.dynamic && field && page && boundary && page.crawlJob.createdAt > boundary && page.statusCode === 200 && !page.blockedSuspected);
-        const liveValue = checked && field ? page![field] : null;
-        return [{ ...change, liveValue, checkedAt: checked ? page!.crawlJob.createdAt : null,
-          verification: checked ? liveValue === change.after ? 'MATCHED' : 'DIFFERENT' : 'NOT_CHECKED' }];
+        const proofPrefix = `${String(change.field).toUpperCase()}:`;
+        const verified = verifiedSnapshots.find((snapshot) =>
+          snapshot.automationRunId === run.id && snapshot.url === change.url && snapshot.contentSnippet?.startsWith(proofPrefix),
+        );
+        const unsupported = unsupportedChecks.find((event) => {
+          const evidence = event.evidenceData as any;
+          return event.automationRunId === run.id && event.affectedUrl === change.url && evidence?.field === String(change.field).toUpperCase();
+        });
+        const legacyChecked = Boolean(!change.dynamic && field && page && boundary && page.crawlJob.createdAt > boundary && page.statusCode === 200 && !page.blockedSuspected);
+        const checked = Boolean(verified || legacyChecked);
+        const liveValue = verified?.contentSnippet
+          ? verified.contentSnippet.slice(proofPrefix.length).trim()
+          : legacyChecked && field ? page![field] : null;
+        return [{ ...change, liveValue,
+          checkedAt: verified?.capturedAt ?? (legacyChecked ? page!.crawlJob.createdAt : null),
+          verification: checked ? 'MATCHED' : unsupported ? 'UNSUPPORTED' : legacyChecked && liveValue !== change.after ? 'DIFFERENT' : 'NOT_CHECKED' }];
       }),
       skipped: (run.steps as unknown as RunStep[]).filter(step => step.step === 'skipped').map(step => step.detail),
     }));

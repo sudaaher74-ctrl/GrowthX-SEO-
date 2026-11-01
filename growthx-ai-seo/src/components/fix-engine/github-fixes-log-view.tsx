@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -177,6 +177,7 @@ export function GitHubFixesLogView({
   const [engineerPrompt, setEngineerPrompt] = useState(initialInstruction ?? "");
   const [showRepoConnect, setShowRepoConnect] = useState(false);
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
+  const autoVerificationAttempts = useRef(new Map<string, number>());
 
   const findingsQuery = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
@@ -204,7 +205,14 @@ export function GitHubFixesLogView({
     queryFn: () => api.listFixChanges(projectId!),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: false,
+    refetchInterval: (q) => {
+      const reports = q.state.data ?? [];
+      const needsMergeRefresh = reports.some((report) => report.reviewState === "OPEN" || report.reviewState === "UNKNOWN");
+      const needsLiveRetry = reports.some((report) =>
+        report.reviewState === "MERGED" && report.changes.some((change) => change.verification === "NOT_CHECKED" || change.verification === "DIFFERENT"),
+      );
+      return needsMergeRefresh || needsLiveRetry ? 60_000 : false;
+    },
   });
 
   const ledgerQuery = useQuery({
@@ -425,6 +433,9 @@ export function GitHubFixesLogView({
     // 1. GitHub PR Runs
     for (const run of runs) {
       const ctx = resolveRunContext(run, allFindings);
+      const report = changeReports.find((item) => item.id === run.id);
+      const isMerged = report?.reviewState === "MERGED" || run.status === "MERGED";
+      const isVerifiedLive = isMerged && Boolean(report?.changes.length) && report!.changes.every((change) => change.verification === "MATCHED");
       const isCompleteWithPr = run.status === "AWAITING_REVIEW" && Boolean(run.pullRequestUrl);
       const isComplete = run.status === "AWAITING_REVIEW";
 
@@ -434,8 +445,12 @@ export function GitHubFixesLogView({
         category: "GITHUB_PR",
         moduleId: ctx.moduleId,
         moduleLabel: ctx.moduleLabel,
-        title: isCompleteWithPr
-          ? `Task Complete — GitHub Pull Request opened for "${ctx.headline}" (${run.filesChanged.length} file${run.filesChanged.length === 1 ? "" : "s"} changed)`
+        title: isVerifiedLive
+          ? `Fix Live & Verified — "${ctx.headline}"`
+          : isMerged
+            ? `PR Merged — Live Verification ${report?.changes.some((change) => change.verification === "UNSUPPORTED") ? "Needs Manual Check" : "In Progress"} for "${ctx.headline}"`
+            : isCompleteWithPr
+          ? `Change Prepared — GitHub Pull Request opened for "${ctx.headline}" (${run.filesChanged.length} file${run.filesChanged.length === 1 ? "" : "s"} changed)`
           : isComplete
             ? `Task Complete — GitHub Fix Engine finished "${ctx.headline}"`
             : ["PENDING", "RUNNING"].includes(run.status)
@@ -449,15 +464,23 @@ export function GitHubFixesLogView({
           ctx.inspectedFiles.join(", ") ||
           null,
         prUrl: run.pullRequestUrl,
-        statusLabel: isCompleteWithPr
-          ? "Task Complete · PR Ready"
+        statusLabel: isVerifiedLive
+          ? "Verified Live"
+          : isMerged
+            ? report?.changes.some((change) => change.verification === "UNSUPPORTED") ? "Merged · Manual Check Needed" : "Merged · Checking Live Site"
+            : isCompleteWithPr
+          ? "PR Open · Waiting for Merge"
           : isComplete
             ? "Task Complete"
             : ["PENDING", "RUNNING"].includes(run.status)
               ? "In Progress"
               : "Needs Retry",
-        statusTone: isComplete
+        statusTone: isVerifiedLive
           ? "good"
+          : isMerged
+            ? "warn"
+            : isCompleteWithPr
+              ? "info"
           : ["PENDING", "RUNNING"].includes(run.status)
             ? "warn"
             : "bad",
@@ -482,17 +505,19 @@ export function GitHubFixesLogView({
         statusLabel:
           ch.verification === "MATCHED"
             ? "Verified Live"
+            : ch.verification === "UNSUPPORTED"
+              ? "Merged · Manual Check Needed"
             : ch.reviewState === "MERGED"
-              ? "Merged in GitHub"
+              ? "Merged · Checking Live Site"
               : ch.runStatus === "AWAITING_REVIEW"
-                ? "Task Complete · PR Ready"
+                ? "PR Open · Waiting for Merge"
                 : ch.runStatus === "RUNNING"
                   ? "Applying on GitHub"
                   : "Inspected",
         statusTone:
-          ch.verification === "MATCHED" || ch.reviewState === "MERGED" || ch.runStatus === "AWAITING_REVIEW"
+          ch.verification === "MATCHED"
             ? "good"
-            : ch.runStatus === "RUNNING"
+            : ch.reviewState === "MERGED" || ch.runStatus === "RUNNING"
               ? "warn"
               : "info",
       });
@@ -507,14 +532,22 @@ export function GitHubFixesLogView({
         title:
           ch.verification === "MATCHED"
             ? `Confirmed Live on Website: ${ch.findingTitle}`
+            : ch.verification === "UNSUPPORTED"
+              ? `Merged change needs manual live check: ${ch.findingTitle}`
             : ch.pullRequestUrl
-              ? `Awaiting PR Merge & Live Verification: ${ch.findingTitle}`
+              ? ch.reviewState === "MERGED"
+                ? `PR merged; checking live deployment: ${ch.findingTitle}`
+                : `Awaiting PR Merge & Live Verification: ${ch.findingTitle}`
               : `Verification Status: ${ch.findingTitle}`,
         detail:
           ch.verification === "MATCHED"
             ? `Live website matches expected update (${ch.liveValue || ch.after}).`
+            : ch.verification === "UNSUPPORTED"
+              ? `The PR is merged and the page was fetched, but this change has no safe automatic assertion. It remains unverified and needs a manual check. ${ch.liveValue ? `Live evidence: ${ch.liveValue}` : ""}`
             : ch.pullRequestUrl
-              ? `Pull Request is ready (${ch.file}). Merge the PR on GitHub and click "Verify Live Site" to confirm live deployment.`
+              ? ch.reviewState === "MERGED"
+                ? `PR ${ch.pullRequestUrl} is merged. Reigel checks the affected live page automatically and will retry while the deployment rolls out.`
+                : `Pull Request is ready (${ch.file}). Merge it on GitHub; Reigel will then check the live page automatically.`
               : ch.after,
         beforeText: ch.before,
         afterText: ch.liveValue || ch.after,
@@ -524,14 +557,18 @@ export function GitHubFixesLogView({
         statusLabel:
           ch.verification === "MATCHED"
             ? "Confirmed Live"
+              : ch.verification === "UNSUPPORTED"
+                ? "Manual Check Needed"
             : ch.reviewState === "MERGED"
-              ? "Merged · Ready to Verify"
+              ? "Merged · Checking Live Site"
               : ch.pullRequestUrl
                 ? "PR Open · Ready to Merge"
                 : "Pending PR",
         statusTone:
-          ch.verification === "MATCHED" || ch.reviewState === "MERGED"
+          ch.verification === "MATCHED"
             ? "good"
+            : ch.verification === "UNSUPPORTED" || ch.reviewState === "MERGED"
+              ? "warn"
             : ch.pullRequestUrl
               ? "info"
               : "warn",
@@ -566,6 +603,7 @@ export function GitHubFixesLogView({
       if (lc === "DISMISSED") continue;
       const modGroup = groupOf(f.source);
       const fRun = findingRunMap.get(f.id);
+      const findingChange = prChanges.find((change) => change.findingTitle === f.title);
       const isActioned = ["QUEUED", "APPROVED", "APPLYING", "VERIFYING", "VERIFIED", "MEASURED", "RESOLVED"].includes(lc);
       const evidenceSummary = f.evidence
         .slice(0, 3)
@@ -586,14 +624,22 @@ export function GitHubFixesLogView({
         url: f.affectedPages?.[0] ?? null,
         prUrl: fRun?.pullRequestUrl ?? null,
         statusLabel:
-          fRun?.status === "AWAITING_REVIEW"
-            ? "Task Complete · PR Ready"
+          findingChange?.verification === "MATCHED"
+            ? "Verified Live"
+            : findingChange?.verification === "UNSUPPORTED"
+              ? "Merged · Manual Check Needed"
+              : findingChange?.reviewState === "MERGED"
+                ? "Merged · Checking Live Site"
+                : fRun?.status === "AWAITING_REVIEW"
+                  ? "PR Open · Waiting for Merge"
             : ["PENDING", "RUNNING"].includes(fRun?.status ?? "")
               ? "Fixing on GitHub…"
               : LIFECYCLE_LABEL[lc] ?? lc,
         statusTone:
-          ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || fRun?.status === "AWAITING_REVIEW"
+          ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || findingChange?.verification === "MATCHED"
             ? "good"
+            : findingChange?.reviewState === "MERGED" || fRun?.status === "AWAITING_REVIEW"
+              ? "warn"
             : ["PENDING", "RUNNING"].includes(fRun?.status ?? "")
               ? "warn"
               : ["QUEUED", "APPROVED", "VERIFYING", "APPLYING"].includes(lc)
@@ -618,14 +664,22 @@ export function GitHubFixesLogView({
           statusLabel:
             ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
               ? "Confirmed Fixed"
+              : findingChange?.verification === "MATCHED"
+                ? "Verified Live"
+                : findingChange?.verification === "UNSUPPORTED"
+                  ? "Manual Check Needed"
+                  : findingChange?.reviewState === "MERGED"
+                    ? "Merged · Checking Live Site"
               : fRun?.status === "AWAITING_REVIEW"
-                ? "Task Complete · PR Ready"
+                ? "PR Open · Waiting for Merge"
                 : isActioned
                   ? "Queued for GitHub Fix"
                   : "Ready to Fix",
           statusTone:
-            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || fRun?.status === "AWAITING_REVIEW"
+            ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) || findingChange?.verification === "MATCHED"
               ? "good"
+              : findingChange?.reviewState === "MERGED" || fRun?.status === "AWAITING_REVIEW"
+                ? "warn"
               : isActioned
                 ? "info"
                 : "default",
@@ -798,6 +852,19 @@ export function GitHubFixesLogView({
     },
   });
 
+  useEffect(() => {
+    const now = Date.now();
+    for (const report of changeReports) {
+      if (report.reviewState !== "MERGED" || report.changes.length === 0) continue;
+      const needsCheck = report.changes.some((change) =>
+        change.verification === "NOT_CHECKED" || change.verification === "DIFFERENT",
+      );
+      if (!needsCheck || now - (autoVerificationAttempts.current.get(report.id) ?? 0) < 60_000) continue;
+      autoVerificationAttempts.current.set(report.id, now);
+      verifyLiveMutation.mutate(report.id);
+    }
+  }, [changeReports, verifyLiveMutation]);
+
   const readyLowRiskGroups = (issueGroups.data?.groups ?? []).filter((g) => g.aiFixAvailable);
 
   const toggleSelectFinding = (id: string) => {
@@ -906,6 +973,9 @@ export function GitHubFixesLogView({
 
   const trackedRun = trackedRunId ? runs.find((r) => r.id === trackedRunId) ?? null : null;
   const trackedRunCtx = trackedRun ? resolveRunContext(trackedRun, allFindings) : null;
+  const trackedReport = trackedRun ? changeReports.find((report) => report.id === trackedRun.id) : null;
+  const trackedRunMerged = trackedReport?.reviewState === "MERGED" || trackedRun?.status === "MERGED";
+  const trackedRunVerified = Boolean(trackedReport?.changes.length) && trackedReport!.changes.every((change) => change.verification === "MATCHED");
 
   return (
     <div className="space-y-6">
@@ -915,13 +985,17 @@ export function GitHubFixesLogView({
         </StatusNote>
       )}
       {trackedRun && trackedRun.status !== "RUNNING" ? (
-        <StatusNote tone={trackedRun.status === "AWAITING_REVIEW" ? "good" : "bad"}>
-          {trackedRun.status === "AWAITING_REVIEW"
-            ? `✓ Task Complete! GitHub Fix Engine finished "${trackedRunCtx?.headline ?? "your requested fix"}"${
+        <StatusNote tone={trackedRunVerified ? "good" : trackedRunMerged ? "warn" : trackedRun.status === "AWAITING_REVIEW" ? "info" : "bad"}>
+          {trackedRunVerified
+            ? `✓ Live fix verified for "${trackedRunCtx?.headline ?? "your requested fix"}". The affected page now shows the expected change.`
+            : trackedRunMerged
+              ? `PR merged for "${trackedRunCtx?.headline ?? "your requested fix"}". Reigel is checking the live page automatically; the fix is not marked complete until that check passes.`
+            : trackedRun.status === "AWAITING_REVIEW"
+            ? `Change prepared for "${trackedRunCtx?.headline ?? "your requested fix"}"${
                 trackedRun.filesChanged.length > 0
-                  ? ` and modified ${trackedRun.filesChanged.length} file(s) (${trackedRun.filesChanged.join(", ")})`
+                  ? ` across ${trackedRun.filesChanged.length} file(s) (${trackedRun.filesChanged.join(", ")})`
                   : ""
-              }.${trackedRun.pullRequestUrl ? " Your GitHub Pull Request is open and ready below." : ""}`
+              }. The PR is open; merge it to deploy. Reigel will verify the live page after GitHub confirms the merge.`
             : `Task finished without opening a Pull Request (${
                 trackedRun.error ||
                 (trackedRunCtx?.inspectedFiles.length
@@ -1430,21 +1504,21 @@ export function GitHubFixesLogView({
                       c.findingTitle === f.title,
                   );
                   const prUrl = fRun?.pullRequestUrl || matchedPr?.pullRequestUrl || null;
-                  const isTaskComplete =
-                    ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc) ||
-                    fRun?.status === "AWAITING_REVIEW" ||
-                    Boolean(prUrl);
+                  const isTaskComplete = matchedPr?.verification === "MATCHED";
+                  const isConfirmedByWorkflow = ["VERIFIED", "MEASURED", "RESOLVED"].includes(lc);
+                  const isPrMerged = matchedPr?.reviewState === "MERGED";
+                  const isPrAwaitingMerge = Boolean(prUrl) && !isPrMerged && !isTaskComplete;
                   const isTaskRunning = ["PENDING", "RUNNING"].includes(fRun?.status ?? "");
                   const isTaskFailed = fRun?.status === "FAILED" && !isTaskComplete;
 
                   return (
                     <div
                       key={f.id}
-                      className={cn(
+                        className={cn(
                         "flex flex-col gap-2 px-4 py-3 transition-colors sm:flex-row sm:items-center sm:justify-between",
                         checked
                           ? "bg-primary-50/40"
-                          : isTaskComplete
+                            : isTaskComplete || isConfirmedByWorkflow
                             ? "bg-success-50/20 hover:bg-success-50/40"
                             : "hover:bg-brand-50/40",
                       )}
@@ -1466,13 +1540,16 @@ export function GitHubFixesLogView({
                             <Pill tone={EFFORT[f.effort]}>{f.effort.toLowerCase()} effort</Pill>
                             {isTaskRunning ? (
                               <Pill tone="warn">⟳ Task Running on GitHub…</Pill>
-                            ) : isTaskComplete ? (
+                            ) : isTaskComplete || isConfirmedByWorkflow ? (
                               <Pill tone="good">
-                                ✓ Task Complete ·{" "}
-                                {["VERIFIED", "MEASURED", "RESOLVED"].includes(lc)
-                                  ? "Confirmed Fixed"
-                                  : "GitHub PR Ready"}
+                                ✓ {isTaskComplete ? "Verified Live" : "Confirmed Fixed"}
                               </Pill>
+                            ) : isPrMerged ? (
+                              <Pill tone={matchedPr?.verification === "UNSUPPORTED" ? "warn" : "warn"}>
+                                {matchedPr?.verification === "UNSUPPORTED" ? "Merged · Manual Check Needed" : "Merged · Checking Live Site"}
+                              </Pill>
+                            ) : isPrAwaitingMerge ? (
+                              <Pill tone="info">PR Open · Waiting for Merge</Pill>
                             ) : isTaskFailed ? (
                               <Pill tone="bad">⚠ Last Run Stopped · Retry Available</Pill>
                             ) : (
@@ -1535,20 +1612,22 @@ export function GitHubFixesLogView({
                               Confirm Fixed
                             </ActionButton>
                           )}
-                        <ActionButton
-                          variant={isTaskComplete ? "secondary" : "primary"}
-                          disabled={isEngineerBusy || runPlanFixesMutation.isPending}
-                          icon={<GitPullRequest size={12} />}
-                          onClick={() => handleFixFindingWithGitHub(f)}
-                        >
-                          {isTaskRunning
-                            ? "Fixing on GitHub…"
-                            : isTaskComplete
-                              ? "Re-run on GitHub"
-                              : isTaskFailed
-                                ? "Retry Fix with GitHub"
-                                : "Fix with GitHub"}
-                        </ActionButton>
+                        {(!prUrl || isTaskComplete || isConfirmedByWorkflow) && (
+                          <ActionButton
+                            variant={isTaskComplete || isConfirmedByWorkflow ? "secondary" : "primary"}
+                            disabled={isEngineerBusy || runPlanFixesMutation.isPending}
+                            icon={<GitPullRequest size={12} />}
+                            onClick={() => handleFixFindingWithGitHub(f)}
+                          >
+                            {isTaskRunning
+                              ? "Fixing on GitHub…"
+                            : isTaskComplete || isConfirmedByWorkflow
+                                ? "Re-run on GitHub"
+                                : isTaskFailed
+                                  ? "Retry Fix with GitHub"
+                                  : "Fix with GitHub"}
+                          </ActionButton>
+                        )}
                       </div>
                     </div>
                   );

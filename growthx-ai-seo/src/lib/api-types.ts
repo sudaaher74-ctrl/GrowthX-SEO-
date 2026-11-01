@@ -1143,7 +1143,7 @@ export interface FixChangeReport {
     source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string;
     sourceModule?: string; findingTitle?: string;
     liveValue: string | null; checkedAt: string | null;
-    verification: 'MATCHED' | 'DIFFERENT' | 'NOT_CHECKED';
+    verification: 'MATCHED' | 'DIFFERENT' | 'NOT_CHECKED' | 'UNSUPPORTED';
   }[];
 }
 
