@@ -449,9 +449,11 @@ function AdminConsole() {
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Kpi label="Workspaces" value={String(totals?.tenants ?? tenants.length)} sub="All registered organizations" />
-        <Kpi label="Valid login sessions" value={String(onlineCount)} sub={`${totals?.activeSessions ?? 0} sessions across accounts; not live presence`} />
+        <Kpi label="Registered accounts" value={String(totals?.users ?? users.length)} sub="All user accounts" />
+        <Kpi label="Accounts with valid sessions" value={String(onlineCount)} sub={`${totals?.activeSessions ?? 0} valid sessions; not live presence`} />
+        <Kpi label="Signed-in accounts · 30 days" value={usage ? usage.summary.usersWithSessionActivity.toLocaleString() : "—"} sub="Unique accounts with session activity" />
         <Kpi label="AI requests · 30 days" value={usage ? usage.summary.aiCalls.toLocaleString() : "—"} sub={`${usage?.summary.organizationsUsingAi ?? 0} workspaces used AI`} />
         <Kpi label="Crawl runs · 30 days" value={usage ? usage.summary.crawlerRuns.toLocaleString() : "—"} sub={`${usage?.summary.completedCrawls ?? 0} completed · ${usage?.summary.failedCrawls ?? 0} failed`} />
       </div>
