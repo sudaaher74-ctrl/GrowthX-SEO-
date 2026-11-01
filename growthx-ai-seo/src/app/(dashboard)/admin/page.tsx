@@ -3,13 +3,14 @@
 import { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isAdminSection, type AdminSection } from "@/components/layout/admin-sidebar";
-import Link from "next/link";import { ShieldAlert, Cpu, Activity, Building2, Wallet, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Sliders, Search, Check } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
+import Link from "next/link";import { ShieldAlert, Cpu, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Sliders, Search, Check } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import {
   api,
   QueueStat,
   ApiCostStat,
   TenantStat,
   AdminSystemHealth,
+  AdminUsageMetrics,
   AdminUserItem,
   AdminUserModelUsage,
   ApiError,
@@ -77,51 +78,6 @@ function PillButton({
   );
 }
 
-function Stat({
-  label,
-  value,
-  sub,
-  icon,
-  featured = false,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  icon: React.ReactNode;
-  featured?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-[28px] p-5 min-h-[140px] flex flex-col justify-between ${
-        featured
-          ? "bg-gradient-to-br from-success-400 to-success-600 text-white shadow-lg shadow-success-600/20"
-          : `${CARD} text-brand-950 dark:text-brand-100`
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <span className={`text-[13px] font-medium ${featured ? "text-white/85" : "text-brand-500"}`}>{label}</span>
-        <span
-          className={`h-8 w-8 rounded-full flex items-center justify-center ${
-            featured ? "bg-white/20" : "bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300"
-          }`}
-        >
-          {icon}
-        </span>
-      </div>
-      <div>
-        <div className="text-3xl font-bold tracking-tight">{value}</div>
-        <span
-          className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            featured ? "bg-white/20 text-white" : "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400"
-          }`}
-        >
-          {sub}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="relative">
@@ -133,6 +89,40 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
         placeholder={placeholder}
         className="h-10 w-64 max-w-full pl-9 pr-4 text-[13px] rounded-full border border-black/[0.08] dark:border-white/10 bg-white dark:bg-brand-900 text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-2 focus:ring-success-500/40"
       />
+    </div>
+  );
+}
+
+function UsageActivityChart({ daily }: { daily: AdminUsageMetrics["daily"] }) {
+  const series = [
+    { key: "aiCalls" as const, label: "AI requests", color: "bg-primary-600" },
+    { key: "crawlerRuns" as const, label: "Crawl runs", color: "bg-accent-600" },
+    { key: "newUsers" as const, label: "New accounts", color: "bg-success-600" },
+  ];
+  return (
+    <div className="mt-5 space-y-4" aria-label="Daily activity chart">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-[12px] font-semibold text-brand-950">Daily activity</h3>
+        <div className="flex flex-wrap gap-3 text-[10px] text-brand-500">
+          {series.map((item) => <span key={item.key} className="inline-flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${item.color}`} />{item.label}</span>)}
+        </div>
+      </div>
+      {series.map((item) => {
+        const max = Math.max(1, ...daily.map((day) => day[item.key]));
+        return (
+          <div key={item.key} className="grid grid-cols-[5.5rem_1fr] items-center gap-3">
+            <span className="text-[10px] text-brand-500">{item.label}</span>
+            <div className="flex h-7 items-end gap-px" role="img" aria-label={`${item.label} per day over the selected period`}>
+              {daily.map((day) => {
+                const count = day[item.key];
+                const height = count ? Math.max(3, Math.round((count / max) * 26)) : 1;
+                return <span key={day.date} title={`${new Date(`${day.date}T00:00:00`).toLocaleDateString()}: ${count.toLocaleString()}`} className={`min-w-0 flex-1 rounded-t-sm ${count ? item.color : "bg-brand-100"}`} style={{ height }} />;
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex justify-between pl-[6.25rem] text-[9px] text-brand-400"><span>{daily[0]?.date}</span><span>{daily[daily.length - 1]?.date}</span></div>
     </div>
   );
 }
@@ -219,12 +209,13 @@ function AdminConsole() {
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [userModels, setUserModels] = useState<AdminUserModelUsage[]>([]);
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
+  const [usage, setUsage] = useState<AdminUsageMetrics | null>(null);
 
   // Filtering states
   const [tenantSearch, setTenantSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [userModelSearch, setUserModelSearch] = useState("");
-  const [userLoginFilter, setUserLoginFilter] = useState<"all" | "online" | "offline">("all");
+  const [userLoginFilter, setUserLoginFilter] = useState<"all" | "signed-in" | "no-session">("all");
 
   // Platform Feature Flags / Settings
   const [featureFlags, setFeatureFlags] = useState({
@@ -247,9 +238,10 @@ function AdminConsole() {
       health: api.getAdminSystemHealth(),
       users: api.getAdminUsers(),
       stats: api.getAdminStats(),
+      usage: api.getAdminUsage(),
       userModels: api.getAdminUserModels(),
     };
-    const [queues, costs, tenantsData, health, usersData, statsData, userModelsData] = await Promise.allSettled(
+    const [queues, costs, tenantsData, health, usersData, statsData, usageData, userModelsData] = await Promise.allSettled(
       Object.values(calls),
     );
     const failures: string[] = [];
@@ -273,6 +265,7 @@ function AdminConsole() {
       "totals",
       setTotals,
     );
+    take<AdminUsageMetrics>(usageData, "usage metrics", setUsage);
     take<AdminUserModelUsage[]>(userModelsData, "user models", setUserModels);
     setFailedCalls(failures);
   };
@@ -329,8 +322,8 @@ function AdminConsole() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      if (userLoginFilter === "online" && !u.isLoggedIn) return false;
-      if (userLoginFilter === "offline" && u.isLoggedIn) return false;
+      if (userLoginFilter === "signed-in" && !u.isLoggedIn) return false;
+      if (userLoginFilter === "no-session" && u.isLoggedIn) return false;
       const q = userSearch.toLowerCase();
       const models = (u.modelsUsed || []).join(" ").toLowerCase();
       return (
@@ -355,28 +348,8 @@ function AdminConsole() {
     );
   }, [userModels, userModelSearch]);
 
-  const totalCompletedJobs = useMemo(() => {
-    return workerQueues.reduce((acc, q) => acc + q.completed, 0);
-  }, [workerQueues]);
-
-  const totalSpend = useMemo(() => {
-    return apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2);
-  }, [apiCosts]);
-
   // Derived from the ledger rather than hardcoded: the card read "Gemini &
   // Groq" while every row in the table was Mammouth.
-  const spendProviders = useMemo(() => {
-    const names = [
-      ...new Set(
-        apiCosts
-          .map((c) => c.service.split("/")[0]?.trim())
-          .filter((n): n is string => Boolean(n)),
-      ),
-    ];
-    if (names.length === 0) return "No recorded usage";
-    return names.slice(0, 3).join(", ") + (names.length > 3 ? "…" : "");
-  }, [apiCosts]);
-
   const tabs: { id: AdminSection; label: string; icon: typeof Server }[] = [
     { id: "overview", label: "System Overview", icon: Server },
     { id: "tenants", label: `Tenants (${tenants.length})`, icon: Database },
@@ -400,7 +373,7 @@ function AdminConsole() {
           Operator Console Restricted
         </h2>
         <p className="mt-2 text-sm text-brand-500 leading-relaxed">
-          Platform administration is reserved for authorized operator accounts.
+          {accessDenied} If you have operator access, refresh your sign-in and try again.
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">
           <Link
@@ -476,16 +449,11 @@ function AdminConsole() {
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <Stat featured label="Active Tenants" value={String(totals?.tenants ?? tenants.length)} sub="Organizations" icon={<Building2 size={15} />} />
-        <Stat
-          label="Platform Users"
-          value={String(totals?.users ?? users.length)}
-          sub={`${onlineCount} logged in now`}
-          icon={<Users size={15} />}
-        />
-        <Stat label="24h Jobs Finished" value={String(totalCompletedJobs)} sub="BullMQ tasks" icon={<Activity size={15} />} />
-        <Stat label="AI Spend MTD" value={`$${totalSpend}`} sub={spendProviders} icon={<Wallet size={15} />} />
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Kpi label="Workspaces" value={String(totals?.tenants ?? tenants.length)} sub="All registered organizations" />
+        <Kpi label="Valid login sessions" value={String(onlineCount)} sub={`${totals?.activeSessions ?? 0} sessions across accounts; not live presence`} />
+        <Kpi label="AI requests · 30 days" value={usage ? usage.summary.aiCalls.toLocaleString() : "—"} sub={`${usage?.summary.organizationsUsingAi ?? 0} workspaces used AI`} />
+        <Kpi label="Crawl runs · 30 days" value={usage ? usage.summary.crawlerRuns.toLocaleString() : "—"} sub={`${usage?.summary.completedCrawls ?? 0} completed · ${usage?.summary.failedCrawls ?? 0} failed`} />
       </div>
 
       {/* Pill tabs */}
@@ -515,76 +483,109 @@ function AdminConsole() {
 
       {/* OVERVIEW */}
       {activeTab === "overview" && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <Card
-            className="xl:col-span-2"
-            title="Infrastructure Health"
-            subtitle="Live heartbeat across database, queues, crawler cluster, and AI providers."
+        <div className="space-y-4">
+          <Panel
+            title="Platform usage"
+            subtitle={usage ? `${usage.windowDays} days · ${new Date(usage.from).toLocaleDateString()} – ${new Date(usage.through).toLocaleDateString()}` : "Usage metrics are loading"}
+            padded
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <HealthTile
-                icon={<Database size={15} className="text-success-500" />}
-                name="PostgreSQL"
-                status={systemHealth?.database?.status || "CONNECTED"}
-                tone="good"
-                desc="Prisma ORM connected with verified transaction pooling."
-                meta={`Latency: ${systemHealth?.database?.latencyMs ?? 2}ms`}
-              />
-              <HealthTile
-                icon={<Server size={15} className="text-brand-500" />}
-                name="Redis / BullMQ"
-                status={workersPaused ? "PAUSED" : "CONNECTED"}
-                tone={workersPaused ? "warn" : "good"}
-                desc="Crawl-jobs and page-fetch event loops."
-                meta="Worker Queues: 2 Active"
-              />
-              <HealthTile
-                icon={<Cpu size={15} className="text-success-600" />}
-                name="Crawler Cluster"
-                status="OPERATIONAL"
-                tone="good"
-                desc="Chromium / Puppeteer sandbox isolation pool."
-                meta="Pool Concurrency: 4 Workers"
-              />
-              <HealthTile
-                icon={<Zap size={15} className="text-warning-500" />}
-                name="Multi-AI Router"
-                status="ROUTING"
-                tone="good"
-                desc="Routes each AI task to the vendors allowed by AI_PROVIDERS that have a key."
-              />
+            <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+              <Kpi label="New accounts" value={usage ? usage.summary.newUsers.toLocaleString() : "—"} sub="Registrations in period" />
+              <Kpi label="AI tokens" value={usage ? formatTokens(usage.summary.inputTokens + usage.summary.outputTokens) : "—"} sub="Input and output tokens" />
+              <Kpi label="Estimated AI cost" value={usage?.summary.estimatedCostUsd == null ? "Not fully priced" : `$${usage.summary.estimatedCostUsd.toFixed(2)}`} sub={usage?.summary.unpricedCalls ? `${usage.summary.unpricedCalls} calls have no cost rate` : "Recorded provider estimates"} />
+              <Kpi label="Completed crawls" value={usage ? usage.summary.completedCrawls.toLocaleString() : "—"} sub="Crawl jobs completed" />
+              <Kpi label="Failed crawls" value={usage ? usage.summary.failedCrawls.toLocaleString() : "—"} sub="Crawl jobs failed" tone={usage?.summary.failedCrawls ? "danger" : "default"} />
             </div>
-          </Card>
+            {usage && <UsageActivityChart daily={usage.daily} />}
+          </Panel>
 
-          <Card title="Queue Throughput" subtitle="Completed vs failed jobs per queue">
-            {workerQueues.length === 0 ? (
-              <p className="text-xs text-brand-500 py-8 text-center">No queue activity yet.</p>
-            ) : (
-              <div className="flex items-end gap-4 h-44">
-                {workerQueues.map((q) => {
-                  const total = q.completed + q.failed + q.active + q.waiting;
-                  const h = Math.max(8, (total / maxJobs) * 100);
-                  const failPct = total ? (q.failed / total) * 100 : 0;
-                  return (
-                    <div key={q.name} className="flex-1 flex flex-col items-center justify-end gap-2 h-full min-w-0">
-                      <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-brand-100" style={{ height: `${h}%` }}>
-                        <div className="bg-brand-950 dark:bg-brand-200" style={{ height: `${100 - failPct}%` }} />
-                        <div
-                          className="bg-[repeating-linear-gradient(135deg,var(--color-success-500)_0_4px,var(--color-success-400)_4px_8px)]"
-                          style={{ height: `${failPct}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-brand-500 truncate w-full text-center">{q.name}</span>
-                    </div>
-                  );
-                })}
+          <Panel title="Workspaces using AI" subtitle="Most AI requests in this period. Cost is an estimate from recorded rates." >
+            {usage?.topOrganizations.length ? (
+              <Table minWidth={650}>
+                <thead><tr><Th>Workspace</Th><Th align="right">AI requests</Th><Th align="right">Tokens</Th><Th align="right">Estimated cost</Th></tr></thead>
+                <tbody>{usage.topOrganizations.map((organization) => (
+                  <Tr key={organization.id}>
+                    <Td><span className={nameCls}>{organization.name}</span></Td>
+                    <Td align="right">{organization.calls.toLocaleString()}</Td>
+                    <Td align="right">{formatTokens(organization.tokens)}</Td>
+                    <Td align="right">{organization.estimatedCostUsd == null ? "Not fully priced" : `$${organization.estimatedCostUsd.toFixed(2)}`}</Td>
+                  </Tr>
+                ))}</tbody>
+              </Table>
+            ) : <p className="px-4 py-8 text-center text-xs text-brand-500">No AI requests were recorded for this period.</p>}
+          </Panel>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <Card
+              className="xl:col-span-2"
+              title="Infrastructure Health"
+              subtitle="Live heartbeat across database, queues, crawler cluster, and AI providers."
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <HealthTile
+                  icon={<Database size={15} className="text-success-500" />}
+                  name="PostgreSQL"
+                  status={systemHealth?.database?.status || "UNKNOWN"}
+                  tone={systemHealth?.database?.status === "CONNECTED" ? "good" : "warn"}
+                  desc="Database connectivity check from the Reigel API."
+                  meta={systemHealth?.database?.latencyMs == null ? "Latency: not measured" : `Latency: ${systemHealth.database.latencyMs}ms`}
+                />
+                <HealthTile
+                  icon={<Server size={15} className="text-brand-500" />}
+                  name="Redis / BullMQ"
+                  status={workersPaused ? "PAUSED" : systemHealth?.redis?.status || "UNKNOWN"}
+                  tone={workersPaused ? "warn" : systemHealth?.redis?.status === "CONNECTED" ? "good" : "warn"}
+                  desc="Crawl-jobs and page-fetch event loops."
+                  meta={`${workerQueues.length} queues reported · ${workerQueues.reduce((sum, queue) => sum + queue.active, 0)} active jobs`}
+                />
+                <HealthTile
+                  icon={<Cpu size={15} className="text-success-600" />}
+                  name="Crawler Cluster"
+                  status={workerQueues.some((queue) => queue.status === "active") ? "QUEUE CONNECTED" : "NO ACTIVE QUEUE"}
+                  tone={workerQueues.some((queue) => queue.status === "active") ? "good" : "warn"}
+                  desc="Crawler job processing reported by BullMQ queues."
+                  meta={`${workerQueues.reduce((sum, queue) => sum + queue.active, 0)} jobs currently active`}
+                />
+                <HealthTile
+                  icon={<Zap size={15} className="text-warning-500" />}
+                  name="Multi-AI Router"
+                  status="ROUTING"
+                  tone="good"
+                  desc="Routes each AI task to the vendors allowed by AI_PROVIDERS that have a key."
+                />
               </div>
-            )}
-            <div className="mt-4 flex items-center gap-4 text-[11px] text-brand-500">
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-950 dark:bg-brand-200" />Completed</span>
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-success-500" />Failed</span>
-            </div>
-          </Card>
+            </Card>
+
+            <Card title="Queue Throughput" subtitle="Completed vs failed jobs per queue">
+              {workerQueues.length === 0 ? (
+                <p className="text-xs text-brand-500 py-8 text-center">No queue activity yet.</p>
+              ) : (
+                <div className="flex items-end gap-4 h-44">
+                  {workerQueues.map((q) => {
+                    const total = q.completed + q.failed + q.active + q.waiting;
+                    const h = Math.max(8, (total / maxJobs) * 100);
+                    const failPct = total ? (q.failed / total) * 100 : 0;
+                    return (
+                      <div key={q.name} className="flex-1 flex flex-col items-center justify-end gap-2 h-full min-w-0">
+                        <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-brand-100" style={{ height: `${h}%` }}>
+                          <div className="bg-brand-950 dark:bg-brand-200" style={{ height: `${100 - failPct}%` }} />
+                          <div
+                            className="bg-[repeating-linear-gradient(135deg,var(--color-success-500)_0_4px,var(--color-success-400)_4px_8px)]"
+                            style={{ height: `${failPct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-brand-500 truncate w-full text-center">{q.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="mt-4 flex items-center gap-4 text-[11px] text-brand-500">
+                <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-950 dark:bg-brand-200" />Completed</span>
+                <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-success-500" />Failed</span>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -679,8 +680,8 @@ function AdminConsole() {
       {/* USERS */}
       {activeTab === "users" && (
         <Card
-          title="Platform Users & Login Activity"
-          subtitle="Real-time login status, active sessions, and AI model usage per user."
+          title="Platform Users & Login Sessions"
+          subtitle="A valid refresh session means the user can remain signed in; it does not indicate current page activity."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-full bg-brand-100 p-0.5 dark:bg-brand-800 text-xs font-medium">
@@ -697,26 +698,26 @@ function AdminConsole() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUserLoginFilter("online")}
+                  onClick={() => setUserLoginFilter("signed-in")}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors ${
-                    userLoginFilter === "online"
+                    userLoginFilter === "signed-in"
                       ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
                       : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
                   }`}
                 >
                   <span className="h-2 w-2 rounded-full bg-success-500 animate-pulse" />
-                  Online ({onlineCount})
+                  Valid session ({onlineCount})
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUserLoginFilter("offline")}
+                  onClick={() => setUserLoginFilter("no-session")}
                   className={`rounded-full px-3 py-1 transition-colors ${
-                    userLoginFilter === "offline"
+                    userLoginFilter === "no-session"
                       ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
                       : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
                   }`}
                 >
-                  Offline ({Math.max(0, users.length - onlineCount)})
+                  No valid session ({Math.max(0, users.length - onlineCount)})
                 </button>
               </div>
               <SearchBox value={userSearch} onChange={setUserSearch} placeholder="Search user, email, org, or model..." />
@@ -730,7 +731,7 @@ function AdminConsole() {
                 <Th>Email</Th>
                 <Th>Organization</Th>
                 <Th>Role</Th>
-                <Th>Login Status</Th>
+                <Th>Session Status</Th>
                 <Th>Last Login</Th>
                 <Th>AI Models Used</Th>
               </tr>
@@ -747,7 +748,7 @@ function AdminConsole() {
                           </div>
                           {u.isLoggedIn && (
                             <span
-                              title="Currently logged in"
+                              title="A valid refresh session exists; this does not indicate current page activity"
                               className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success-500 ring-2 ring-white dark:ring-brand-900"
                             />
                           )}
@@ -766,7 +767,7 @@ function AdminConsole() {
                     <Td>
                       {u.isLoggedIn ? (
                         <div className="flex items-center gap-1.5">
-                          <Pill tone="good">ONLINE</Pill>
+                          <Pill tone="good">SIGNED IN</Pill>
                           {(u.activeSessionsCount ?? 0) > 1 && (
                             <span className="text-[10px] text-brand-400 font-mono">
                               ({u.activeSessionsCount} active)
@@ -774,7 +775,7 @@ function AdminConsole() {
                           )}
                         </div>
                       ) : (
-                        <Pill tone="default">OFFLINE</Pill>
+                        <Pill tone="default">NO VALID SESSION</Pill>
                       )}
                     </Td>
                     <Td>
