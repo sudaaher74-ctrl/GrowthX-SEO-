@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LandingHeader } from "@/components/marketing/landing-header";
 import { HeroSection } from "@/components/marketing/hero-section";
 import { ProofStrip } from "@/components/marketing/proof-strip";
@@ -13,6 +14,10 @@ import { LandingFooter } from "@/components/marketing/landing-footer";
 import { FAQS } from "@/lib/faqs";
 import { PLANS } from "@/lib/pricing";
 import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const STRUCTURED_DATA = {
   "@context": "https://schema.org",
