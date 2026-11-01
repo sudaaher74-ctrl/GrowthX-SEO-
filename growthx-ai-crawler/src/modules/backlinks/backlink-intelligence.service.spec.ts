@@ -166,6 +166,7 @@ describe('BacklinkIntelligenceService', () => {
       });
 
       const overview = await service.getOverview('proj_1', 'milquufresh.in');
+      if (!overview) throw new Error('Expected a cached overview.');
       expect(overview.isCached).toBe(true);
       expect(overview.metrics.backlinks).toBe(450);
       expect(overview.metrics.referringDomains).toBe(38);
@@ -209,6 +210,7 @@ describe('BacklinkIntelligenceService', () => {
       );
 
       const overview = await service.getOverview('proj_1', 'milquufresh.in', true);
+      if (!overview) throw new Error('Expected the cached overview fallback.');
       expect(overview.isCached).toBe(true);
       expect(overview.warning).toContain('DataForSEO account verification required');
       expect(overview.metrics.backlinks).toBe(400);

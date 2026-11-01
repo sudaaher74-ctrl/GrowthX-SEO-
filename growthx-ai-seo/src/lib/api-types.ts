@@ -2426,7 +2426,7 @@ export interface FixLedgerEntry {
   affectedUrl: string | null;
   pullRequestUrl: string | null;
   verificationStatus: string | null;
-  evidenceData?: Record<string, any>;
+  evidenceData?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   createdAt: string;
 }

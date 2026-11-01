@@ -3,7 +3,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { bareDomain, ownSite } from '../search-intelligence/own-site';
 import {
   DataForSeoBacklinkItem,
-  DataForSeoBacklinksError,
   DataForSeoBacklinksService,
   DataForSeoReferringDomainItem,
   DataForSeoAnchorItem,

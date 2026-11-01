@@ -1,4 +1,4 @@
-import { ArticleAnalysis, ArticleCriterion, EvidenceClass } from "./recommendation-article";
+import { ArticleAnalysis, EvidenceClass } from "./recommendation-article";
 
 export type RecommendationGap = {
   factor: string;
