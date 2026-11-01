@@ -61,7 +61,7 @@ function WorkflowAppPreview() {
   return (
     <div className="relative select-none w-full max-w-xl mx-auto lg:mx-0">
       {/* Top right cursive annotation with curved arrow */}
-      <div className="absolute -top-10 right-8 z-20 flex flex-col items-end text-series-6">
+      <div className="absolute -top-10 right-8 z-20 hidden sm:flex flex-col items-end text-series-6">
         <p
           className="font-bold text-xs sm:text-sm leading-tight text-right text-series-6"
           style={{ fontFamily: "cursive", transform: "rotate(-4deg)" }}
@@ -83,12 +83,10 @@ function WorkflowAppPreview() {
       <div className="bg-brand-900 rounded-3xl shadow-2xl border border-brand-800 overflow-hidden">
         <div className="flex">
           {/* Sidebar */}
-          <div className="w-32 sm:w-36 bg-brand-950 p-3 sm:p-3.5 shrink-0 flex flex-col justify-between border-r border-brand-900">
+          <div className="w-12 sm:w-36 bg-brand-950 p-2 sm:p-3.5 shrink-0 flex flex-col justify-between border-r border-brand-900">
             <div>
               <div className="mb-4 pl-1">
-                <span className="text-sm font-black tracking-tight text-white">
-                  Reigel
-                </span>
+                <span className="text-sm font-black tracking-tight text-white"><span className="sm:hidden">R</span><span className="hidden sm:inline">Reigel</span></span>
               </div>
 
               <div className="space-y-1">
@@ -112,7 +110,7 @@ function WorkflowAppPreview() {
                       }`}
                     >
                       <ItemIcon size={12} className={item.active ? "text-series-6" : "text-brand-400"} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="hidden sm:inline truncate">{item.label}</span>
                     </div>
                   );
                 })}

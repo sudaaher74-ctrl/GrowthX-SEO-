@@ -52,13 +52,11 @@ function DashboardMockup() {
         {/* Container with Sidebar + Main Workspace */}
         <div className="flex">
           {/* Sidebar */}
-          <div className="w-28 sm:w-32 bg-brand-950 p-3 shrink-0 flex flex-col justify-between border-r border-brand-900">
+          <div className="w-12 sm:w-32 bg-brand-950 p-2 sm:p-3 shrink-0 flex flex-col justify-between border-r border-brand-900">
             <div>
               {/* Logo */}
               <div className="mb-3.5 pl-1">
-                <span className="text-sm font-black tracking-tight text-white">
-                  Reigel
-                </span>
+                <span className="text-sm font-black tracking-tight text-white"><span className="sm:hidden">R</span><span className="hidden sm:inline">Reigel</span></span>
               </div>
 
               {/* Sidebar Menu */}
@@ -84,7 +82,7 @@ function DashboardMockup() {
                       }`}
                     >
                       <ItemIcon size={12} className={isCurrent ? "text-series-6" : "text-brand-400"} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="hidden sm:inline truncate">{item.label}</span>
                     </button>
                   );
                 })}
@@ -95,7 +93,7 @@ function DashboardMockup() {
           {/* Right Main Content */}
           <div className="flex-1 min-w-0 flex flex-col bg-brand-950">
             {/* Top Bar with Interactive Tab Switcher */}
-            <div className="flex items-center justify-between px-3.5 py-2 border-b border-brand-900 bg-brand-900/40">
+            <div className="flex items-center justify-between gap-1 px-2 sm:px-3.5 py-2 border-b border-brand-900 bg-brand-900/40">
               {/* Tab Pills */}
               <div className="flex items-center gap-1 bg-brand-900/80 p-0.5 rounded-lg border border-brand-800 text-[10px]">
                 <button
@@ -134,7 +132,7 @@ function DashboardMockup() {
               </div>
 
               {/* Marks the whole mockup as illustrative */}
-              <div className="px-2 py-0.5 rounded-full bg-warning-500/10 border border-warning-500/30 text-[9px] font-bold uppercase tracking-wide text-warning-400">
+              <div className="hidden sm:block px-2 py-0.5 rounded-full bg-warning-500/10 border border-warning-500/30 text-[9px] font-bold uppercase tracking-wide text-warning-400">
                 Example data
               </div>
             </div>
@@ -378,7 +376,7 @@ function DashboardMockup() {
       </div>
 
       {/* Cursive annotation */}
-      <div className="absolute -bottom-16 left-2 sm:left-6 z-20 flex flex-col items-center text-series-6">
+      <div className="absolute -bottom-16 left-2 sm:left-6 z-20 hidden sm:flex flex-col items-center text-series-6">
         <svg
           className="w-6 h-6 text-series-6 transform rotate-45 -translate-x-2 translate-y-1"
           fill="none"
@@ -407,7 +405,7 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-brand-950 pt-20 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-900 overflow-hidden">
+    <section className="relative lg:min-h-[calc(100vh-4rem)] flex items-start lg:items-center bg-brand-950 pt-20 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-900 overflow-hidden">
       {/* Soft background ambient glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-series-6/10 blur-[130px]" />
@@ -415,7 +413,7 @@ export function HeroSection() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-4">
-        <div className="grid lg:grid-cols-[46%_54%] gap-8 lg:gap-10 items-center">
+        <div className="grid lg:grid-cols-[46%_54%] gap-6 lg:gap-10 items-center">
           {/* LEFT COLUMN */}
           <div className="space-y-5 lg:space-y-6">
             {/* Badge */}

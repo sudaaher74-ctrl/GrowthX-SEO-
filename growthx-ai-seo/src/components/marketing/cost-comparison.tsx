@@ -171,7 +171,7 @@ export function CostComparison() {
         {/* Comparison Table */}
         <div className="max-w-4xl mx-auto bg-brand-950/80 border border-brand-800 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md overflow-hidden">
           {/* Table Header */}
-          <div className="grid grid-cols-12 items-center py-4 px-5 sm:px-8 border-b border-brand-800/80 bg-brand-900/40 text-xs sm:text-sm font-semibold text-brand-400">
+          <div className="hidden sm:grid grid-cols-12 items-center py-4 px-5 sm:px-8 border-b border-brand-800/80 bg-brand-900/40 text-xs sm:text-sm font-semibold text-brand-400">
             <div className="col-span-5 text-left">
               What you need
             </div>
@@ -191,17 +191,19 @@ export function CostComparison() {
               return (
                 <div
                   key={row.what}
-                  className="grid grid-cols-12 items-center py-4 sm:py-4.5 px-5 sm:px-8 hover:bg-brand-900/25 transition-colors"
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-0 py-4 sm:py-4.5 px-4 sm:px-8 hover:bg-brand-900/25 transition-colors"
                 >
-                  <div className="col-span-5 text-left text-xs sm:text-sm text-brand-200 font-normal pr-2">
+                  <div className="sm:col-span-5 text-left text-sm text-brand-200 font-normal pr-2">
                     {row.what}
                   </div>
-                  <div className="col-span-4 text-left text-xs sm:text-sm text-brand-400 font-normal">
+                  <div className="sm:col-span-4 text-left text-xs sm:text-sm text-brand-400 font-normal">
+                    <span className="block sm:hidden text-[10px] font-bold uppercase tracking-wide text-brand-500 mb-0.5">Usual way</span>
                     <span>{row.usualWay}</span>
                     <span className="block text-[11px] text-brand-500 font-mono mt-0.5">{cost}/mo</span>
                   </div>
-                  <div className="col-span-3 text-right text-xs sm:text-sm font-bold text-success-400">
-                    {row.growthx}
+                  <div className="sm:col-span-3 text-left sm:text-right text-xs sm:text-sm font-bold text-success-400">
+                    <span className="block sm:hidden text-[10px] font-bold uppercase tracking-wide text-success-500 mb-0.5">Reigel</span>
+                    <span>{row.growthx}</span>
                   </div>
                 </div>
               );
@@ -209,14 +211,16 @@ export function CostComparison() {
           </div>
 
           {/* Total Footer Row */}
-          <div className="grid grid-cols-12 items-center py-5 px-5 sm:px-8 bg-brand-900/60 border-t border-brand-800">
-            <div className="col-span-5 text-left text-sm sm:text-base font-bold text-white">
+          <div className="grid grid-cols-2 sm:grid-cols-12 items-center gap-y-3 py-5 px-4 sm:px-8 bg-brand-900/60 border-t border-brand-800">
+            <div className="col-span-2 sm:col-span-5 text-left text-sm sm:text-base font-bold text-white">
               Total monthly cost
             </div>
-            <div className="col-span-4 text-left text-sm sm:text-base font-bold text-error-400">
+            <div className="sm:col-span-4 text-left text-xs sm:text-base font-bold text-error-400">
+              <span className="block sm:hidden text-[10px] font-bold uppercase tracking-wide text-brand-500">Usual cost</span>
               {totalWithout}/mo
             </div>
-            <div className="col-span-3 text-right text-sm sm:text-base font-bold text-success-400">
+            <div className="sm:col-span-3 text-left sm:text-right text-xs sm:text-base font-bold text-success-400">
+              <span className="block sm:hidden text-[10px] font-bold uppercase tracking-wide text-brand-500">Reigel</span>
               {totalWith}/mo
             </div>
           </div>
