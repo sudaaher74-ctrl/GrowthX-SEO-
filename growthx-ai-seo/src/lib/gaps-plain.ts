@@ -32,7 +32,7 @@ const PAGE_KIND: Record<string, { one: string; many: string; why: string }> = {
   SERVICE: {
     one: "service page",
     many: "service pages",
-    why: "Each service page can show up when someone searches for that exact service. One page per service beats one page listing them all.",
+    why: "A clear page for each distinct service can help customers understand what you offer. This crawl does not show whether those services get searches.",
   },
   PRODUCT: {
     one: "product page",
@@ -47,7 +47,7 @@ const PAGE_KIND: Record<string, { one: string; many: string; why: string }> = {
   BLOG: {
     one: "guide or article",
     many: "guides and articles",
-    why: "Helpful articles answer the questions people type into Google before they buy, so the business is found early and trusted.",
+    why: "Useful articles can explain your products or services. This crawl does not measure search demand, trust, or rankings.",
   },
   CASE_STUDY: {
     one: "customer story",
@@ -59,7 +59,7 @@ const PAGE_KIND: Record<string, { one: string; many: string; why: string }> = {
     many: "question-and-answer pages",
     why: "Question pages match the way people search and are often used by Google and AI assistants to answer directly.",
   },
-  OTHER: { one: "page", many: "pages", why: "Every extra useful page is another way for customers to find the business." },
+  OTHER: { one: "page", many: "pages", why: "A page helps when it answers a real customer need; more pages alone do not guarantee more visitors." },
 };
 
 function pageKind(pageType: string) {
@@ -72,7 +72,7 @@ const GOOGLE_EXTRA: Record<string, { name: string; why: string }> = {
     name: "Questions and answers",
     why: "Tells Google the questions a page answers, so Google and AI assistants can show those answers directly.",
   },
-  REVIEW: { name: "Star ratings", why: "Lets Google show star ratings next to the page in search results, which gets more clicks." },
+  REVIEW: { name: "Star ratings", why: "Marks up review information; Google decides whether eligible details appear in search results." },
   LOCAL_BUSINESS: {
     name: "Business address and hours",
     why: "Tells Google exactly where the business is and when it is open, which helps in local and map searches.",
@@ -94,7 +94,7 @@ export function googleExtra(type: string) {
 const SERIES: Record<ProgrammaticCluster["category"], { name: string; why: string }> = {
   COMPARISONS: {
     name: 'comparison pages ("A vs B")',
-    why: 'People about to buy search "X vs Y". A comparison page catches them at the moment they are choosing.',
+    why: 'Comparison pages can help customers evaluate options. This crawl does not show how many people search for these comparisons.',
   },
   LOCATIONS: { name: "city or area pages", why: PAGE_KIND.LOCATION.why },
   INTEGRATIONS: { name: '"works with" pages', why: "Each page catches people searching for the tools they already use." },
@@ -124,13 +124,13 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
         rival: r.name,
         rivalDomain: r.domain,
         headline: t.title,
-        why: `${r.name} has a ${kind.one} about this and your website has nothing on it. People searching for it find them, not you.`,
+        why: `Our crawl found a ${kind.one} on ${r.name}'s website about this topic, but did not find a matching page on yours. We have not checked search demand or Google rankings.`,
         example: { label: `See ${r.name}'s page`, url: t.url },
         steps: [
-          `Read ${r.name}'s page to see what it covers: ${t.url}`,
-          `Write your own ${kind.one} on "${t.title.split(/[|–-]/)[0].trim()}". Make it more useful than theirs: your prices, your areas, real photos and customer questions.`,
+          `Open ${r.name}'s page and first check whether this topic is relevant to your customers: ${t.url}`,
+          `If it is relevant, create a useful ${kind.one} about "${t.title.split(/[|–-]/)[0].trim()}" with accurate details that help your customers decide.`,
           t.wordCount >= 600
-            ? `Their page is about ${t.wordCount.toLocaleString("en-IN")} words long, so aim for at least as much useful detail.`
+            ? `Use word count as context only. Add details only when they help your customers.`
             : "Keep it clear and useful; add the details a customer would ask about.",
           "Link to the new page from your menu or a related page so visitors and Google can find it.",
         ],
@@ -164,7 +164,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
         rival: r.name,
         rivalDomain: r.domain,
         headline: `${r.name} answers ${plural(a.questions.theirCount, "customer question", "customer questions")} on their website. You answer ${a.questions.yourCount}.`,
-        why: "People type questions into Google and AI assistants. Websites that answer those questions clearly are the ones shown in the answer.",
+        why: "This crawl found more question-related content on this competitor's site. It does not show whether those questions appear in Google or AI answers.",
         steps: [
           ...(a.questions.theirs.length
             ? [`Questions they answer include: ${a.questions.theirs.map((q) => `"${q}"`).join(", ")}.`]
@@ -204,7 +204,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
         rival: r.name,
         rivalDomain: r.domain,
         headline: `${r.name}'s pages are more detailed: about ${d.theirMedianWords.toLocaleString("en-IN")} words each, yours about ${d.yourMedianWords.toLocaleString("en-IN")}.`,
-        why: "Google prefers the page that answers a visitor's questions most completely. Thin pages lose to detailed ones.",
+        why: "This is a word-count comparison only. It does not show which page is more useful or ranks better.",
         steps: [
           "Pick your 5 most important pages.",
           "Add what a customer wants to know before buying: prices, what's included, delivery areas and timings, photos and common questions.",
