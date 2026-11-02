@@ -450,16 +450,8 @@ function TrafficViewClient() {
           </p>
         </div>
 
-        {/* Revenue */}
-        <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
-          <p className="text-xs font-medium text-brand-400">Revenue</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              —
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-brand-400">Revenue is not measured in this report</p>
-        </div>
+        {/* Realtime activity */}
+        <RealtimeActivity projectId={projectId} compact />
 
         {/* Search clicks */}
         <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
@@ -489,7 +481,7 @@ function TrafficViewClient() {
         </div>
       </div>
 
-      <RealtimeActivity projectId={projectId} />
+      
 
       {/* ── DAILY TRAFFIC CHART ── */}
       <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
