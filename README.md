@@ -59,6 +59,23 @@ before building — `NEXT_PUBLIC_*` values are baked in at build time.
 
 ### Configuration
 
+Full-site audits crawl without a page-count ceiling by default. Processing
+concurrency, rate limits, crawl depth, and domain checks still apply. Targeted
+checks can request an explicit finite page limit.
+
+On existing hosts, set `CRAWL_UNLIMITED_PAGES=true` in the private runtime
+environment for both the API and worker before deploying this version; an old
+explicit `false` restores finite page limits. Recreate both containers from the
+new commit. This applies to new crawls; previously queued crawls retain their
+saved settings. With the root Compose stack, use:
+
+```bash
+docker compose --env-file .env up -d --build api worker
+```
+
+Confirm a newly started full-site audit has `pageLimit: null` in its saved
+`CrawlJob` record. Unlimited page count does not imply unlimited throughput.
+
 The full list, with explanations, is in `growthx-ai-crawler/.env.example`. The
 ones each product depends on:
 
