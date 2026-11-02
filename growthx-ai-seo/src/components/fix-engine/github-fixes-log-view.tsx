@@ -1218,17 +1218,17 @@ export function GitHubFixesLogView({
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             {isRunning ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-bold text-warning-900">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-50 px-2.5 py-0.5 text-[11px] font-bold text-warning-700">
                                 <RefreshCw size={11} className="animate-spin" />
                                 {run.status === "PENDING" ? "TASK QUEUED" : "TASK IN PROGRESS"}
                               </span>
                             ) : isSuccess ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-success-100 px-2.5 py-0.5 text-[11px] font-bold text-success-900">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-bold text-success-700">
                                 <CheckCircle2 size={12} />
                                 {run.pullRequestUrl ? "DRAFT PR · PREVIEW REVIEW REQUIRED" : "RUN FINISHED"}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-error-100 px-2.5 py-0.5 text-[11px] font-bold text-error-900">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-error-50 px-2.5 py-0.5 text-[11px] font-bold text-error-700">
                                 {isPlaceholder ? "PLACEHOLDER ONLY · RE-RUN REQUIRED" : "TASK FINISHED WITHOUT PR · RETRY AVAILABLE"}
                               </span>
                             )}
@@ -1259,10 +1259,10 @@ export function GitHubFixesLogView({
                         className={cn(
                           "text-[12px]",
                           isRunning
-                            ? "text-warning-900"
+                            ? "text-warning-700"
                             : isSuccess
-                              ? "text-success-900"
-                              : "text-error-900",
+                              ? "text-success-700"
+                              : "text-error-700",
                         )}
                       >
                         {isRunning
@@ -1280,18 +1280,18 @@ export function GitHubFixesLogView({
                       {/* Branch & Files Changed */}
                       <div className="flex flex-wrap items-center gap-3 text-[11.5px] font-mono text-brand-700">
                         {run.branch && (
-                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border">
+                          <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 border">
                             <GitBranch size={11} /> {run.branch}
                           </span>
                         )}
                         {run.filesChanged.length > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border text-success-800">
+                          <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 border text-success-700">
                             <FileCode size={11} /> Modified ({run.filesChanged.length}):{" "}
                             {run.filesChanged.join(", ")}
                           </span>
                         )}
                         {run.filesChanged.length === 0 && ctx.inspectedFiles.length > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 border text-brand-600">
+                          <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 border text-brand-600">
                             <FileCode size={11} /> Inspected: {ctx.inspectedFiles.join(", ")}
                           </span>
                         )}
@@ -1299,7 +1299,7 @@ export function GitHubFixesLogView({
 
                       {/* Step-by-Step Execution Log */}
                       {run.steps.length > 0 && (
-                        <div className="rounded-lg border bg-white/80 p-2.5 space-y-1">
+                        <div className="rounded-lg border bg-surface-2 p-2.5 space-y-1">
                           <span className="block text-[10px] font-bold uppercase tracking-[0.06em] text-brand-400">
                             Execution Steps ({run.steps.length})
                           </span>
@@ -1583,7 +1583,7 @@ export function GitHubFixesLogView({
                             href={prUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg border border-success-300 bg-success-50 px-2.5 py-1 text-[11.5px] font-semibold text-success-800 hover:bg-success-100"
+                            className="inline-flex items-center gap-1 rounded-lg border border-success-300 bg-success-50 px-2.5 py-1 text-[11.5px] font-semibold text-success-700 hover:bg-success-100"
                           >
                             <GitPullRequest size={12} /> View GitHub PR <ExternalLink size={10} />
                           </a>
@@ -1816,7 +1816,7 @@ export function GitHubFixesLogView({
                               </span>
                             )}
                           </div>
-                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-error-900">
+                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-error-700">
                             {ch.before || "<not set / missing before fix>"}
                           </p>
                         </div>
@@ -1832,7 +1832,7 @@ export function GitHubFixesLogView({
                               </span>
                             )}
                           </div>
-                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-success-900">
+                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-success-700">
                             {ch.after}
                           </p>
                         </div>
@@ -1970,7 +1970,7 @@ export function GitHubFixesLogView({
                                 {f.evidence.slice(0, 4).map((ev) => (
                                   <li
                                     key={`${ev.label}-${ev.value}`}
-                                    className="font-mono text-[11px] text-error-900"
+                                    className="font-mono text-[11px] text-error-700"
                                   >
                                     <span className="font-semibold">{ev.label}:</span> {ev.value}{" "}
                                     <span className="text-error-600">({ev.source})</span>
@@ -1994,7 +1994,7 @@ export function GitHubFixesLogView({
                               {matchedPr ? matchedPr.after : f.recommendedAction}
                             </p>
                             {matchedPr && (
-                              <p className="border-t border-success-200/60 pt-2 text-[11px] text-success-800">
+                              <p className="border-t border-success-200/60 pt-2 text-[11px] text-success-700">
                                 <strong>Why:</strong> {matchedPr.why}
                               </p>
                             )}
@@ -2086,7 +2086,7 @@ export function GitHubFixesLogView({
                     {(entry.beforeText || entry.afterText) && (
                       <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2 text-[11px]">
                         {entry.beforeText && (
-                          <div className="rounded border border-error-200/60 bg-error-50/40 p-2 font-mono text-error-900">
+                          <div className="rounded border border-error-200/60 bg-error-50/40 p-2 font-mono text-error-700">
                             <span className="block font-sans text-[9.5px] font-bold uppercase text-error-700">
                               Before
                             </span>
@@ -2094,7 +2094,7 @@ export function GitHubFixesLogView({
                           </div>
                         )}
                         {entry.afterText && (
-                          <div className="rounded border border-success-200/60 bg-success-50/40 p-2 font-mono text-success-900">
+                          <div className="rounded border border-success-200/60 bg-success-50/40 p-2 font-mono text-success-700">
                             <span className="block font-sans text-[9.5px] font-bold uppercase text-success-700">
                               After
                             </span>
