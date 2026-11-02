@@ -80,7 +80,7 @@ export function toRadarItem(m: RivalMove): RadarItem {
       return {
         ...common,
         headline: `Newly observed on ${m.rival}: ${quote(m.title)}`,
-        why: "A new page usually means they want to be found for a new search. If it matters to your customers, you should have a page on it too.",
+        why: "We observed a page that was not present in an earlier check. This does not reveal why it was added or whether it receives search traffic.",
         steps: [
           `Open their new page and see what it offers${m.url ? `: ${m.url}` : "."}`,
           "Decide if this topic matters to your customers. If not, ignore it.",
@@ -92,7 +92,7 @@ export function toRadarItem(m: RivalMove): RadarItem {
       return {
         ...common,
         headline: `${m.rival} made their ${quote(m.title)} page much more detailed`,
-        why: `It grew from about ${m.words?.from.toLocaleString("en-IN")} to ${m.words?.to.toLocaleString("en-IN")} words. Businesses add detail to pages they want to rank higher; a more complete page tends to beat a thinner one.`,
+        why: `It grew from about ${m.words?.from.toLocaleString("en-IN")} to ${m.words?.to.toLocaleString("en-IN")} words. A word-count change does not show why the page changed or whether its rankings improved.`,
         steps: [
           "Open their page and note what they added.",
           "Find your page on the same topic (or create one).",
@@ -103,7 +103,7 @@ export function toRadarItem(m: RivalMove): RadarItem {
       return {
         ...common,
         headline: `${m.rival} changed a page headline to "${m.to}"`,
-        why: `It used to say "${m.from}". A new headline usually means they're going after different searches, often the exact words customers type.`,
+        why: `It used to say "${m.from}". The crawl cannot tell us why the headline changed or which searches the competitor is targeting.`,
         steps: [
           `Look at the words in their new headline: "${m.to}".`,
           "If those words describe what you offer, use them in the headline of your matching page.",
@@ -115,7 +115,7 @@ export function toRadarItem(m: RivalMove): RadarItem {
       return {
         ...common,
         headline: `${m.rival} started giving Google "${names.join(", ")}" on ${quote(m.title)}`,
-        why: "These hidden details help Google show extra information like stars, prices or answers next to their page in search results, which gets them more clicks.",
+        why: "Search engines decide whether structured details appear in results; we have not measured clicks or traffic.",
         steps: [
           `Ask whoever built your website to add "${names.join(", ")}" details (structured data) to your matching pages.`,
           "Most website builders and plugins (for example Yoast or Rank Math on WordPress) can do this without coding.",
@@ -138,8 +138,8 @@ export function toRadarItem(m: RivalMove): RadarItem {
     case "AI_NAMED":
       return {
         ...common,
-        headline: `AI assistants recommended ${m.rival} instead of you in ${m.count} answer${m.count === 1 ? "" : "s"}`,
-        why: "When people ask ChatGPT, Gemini or other AI assistants for a recommendation, these answers named your competitor and not you.",
+        headline: `An AI answer check mentioned ${m.rival} in ${m.count} answer${m.count === 1 ? "" : "s"}`,
+        why: "This records mentions in the AI answer checks that were run. It does not represent all users, questions, AI tools, or answers.",
         steps: [
           ...(m.questions?.length ? [`Questions where this happened: ${m.questions.map((q) => `"${q}"`).join(", ")}.`] : []),
           "Make sure your website clearly answers these questions near the top of the page, in 2-3 plain sentences.",

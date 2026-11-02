@@ -74,12 +74,12 @@ const SECTIONS: Array<{ kind: GapKind; title: string; explain: string }> = [
   {
     kind: "topic",
     title: "Topics they have a page for, and you don't",
-    explain: "When someone searches for one of these, Google can show your competitor's page. It can't show yours, because you don't have one yet.",
+    explain: "Our crawl found a competitor page on this topic but no matching page on yours. This does not tell us search demand or rankings.",
   },
   {
     kind: "pageType",
     title: "Kinds of pages they have more of",
-    explain: "More pages of the right kind means more searches they can show up for.",
+    explain: "We found more pages of this type on a competitor site. This does not tell us how much traffic those pages get.",
   },
   {
     kind: "series",
@@ -89,17 +89,17 @@ const SECTIONS: Array<{ kind: GapKind; title: string; explain: string }> = [
   {
     kind: "question",
     title: "Customer questions they answer",
-    explain: "Google and AI assistants like ChatGPT answer people's questions using websites that answer them clearly.",
+    explain: "This compares question-related content found in website crawls; it does not measure Google rankings or AI answers.",
   },
   {
     kind: "schema",
     title: "Extra details they give Google",
-    explain: "Hidden labels on a page that tell Google things like star ratings, prices or opening hours, so it can show them in search results.",
+    explain: "Extra page details that search engines may use. Their presence does not guarantee special search results or more clicks.",
   },
   {
     kind: "depth",
     title: "How detailed their pages are",
-    explain: "Google prefers the page that answers a visitor's questions most completely.",
+    explain: "This compares page word counts only; it does not measure usefulness, rankings, or traffic.",
   },
 ];
 

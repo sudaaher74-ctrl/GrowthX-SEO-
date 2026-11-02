@@ -57,7 +57,7 @@ const PAGE_KIND: Record<string, { one: string; many: string; why: string }> = {
   FAQ: {
     one: "question-and-answer page",
     many: "question-and-answer pages",
-    why: "Question pages match the way people search and are often used by Google and AI assistants to answer directly.",
+    why: "Question-and-answer pages can help customers find clear information. This crawl does not confirm whether Google or AI assistants use them in answers.",
   },
   OTHER: { one: "page", many: "pages", why: "A page helps when it answers a real customer need; more pages alone do not guarantee more visitors." },
 };
@@ -75,9 +75,9 @@ const GOOGLE_EXTRA: Record<string, { name: string; why: string }> = {
   REVIEW: { name: "Star ratings", why: "Marks up review information; Google decides whether eligible details appear in search results." },
   LOCAL_BUSINESS: {
     name: "Business address and hours",
-    why: "Tells Google exactly where the business is and when it is open, which helps in local and map searches.",
+    why: "Provides machine-readable business location and hours. It does not guarantee visibility in local or map results.",
   },
-  PRODUCT: { name: "Product price and stock", why: "Lets Google show the price and whether it is in stock right in the search results." },
+  PRODUCT: { name: "Product price and stock", why: "Marks up product price and availability; search engines decide whether eligible details appear." },
   ARTICLE: { name: "Article details", why: "Tells Google who wrote an article and when, which helps it be trusted and shown." },
   BREADCRUMB: { name: "Page path", why: "Shows a neat path like Home › Milk › Cow milk in search results instead of a long web address." },
   ORGANIZATION: { name: "Company details", why: "Tells Google the business name, logo and contact details, so it recognises the brand." },
