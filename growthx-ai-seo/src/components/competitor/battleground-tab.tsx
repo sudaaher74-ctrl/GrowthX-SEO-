@@ -1,18 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Loader2, Plus, RotateCw, X } from "lucide-react";
 import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
-import { ActionButton, Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
+import { ActionButton, Panel, relativeTime } from "@/components/ui/console";
 import { type TrackedCompetitor } from "@/lib/api-client";
 import { useLatestCrawl } from "@/hooks/use-growthx";
-import {
-  LOW_SAMPLE,
-  bestRival,
-  buildMetrics,
-  type Metric,
-  type RivalInput,
-} from "@/lib/battleground";
 
 const MAX_RIVALS = 5;
 
@@ -36,24 +29,6 @@ function EmptyNote({ title, message }: { title: string; message: string }) {
   );
 }
 
-function SourceBadge({ metric }: { metric: Pick<Metric, "source" | "sample" | "key"> }) {
-  const low = metric.key === "ai" && (metric.sample ?? 0) < LOW_SAMPLE;
-  const label =
-    metric.key === "ai" && metric.sample != null
-      ? low
-        ? `Based on only ${metric.sample} AI answers`
-        : `From ${metric.sample} AI answers`
-      : SOURCE_LABEL[metric.source] ?? metric.source;
-  return <Pill tone={low ? "warn" : "info"}>{label}</Pill>;
-}
-
-/** Where a number came from, in words. */
-const SOURCE_LABEL: Record<string, string> = {
-  Crawled: "From their website",
-  "AI sampled": "From AI answers",
-  "Google Places": "From Google",
-};
-
 export function BattlegroundTab({
   projectId,
   domain,
@@ -70,40 +45,6 @@ export function BattlegroundTab({
   const [selected, setSelected] = useState<string[] | null>(null);
   const selectedIds = selected ?? competitors.slice(0, MAX_RIVALS).map((c) => c.id);
   const rivals = competitors.filter((c) => selectedIds.includes(c.id));
-
-  const rivalInputs: RivalInput[] = useMemo(
-    () =>
-      rivals.map((c) => ({
-        id: c.id,
-        name: c.name || c.label || c.domain,
-        domain: c.domain,
-        pagesCrawled: c.pagesCrawled && c.pagesCrawled > 0 ? c.pagesCrawled : null,
-        healthScore: c.healthScore ?? null,
-        aiNamed: c.aiMentions?.named ?? null,
-        aiAnswers: c.aiMentions?.answers ?? null,
-        rating: c.rating ?? null,
-        reviewCount: c.reviewCount ?? null,
-        lastAnalyzedAt: c.lastAnalyzedAt,
-      })),
-    [rivals],
-  );
-
-  const metrics = useMemo(
-    () =>
-      buildMetrics(
-        {
-          domain,
-          pagesCrawled: ourFigures?.pagesCrawled ?? null,
-          healthScore: ourFigures?.healthScore ?? null,
-          aiSharePct: null,
-          aiChecked: null,
-          rating: null,
-          reviewCount: null,
-        },
-        rivalInputs,
-      ),
-    [domain, ourFigures, rivalInputs],
-  );
 
   const toggleRival = (id: string) => {
     const current = selectedIds;
@@ -186,36 +127,6 @@ export function BattlegroundTab({
           We last read your website: {ourFigures?.finishedAt ? relativeTime(ourFigures.finishedAt) : "not yet"}
         </span>
       </div>
-
-      {/* Scoreboard: you vs your best rival on each measure */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {metrics.map((m) => {
-          const best = bestRival(m);
-          const delta = m.you != null && best?.value != null ? Number((m.you - best.value).toFixed(m.key === "rating" ? 1 : 0)) : null;
-          return (
-            <Kpi
-              key={m.key}
-              label={m.label}
-              value={m.you != null ? m.short(m.you) : "—"}
-              delta={delta}
-              deltaSuffix={m.key === "ai" ? "%" : ""}
-              sub={
-                <span className="flex flex-col items-start gap-1.5">
-                  <span>
-                    {m.you == null
-                      ? "No data for you yet"
-                      : best?.value != null
-                        ? `Best competitor: ${best.name}, ${m.key === "ai" ? `named in ${m.format(best.value)} of answers` : m.format(best.value)}`
-                        : "No competitor data yet"}
-                  </span>
-                  <SourceBadge metric={m} />
-                </span>
-              }
-            />
-          );
-        })}
-      </div>
-      <p className="text-[11px] text-brand-400">These comparisons use audited URLs and website health. They do not measure competitor Google rankings or market share.</p>
 
       <CompetitorWebsitesPanel projectId={projectId} onRecrawl={onRecrawlCompetitor} />
     </div>
