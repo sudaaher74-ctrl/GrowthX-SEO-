@@ -6,19 +6,38 @@ import { ActionButton, Panel } from "@/components/ui/console";
 import { api } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
 
-export function RealtimeActivity({ projectId }: { projectId: string | null | undefined }) {
+export function RealtimeActivity({ projectId, compact = false }: { projectId: string | null | undefined; compact?: boolean }) {
   const report = useQuery({
     queryKey: ["ga4-realtime", projectId],
     queryFn: () => api.ga4Realtime(projectId!),
     enabled: Boolean(projectId),
     staleTime: 30_000,
     retry: false,
-    refetchInterval: (query) => query.state.data?.state === "READY" ? 30_000 : false,
+    refetchInterval: (query) => query.state.data?.state === "READY" ? 5 * 60_000 : false,
     refetchIntervalInBackground: false,
   });
   const live = !report.isError ? report.data?.data : null;
+  if (compact) {
+    const unavailable = report.isError || report.data?.state !== "READY";
+    return (
+      <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card" aria-live="polite">
+        <p className="text-xs font-medium text-brand-400">Realtime activity</p>
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950" aria-label="Active users in last 30 minutes">
+            {report.isPending ? "—" : unavailable ? "—" : count(report.data.data?.activeUsers ?? 0)}
+          </span>
+          <span className="text-xs text-brand-400">active now</span>
+        </div>
+        <p className="mt-2 text-xs text-brand-400">
+          {report.isPending ? "Loading activity…" : report.isError ? "Realtime data unavailable" : unavailable ? (report.data?.message ?? "Connect Google Analytics to see activity") : `Last 30 minutes · updated ${new Date(report.data.data?.fetchedAt ?? "").toLocaleTimeString()}`}
+        </p>
+        <p className="mt-1 text-[11px] text-brand-400">Refreshes every 5 minutes</p>
+      </div>
+    );
+  }
+
   return (
-    <Panel padded title="Realtime activity" subtitle="Active users in the last 30 minutes · refreshes every 30 seconds while this page is visible"
+    <Panel padded title="Realtime activity" subtitle="Active users in the last 30 minutes · refreshes every 5 minutes while this page is visible"
       actions={<ActionButton disabled={report.isFetching || !projectId} onClick={() => report.refetch()}>Refresh realtime</ActionButton>}>
       <div aria-live="polite">
         {report.isPending ? <p className="text-sm text-brand-500">Loading realtime activity…</p> : report.isError ? (
