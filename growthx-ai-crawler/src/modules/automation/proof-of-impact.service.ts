@@ -1646,6 +1646,6 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
     const clicksDelta = gsc.overallClicksChangePt;
     const level1 = attribution.level1.status;
 
-    return `Prepared change for ${field}: ${why}. ${level1 === 'VERIFIED' ? 'A later saved crawl matched the expected metadata.' : 'Live deployment has not been verified.'} ${gsc.windows?.some((w: PerformanceWindowMetric) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)') ? `Available Search Console records show a ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% change in clicks; this does not establish causation.` : 'No measured post-change Search Console result is available.'}`;
+    return `Prepared change for ${field}: ${why}. ${level1 === 'VERIFIED' ? 'A later saved crawl matched the expected metadata.' : 'Live deployment has not been verified.'} ${clicksDelta != null ? `Available Search Console records show a ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% change in clicks; this does not establish causation.` : 'A complete pre/post Search Console comparison is not available.'}`;
   }
 }
