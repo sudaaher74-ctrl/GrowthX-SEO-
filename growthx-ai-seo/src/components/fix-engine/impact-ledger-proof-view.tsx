@@ -336,6 +336,9 @@ function VisualProofCard({
   card: ProofOfImpactCard;
   onLaunchIteration?: (instruction: string) => void;
 }) {
+  const metrics30d = card.metrics30d;
+  const clicksDeltaPct = metrics30d?.clicksDeltaPct;
+
   return (
     <Panel className="border-brand-300">
       {/* Header bar */}
@@ -459,15 +462,15 @@ function VisualProofCard({
               <span className="text-[11px] text-brand-500 block">Search clicks · first 30 days</span>
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-brand-900">
-                  {card.metrics30d?.afterClicks != null ? card.metrics30d?.afterClicks : "Not measured"}
+                  {metrics30d?.afterClicks != null ? metrics30d?.afterClicks : "Not measured"}
                 </span>
-                {card.metrics30d?.clicksDeltaPct != null && (
+                {clicksDeltaPct != null && (
                   <span className={cn(
                     "rounded px-1.5 py-0.2 text-[10px] font-bold",
-                    card.metrics30d?.clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
-                      card.metrics30d?.clicksDeltaPct < 0 ? "bg-error-100 text-error-800" : "bg-brand-100 text-brand-700",
+                    metrics30d?.clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
+                      metrics30d?.clicksDeltaPct < 0 ? "bg-error-100 text-error-800" : "bg-brand-100 text-brand-700",
                   )}>
-                    {card.metrics30d?.clicksDeltaPct > 0 ? "+" : ""}{card.metrics30d?.clicksDeltaPct}%
+                    {clicksDeltaPct > 0 ? "+" : ""}{clicksDeltaPct}%
                   </span>
                 )}
               </div>
