@@ -84,7 +84,7 @@ function Journey({ projectId }: { projectId: string }) {
           <progress aria-label="AI Visibility progress" max={100} value={run.progress} className="h-2 w-full accent-primary-600" />
           <p className="text-xs text-brand-500">Progress is saved. You can leave and return without starting again.</p>
         </div></Panel>}
-        {run.status === "FAILED" && <StatusNote tone="bad">This analysis needs attention. Open Analysis details below to see what happened and retry.</StatusNote>}
+        {run.status === "FAILED" && <StatusNote tone="bad">This analysis did not complete. Start a new analysis to try again.</StatusNote>}
         {run.brief ? (
           <PromptsSection
             projectId={projectId}
@@ -106,16 +106,6 @@ function Journey({ projectId }: { projectId: string }) {
           <AnswerResults data={data} />
           <GapResults data={data} />
         </>}
-        <details className="rounded-xl border p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-brand-700">Analysis details{run.errors.length ? ` · ${run.errors.length} coverage note${run.errors.length === 1 ? "" : "s"}` : " · sources and assistants"}</summary>
-          <div className="mt-4 space-y-4">
-            <p className="text-xs text-brand-500">Saved {new Date(run.createdAt).toLocaleString()}. API answers do not measure consumer apps or Google AI Overviews.</p>
-            <div className="flex flex-wrap gap-2">{data?.providers.map((p) => <Pill key={p.provider} tone={p.configured && !p.unavailableReason ? "good" : "warn"}>{providerName(p.provider)} · {p.unavailableReason || (p.configured ? p.model : "Not connected")}</Pill>)}</div>
-            {run.errors.length > 0 && <ul className="list-disc space-y-1 pl-4 text-xs text-brand-600">{run.errors.map((e,i) => <li key={i}>{e}</li>)}</ul>}
-            {["PARTIAL", "FAILED"].includes(run.status) && run.brief && <ActionButton disabled={busy} onClick={() => check.mutate({id:run.id})}>Retry unfinished checks</ActionButton>}
-            {run.context && <><SourceCards context={run.context} /><LocalDemand context={run.context} locations={run.brief?.locations ?? []} /><ul className="list-disc space-y-1 pl-4 text-xs text-brand-500">{run.context.limitations.map((s,i)=><li key={i}>{s}</li>)}</ul><EvidenceLinks ids={run.context.facts.map((f)=>f.id)} context={run.context} answers={data?.answers ?? []} /></>}
-          </div>
-        </details>
       </>}
     </QueryState>
   </div>;
