@@ -285,6 +285,7 @@ function IntegrationsView() {
 
   const [showGscPicker, setShowGscPicker] = useState(false);
   const [showGa4Picker, setShowGa4Picker] = useState(false);
+  const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ type: "success" | "warn" | "error"; text: string } | null>(null);
 
   // Handle OAuth callback parameters in URL
@@ -450,359 +451,124 @@ function IntegrationsView() {
         </div>
       </section>
 
-      {/* 1. Search, Analytics & Local SEO */}
       <div>
         <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Search, Analytics & Local SEO</h2>
-          <p className="text-xs text-brand-500">
-            Authoritative Google Search Console metrics, GA4 visitor telemetry, and Google Places synchronization
-          </p>
+          <h2 className="text-base font-bold text-brand-950">Connected services</h2>
+          <p className="text-xs text-brand-500">Connect the tools you want Reigel to use.</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {/* Google Search Console */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
-            <div>
-              <div className="flex items-start gap-3.5">
-                <GoogleSearchConsoleLogo />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-brand-950">Google Search Console</h3>
-                    {isGscConnected && (
-                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-                        Connected
-                      </span>
-                    )}
-                    {isGscNeedsSelection && (
-                      <span className="inline-flex items-center rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-[10.5px] font-semibold text-warning-700">
-                        Select Property
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-brand-500">
-                    Provides authoritative organic impressions, verified clicks, CTR, and keyword rankings.
-                  </p>
-                </div>
-              </div>
-
-              {isGscConnected && (
-                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
-                  <p>
-                    <span className="font-semibold text-brand-700">Account:</span> {accountLabel(gsc)}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Property:</span> {gsc?.selectedResourceName || "None selected"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
-                    {gsc?.lastSyncedAt ? relativeTime(gsc.lastSyncedAt) : "Pending"}
-                  </p>
-                </div>
-              )}
-
-              {projectId && (isGscNeedsSelection || showGscPicker) && (
-                <div className="mt-3 border-t border-brand-100 pt-3">
-                  <PropertyPicker provider="search_console" projectId={projectId} />
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <GoogleSearchConsoleLogo />
+              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Search Console</h3>
               {isGscConnected ? (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
-                  <span className="truncate">{gsc?.selectedResourceName || "Connected"}</span>
-                </div>
+                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "gsc" ? null : "gsc")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                  {expandedConnector === "gsc" ? "Done" : "Manage"}
+                </button>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-brand-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>{googleQuery.isLoading ? "Checking connection…" : googleQuery.isError ? "Status unavailable" : "Not connected"}</span>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                {isGscConnected ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowGscPicker(!showGscPicker)}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      {showGscPicker ? "Hide Picker" : "Change Property"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={syncGoogle.isPending}
-                      onClick={() => syncGoogle.mutate("search_console")}
-                      className="rounded-lg border border-brand-200 bg-surface-2 p-1 text-brand-700 hover:bg-brand-50"
-                      title="Sync Now"
-                    >
-                      <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disconnectGoogle.isPending}
-                      onClick={() => disconnectGoogle.mutate("search_console")}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={authorizeGoogle.isPending || !projectId}
-                    onClick={() => authorizeGoogle.mutate("search_console")}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    <span>Connect Google</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Google Analytics 4 */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
-            <div>
-              <div className="flex items-start gap-3.5">
-                <GoogleAnalyticsLogo />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-brand-950">Google Analytics 4</h3>
-                    {isGa4Connected && (
-                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-                        Connected
-                      </span>
-                    )}
-                    {isGa4NeedsSelection && (
-                      <span className="inline-flex items-center rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-[10.5px] font-semibold text-warning-700">
-                        Select Property
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-brand-500">
-                    Synchronizes visitor sessions, engaged landing pages, conversion rates, and channels.
-                  </p>
-                </div>
-              </div>
-
-              {isGa4Connected && (
-                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
-                  <p>
-                    <span className="font-semibold text-brand-700">Account:</span> {accountLabel(ga4)}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Property:</span> {ga4?.selectedResourceName || "None selected"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
-                    {ga4?.lastSyncedAt ? relativeTime(ga4.lastSyncedAt) : "Pending"}
-                  </p>
-                </div>
-              )}
-
-              {projectId && (isGa4NeedsSelection || showGa4Picker) && (
-                <div className="mt-3 border-t border-brand-100 pt-3">
-                  <PropertyPicker provider="analytics" projectId={projectId} />
-                </div>
+                <button type="button" disabled={(!isGscNeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))} onClick={() => isGscNeedsSelection ? setShowGscPicker(!showGscPicker) : authorizeGoogle.mutate("search_console")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                  {googleQuery.isLoading ? "Checking…" : googleQuery.isError ? "Unavailable" : isGscNeedsSelection ? "Select property" : "Connect"}
+                </button>
               )}
             </div>
+            {expandedConnector === "gsc" && isGscConnected && (
+              <div className="mt-4 space-y-3 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <div className="space-y-1">
+                  <p><span className="font-semibold text-brand-800">Account</span> · {accountLabel(gsc)}</p>
+                  <p><span className="font-semibold text-brand-800">Property</span> · {gsc?.selectedResourceName || "Not selected"}</p>
+                  <p><span className="font-semibold text-brand-800">Last sync</span> · {gsc?.lastSyncedAt ? relativeTime(gsc.lastSyncedAt) : "Not synced yet"}</p>
+                </div>
+                {projectId && showGscPicker && <PropertyPicker provider="search_console" projectId={projectId} />}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setShowGscPicker(!showGscPicker)} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">{showGscPicker ? "Hide property picker" : "Change property"}</button>
+                  <button type="button" disabled={syncGoogle.isPending} onClick={() => syncGoogle.mutate("search_console")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">{syncGoogle.isPending ? "Syncing…" : "Sync now"}</button>
+                  <button type="button" disabled={disconnectGoogle.isPending} onClick={() => disconnectGoogle.mutate("search_console")} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50">{disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}</button>
+                </div>
+              </div>
+            )}
+            {!isGscConnected && isGscNeedsSelection && showGscPicker && projectId && (
+              <div className="mt-3 border-t border-brand-100 pt-3"><PropertyPicker provider="search_console" projectId={projectId} /></div>
+            )}
+          </section>
 
-            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
+          {/* Google Analytics */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <GoogleAnalyticsLogo />
+              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Google Analytics</h3>
               {isGa4Connected ? (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
-                  <span className="truncate">{ga4?.selectedResourceName || "Connected"}</span>
-                </div>
+                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "ga4" ? null : "ga4")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                  {expandedConnector === "ga4" ? "Done" : "Manage"}
+                </button>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-brand-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>{googleQuery.isLoading ? "Checking connection…" : googleQuery.isError ? "Status unavailable" : "Not connected"}</span>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                {isGa4Connected ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowGa4Picker(!showGa4Picker)}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      {showGa4Picker ? "Hide Picker" : "Change Property"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={syncGoogle.isPending}
-                      onClick={() => syncGoogle.mutate("analytics")}
-                      className="rounded-lg border border-brand-200 bg-surface-2 p-1 text-brand-700 hover:bg-brand-50"
-                      title="Sync Now"
-                    >
-                      <RefreshCw size={13} className={syncGoogle.isPending ? "animate-spin" : ""} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disconnectGoogle.isPending}
-                      onClick={() => disconnectGoogle.mutate("analytics")}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      {disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={authorizeGoogle.isPending || !projectId}
-                    onClick={() => authorizeGoogle.mutate("analytics")}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    <span>Connect GA4</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Google Places & Business Profile */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
-            <div>
-              <div className="flex items-start gap-3.5">
-                <GooglePlacesLogo />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-brand-950">Google Places & Local SEO</h3>
-                    {localSeo.data?.businessName && (
-                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-                        Active
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-brand-500">
-                    Synchronizes verified Google Reviews, star ratings, local rankings, and Maps presence.
-                  </p>
-                </div>
-              </div>
-
-              {localSeo.data?.businessName && (
-                <div className="mt-4 rounded-xl bg-surface-2 p-3 text-[11px] text-brand-600 space-y-1">
-                  <p>
-                    <span className="font-semibold text-brand-700">Business:</span> {localSeo.data.businessName}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Rating:</span>{" "}
-                    {localSeo.data.reviewCount ? `${localSeo.data.rating.toFixed(1)} ★ (${localSeo.data.reviewCount} reviews)` : "No ratings"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-brand-700">Last Synced:</span>{" "}
-                    {localSeo.data.updatedAt ? relativeTime(localSeo.data.updatedAt) : "Pending"}
-                  </p>
-                </div>
+                <button type="button" disabled={(!isGa4NeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))} onClick={() => isGa4NeedsSelection ? setShowGa4Picker(!showGa4Picker) : authorizeGoogle.mutate("analytics")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                  {googleQuery.isLoading ? "Checking…" : googleQuery.isError ? "Unavailable" : isGa4NeedsSelection ? "Select property" : "Connect"}
+                </button>
               )}
             </div>
-
-            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
-              {localSeo.data?.businessName ? (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
-                  <span className="truncate">{localSeo.data.businessName}</span>
+            {expandedConnector === "ga4" && isGa4Connected && (
+              <div className="mt-4 space-y-3 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <div className="space-y-1">
+                  <p><span className="font-semibold text-brand-800">Account</span> · {accountLabel(ga4)}</p>
+                  <p><span className="font-semibold text-brand-800">Property</span> · {ga4?.selectedResourceName || "Not selected"}</p>
+                  <p><span className="font-semibold text-brand-800">Last sync</span> · {ga4?.lastSyncedAt ? relativeTime(ga4.lastSyncedAt) : "Not synced yet"}</p>
                 </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs text-brand-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>Not configured</span>
+                {projectId && showGa4Picker && <PropertyPicker provider="analytics" projectId={projectId} />}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setShowGa4Picker(!showGa4Picker)} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">{showGa4Picker ? "Hide property picker" : "Change property"}</button>
+                  <button type="button" disabled={syncGoogle.isPending} onClick={() => syncGoogle.mutate("analytics")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">{syncGoogle.isPending ? "Syncing…" : "Sync now"}</button>
+                  <button type="button" disabled={disconnectGoogle.isPending} onClick={() => disconnectGoogle.mutate("analytics")} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50">{disconnectGoogle.isPending ? "Disconnecting…" : "Disconnect"}</button>
                 </div>
-              )}
+              </div>
+            )}
+            {!isGa4Connected && isGa4NeedsSelection && showGa4Picker && projectId && (
+              <div className="mt-3 border-t border-brand-100 pt-3"><PropertyPicker provider="analytics" projectId={projectId} /></div>
+            )}
+          </section>
 
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = "/clients?tab=local";
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50"
-              >
-                <span>View Local SEO</span>
+          {/* Google Places */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <GooglePlacesLogo />
+              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Google Places</h3>
+              <button type="button" disabled={localSeo.isLoading || localSeo.isError} onClick={() => { window.location.href = "/clients?tab=local"; }} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                {localSeo.isLoading ? "Checking…" : localSeo.isError ? "Unavailable" : localSeo.data?.businessName ? "Manage" : "Set up"}
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Code Repository & Remediation */}
-      <div>
-        <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Code Repository</h2>
-          <p className="text-xs text-brand-500">
-            Connect a GitHub repo so the SEO agent can open pull requests against it
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* GitHub Repository Card */}
-          <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
-            <div>
-              <div className="flex items-start gap-3.5">
-                <GitHubLogo />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-brand-950">GitHub</h3>
-                    {isGitHubConnected && (
-                      <span className="inline-flex items-center rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-                        Connected
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-brand-500">
-                    Let the SEO agent open pull requests against your repository.
-                  </p>
-                </div>
+            {localSeo.data?.businessName && (
+              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <p className="font-medium text-brand-900">{localSeo.data.businessName}</p>
+                <p className="mt-1">{localSeo.data.reviewCount ? `${localSeo.data.rating.toFixed(1)} ★ · ${localSeo.data.reviewCount} reviews` : "No review data available"}</p>
+                <p className="mt-1">Last sync · {localSeo.data.updatedAt ? relativeTime(localSeo.data.updatedAt) : "Not synced yet"}</p>
               </div>
-            </div>
+            )}
+          </section>
 
-            <div className="mt-6 flex items-center justify-between pt-2">
+          {/* GitHub */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <GitHubLogo />
+              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">GitHub</h3>
               {isGitHubConnected ? (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-success-600 truncate max-w-[200px]">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-success-500" />
-                  <span className="truncate font-mono">{repo.data?.owner}/{repo.data?.name}</span>
-                </div>
+                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "github" ? null : "github")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                  {expandedConnector === "github" ? "Done" : "Manage"}
+                </button>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-warning-500">
-                  <span className="h-2 w-2 rounded-full bg-warning-500" />
-                  <span>{repo.isLoading ? "Checking connection…" : repo.isError ? "Status unavailable" : "Disconnected"}</span>
-                </div>
+                <button type="button" disabled={repo.isLoading || repo.isError} onClick={openGitHubModal} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">{repo.isLoading ? "Checking…" : repo.isError ? "Unavailable" : "Connect"}</button>
               )}
-
-              <div className="flex items-center gap-1.5">
-                {isGitHubConnected ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={openGitHubModal}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      Change
-                    </button>
-                    <button
-                      type="button"
-                      disabled={connectRepo.isPending}
-                      onClick={handleDisconnectGitHub}
-                      className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      {connectRepo.isPending ? "Disconnecting…" : "Disconnect"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={openGitHubModal}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-brand-800 disabled:opacity-50"
-                  >
-                    <span>Connect</span>
-                  </button>
-                )}
-              </div>
             </div>
-          </div>
+            {expandedConnector === "github" && isGitHubConnected && (
+              <div className="mt-4 space-y-3 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <p className="font-mono text-brand-900">{repo.data?.owner}/{repo.data?.name}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={openGitHubModal} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">Change repository</button>
+                  <button type="button" disabled={connectRepo.isPending} onClick={handleDisconnectGitHub} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50">{connectRepo.isPending ? "Disconnecting…" : "Disconnect"}</button>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
