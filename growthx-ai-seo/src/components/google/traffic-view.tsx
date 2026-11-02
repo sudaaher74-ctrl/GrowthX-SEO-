@@ -239,13 +239,19 @@ function TrafficViewClient() {
     const map = new Map<string, { date: string; visitors: number | null; searchClicks: number | null }>();
 
     for (const p of gscTimeseries.query.data ?? []) {
-      map.set(p.date, { date: p.date, visitors: null, searchClicks: p.clicks ?? null });
+      // Search Console serializes database dates as ISO timestamps, while GA4
+      // uses YYYY-MM-DD. Use the calendar day so both sources share one point.
+      const date = p.date.slice(0, 10);
+      const existing = map.get(date) ?? { date, visitors: null, searchClicks: null };
+      existing.searchClicks = p.clicks ?? null;
+      map.set(date, existing);
     }
 
     for (const d of reportData?.daily ?? []) {
-      const existing = map.get(d.date) ?? { date: d.date, visitors: null, searchClicks: null };
+      const date = d.date.slice(0, 10);
+      const existing = map.get(date) ?? { date, visitors: null, searchClicks: null };
       existing.visitors = d.users ?? null;
-      map.set(d.date, existing);
+      map.set(date, existing);
     }
 
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
