@@ -17,7 +17,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
-import { LoadingState } from "@/components/ui/truthful-state";
+import { FailedState, LoadingState } from "@/components/ui/truthful-state";
+import { errorMessage } from "@/lib/error-message";
 import { api } from "@/lib/api-client";
 import type { FixLedgerEntry, ProofOfImpactCard } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
@@ -60,8 +61,8 @@ export function ImpactLedgerProofView({
     onSuccess: (data) => {
       setEvaluatingMessage(
         data.loopTriggeredCount > 0
-          ? `Evaluated ${data.evaluatedRuns} fixes. Flat lift diagnosed on ${data.loopTriggeredCount} fix; Iteration 2 Strategy Pivot generated.`
-          : `Evaluated ${data.evaluatedRuns} fixes. All active fixes are either monitoring or certified improved.`,
+          ? `Reviewed ${data.evaluatedRuns} verified live fixes. No positive change was observed in ${data.loopTriggeredCount} measured comparison; an evidence review was added.`
+          : `Reviewed ${data.evaluatedRuns} verified live fixes. Positive changes and measurement windows are shown separately.`,
       );
       queryClient.invalidateQueries({ queryKey: ["impact-proof-cards", projectId] });
       queryClient.invalidateQueries({ queryKey: ["impact-ledger-stream", projectId] });
@@ -69,14 +70,7 @@ export function ImpactLedgerProofView({
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err ?? "");
-      const status = typeof err === "object" && err !== null && "status" in err ? err.status : null;
-      if (/cannot post/i.test(msg) || status === 404 || /not found/i.test(msg)) {
-        setEvaluatingMessage(
-          "Closed-loop evaluation engine is synchronizing with the production service. Active project metrics are tracked from Day 1.",
-        );
-      } else {
-        setEvaluatingMessage(`Evaluation status: ${msg || "Service synchronizing"}`);
-      }
+      setEvaluatingMessage(`Evaluation failed: ${msg || "Could not reach the service. Try again."}`);
     },
   });
 
@@ -116,13 +110,17 @@ export function ImpactLedgerProofView({
 
   // Derive KPIs
   const verifiedCount = cards.filter((c) => c.after.verificationStatus === "VERIFIED_LIVE").length;
+  const monitoringCount = cards.filter((c) => c.liftStatus === "MONITORING").length;
   const loopCount = cards.filter((c) => c.liftStatus === "FLAT").length;
 
-  // Calculate days active since earliest event
-  const earliestEvent = ledgerEvents[ledgerEvents.length - 1];
+  // The API returns up to 100 events newest-first; report the age of the oldest available event.
+  const earliestEvent = ledgerEvents.reduce<(typeof ledgerEvents)[number] | null>(
+    (earliest, event) => !earliest || new Date(event.createdAt).getTime() < new Date(earliest.createdAt).getTime() ? event : earliest,
+    null,
+  );
   const daysActive = earliestEvent
-    ? Math.max(1, Math.floor((now - new Date(earliestEvent.createdAt).getTime()) / 86400000))
-    : 1;
+    ? Math.max(0, Math.floor((now - new Date(earliestEvent.createdAt).getTime()) / 86400000))
+    : null;
 
   return (
     <div className="space-y-6">
@@ -135,12 +133,12 @@ export function ImpactLedgerProofView({
                 <History className="h-4 w-4" />
               </span>
               <h2 className="text-[16px] font-semibold text-brand-900">
-                Continuous Impact Ledger & 30d/90d Proof
+                Impact Ledger & 30/90-Day Measurement
               </h2>
-              <Pill tone="good">Day 1 to Now</Pill>
+              <Pill tone="default">Verified changes only</Pill>
             </div>
             <p className="max-w-3xl text-[13px] text-brand-600">
-              Every website modification is tracked from Day 1. Inspect on-screen visual proof of where changes were applied, verify 30-day and 90-day search/AI impact, and trigger closed-loop feedback whenever an adaptive iteration is required.
+              Review saved website-change records, confirm which changes are live, and compare 30-day and 90-day search or AI measurements when those data are available.
             </p>
           </div>
 
@@ -174,9 +172,9 @@ export function ImpactLedgerProofView({
         {/* Milestone KPIs */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi
-            label="Active Since Day 1"
-            value={`${daysActive} days`}
-            sub={earliestEvent ? `Enrolled ${new Date(earliestEvent.createdAt).toLocaleDateString()}` : "Active"}
+            label="Available History"
+            value={daysActive == null ? "—" : `${daysActive} days`}
+            sub={earliestEvent ? `From oldest available event · ${new Date(earliestEvent.createdAt).toLocaleDateString()}` : "No tracking events yet"}
           />
           <Kpi
             label="Verified Fixes Live"
@@ -184,14 +182,14 @@ export function ImpactLedgerProofView({
             sub="Confirmed live on HTML"
           />
           <Kpi
-            label="Audit Ledger Events"
+            label="Recent Ledger Events"
             value={String(ledgerEvents.length)}
-            sub="Append-only activity log"
+            sub="Up to the latest 100 records"
           />
           <Kpi
             label="Closed-Loop Status"
-            value={loopCount > 0 ? `${loopCount} Iterations` : "Continuous"}
-            sub={loopCount > 0 ? "Adaptive pivots active" : "All fixes performing"}
+            value={loopCount > 0 ? `${loopCount} Iterations` : monitoringCount > 0 ? "Monitoring" : cards.length > 0 ? "No flat changes" : "No data"}
+            sub={loopCount > 0 ? "Review the measured evidence" : monitoringCount > 0 ? `${monitoringCount} live fixes still need measurement` : cards.length > 0 ? "No measured flat changes detected" : "No verified live fixes to evaluate"}
           />
         </div>
       </Panel>
@@ -208,7 +206,7 @@ export function ImpactLedgerProofView({
           )}
         >
           <Sparkles className="h-4 w-4" />
-          On-Screen Visual Proof (30d/90d vs Now)
+          Verified live changes & 30/90-day measures
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
             {cards.length}
           </span>
@@ -224,7 +222,7 @@ export function ImpactLedgerProofView({
           )}
         >
           <Layers className="h-4 w-4" />
-          Day 1 to Now Chronological Audit Ledger
+          Recent Activity Ledger
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
             {ledgerEvents.length}
           </span>
@@ -236,6 +234,8 @@ export function ImpactLedgerProofView({
         <div className="space-y-6">
           {proofQuery.isLoading ? (
             <LoadingState title="Loading on-screen visual proof cards…" />
+          ) : proofQuery.error ? (
+            <FailedState title="Could not load impact proof" error={errorMessage(proofQuery.error)} onRetry={() => proofQuery.refetch()} />
           ) : cards.length === 0 ? (
             <Panel>
               <div className="py-12 text-center max-w-lg mx-auto">
@@ -246,7 +246,7 @@ export function ImpactLedgerProofView({
                   No Deployed Fixes to Measure Yet
                 </h3>
                 <p className="mt-1.5 text-[13px] text-brand-600 leading-relaxed">
-                  Day 1 continuous tracking is active. When you approve and deploy improvements from your plan, this engine records on-screen visual proof, verifies HTML changes, and benchmarks 30-day and 90-day search/AI impact.
+                  After a change is merged and verified on the live site, its HTML snapshot appears here. Search Console and AI comparisons appear only when matching measurements are available.
                 </p>
                 {onNavigateTab && (
                   <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -302,6 +302,8 @@ export function ImpactLedgerProofView({
 
           {ledgerQuery.isLoading ? (
             <LoadingState title="Loading append-only impact ledger…" />
+          ) : ledgerQuery.error ? (
+            <FailedState title="Could not load the impact ledger" error={errorMessage(ledgerQuery.error)} onRetry={() => ledgerQuery.refetch()} />
           ) : filteredEvents.length === 0 ? (
             <Panel>
               <div className="py-8 text-center text-[13px] text-brand-400">
@@ -342,14 +344,14 @@ function VisualProofCard({
             {card.liftStatus === "IMPROVED" && (
               <Pill tone="good">
                 <CheckCircle2 className="mr-1 h-3 w-3 inline" />
-                Lift Certified
+                Positive Signal Observed
               </Pill>
             )}
 
             {card.liftStatus === "FLAT" && (
               <Pill tone="warn">
                 <RefreshCw className="mr-1 h-3 w-3 inline" />
-                Loop Iteration 2 Active
+                No Positive Lift Observed
               </Pill>
             )}
 
@@ -400,15 +402,15 @@ function VisualProofCard({
         <div className="rounded border border-brand-200 bg-brand-50/50 p-4">
           <div className="flex items-center justify-between pb-2 border-b border-brand-200">
             <span className="text-[12px] font-semibold uppercase tracking-wider text-brand-600">
-              Before (30–90 Days Ago)
+              Before the change
             </span>
-            <span className="text-[11px] text-brand-400">Baseline Window</span>
+            <span className="text-[11px] text-brand-400">Snapshot saved before PR</span>
           </div>
 
           <div className="mt-3">
             <label className="text-[11px] font-medium text-brand-500">On-Screen Content / Code:</label>
             <div className="mt-1 rounded bg-white p-3 font-mono text-[12px] text-brand-800 border border-brand-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-              {card.before.text || "Original unoptimized content"}
+              {card.before.text || "No baseline text was captured"}
             </div>
           </div>
 
@@ -416,19 +418,19 @@ function VisualProofCard({
             <div className="rounded bg-white p-2 border border-brand-200">
               <span className="text-[11px] text-brand-500 block">Baseline Clicks (28d):</span>
               <span className="font-semibold text-brand-800">
-                {card.before.clicks != null ? card.before.clicks : "0 clicks"}
+                {card.before.clicks != null ? card.before.clicks : "Not measured"}
               </span>
             </div>
             <div className="rounded bg-white p-2 border border-brand-200">
-              <span className="text-[11px] text-brand-500 block">AI Search Citation:</span>
+              <span className="text-[11px] text-brand-500 block">AI response mention rate (sample):</span>
               <span className="font-semibold text-brand-800">
-                {card.before.aiVisibility || "Not cited"}
+                {card.before.aiVisibility || "Not measured"}
               </span>
             </div>
           </div>
         </div>
 
-        {/* RIGHT: Now (Live on Production) */}
+        {/* RIGHT: {card.after.verificationStatus === "VERIFIED_LIVE" ? "Now (Live & Verified)" : "Not Verified Live"} */}
         <div className="rounded border border-good-300 bg-good-50/20 p-4">
           <div className="flex items-center justify-between pb-2 border-b border-good-200">
             <span className="text-[12px] font-semibold uppercase tracking-wider text-good-900 flex items-center gap-1.5">
@@ -436,14 +438,14 @@ function VisualProofCard({
               Now (Live on Production)
             </span>
             <span className="text-[11px] text-good-700 font-medium">
-              {card.after.verifiedAt ? `Verified ${relativeTime(card.after.verifiedAt)}` : "Live on HTML"}
+              {card.after.verificationStatus === "VERIFIED_LIVE" ? (card.after.verifiedAt ? `Verified ${relativeTime(card.after.verifiedAt)}` : "Live HTML verified") : "Not verified live"}
             </span>
           </div>
 
           <div className="mt-3">
-            <label className="text-[11px] font-medium text-good-800">Verified Live Production Code:</label>
+            <label className="text-[11px] font-medium text-good-800">Verified live HTML snapshot:</label>
             <div className="mt-1 rounded bg-white p-3 font-mono text-[12px] text-good-950 border border-good-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-              {card.after.text || "Updated code active on site"}
+              {card.after.text || "No live HTML text was captured"}
             </div>
           </div>
 
@@ -452,11 +454,15 @@ function VisualProofCard({
               <span className="text-[11px] text-brand-500 block">30-Day Search Clicks:</span>
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-brand-900">
-                  {card.after.clicks != null ? card.after.clicks : "—"}
+                  {card.metrics30d.afterClicks != null ? card.metrics30d.afterClicks : "Not measured"}
                 </span>
-                {card.after.clicksDeltaPct != null && card.after.clicksDeltaPct > 0 && (
-                  <span className="rounded bg-good-100 px-1.5 py-0.2 text-[10px] font-bold text-good-800">
-                    +{card.after.clicksDeltaPct}%
+                {card.metrics30d.clicksDeltaPct != null && (
+                  <span className={cn(
+                    "rounded px-1.5 py-0.2 text-[10px] font-bold",
+                    card.metrics30d.clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
+                      card.metrics30d.clicksDeltaPct < 0 ? "bg-error-100 text-error-800" : "bg-brand-100 text-brand-700",
+                  )}>
+                    {card.metrics30d.clicksDeltaPct > 0 ? "+" : ""}{card.metrics30d.clicksDeltaPct}%
                   </span>
                 )}
               </div>
@@ -464,7 +470,7 @@ function VisualProofCard({
             <div className="rounded bg-white p-2 border border-good-200">
               <span className="text-[11px] text-brand-500 block">AI Search Citation:</span>
               <span className="font-semibold text-brand-900">
-                {card.after.aiVisibility || "Cited in AI search responses"}
+                {card.after.aiVisibility || "Not measured"}
               </span>
             </div>
           </div>
@@ -525,7 +531,7 @@ function VisualProofCard({
         <div className="mt-4 rounded border border-good-300 bg-good-50/60 p-3 text-[12px] text-good-900 flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-good-700 shrink-0" />
           <span>
-            <strong>Verified Impact Confirmed:</strong> Deployed changes produced measurable positive lift in search console impressions and AI visibility queries across the post-fix window.
+            <strong>Positive change observed after deployment:</strong> This comparison does not establish that the fix caused the change.
           </span>
         </div>
       )}
