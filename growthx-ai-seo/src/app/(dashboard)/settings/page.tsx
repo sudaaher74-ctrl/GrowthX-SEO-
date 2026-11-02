@@ -55,6 +55,24 @@ type SettingsTab =
   | "devices"
   | "subscription";
 
+const HIDDEN_SETTINGS_TABS = new Set(["skills", "team", "devices"]);
+const VISIBLE_SETTINGS_TABS = new Set<SettingsTab>([
+  "websites",
+  "credits",
+  "agents",
+  "integrations",
+  "personalization",
+  "account",
+  "subscription",
+]);
+
+function normalizeSettingsTab(value: string | null): SettingsTab {
+  if (!value || HIDDEN_SETTINGS_TABS.has(value) || !VISIBLE_SETTINGS_TABS.has(value as SettingsTab)) {
+    return "integrations";
+  }
+  return value as SettingsTab;
+}
+
 export default function SettingsPage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading Settings…</div>}>
@@ -66,13 +84,18 @@ export default function SettingsPage() {
 function SettingsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawTab = (searchParams?.get("tab") as SettingsTab) || "integrations";
-
+  const rawTab = normalizeSettingsTab(searchParams?.get("tab") ?? null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(rawTab);
 
   useEffect(() => {
-    const tab = searchParams?.get("tab") as SettingsTab;
-    if (tab) setActiveTab(tab);
+    const requestedTab = searchParams?.get("tab") ?? null;
+    const tab = normalizeSettingsTab(requestedTab);
+    setActiveTab(tab);
+    if (requestedTab && requestedTab !== tab) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", tab);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    }
   }, [searchParams]);
 
   const setTab = (tab: SettingsTab) => {
@@ -143,19 +166,6 @@ function SettingsClient() {
                 active={activeTab === "integrations"}
                 onClick={() => setTab("integrations")}
               />
-              <SidebarItem
-                label="Skills & MCP"
-                icon={<Compass size={15} />}
-                active={activeTab === "skills"}
-                onClick={() => setTab("skills")}
-              />
-              <SidebarItem
-                label="Team"
-                icon={<Users size={15} />}
-                hasDot
-                active={activeTab === "team"}
-                onClick={() => setTab("team")}
-              />
             </nav>
           </div>
 
@@ -185,12 +195,6 @@ function SettingsClient() {
                 icon={<Shield size={15} />}
                 active={activeTab === "account"}
                 onClick={() => setTab("account")}
-              />
-              <SidebarItem
-                label="Devices"
-                icon={<Smartphone size={15} />}
-                active={activeTab === "devices"}
-                onClick={() => setTab("devices")}
               />
               <SidebarItem
                 label="Subscription"
@@ -402,9 +406,22 @@ function IntegrationsView() {
   const isGscNeedsSelection = gsc?.status === "NEEDS_SELECTION";
   const isGa4Connected = ga4?.status === "CONNECTED";
   const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
+  const connectedGoogleCount = Number(isGscConnected) + Number(isGa4Connected);
+  const googleStatusLabel = googleQuery.isLoading
+    ? "Checking Google connections…"
+    : googleQuery.isError
+      ? "Google connection status unavailable"
+      : `${connectedGoogleCount} of 2 Google sources connected`;
+  const githubStatusLabel = repo.isLoading
+    ? "Checking GitHub…"
+    : repo.isError
+      ? "GitHub connection status unavailable"
+      : isGitHubConnected
+        ? "GitHub repository connected"
+        : "GitHub repository not connected";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {notice && (
         <div
           className={`flex items-start justify-between rounded-xl border p-4 text-xs ${
@@ -426,13 +443,28 @@ function IntegrationsView() {
         </div>
       )}
 
-      {/* Info Notice Banner */}
-      <div className="flex items-start gap-2.5 rounded-xl border border-brand-200/80 bg-brand-50/50 p-3.5 text-xs text-brand-600">
-        <Info size={16} className="mt-0.5 shrink-0 text-brand-400" />
-        <span>
-          Connect your Google services and GitHub repository to enable live ranking analytics, visitor traffic syncing, and automated technical pull requests.
-        </span>
-      </div>
+      <section className="flex flex-col gap-4 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
+            <Plug size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-500">Workspace connections</p>
+            <h2 className="mt-0.5 text-lg font-bold text-brand-950">Connect your tools</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-brand-600">
+              Manage Google data sources and the GitHub repository used for code changes. Each card shows its connection and latest sync status.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
+            {googleStatusLabel}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
+            {githubStatusLabel}
+          </span>
+        </div>
+      </section>
 
       {/* 1. Search, Analytics & Local SEO */}
       <div>
@@ -443,7 +475,7 @@ function IntegrationsView() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {/* Google Search Console */}
           <div className="flex flex-col justify-between rounded-2xl border bg-surface-1 p-5 shadow-2xs transition-colors hover:border-brand-300">
             <div>
@@ -491,7 +523,7 @@ function IntegrationsView() {
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
               {isGscConnected ? (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
@@ -500,11 +532,11 @@ function IntegrationsView() {
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-brand-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>Not connected</span>
+                  <span>{googleQuery.isLoading ? "Checking connection…" : googleQuery.isError ? "Status unavailable" : "Not connected"}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {isGscConnected ? (
                   <>
                     <button
@@ -593,7 +625,7 @@ function IntegrationsView() {
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
               {isGa4Connected ? (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
@@ -602,11 +634,11 @@ function IntegrationsView() {
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-brand-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  <span>Not connected</span>
+                  <span>{googleQuery.isLoading ? "Checking connection…" : googleQuery.isError ? "Status unavailable" : "Not connected"}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {isGa4Connected ? (
                   <>
                     <button
@@ -685,7 +717,7 @@ function IntegrationsView() {
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-brand-100 pt-3">
+            <div className="mt-5 flex flex-col gap-3 border-t border-brand-100 pt-3">
               {localSeo.data?.businessName ? (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-brand-600 truncate max-w-[180px]">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />
@@ -752,7 +784,7 @@ function IntegrationsView() {
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-warning-500">
                   <span className="h-2 w-2 rounded-full bg-warning-500" />
-                  <span>Disconnected</span>
+                  <span>{repo.isLoading ? "Checking connection…" : repo.isError ? "Status unavailable" : "Disconnected"}</span>
                 </div>
               )}
 
