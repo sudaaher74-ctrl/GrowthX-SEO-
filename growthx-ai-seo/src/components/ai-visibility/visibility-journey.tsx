@@ -685,7 +685,7 @@ function PromptsSection({
               }
               className={cn(
                 "flex flex-col rounded-2xl border p-4 text-left shadow-card transition-all",
-                "bg-brand-50/70 dark:bg-brand-900/40",
+                "bg-surface-2",
                 isSelected
                   ? "border-brand-950 dark:border-brand-100 ring-2 ring-brand-950/10 dark:ring-brand-100/10"
                   : "border-brand-200/60 dark:border-brand-800/80 hover:border-brand-300 dark:hover:border-brand-700",
@@ -1021,7 +1021,7 @@ function PromptsSection({
                             return (
                               <div
                                 key={engine.name}
-                                className="flex flex-col justify-between rounded-xl border border-brand-200/60 bg-brand-50/70 p-3.5 space-y-3 shadow-card dark:border-brand-800/80 dark:bg-brand-900/50"
+                                className="flex flex-col justify-between rounded-xl border border-line bg-surface-2 p-3.5 space-y-3 shadow-card"
                               >
                                 <div className="space-y-2.5">
                                   <div className="flex items-center justify-between gap-2">
