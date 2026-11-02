@@ -878,9 +878,9 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * ON-SCREEN PROOF OF IMPACT: BEFORE 30/90 DAYS VS NOW
-   * Compares exact on-screen website text/elements and measured results
-   * between the 30-90 day baseline window and today's live production state.
+   * Shows a saved pre-PR snapshot beside a later verified live-page snapshot.
+   * Search Console and AI measurements are shown only when available; this is
+   * observational evidence and does not attribute changes to the fix.
    */
   async get30d90dProof(projectId: string) {
     await this.initializeDay1TrackingEvents(projectId);
@@ -924,7 +924,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
       const affectedUrl = change?.url || verifiedSnap?.url || beforeSnap?.url || proposedSnap?.url || `https://${domain}`;
       const field = change?.field || (verifiedSnap?.title ? 'META_TITLE' : 'CODE_AND_SEO_UPDATE');
-      const file = change?.file || run.filesChanged[0] || 'Repository Code';
+      const file = change?.file || (run.filesChanged.length > 1 ? `${run.filesChanged[0]} (+${run.filesChanged.length - 1} more files)` : run.filesChanged[0]) || 'Repository Code';
 
       const targetElement = this.mapFieldToOnScreenElement(field, file);
       const beforeText = beforeSnap?.title || beforeSnap?.metaDescription || beforeSnap?.contentSnippet || null;
@@ -936,8 +936,10 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       const day90Window = seoImpact.windows.find((w) => w.period === 'Day 90');
 
       const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
-      const aiMentionBefore = aiImpact.models[0]?.beforeMentionRate != null ? `${aiImpact.models[0].beforeMentionRate}%` : null;
-      const aiMentionAfter = aiImpact.models[0]?.afterMentionRate != null ? `${aiImpact.models[0].afterMentionRate}%` : null;
+      const displayedAiModel = aiImpact.models.find((m) => m.beforeMentionRate != null && m.afterMentionRate != null) ?? aiImpact.models[0];
+      const aiModelLabel = displayedAiModel ? `${displayedAiModel.provider} / ${displayedAiModel.model}` : null;
+      const aiMentionBefore = displayedAiModel?.beforeMentionRate != null ? `${displayedAiModel.beforeMentionRate}% · ${aiModelLabel}` : null;
+      const aiMentionAfter = displayedAiModel?.afterMentionRate != null ? `${displayedAiModel.afterMentionRate}% · ${aiModelLabel}` : null;
 
       const daysSinceRun = Math.floor((Date.now() - verifiedSnap.capturedAt.getTime()) / 86400000);
       const hasBaselineClicks = baselineWindow?.status === 'OBSERVED' && baselineWindow.clicks != null;
@@ -974,14 +976,14 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
       proofCards.push({
         runId: run.id,
-        title: change?.findingTitle || (run.filesChanged.length ? `Code Fix in ${run.filesChanged.join(', ')}` : `SEO Fix PR #${run.id.slice(0, 6)}`),
+        title: change?.findingTitle ? `Live page check for: ${change.findingTitle}` : run.filesChanged.length > 1 ? `Verified code update across ${run.filesChanged.length} files` : run.filesChanged.length ? `Verified code update in ${run.filesChanged[0]}` : `SEO Fix PR #${run.id.slice(0, 6)}`,
         url: affectedUrl,
         file,
         field,
         targetElement,
         before: {
           text: beforeText,
-          timeframe: 'Before change (PR preparation)',
+          timeframe: 'Snapshot saved before the pull request',
           clicks: baselineWindow?.clicks ?? null,
           impressions: baselineWindow?.impressions ?? null,
           ctr: baselineWindow?.ctr ?? null,
