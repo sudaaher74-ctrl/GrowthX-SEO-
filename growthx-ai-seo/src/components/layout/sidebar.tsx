@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
+import { Check, Coins, Globe, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -38,6 +38,7 @@ export function Sidebar({
   const { theme, toggleTheme } = useTheme();
 
   const { mainNav } = useMainNav();
+  const compact = collapsed && !mobileOpen;
 
   return (
     <>
@@ -47,42 +48,58 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen w-[var(--sidebar-w,232px)] flex-col border-r bg-white transition-all duration-300 ease-in-out",
+          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r bg-white transition-all duration-300 ease-in-out",
+          "w-[232px]",
+          collapsed ? "md:w-[68px] md:translate-x-0" : "md:w-[232px] md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
-          collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
         style={{ borderColor: "var(--border-color)" }}
       >
         {/* Brand */}
-        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--border-color)" }}>
-          <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">Reigel</span>
+        <div className={cn("flex h-[52px] shrink-0 items-center border-b", compact ? "justify-center px-2" : "gap-[9px] px-[14px]")} style={{ borderColor: "var(--border-color)" }}>
+          {compact ? (
+            <span title="Reigel" className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-sm font-black text-signal-ink">R</span>
+          ) : (
+            <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">Reigel</span>
+          )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <nav className={cn("flex-1 overflow-y-auto py-3", compact ? "px-1.5" : "px-2")}>
           <div>
-            <SectionLabel>Workspace</SectionLabel>
+            {!compact && <SectionLabel>Workspace</SectionLabel>}
+            {compact ? (
+              <Link href="/clients" onClick={() => setMobileOpen?.(false)} title="Switch website" aria-label="Switch website" className="mb-3 flex h-10 items-center justify-center rounded-xl text-brand-500 transition hover:bg-brand-100/60 hover:text-brand-950">
+                <Globe size={17} />
+              </Link>
+            ) : (
+              <SiteSwitcher onDone={() => setMobileOpen?.(false)} />
+            )}
 
-            <SiteSwitcher onDone={() => setMobileOpen?.(false)} />
-
-            {/* Main Tabs */}
-            <SectionLabel>Workflow</SectionLabel>
-            <div className="space-y-0.5">
+            {!compact && <SectionLabel>Workflow</SectionLabel>}
+            <div className={cn("space-y-1", compact && "flex flex-col items-center")}>
               {mainNav.map((item) => (
-                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+                <NavLink key={item.href} item={item} pathname={pathname} collapsed={compact} onNavigate={() => setMobileOpen?.(false)} />
               ))}
             </div>
 
-            <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border-color)" }}>
-              <NavLink 
-                item={{ label: "Settings", href: "/settings", icon: Settings }} 
-                pathname={pathname} 
-                onNavigate={() => setMobileOpen?.(false)} 
+            <div className={cn("border-t", compact ? "mt-3 pt-3" : "mt-4 pt-4")} style={{ borderColor: "var(--border-color)" }}>
+              <NavLink
+                item={{ label: "Settings", href: "/settings", icon: Settings }}
+                pathname={pathname}
+                collapsed={compact}
+                onNavigate={() => setMobileOpen?.(false)}
               />
             </div>
           </div>
         </nav>
 
-        <TokensChip onNavigate={() => setMobileOpen?.(false)} />
+        {compact ? (
+          <Link href="/tokens" title="Tokens" aria-label="Tokens" onClick={() => setMobileOpen?.(false)} className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl text-brand-500 transition hover:bg-brand-100/60 hover:text-brand-950">
+            <Coins size={17} />
+          </Link>
+        ) : (
+          <TokensChip onNavigate={() => setMobileOpen?.(false)} />
+        )}
 
         {/* User */}
         {(() => {
@@ -110,7 +127,7 @@ export function Sidebar({
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setUserMenuOpen(false)} />
                   <div
-                    className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-xl border bg-white p-1.5 shadow-xl transition-all"
+                    className={cn("absolute z-30 mb-2 overflow-hidden rounded-xl border bg-white p-1.5 shadow-xl transition-all", compact ? "left-[68px] bottom-2 w-[240px]" : "bottom-full left-2 right-2")}
                     style={{ borderColor: "var(--border-color)" }}
                   >
                     <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--border-color)" }}>
@@ -163,20 +180,20 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-100/40 transition"
+                className={cn("flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-100/40 transition", compact && "justify-center") }
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-signal-400 font-mono text-[10px] font-bold text-signal-ink shadow-xs">
                   {userInitials}
                 </span>
-                <span className="min-w-0 flex-1">
+                {!compact && <span className="min-w-0 flex-1">
                   <span className="block truncate text-[11.5px] font-semibold text-brand-950">
                     {displayName}
                   </span>
                   <span className="block truncate text-[10px] text-brand-400">
                     {displayEmail}
                   </span>
-                </span>
-                <MoreHorizontal size={14} className="shrink-0 text-brand-400" />
+                </span>}
+                {!compact && <MoreHorizontal size={14} className="shrink-0 text-brand-400" />}
               </button>
             </div>
           );
@@ -197,10 +214,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function NavLink({
   item,
   pathname,
+  collapsed,
   onNavigate,
 }: {
   item: NavItem;
   pathname: string;
+  collapsed: boolean;
   onNavigate: () => void;
 }) {
   const searchParams = useSearchParams();
@@ -209,12 +228,12 @@ function NavLink({
   if (item.disabled) {
     return (
       <div
-        className="flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] cursor-not-allowed opacity-40 select-none font-medium text-brand-400"
+        className={cn("flex items-center rounded-lg py-[9px] text-[12.5px] cursor-not-allowed opacity-40 select-none font-medium text-brand-400", collapsed ? "justify-center px-0" : "gap-[9px] px-2")}
         title={`${item.label} is disabled`}
       >
-        <item.icon size={15} className="text-brand-400" />
-        <span className="min-w-0 flex-1 leading-snug">{item.label}</span>
-        {item.tag && (
+        <item.icon size={17} className="text-brand-400" />
+        {!collapsed && <span className="min-w-0 flex-1 leading-snug">{item.label}</span>}
+        {!collapsed && item.tag && (
           <span className="shrink-0 rounded-full px-[6px] py-px font-mono text-[9px] font-semibold leading-[14px] bg-brand-100 text-brand-500 border">
             {item.tag}
           </span>
@@ -242,7 +261,7 @@ function NavLink({
       (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
   }
 
-  return <NavLinkEnabled item={item} active={active} onNavigate={onNavigate} />;
+  return <NavLinkEnabled item={item} active={active} collapsed={collapsed} onNavigate={onNavigate} />;
 }
 
 /**
@@ -252,10 +271,12 @@ function NavLink({
 function NavLinkEnabled({
   item,
   active,
+  collapsed,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
+  collapsed: boolean;
   onNavigate: () => void;
 }) {
   return (
@@ -271,11 +292,11 @@ function NavLinkEnabled({
       <Link
         href={item.href}
         onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-[9px] px-2.5 py-[7px]"
+        className={cn("flex min-w-0 items-center py-[9px]", collapsed ? "h-10 w-10 justify-center rounded-xl px-0" : "flex-1 gap-[9px] px-2.5") } title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined}
       >
-        <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-400"} />
-        <span className="min-w-0 flex-1 leading-snug">{item.label}</span>
-        {item.step && (
+        <item.icon size={17} className={active ? "text-signal-ink" : "text-brand-400"} />
+        {!collapsed && <span className="min-w-0 flex-1 leading-snug">{item.label}</span>}
+        {!collapsed && item.step && (
           <span
             title={`Step ${item.step.n}: ${item.step.hint}`}
             aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
@@ -293,7 +314,7 @@ function NavLinkEnabled({
             {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
           </span>
         )}
-        {item.tag && (
+        {!collapsed && item.tag && (
           <span
             className={cn(
               "shrink-0 rounded-full px-[6px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
