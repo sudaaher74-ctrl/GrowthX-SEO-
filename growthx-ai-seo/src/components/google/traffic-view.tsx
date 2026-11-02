@@ -725,10 +725,8 @@ function TrafficViewClient() {
         </div>
       </div>
 
-      {/* ── ROW 2: MAP BOX & CITY BREAKDOWN (Requested by User) ── */}
+      {/* ── ROW 2: CITY BREAKDOWN ── */}
       <div className="grid grid-cols-1 gap-6">
-        </div>
-
         {/* Top Cities Box */}
         <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
           <div className="flex items-center justify-between">
