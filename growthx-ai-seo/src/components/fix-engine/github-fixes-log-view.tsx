@@ -877,6 +877,13 @@ export function GitHubFixesLogView({
   const readyLowRiskGroups = (issueGroups.data?.groups ?? []).filter((g) => g.aiFixAvailable);
 
   const toggleSelectFinding = (id: string) => {
+    if (!selectedFindingIds.includes(id) && selectedFindingIds.length >= 8) {
+      setActionBanner({
+        tone: "bad",
+        text: "GitHub can process up to 8 findings per run. Remove a selected finding before adding another.",
+      });
+      return;
+    }
     setSelectedFindingIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
@@ -1441,9 +1448,11 @@ export function GitHubFixesLogView({
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-brand-50/50 p-3.5">
               <div className="space-y-0.5">
                 <p className="text-[12.5px] font-semibold text-brand-950">
-                  {selectedFindingIds.length > 0
-                    ? `${count(selectedFindingIds.length)} finding(s) selected for GitHub Pull Request`
-                    : `Select findings below from ${moduleFilter === "ALL" ? "all 5 tabs" : GROUPS.find((g) => g.id === moduleFilter)?.label ?? moduleFilter} to fix via GitHub`}
+                  {selectedFindingIds.length > 8
+                    ? "Select up to 8 findings per GitHub run"
+                    : selectedFindingIds.length > 0
+                      ? `${count(selectedFindingIds.length)} of 8 findings selected for this GitHub run`
+                      : `Select findings below from ${moduleFilter === "ALL" ? "all 5 tabs" : GROUPS.find((g) => g.id === moduleFilter)?.label ?? moduleFilter} to fix via GitHub`}
                 </p>
                 <p className="text-[11.5px] text-brand-500">
                   Fix Engine clones your repo, edits the relevant pages/metadata/schema/content on a new branch, validates the changed files, and opens a Pull Request with Before &amp; After proof.
@@ -1480,6 +1489,7 @@ export function GitHubFixesLogView({
                     !connectedRepo ||
                     isEngineerBusy ||
                     runPlanFixesMutation.isPending ||
+                    selectedFindingIds.length > 8 ||
                     (selectedFindingIds.length === 0 && filteredFindings.length === 0)
                   }
                   icon={<GitPullRequest size={13} />}
@@ -1542,8 +1552,9 @@ export function GitHubFixesLogView({
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={!checked && selectedFindingIds.length >= 8}
                           onChange={() => toggleSelectFinding(f.id)}
-                          className="mt-1 h-4 w-4 rounded border-brand-300 text-primary-600 focus:ring-primary-500"
+                          className="mt-1 h-4 w-4 rounded border-brand-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
                         />
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-1.5">
