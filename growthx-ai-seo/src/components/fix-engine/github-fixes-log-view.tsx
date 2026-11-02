@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   CheckCircle2,
+  CircleX,
   Clock,
   Download,
   ExternalLink,
@@ -65,7 +66,7 @@ const LIFECYCLE_LABEL: Record<string, string> = {
 const BAND = { HIGH: "good", MEDIUM: "warn", LOW: "default" } as const;
 const EFFORT = { HIGH: "bad", MEDIUM: "warn", LOW: "good" } as const;
 
-type SubSection = "ALL" | "GITHUB_RUNNER" | "BEFORE_AFTER" | "IMPROVEMENT_LOG";
+type SubSection = "ALL" | "GITHUB_RUNNER" | "BEFORE_AFTER" | "IMPROVEMENT_LOG" | "FAILED";
 
 function groupOf(source?: string | null) {
   const norm = (source || "").toUpperCase().trim();
@@ -252,26 +253,34 @@ export function GitHubFixesLogView({
     return map;
   }, [runs, allFindings]);
 
-  // Visible runs for the Task Status & Completion Confirmation section
+  // Keep completed and failed task history out of the active-fix workspace.
   const visibleTaskRuns = useMemo(() => {
     const list: Array<{ run: AutomationRun; ctx: ReturnType<typeof resolveRunContext> }> = [];
     for (const run of runs) {
+      if (!["PENDING", "RUNNING"].includes(run.status)) continue;
       const ctx = resolveRunContext(run, allFindings);
       const matchesFilter =
         moduleFilter === "ALL" ||
         ctx.moduleId === moduleFilter ||
-        ["PENDING", "RUNNING"].includes(run.status) ||
         run.id === trackedRunId;
-      if (matchesFilter) {
-        list.push({ run, ctx });
-      }
-    }
-    // If the user filtered to a tab where a run's module wasn't detected, still show the newest run if it was started recently
-    if (list.length === 0 && runs.length > 0) {
-      list.push({ run: runs[0], ctx: resolveRunContext(runs[0], allFindings) });
+      if (matchesFilter) list.push({ run, ctx });
     }
     return list.slice(0, 4);
   }, [runs, allFindings, moduleFilter, trackedRunId]);
+
+  const failedTaskRuns = useMemo(
+    () =>
+      runs
+        .filter((run) => run.status === "FAILED")
+        .map((run) => ({ run, ctx: resolveRunContext(run, allFindings) }))
+        .filter(({ run, ctx }) =>
+          (moduleFilter === "ALL" || ctx.moduleId === moduleFilter) &&
+          (!searchQuery.trim() ||
+            ctx.headline.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (run.error || "").toLowerCase().includes(searchQuery.toLowerCase())),
+        ),
+    [runs, allFindings, moduleFilter, searchQuery],
+  );
 
   // Module counts across all findings + PR changes
   const moduleCounts = useMemo(() => {
@@ -1094,10 +1103,11 @@ export function GitHubFixesLogView({
         <div className="flex flex-wrap items-center gap-1.5">
           {(
             [
-              { id: "ALL", label: "All Complete Data", icon: Layers },
+              { id: "ALL", label: "Issues & Active Fixes", icon: Layers },
               { id: "GITHUB_RUNNER", label: "Fix with GitHub", icon: GitPullRequest },
               { id: "BEFORE_AFTER", label: "Before & After", icon: GitCompare },
               { id: "IMPROVEMENT_LOG", label: "Improvement Log", icon: History },
+              { id: "FAILED", label: "Failed", icon: CircleX },
             ] as const
           ).map((item) => {
             const Icon = item.icon;
@@ -1116,6 +1126,11 @@ export function GitHubFixesLogView({
               >
                 <Icon size={13} />
                 {item.label}
+                {item.id === "FAILED" && failedTaskRuns.length > 0 && (
+                  <span className="rounded-full bg-error-50 px-1.5 py-0.5 text-[10px] text-error-700">
+                    {failedTaskRuns.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1187,7 +1202,7 @@ export function GitHubFixesLogView({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand-500">
-                    GitHub Fix Task Status &amp; Completion Confirmation ({count(visibleTaskRuns.length)})
+                    Active GitHub Fix Tasks ({count(visibleTaskRuns.length)})
                   </span>
                   <span className="text-[11px] text-brand-400">
                     {isEngineerBusy ? "Auto-updating every 7.5s…" : "All tasks finished"}
@@ -2013,7 +2028,7 @@ export function GitHubFixesLogView({
       {/* =====================================================================
           SECTION C: COMPLETE IMPROVEMENT LOG (WHAT WE DID & WHAT WE IMPROVED)
          ===================================================================== */}
-      {(subSection === "ALL" || subSection === "IMPROVEMENT_LOG") && (
+      {subSection === "IMPROVEMENT_LOG" && (
         <Panel
           title="Complete Improvement Log — What We Did & What We Improved"
           subtitle="Chronological audit log of every GitHub Pull Request, file modification, before-and-after change, live verification, and cross-tab improvement."
@@ -2132,6 +2147,90 @@ export function GitHubFixesLogView({
               </div>
             )}
           </div>
+        </Panel>
+      )}
+      {/* =====================================================================
+          SECTION D: FAILED GITHUB TASKS
+         ===================================================================== */}
+      {subSection === "FAILED" && (
+        <Panel
+          title={`Failed tasks (${failedTaskRuns.length})`}
+          subtitle="Only unsuccessful runs appear here. Their findings remain open until a change is prepared, reviewed, and confirmed."
+        >
+          {failedTaskRuns.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <CircleX size={22} className="mx-auto text-brand-400" aria-hidden="true" />
+              <p className="mt-2 text-sm font-semibold text-brand-800">No failed tasks</p>
+              <p className="mt-1 text-xs text-brand-500">Failed GitHub runs will be collected here for review and retry.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-line">
+              {failedTaskRuns.map(({ run, ctx }) => (
+                <article key={run.id} className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill tone="bad">Failed</Pill>
+                        <Pill tone="info">{ctx.moduleLabel}</Pill>
+                        <span className="font-mono text-[11px] text-brand-500">Run #{run.id.slice(0, 8)}</span>
+                      </div>
+                      <h3 className="text-sm font-semibold text-brand-950">{ctx.headline}</h3>
+                    </div>
+                    <span className="font-mono text-[11px] text-brand-500">
+                      {run.finishedAt ? relativeTime(run.finishedAt) : relativeTime(run.startedAt)}
+                    </span>
+                  </div>
+
+                  <p className="rounded-lg border border-error-200/70 bg-error-50/50 px-3 py-2 text-sm leading-5 text-error-700">
+                    {run.error || "This run ended before it created a reviewable pull request."}
+                  </p>
+
+                  {run.steps.length > 0 && (
+                    <details className="rounded-lg border border-line bg-surface-2 px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-semibold text-brand-700">
+                        View execution details ({run.steps.length})
+                      </summary>
+                      <ul className="mt-2 space-y-1">
+                        {run.steps.slice(-8).map((step, index) => (
+                          <li key={index} className="break-words font-mono text-[11px] leading-5 text-brand-700">
+                            <span className={step.ok ? "font-bold text-success-700" : "font-bold text-error-700"}>
+                              {step.ok ? "✓" : "✗"}
+                            </span>{" "}
+                            <span className="font-semibold">{step.step}</span>
+                            {step.detail ? `: ${step.detail.slice(0, 220)}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ActionButton
+                      variant="primary"
+                      disabled={isEngineerBusy || runPlanFixesMutation.isPending || runEngineerMutation.isPending}
+                      icon={<RefreshCw size={12} />}
+                      onClick={() => {
+                        if (ctx.matchedFindings.length > 0) {
+                          runPlanFixesMutation.mutate({ findingIds: ctx.matchedFindings.map((finding) => finding.id) });
+                        } else if (selectedFindingIds.length > 0) {
+                          runPlanFixesMutation.mutate({ findingIds: selectedFindingIds });
+                        } else if (filteredFindings.length > 0) {
+                          runPlanFixesMutation.mutate({ findingIds: [filteredFindings[0].id] });
+                        } else if (ctx.rawInstruction) {
+                          runEngineerMutation.mutate(ctx.rawInstruction.split("EXECUTION PLAN")[0].trim());
+                        }
+                      }}
+                    >
+                      Retry with GitHub
+                    </ActionButton>
+                    <ActionButton onClick={() => setSubSection("IMPROVEMENT_LOG")}>
+                      Open improvement log
+                    </ActionButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </Panel>
       )}
     </div>
