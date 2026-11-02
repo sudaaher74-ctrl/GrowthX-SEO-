@@ -13,6 +13,16 @@ export interface PerformanceMetrics {
   isSimulated?: boolean;
 }
 
+const scorePercent = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+    ? Math.round(value * 100)
+    : undefined;
+
+const metricValue = (value: unknown, digits: number): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Number(value.toFixed(digits))
+    : undefined;
+
 @Injectable()
 export class PerformanceService {
   private readonly logger = new Logger(PerformanceService.name);
@@ -67,14 +77,21 @@ export class PerformanceService {
           const lighthouse = response.data.lighthouseResult?.categories || {};
           const audits = response.data.lighthouseResult?.audits || {};
 
+          // INP is CrUX field data, not a Lighthouse lab audit. The PSI API
+          // exposes its p75 value in loadingExperience.metrics.
+          const fieldMetrics = response.data.loadingExperience?.metrics || {};
+          const inpFieldMetric =
+            fieldMetrics.INTERACTION_TO_NEXT_PAINT ||
+            fieldMetrics.EXPERIMENTAL_INTERACTION_TO_NEXT_PAINT;
+
           metrics = {
-            performanceScore: lighthouse.performance?.score !== undefined ? Math.round(lighthouse.performance.score * 100) : undefined,
-            accessibilityScore: lighthouse.accessibility?.score !== undefined ? Math.round(lighthouse.accessibility.score * 100) : undefined,
-            bestPracticesScore: lighthouse['best-practices']?.score !== undefined ? Math.round(lighthouse['best-practices'].score * 100) : undefined,
-            seoScore: lighthouse.seo?.score !== undefined ? Math.round(lighthouse.seo.score * 100) : undefined,
-            lcpMs: audits['largest-contentful-paint']?.numericValue ? parseFloat((audits['largest-contentful-paint'].numericValue).toFixed(1)) : undefined,
-            inpMs: audits['interaction-to-next-paint']?.numericValue ? parseFloat((audits['interaction-to-next-paint'].numericValue).toFixed(1)) : undefined,
-            clsScore: audits['cumulative-layout-shift']?.numericValue ? parseFloat((audits['cumulative-layout-shift'].numericValue).toFixed(3)) : undefined,
+            performanceScore: scorePercent(lighthouse.performance?.score),
+            accessibilityScore: scorePercent(lighthouse.accessibility?.score),
+            bestPracticesScore: scorePercent(lighthouse['best-practices']?.score),
+            seoScore: scorePercent(lighthouse.seo?.score),
+            lcpMs: metricValue(audits['largest-contentful-paint']?.numericValue, 1),
+            inpMs: metricValue(inpFieldMetric?.percentile, 1),
+            clsScore: metricValue(audits['cumulative-layout-shift']?.numericValue, 3),
             isSimulated: false,
           };
         }
@@ -100,7 +117,15 @@ export class PerformanceService {
     // Nothing measured (for example the API returned a non-200), so there is
     // nothing to store. Writing a row of undefined scores would show the page
     // as measured with blank results.
-    if (metrics.performanceScore === undefined && metrics.lcpMs === undefined) {
+    if (
+      metrics.performanceScore === undefined &&
+      metrics.lcpMs === undefined &&
+      metrics.inpMs === undefined &&
+      metrics.clsScore === undefined &&
+      metrics.accessibilityScore === undefined &&
+      metrics.bestPracticesScore === undefined &&
+      metrics.seoScore === undefined
+    ) {
       this.logger.warn(`PageSpeed returned no usable metrics for ${targetUrl}; nothing recorded.`);
       return {};
     }
