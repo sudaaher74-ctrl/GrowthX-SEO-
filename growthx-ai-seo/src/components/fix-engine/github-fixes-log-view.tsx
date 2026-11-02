@@ -793,17 +793,20 @@ export function GitHubFixesLogView({
       if (candidates.length === 0) {
         throw new Error("Select at least one finding in Fix Engine to apply via GitHub.");
       }
-      // Move any newly detected findings into the plan as we start the GitHub run
+      // Create the run first. If the request is rejected, findings must remain in
+      // their current lifecycle state instead of getting stranded in the Fix Plan.
+      const run = await api.runPlanFixes(projectId!, {
+        ...payload,
+        findingIds: candidates.map((finding) => finding.id),
+      });
+
+      // The run now exists; move newly detected findings into the plan.
       await Promise.allSettled(
         candidates
           .filter((f) => (f.lifecycle ?? "DETECTED") === "DETECTED")
           .map((f) => api.transitionFinding(projectId!, f.id, { to: "QUEUED" })),
       );
-
-      return api.runPlanFixes(projectId!, {
-        ...payload,
-        findingIds: candidates.map((finding) => finding.id),
-      });
+      return run;
     },
     onSuccess: (run) => {
       setTrackedRunId(run.id);
@@ -918,6 +921,8 @@ export function GitHubFixesLogView({
       });
       return;
     }
+    // A row action is a single-finding action; replace any prior batch selection.
+    setSelectedFindingIds([finding.id]);
     runPlanFixesMutation.mutate({ findingIds: [finding.id] });
   };
 
