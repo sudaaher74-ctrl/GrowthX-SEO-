@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Coins, Globe, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
+import { Check, Coins, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -66,16 +66,13 @@ export function Sidebar({
 
         <nav className={cn("flex-1 overflow-y-auto py-3", compact ? "px-1.5" : "px-2")}>
           <div>
-            {!compact && <SectionLabel>Workspace</SectionLabel>}
-            {compact ? (
-              <Link href="/clients" onClick={() => setMobileOpen?.(false)} title="Switch website" aria-label="Switch website" className="mb-3 flex h-10 items-center justify-center rounded-xl text-brand-500 transition hover:bg-brand-100/60 hover:text-brand-950">
-                <Globe size={17} />
-              </Link>
-            ) : (
-              <SiteSwitcher onDone={() => setMobileOpen?.(false)} />
+            {!compact && (
+              <>
+                <SectionLabel>Workspace</SectionLabel>
+                <SiteSwitcher onDone={() => setMobileOpen?.(false)} />
+                <SectionLabel>Workflow</SectionLabel>
+              </>
             )}
-
-            {!compact && <SectionLabel>Workflow</SectionLabel>}
             <div className={cn("space-y-1", compact && "flex flex-col items-center")}>
               {mainNav.map((item) => (
                 <NavLink key={item.href} item={item} pathname={pathname} collapsed={compact} onNavigate={() => setMobileOpen?.(false)} />
