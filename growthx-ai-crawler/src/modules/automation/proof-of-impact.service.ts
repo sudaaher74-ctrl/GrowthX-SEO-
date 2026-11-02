@@ -432,10 +432,10 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     };
 
     // 6. SEO Impact (GSC windows)
-    const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, run.startedAt);
+    const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, verifiedSnap?.capturedAt ?? run.startedAt);
 
     // 7. AI Visibility Impact
-    const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, run.startedAt);
+    const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, verifiedSnap?.capturedAt ?? run.startedAt);
 
     // 8. GA4 Business Impact
     const businessImpact = await this.getFixGa4Impact(projectId, affectedUrl, run.startedAt);
@@ -452,9 +452,9 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       level2: {
         label: 'Level 2: Observed Performance Change',
         status: seoImpact.windows.some((w) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)') ? 'OBSERVED' : 'MONITORING',
-        detail: seoImpact.windows.some((w) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)')
-          ? `Observed ${seoImpact.overallClicksChangePt >= 0 ? '+' : ''}${seoImpact.overallClicksChangePt}% change in organic search clicks over the post-fix window.`
-          : 'Monitoring active. Windows are calculated at 7, 14, 30, 60, and 90 days.',
+        detail: seoImpact.overallClicksChangePt != null
+          ? `Observed ${seoImpact.overallClicksChangePt >= 0 ? '+' : ''}${seoImpact.overallClicksChangePt}% change in organic search clicks over the post-fix window; this is an observed association, not proof the fix caused it.`
+          : 'A complete pre-fix baseline and post-fix Search Console comparison is not available yet.'
       },
       level3: {
         label: 'Level 3: Estimated Causal Impact',
@@ -878,9 +878,9 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * ON-SCREEN PROOF OF IMPACT: BEFORE 30/90 DAYS VS NOW
-   * Compares exact on-screen website text/elements and measured results
-   * between the 30-90 day baseline window and today's live production state.
+   * Shows a saved pre-PR snapshot beside a later verified live-page snapshot.
+   * Search Console and AI measurements are shown only when available; this is
+   * observational evidence and does not attribute changes to the fix.
    */
   async get30d90dProof(projectId: string) {
     await this.initializeDay1TrackingEvents(projectId);
@@ -893,7 +893,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     const domain = project.websites[0]?.domain || project.name;
 
     const runs = await this.prisma.automationRun.findMany({
-      where: { projectId },
+      where: { projectId, status: 'MERGED' },
       orderBy: { startedAt: 'desc' },
       take: 20,
     });
@@ -914,6 +914,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       const changeStep = steps.find((s: any) => s.change);
       const change = changeStep?.change;
       const verifiedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'VERIFIED_LIVE');
+      if (run.status !== 'MERGED' || !verifiedSnap) continue;
       const beforeSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'BEFORE');
       const proposedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'PROPOSED');
 
@@ -923,28 +924,40 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
       const affectedUrl = change?.url || verifiedSnap?.url || beforeSnap?.url || proposedSnap?.url || `https://${domain}`;
       const field = change?.field || (verifiedSnap?.title ? 'META_TITLE' : 'CODE_AND_SEO_UPDATE');
-      const file = change?.file || run.filesChanged[0] || 'Repository Code';
+      const file = change?.file || (run.filesChanged.length > 1 ? `${run.filesChanged[0]} (+${run.filesChanged.length - 1} more files)` : run.filesChanged[0]) || 'Repository Code';
 
       const targetElement = this.mapFieldToOnScreenElement(field, file);
-      const beforeText = change?.before || beforeSnap?.title || beforeSnap?.metaDescription || beforeSnap?.contentSnippet || 'Original unoptimized state';
-      const afterText = change?.after || verifiedSnap?.title || verifiedSnap?.metaDescription || verifiedSnap?.contentSnippet || proposedSnap?.title || proposedSnap?.contentSnippet || 'Optimized production state';
+      const beforeText = beforeSnap?.title || beforeSnap?.metaDescription || beforeSnap?.contentSnippet || null;
+      const afterText = verifiedSnap.title || verifiedSnap.metaDescription || verifiedSnap.contentSnippet || null;
 
-      const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, run.startedAt);
+      const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
       const baselineWindow = seoImpact.windows.find((w) => w.period === 'Baseline (28d)');
-      const day30Window = seoImpact.windows.find((w) => w.period === 'Day 30') || seoImpact.windows.find((w) => w.period === 'Day 14');
+      const day30Window = seoImpact.windows.find((w) => w.period === 'Day 30');
       const day90Window = seoImpact.windows.find((w) => w.period === 'Day 90');
 
-      const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, run.startedAt);
-      const aiMentionBefore = aiImpact.models[0]?.beforeMentionRate != null ? `${aiImpact.models[0].beforeMentionRate}%` : null;
-      const aiMentionAfter = aiImpact.models[0]?.afterMentionRate != null ? `${aiImpact.models[0].afterMentionRate}%` : null;
+      const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
+      const displayedAiModel = aiImpact.models.find((m) => m.beforeMentionRate != null && m.afterMentionRate != null) ?? aiImpact.models[0];
+      const aiModelLabel = displayedAiModel ? `${displayedAiModel.provider} / ${displayedAiModel.model}` : null;
+      const aiMentionBefore = displayedAiModel?.beforeMentionRate != null ? `${displayedAiModel.beforeMentionRate}% · ${aiModelLabel}` : null;
+      const aiMentionAfter = displayedAiModel?.afterMentionRate != null ? `${displayedAiModel.afterMentionRate}% · ${aiModelLabel}` : null;
 
-      const daysSinceRun = Math.floor((Date.now() - run.startedAt.getTime()) / 86400000);
-      const clicksDelta = seoImpact.overallClicksChangePt;
+      const daysSinceRun = Math.floor((Date.now() - verifiedSnap.capturedAt.getTime()) / 86400000);
+      const hasBaselineClicks = baselineWindow?.status === 'OBSERVED' && baselineWindow.clicks != null;
+      const hasDay30Clicks = day30Window?.status === 'OBSERVED' && day30Window.clicks != null;
+      const hasSearchComparison = hasBaselineClicks && hasDay30Clicks;
+      const searchClicksDelta = hasSearchComparison ? day30Window!.clicks! - baselineWindow!.clicks! : null;
+      const clicksDelta = hasSearchComparison && baselineWindow!.clicks! > 0
+        ? Math.round((searchClicksDelta! / baselineWindow!.clicks!) * 100)
+        : null;
+      const measuredAiComparisons = aiImpact.models.filter((m) => m.beforeMentionRate != null && m.afterMentionRate != null);
+      const hasMeasuredAiComparison = measuredAiComparisons.length > 0;
+      const hasPositiveAiChange = measuredAiComparisons.some((m) => (m.changePt ?? 0) > 0);
+      const hasMeasuredComparison = hasSearchComparison || hasMeasuredAiComparison;
 
       let liftStatus: 'IMPROVED' | 'FLAT' | 'MONITORING' = 'MONITORING';
-      if (clicksDelta > 0 || aiImpact.models.some((m) => (m.changePt ?? 0) > 0)) {
+      if ((searchClicksDelta != null && searchClicksDelta > 0) || hasPositiveAiChange) {
         liftStatus = 'IMPROVED';
-      } else if (daysSinceRun >= 14 && clicksDelta <= 0) {
+      } else if (daysSinceRun >= 30 && hasMeasuredComparison) {
         liftStatus = 'FLAT';
       }
 
@@ -953,35 +966,37 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       );
 
       const rca = [
-        'Search Engine Recrawl: Live HTML deployment verified, but search engine re-indexing for local delivery queries is progressing.',
-        'Snippet Click-Through Gap: Impressions observed but CTR is below target. Snippet lacks an explicit local delivery value hook.',
-        'Topical & Entity Depth Gap: Top competitors rank with detailed local service area coverage and LocalBusiness JSON-LD.',
-        'Adaptive Strategy Pivot: Elevate fix to Iteration 2: Add LocalBusiness Schema with GeoCoordinates and local service area delivery grid.',
+        `Live HTML was verified for ${affectedUrl}.`,
+        hasSearchComparison
+          ? `Search Console clicks changed ${clicksDelta == null ? searchClicksDelta : `${clicksDelta}%`} in the measured 30-day comparison.`
+          : 'A comparable Search Console click measurement is unavailable.',
+        hasMeasuredAiComparison ? 'AI brand mention rates were compared using saved successful responses.' : 'A comparable AI visibility measurement is unavailable.',
+        'These observations describe changes over time; they do not prove that the fix caused them.',
       ];
 
       proofCards.push({
         runId: run.id,
-        title: change?.findingTitle || (run.filesChanged.length ? `Code Fix in ${run.filesChanged.join(', ')}` : `SEO Fix PR #${run.id.slice(0, 6)}`),
+        title: change?.findingTitle ? `Live page check for: ${change.findingTitle}` : run.filesChanged.length > 1 ? `Verified code update across ${run.filesChanged.length} files` : run.filesChanged.length ? `Verified code update in ${run.filesChanged[0]}` : `SEO Fix PR #${run.id.slice(0, 6)}`,
         url: affectedUrl,
         file,
         field,
         targetElement,
         before: {
           text: beforeText,
-          timeframe: 'Before (30–90 Days Ago)',
+          timeframe: 'Snapshot saved before the pull request',
           clicks: baselineWindow?.clicks ?? null,
           impressions: baselineWindow?.impressions ?? null,
           ctr: baselineWindow?.ctr ?? null,
-          aiVisibility: aiMentionBefore || 'Not cited in AI Overviews',
+          aiVisibility: aiMentionBefore || 'Not measured',
         },
         after: {
           text: afterText,
-          timeframe: 'Now (Live on Production)',
-          clicks: day30Window?.clicks ?? seoImpact.currentClicks,
+          timeframe: 'Verified live HTML snapshot',
+          clicks: day30Window?.clicks ?? null,
           clicksDeltaPct: clicksDelta,
           impressions: day30Window?.impressions ?? null,
           impressionsDeltaPct: null,
-          aiVisibility: aiMentionAfter ? `${aiMentionAfter} citation rate` : 'Cited in AI search responses',
+          aiVisibility: aiMentionAfter ? `${aiMentionAfter} brand mention rate` : 'Not measured',
           verificationStatus: verifiedSnap ? 'VERIFIED_LIVE' : run.status === 'MERGED' ? 'MERGED_ON_GITHUB' : run.status,
           verifiedAt: verifiedSnap?.capturedAt?.toISOString() || null,
           pullRequestUrl: run.pullRequestUrl,
@@ -991,20 +1006,20 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
           beforeClicks: baselineWindow?.clicks ?? null,
           afterClicks: day30Window?.clicks ?? null,
           clicksDeltaPct: clicksDelta,
-          status: day30Window?.status || (daysSinceRun >= 30 ? 'OBSERVED' : 'MONITORING'),
+          status: day30Window?.status || 'PENDING',
         },
         metrics90d: {
           beforeClicks: baselineWindow?.clicks ?? null,
           afterClicks: day90Window?.clicks ?? null,
           clicksDeltaPct: null,
-          status: day90Window?.status || (daysSinceRun >= 90 ? 'OBSERVED' : 'PENDING'),
+          status: day90Window?.status || 'PENDING',
         },
         loopStatus: liftStatus === 'FLAT' ? {
           iteration: 2,
           rca,
           pivotOpportunityId: loopOpportunity?.id,
-          pivotTitle: loopOpportunity?.title || `[Iteration 2 Strategy Pivot] Add Geo-Targeted Delivery FAQ & Neighborhood Schema for ${domain}`,
-          pivotAction: loopOpportunity?.recommendedAction || `Update ${file} with LocalBusiness JSON-LD schema, specific local neighborhood delivery coverage, and structured service timetable callout.`,
+          pivotTitle: loopOpportunity?.title || `[Review measured impact] ${domain} — ${affectedUrl}`,
+          pivotAction: loopOpportunity?.recommendedAction || `Review the verified live change in ${file} alongside available Search Console and AI measurements for ${affectedUrl}. Choose the next improvement from evidence; do not assume missing schema, local coverage, or a traffic lift.`,
           canLaunchIteration2: true,
         } : undefined,
       });
@@ -1015,9 +1030,9 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * CONTINUOUS CLOSED-LOOP EVALUATION ENGINE
-   * Evaluates verified fixes after 14-30 days. If lift is positive, confirms impact.
-   * If lift is flat/no improvement, performs 4-point RCA, emits ledger events,
-   * and automatically generates an adaptive Iteration 2 Strategy Pivot in GrowthOpportunity.
+   * Evaluates merged fixes only after live HTML verification and measured pre/post data are available.
+   * Records observed changes without claiming causation, and can create an evidence-based
+   * follow-up opportunity after the 30-day comparison window.
    */
   async evaluateAndTriggerLoop(projectId: string, runId?: string) {
     const project = await this.prisma.project.findUnique({
@@ -1031,7 +1046,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       where: {
         projectId,
         id: runId || undefined,
-        status: { in: ['MERGED', 'AWAITING_REVIEW', 'RUNNING'] },
+        status: 'MERGED',
       },
       orderBy: { startedAt: 'desc' },
     });
@@ -1046,20 +1061,39 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
     for (const run of runs) {
       const verifiedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'VERIFIED_LIVE');
+      if (!verifiedSnap) {
+        results.push({ runId: run.id, status: 'MONITORING', reason: 'Waiting for live HTML verification.' });
+        continue;
+      }
       const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
       const changeStep = steps.find((s: any) => s.change);
       const change = changeStep?.change;
-      const affectedUrl = change?.url || verifiedSnap?.url || `https://${domain}`;
+      const affectedUrl = change?.url || verifiedSnap.url || `https://${domain}`;
       const file = change?.file || run.filesChanged[0] || 'src/app/page.tsx';
 
-      const daysSinceRun = Math.floor((Date.now() - run.startedAt.getTime()) / 86400000);
-      const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, run.startedAt);
-      const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, run.startedAt);
+      const daysSinceRun = Math.floor((Date.now() - verifiedSnap.capturedAt.getTime()) / 86400000);
+      const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
+      const aiImpact = await this.getFixAiImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
+      const baselineWindow = seoImpact.windows.find((w) => w.period === 'Baseline (28d)');
+      const day30Window = seoImpact.windows.find((w) => w.period === 'Day 30');
+      const hasSearchComparison =
+        baselineWindow?.status === 'OBSERVED' && baselineWindow.clicks != null &&
+        day30Window?.status === 'OBSERVED' && day30Window.clicks != null;
+      const searchClicksDelta = hasSearchComparison
+        ? day30Window!.clicks! - baselineWindow!.clicks!
+        : null;
+      const clicksDelta = hasSearchComparison && baselineWindow!.clicks! > 0
+        ? Math.round((searchClicksDelta! / baselineWindow!.clicks!) * 100)
+        : null;
+      const measuredAiComparisons = aiImpact.models.filter((m) => m.beforeMentionRate != null && m.afterMentionRate != null);
+      const hasAiComparison = measuredAiComparisons.length > 0;
+      const hasAiGain = measuredAiComparisons.some((m) => (m.changePt ?? 0) > 0);
+      if (!hasSearchComparison && !hasAiComparison) {
+        results.push({ runId: run.id, status: 'MONITORING', reason: 'Waiting for measured pre-fix and post-fix data.' });
+        continue;
+      }
 
-      const clicksDelta = seoImpact.overallClicksChangePt;
-      const hasAiGain = aiImpact.models.some((m) => (m.changePt ?? 0) > 0);
-
-      if (clicksDelta > 0 || hasAiGain) {
+      if ((searchClicksDelta != null && searchClicksDelta > 0) || hasAiGain) {
         improvedCount++;
         const existingConfirmed = await this.prisma.fixImpactLedgerEvent.findFirst({
           where: { projectId, automationRunId: run.id, eventType: 'IMPACT_CONFIRMED' },
@@ -1070,8 +1104,11 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               projectId,
               automationRunId: run.id,
               eventType: 'IMPACT_CONFIRMED',
-              title: `Organic Impact Confirmed (+${clicksDelta}% search clicks)`,
-              description: `Verified performance improvement on ${affectedUrl} after deployment.`,
+              title: `Positive change observed: ${[
+                searchClicksDelta != null && searchClicksDelta > 0 ? (clicksDelta == null ? `${searchClicksDelta} Search Console clicks` : `${clicksDelta}% Search Console clicks`) : '',
+                hasAiGain ? 'AI brand mentions' : '',
+              ].filter(Boolean).join(' and ')}`,
+              description: `A positive change was observed after the verified deployment on ${affectedUrl}. This comparison does not establish that the fix caused the change.`,
               actor: 'CLOSED_LOOP_ENGINE',
               affectedUrl,
               pullRequestUrl: run.pullRequestUrl,
@@ -1086,18 +1123,18 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
           });
         }
         results.push({ runId: run.id, status: 'IMPROVED', clicksDelta });
-      } else if (daysSinceRun >= 14 || run.status === 'MERGED' || verifiedSnap) {
+      } else if (daysSinceRun >= 30) {
         loopTriggeredCount++;
 
         const rca = [
-          'SERP CTR Gap: Recorded impressions with 0 search clicks in target delivery queries. Current snippet lacks high-intent local callout.',
-          'Missing Structured Schema: Page is missing LocalBusiness and ServiceArea JSON-LD, reducing rich result eligibility in Google Search.',
-          'Topical Authority Depth: Top competitors feature 400+ words of neighborhood delivery coverage versus 180 words on the audited page.',
-          'Strategy Pivot Recommendation: Upgrade to Iteration 2: Add LocalBusiness schema + Local service area delivery timetable + high-intent CTA.',
+          `Live HTML was verified for ${affectedUrl}.`,
+          hasSearchComparison ? `Search Console clicks changed ${clicksDelta}% in the measured 30-day comparison.` : 'A comparable Search Console click measurement is unavailable.',
+          hasAiComparison ? 'AI brand mention rates were compared using saved successful responses.' : 'A comparable AI visibility measurement is unavailable.',
+          'These observations describe changes over time; they do not prove that the fix caused them.',
         ];
 
-        const pivotTitle = `[Iteration 2 Strategy Pivot] Add Geo-Targeted Delivery FAQ & Neighborhood Schema for ${domain}`;
-        const pivotAction = `In ${file}, add structured LocalBusiness JSON-LD with geo-coordinates, specify local service area neighborhood delivery coverage, and add a local delivery callout.`;
+        const pivotTitle = `[Review measured impact] ${domain} — ${affectedUrl}`;
+        const pivotAction = `Review the verified live change in ${file} alongside available Search Console and AI measurements for ${affectedUrl}. Choose the next improvement from evidence; do not assume missing schema, local coverage, or a traffic lift.`;
 
         // 1. Emit NO_IMPROVEMENT_DIAGNOSED in ledger if not present
         const existingNoImp = await this.prisma.fixImpactLedgerEvent.findFirst({
@@ -1109,8 +1146,8 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               projectId,
               automationRunId: run.id,
               eventType: 'NO_IMPROVEMENT_DIAGNOSED',
-              title: 'No Improvement Diagnosed (14–30 Day Evaluation)',
-              description: `Search lift remained flat (0 clicks) on ${affectedUrl}. Closed-Loop Engine diagnosed 4-point root cause.`,
+              title: 'No positive change observed in the measured window',
+              description: `No positive Search Console or AI mention change was observed in the available measured comparison for ${affectedUrl}. This does not establish that the fix caused or failed to cause the result.`,
               actor: 'CLOSED_LOOP_ENGINE',
               affectedUrl,
               pullRequestUrl: run.pullRequestUrl,
@@ -1120,7 +1157,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
                 baselineClicks: seoImpact.baselineClicks,
                 currentClicks: seoImpact.currentClicks,
                 daysMonitored: daysSinceRun,
-                verdict: 'FLAT_LIFT_LOOP_TRIGGERED',
+                verdict: 'NO_POSITIVE_CHANGE_OBSERVED',
               },
             },
           });
@@ -1141,18 +1178,18 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               source: 'WEBSITE',
               category: 'TECHNICAL',
               title: pivotTitle,
-              summary: `14-30 day search lift on ${affectedUrl} remained flat (0 clicks). Closed-Loop Feedback Engine diagnosed root cause and prepared an adaptive Iteration 2 strategy pivot.`,
+              summary: `No positive change was observed in the available measured comparison for ${affectedUrl}. Review the underlying measurements before deciding on another change.`,
               evidence: [
-                { label: 'Evaluation Period', value: `${daysSinceRun} days post-fix`, source: 'Fix Engine Ledger' },
-                { label: 'Organic Search Clicks', value: '0 clicks (Flat)', source: 'Google Search Console' },
-                { label: 'RCA Diagnosis', value: 'SERP CTR gap & missing LocalBusiness schema', source: 'Closed-Loop Engine' },
-                { label: 'Strategy Pivot', value: 'Add LocalBusiness JSON-LD & Neighborhood coverage', source: 'Closed-Loop Engine' },
+                { label: 'Evaluation Period', value: `${daysSinceRun} days after live verification`, source: 'Fix Engine Ledger' },
+                { label: 'Search Console comparison', value: hasSearchComparison ? `${seoImpact.baselineClicks} baseline clicks; `${day30Window!.clicks} clicks in the first 30 days after verification; `${clicksDelta == null ? 'percentage change unavailable because baseline is zero' : `${clicksDelta}% change`}` : 'Not available for both comparison periods', source: 'Google Search Console' },
+                { label: 'AI mention comparison', value: hasAiComparison ? measuredAiComparisons.map((m) => `${m.provider}/${m.model}: ${m.beforeMentionRate}% to ${m.afterMentionRate}%`).join('; ') : 'Not available for both periods', source: 'Saved successful AI responses' },
+                { label: 'Interpretation', value: 'Observed comparisons do not prove that this fix caused the result.', source: 'Fix Engine Ledger' },
               ] as any,
               recommendedAction: pivotAction,
-              potential: 'HIGH',
-              effort: 'LOW',
-              confidence: 90,
-              priority: 95,
+              potential: 'MEDIUM',
+              effort: 'MEDIUM',
+              confidence: 50,
+              priority: 50,
               status: 'OPEN',
               lifecycle: 'QUEUED',
               affectedPages: [affectedUrl],
@@ -1431,23 +1468,19 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
 
   private async getFixGscImpact(projectId: string, url: string, fixDate: Date) {
     if (!url) {
-      return { baselineClicks: 0, currentClicks: 0, overallClicksChangePt: 0, label: 'Observed performance change', windows: [] };
+      return { baselineClicks: null, currentClicks: null, overallClicksChangePt: null, label: 'No page URL available', windows: [] };
     }
 
     const fixTime = fixDate.getTime();
     const twentyEightDaysPrior = new Date(fixTime - 28 * 86400000);
-
-    // Baseline
     const baseline = await this.prisma.gscDailyMetric.aggregate({
       where: { projectId, grain: 'PAGE', page: url, date: { gte: twentyEightDaysPrior, lt: fixDate } },
       _sum: { clicks: true, impressions: true },
     });
+    const baseClicks = baseline._sum.clicks;
+    const baseImp = baseline._sum.impressions;
+    const baseCtr = baseImp != null && baseImp > 0 && baseClicks != null ? (baseClicks / baseImp) * 100 : null;
 
-    const baseClicks = baseline._sum.clicks ?? 0;
-    const baseImp = baseline._sum.impressions ?? 0;
-    const baseCtr = baseImp > 0 ? (baseClicks / baseImp) * 100 : 0;
-
-    // Day 7, Day 14, Day 30 windows
     const windowDefs = [
       { name: 'Day 7', days: 7 },
       { name: 'Day 14', days: 14 },
@@ -1455,66 +1488,49 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
       { name: 'Day 60', days: 60 },
       { name: 'Day 90', days: 90 },
     ];
-
     const now = Date.now();
-    const windows: PerformanceWindowMetric[] = [
-      {
-        period: 'Baseline (28d)',
-        days: 28,
-        clicks: baseline._sum.clicks ?? null,
-        impressions: baseline._sum.impressions ?? null,
-        ctr: baseline._sum.impressions == null ? null : Number(baseCtr.toFixed(2)),
-        position: null,
-        status: baseline._sum.clicks == null && baseline._sum.impressions == null ? 'PENDING' : 'OBSERVED',
-      },
-    ];
-
-    let latestClicks = baseClicks;
+    const windows: PerformanceWindowMetric[] = [{
+      period: 'Baseline (28d)',
+      days: 28,
+      clicks: baseClicks ?? null,
+      impressions: baseImp ?? null,
+      ctr: baseCtr == null ? null : Number(baseCtr.toFixed(2)),
+      position: null,
+      status: baseClicks == null && baseImp == null ? 'PENDING' : 'OBSERVED',
+    }];
+    let latestClicks: number | null = null;
 
     for (const w of windowDefs) {
       const windowEnd = new Date(fixTime + w.days * 86400000);
-      const isPast = now >= windowEnd.getTime();
-
-      if (isPast) {
+      if (now >= windowEnd.getTime()) {
         const postData = await this.prisma.gscDailyMetric.aggregate({
           where: { projectId, grain: 'PAGE', page: url, date: { gte: fixDate, lte: windowEnd } },
           _sum: { clicks: true, impressions: true },
         });
-
-        const c = postData._sum.clicks ?? 0;
-        const imp = postData._sum.impressions ?? 0;
-        const ctr = imp > 0 ? (c / imp) * 100 : 0;
-        latestClicks = c;
-
+        const clicks = postData._sum.clicks ?? null;
+        const impressions = postData._sum.impressions ?? null;
+        const ctr = impressions != null && impressions > 0 && clicks != null ? (clicks / impressions) * 100 : null;
+        if (w.days === 90 || (w.days < 90 && now < fixTime + 90 * 86400000)) latestClicks = clicks;
         windows.push({
           period: w.name,
           days: w.days,
-          clicks: postData._sum.clicks ?? null,
-          impressions: postData._sum.impressions ?? null,
-          ctr: postData._sum.impressions == null ? null : Number(ctr.toFixed(2)),
+          clicks,
+          impressions,
+          ctr: ctr == null ? null : Number(ctr.toFixed(2)),
           position: null,
-          status: postData._sum.clicks == null && postData._sum.impressions == null ? 'PENDING' : 'OBSERVED',
+          status: clicks == null && impressions == null ? 'PENDING' : 'OBSERVED',
         });
       } else {
-        windows.push({
-          period: w.name,
-          days: w.days,
-          clicks: null,
-          impressions: null,
-          ctr: null,
-          position: null,
-          status: 'PENDING',
-        });
+        windows.push({ period: w.name, days: w.days, clicks: null, impressions: null, ctr: null, position: null, status: 'PENDING' });
       }
     }
-
-    const overallDelta = baseClicks > 0 ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : 0;
-
+    const comparable = baseClicks != null && baseClicks > 0 && latestClicks != null;
+    const overallDelta = comparable ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : null;
     return {
-      baselineClicks: baseClicks,
+      baselineClicks: baseClicks ?? null,
       currentClicks: latestClicks,
       overallClicksChangePt: overallDelta,
-      label: 'Observed performance change',
+      label: comparable ? 'Observed performance change' : 'Search Console comparison unavailable',
       windows,
     };
   }
@@ -1630,6 +1646,6 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
     const clicksDelta = gsc.overallClicksChangePt;
     const level1 = attribution.level1.status;
 
-    return `Prepared change for ${field}: ${why}. ${level1 === 'VERIFIED' ? 'A later saved crawl matched the expected metadata.' : 'Live deployment has not been verified.'} ${gsc.windows?.some((w: PerformanceWindowMetric) => w.status === 'OBSERVED' && w.period !== 'Baseline (28d)') ? `Available Search Console records show a ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% change in clicks; this does not establish causation.` : 'No measured post-change Search Console result is available.'}`;
+    return `Prepared change for ${field}: ${why}. ${level1 === 'VERIFIED' ? 'A later saved crawl matched the expected metadata.' : 'Live deployment has not been verified.'} ${clicksDelta != null ? `Available Search Console records show a ${clicksDelta >= 0 ? '+' : ''}${clicksDelta}% change in clicks; this does not establish causation.` : 'A complete pre/post Search Console comparison is not available.'}`;
   }
 }
