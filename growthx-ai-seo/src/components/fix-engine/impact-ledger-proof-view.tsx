@@ -467,8 +467,8 @@ function VisualProofCard({
                 {clicksDeltaPct != null && (
                   <span className={cn(
                     "rounded px-1.5 py-0.2 text-[10px] font-bold",
-                    metrics30d?.clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
-                      metrics30d?.clicksDeltaPct < 0 ? "bg-error-100 text-error-800" : "bg-brand-100 text-brand-700",
+                    clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
+                      clicksDeltaPct < 0 ? "bg-error-100 text-error-800" : "bg-brand-100 text-brand-700",
                   )}>
                     {clicksDeltaPct > 0 ? "+" : ""}{clicksDeltaPct}%
                   </span>
