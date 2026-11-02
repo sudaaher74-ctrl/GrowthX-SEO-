@@ -23,11 +23,11 @@ import { useTheme } from "@/hooks/use-theme";
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
+    if (typeof window === "undefined") return true;
     try {
-      return localStorage.getItem("growthx_sidebar_collapsed") === "true";
+      return localStorage.getItem("growthx_sidebar_rail") !== "false";
     } catch {
-      return false;
+      return true;
     }
   });
   const router = useRouter();
@@ -40,7 +40,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     setCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("growthx_sidebar_collapsed", String(next));
+        localStorage.setItem("growthx_sidebar_rail", String(next));
       } catch {}
       return next;
     });
@@ -95,7 +95,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* The sidebar navigation */}
         <Suspense fallback={null}>
           {isAdmin ? (
-            <AdminSidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+            <AdminSidebar collapsed={!collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
           ) : (
             <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
           )}
@@ -103,7 +103,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           {isAdmin ? (
             <AdminTopNav
-              collapsed={collapsed}
+              collapsed={!collapsed}
               onToggleCollapse={() => toggleCollapsed()}
               setMobileOpen={setMobileOpen}
             />
@@ -115,11 +115,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             />
           )}
         </Suspense>
-        {/* 232px sidebar + 52px header */}
+        {/* Compact navigation rail + 52px top bar */}
         <main
           className={cn(
             "min-h-screen transition-all duration-300 ease-in-out pt-[52px]",
-            collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]",
+            isAdmin ? (collapsed ? "md:ml-[232px]" : "md:ml-0") : collapsed ? "md:ml-[68px]" : "md:ml-[232px]",
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
