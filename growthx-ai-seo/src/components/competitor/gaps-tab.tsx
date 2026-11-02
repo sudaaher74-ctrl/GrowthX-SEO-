@@ -188,7 +188,7 @@ export function GapsTab({
   const count = (kind: GapKind) => shown.filter((i) => i.kind === kind).length;
   const topicsMissing = rivals
     .filter((r) => rivalFilter === "all" || r.domain === rivalFilter)
-    .reduce((n, r) => n + (r.advantages?.missingTopicsTotal ?? 0), 0);
+    .reduce((n, r) => n + (r.advantages?.missingTopics.length ?? 0), 0);
 
   return (
     <div className="space-y-4">
@@ -258,15 +258,15 @@ export function GapsTab({
           {/* ── KPI HIGHLIGHT CARDS ── */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <GapMetricCard
-              label="Topics you're missing"
+              label="Topic ideas to review"
               value={String(topicsMissing)}
-              sub="pages they have, you don't"
+              sub="pages found in competitor crawls"
               tag="High Impact"
               icon={FileText}
               variant="error"
             />
             <GapMetricCard
-              label="Kinds of pages behind"
+              label="Page types to consider"
               value={String(count("pageType"))}
               sub="e.g. city or service pages"
               tag="Structure"
@@ -274,17 +274,17 @@ export function GapsTab({
               variant="accent"
             />
             <GapMetricCard
-              label="Question gaps"
+              label="Question topics to review"
               value={String(count("question"))}
-              sub="competitors answering more questions"
+              sub="questions found in competitor crawls"
               tag="AI Search"
               icon={HelpCircle}
               variant="warning"
             />
             <GapMetricCard
-              label="Google extras missing"
+              label="Google details to check"
               value={String(count("schema"))}
-              sub="ratings, prices, FAQs, schema"
+              sub="ratings, prices, FAQs, and other details"
               tag="Schema"
               icon={Code2}
               variant="success"
@@ -308,7 +308,7 @@ export function GapsTab({
               className="rounded-2xl border border-success-200 bg-success-50/40 p-8 text-center shadow-card"
             >
               <p className="text-[13px] font-semibold text-success-700">
-                Good news: we found nothing your competitors have that you don&apos;t.
+                No differences found in the pages we crawled. This does not tell us whether you rank higher or lower in Google.
               </p>
             </div>
           )}
