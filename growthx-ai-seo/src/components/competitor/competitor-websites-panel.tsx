@@ -181,7 +181,7 @@ export function CompetitorWebsitesPanel({
       ) : sites.length === 0 ? (
         <p className="p-8 text-center text-[12px] text-brand-500">Add your website and a competitor to see them here.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
           {sites.map((site) => (
             <SiteCard
               key={site.competitorId ?? `you-${site.domain}`}
@@ -246,7 +246,7 @@ function SiteCard({
         <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-signal-400/40 via-signal-400 to-signal-400/40" />
       )}
 
-      <div className="p-5 flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4 p-5">
         {/* Header: Avatar, Name, Domain, Status */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -261,7 +261,7 @@ function SiteCard({
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="truncate text-[14.5px] font-bold text-brand-950 tracking-tight" title={displayName}>
+              <h3 className="break-words text-[14.5px] font-bold text-brand-950 tracking-tight" title={displayName}>
                 {displayName}
               </h3>
               <div className="mt-0.5 flex items-center gap-2 min-w-0">
@@ -269,9 +269,9 @@ function SiteCard({
                   href={`https://${displayDomain}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-400 hover:text-signal-400 transition-colors group/link truncate min-w-0"
+                  className="inline-flex min-w-0 max-w-full items-center gap-1 font-mono text-[11px] text-brand-400 hover:text-signal-400 transition-colors group/link"
                 >
-                  <span className="truncate">{displayDomain}</span>
+                  <span className="break-all">{displayDomain}</span>
                   <ExternalLink size={10} className="shrink-0 opacity-50 group-hover/link:opacity-100 transition-opacity" />
                 </a>
                 {you ? (
@@ -373,7 +373,7 @@ function SiteCard({
 
       {/* Footer Comparison / Action */}
       <div
-        className="flex items-center justify-between border-t px-5 py-3 text-[11.5px] bg-brand-50/20"
+        className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3 text-[11.5px] bg-brand-50/20"
         style={{ borderColor: "var(--border-color)" }}
       >
         {you ? (
@@ -392,7 +392,7 @@ function SiteCard({
           </>
         ) : (
           <>
-            <span className="text-brand-400 font-medium text-[11px] truncate pr-2">
+            <span className="min-w-0 flex-1 text-brand-400 font-medium text-[11px] leading-4 pr-2">
               {diffPages != null && diffPages > 0 ? (
                 `Has +${diffPages.toLocaleString()} more pages`
               ) : diffPages != null && diffPages < 0 ? (
