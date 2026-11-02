@@ -55,13 +55,12 @@ type SettingsTab =
   | "devices"
   | "subscription";
 
-const HIDDEN_SETTINGS_TABS = new Set(["skills", "team", "devices"]);
+const HIDDEN_SETTINGS_TABS = new Set(["skills", "team", "devices", "personalization"]);
 const VISIBLE_SETTINGS_TABS = new Set<SettingsTab>([
   "websites",
   "credits",
   "agents",
   "integrations",
-  "personalization",
   "account",
   "subscription",
 ]);
@@ -165,21 +164,6 @@ function SettingsClient() {
                 hasDot
                 active={activeTab === "integrations"}
                 onClick={() => setTab("integrations")}
-              />
-            </nav>
-          </div>
-
-          {/* CHAT Category */}
-          <div>
-            <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-brand-400">
-              Chat
-            </p>
-            <nav className="space-y-0.5">
-              <SidebarItem
-                label="Personalization"
-                icon={<UserCircle size={15} />}
-                active={activeTab === "personalization"}
-                onClick={() => setTab("personalization")}
               />
             </nav>
           </div>
