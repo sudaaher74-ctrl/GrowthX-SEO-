@@ -220,29 +220,15 @@ function ChatGptIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 }
 
 function GoogleAiIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Google AI" role="img">
-      <path
-        d="M12 2C12 7.52285 7.52285 12 2 12C7.52285 12 12 16.4772 12 22C12 16.4772 16.4772 12 22 12C16.4772 12 12 7.52285 12 2Z"
-      />
-    </svg>
-  );
+  return <img src="https://cdn.simpleicons.org/googlegemini" alt="Google Gemini" className={className} />;
 }
 
 function ClaudeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Claude" role="img">
-      <path d="M12 2l1.6 5.8L19.4 9.4l-5.8 1.6L12 16.8l-1.6-5.8L4.6 9.4l5.8-1.6L12 2zm6 12l.9 3.3L22.2 18.2l-3.3.9L18 22.4l-.9-3.3-3.3-.9 3.3-.9L18 14zm-12 0l.9 3.3L10.2 18.2l-3.3.9L6 22.4l-.9-3.3-3.3-.9 3.3-.9L6 14z" />
-    </svg>
-  );
+  return <img src="https://cdn.simpleicons.org/claude" alt="Claude" className={className} />;
 }
 
 function PerplexityIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Perplexity" role="img">
-      <path d="M12 2a1 1 0 0 1 1 1v4.06a7.02 7.02 0 0 1 2.93 1.21l2.87-2.87a1 1 0 1 1 1.41 1.41l-2.87 2.87A7.02 7.02 0 0 1 18.55 12.6H22a1 1 0 1 1 0 2h-3.45a7.02 7.02 0 0 1-1.21 2.93l2.87 2.87a1 1 0 0 1-1.41 1.41l-2.87-2.87A7.02 7.02 0 0 1 13 20.06V23a1 1 0 1 1-2 0v-2.94a7.02 7.02 0 0 1-2.93-1.21l-2.87 2.87a1 1 0 0 1-1.41-1.41l2.87-2.87A7.02 7.02 0 0 1 5.45 14.6H2a1 1 0 1 1 0-2h3.45a7.02 7.02 0 0 1 1.21-2.93L3.79 6.8a1 1 0 0 1 1.41-1.41l2.87 2.87A7.02 7.02 0 0 1 11 7.06V3a1 1 0 0 1 1-1zm0 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
-    </svg>
-  );
+  return <img src="https://cdn.simpleicons.org/perplexity" alt="Perplexity" className={className} />;
 }
 
 type PromptCategory = "best-of" | "jobs-to-be-done" | "competitor" | "branded";
@@ -317,6 +303,7 @@ interface EngineCitation {
   status: "recommended" | "competitor" | "not_cited" | "pending";
   label: string;
   competitor?: string | null;
+  competitorDomain?: string | null;
   quote?: string | null;
 }
 
@@ -331,49 +318,72 @@ const ENGINES: {
   { key: "perplexity", name: "Perplexity", icon: PerplexityIcon },
 ];
 
+function answerMatchesEngine(answer: VisibilityAnswer, engine: SupportedEngine) {
+  const provider = (answer.provider || "").toUpperCase();
+  const model = (answer.model || "").toUpperCase();
+
+  switch (engine) {
+    case "ChatGPT":
+      return provider.includes("OPENAI") || provider.includes("CHATGPT") || provider.includes("GPT") || model.includes("GPT") || model.includes("OPENAI");
+    case "Google AI":
+      return provider.includes("GEMINI") || provider.includes("GOOGLE") || model.includes("GEMINI") || model.includes("GOOGLE");
+    case "Claude":
+      return provider.includes("ANTHROPIC") || provider.includes("CLAUDE") || model.includes("CLAUDE") || model.includes("ANTHROPIC");
+    case "Perplexity":
+      return provider.includes("PERPLEXITY") || model.includes("PERPLEXITY") || model.includes("SONAR");
+  }
+}
+
+function modelsForEngine(answers: VisibilityAnswer[], engine: SupportedEngine) {
+  return Array.from(new Set(
+    answers
+      .filter((answer) => answerMatchesEngine(answer, engine))
+      .map((answer) => answer.model?.trim())
+      .filter((model): model is string => Boolean(model)),
+  ));
+}
+
+function matchingCitationDomain(brandName: string | null | undefined, answers: VisibilityAnswer[]) {
+  if (!brandName) return null;
+  const normalizedBrand = brandName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!normalizedBrand) return null;
+  return answers
+    .flatMap((answer) => answer.citations || [])
+    .map((citation) => citation.domain?.trim())
+    .find((domain) => {
+      const normalizedDomain = domain?.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+      return normalizedDomain.includes(normalizedBrand);
+    }) || null;
+}
+
+function BrandLogo({ name, domain }: { name: string; domain?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?";
+
+  if (!domain || failed) {
+    return <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[9px] font-bold text-brand-600">{initials}</span>;
+  }
+
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
+      alt=""
+      aria-hidden="true"
+      className="h-5 w-5 shrink-0 rounded-full bg-white object-contain p-0.5"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function getEngineCitation(
   promptText: string,
   engine: SupportedEngine,
   answers: VisibilityAnswer[],
   businessName: string,
 ): EngineCitation {
-  const matchingAnswer = answers.find((a) => {
-    if (!matchPrompt(promptText, a.promptText)) return false;
-    const p = (a.provider || "").toUpperCase();
-    const m = (a.model || "").toUpperCase();
-
-    switch (engine) {
-      case "ChatGPT":
-        return (
-          p.includes("OPENAI") ||
-          p.includes("CHATGPT") ||
-          p.includes("GPT") ||
-          m.includes("GPT") ||
-          m.includes("OPENAI")
-        );
-      case "Google AI":
-        return (
-          p.includes("GEMINI") ||
-          p.includes("GOOGLE") ||
-          m.includes("GEMINI") ||
-          m.includes("GOOGLE")
-        );
-      case "Claude":
-        return (
-          p.includes("ANTHROPIC") ||
-          p.includes("CLAUDE") ||
-          m.includes("CLAUDE") ||
-          m.includes("ANTHROPIC")
-        );
-      case "Perplexity":
-        return (
-          p.includes("PERPLEXITY") ||
-          m.includes("PERPLEXITY") ||
-          m.includes("SONAR")
-        );
-    }
-  });
-
+  const matchingAnswer = answers.find(
+    (answer) => matchPrompt(promptText, answer.promptText) && answerMatchesEngine(answer, engine),
+  );
   if (!matchingAnswer) {
     return {
       engine,
@@ -415,6 +425,7 @@ function getEngineCitation(
       status: "competitor",
       label: `Cited instead: ${rival}`,
       competitor: rival,
+      competitorDomain: matchingCitationDomain(rivalMention, [matchingAnswer]) || (rivalCitation === rival ? rivalCitation : null),
       quote: matchingAnswer.analysis?.parsedJson?.recommendationQuote || null,
     };
   }
@@ -790,16 +801,23 @@ function PromptsSection({
 
         {/* Table container with horizontal scroll for smaller screens */}
         <div className="overflow-x-auto">
-          <div className="min-w-[820px]">
+          <div className="min-w-[920px]">
             {/* Table column headers */}
             <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-500">
               <div className="flex-1">Prompt</div>
               {ENGINES.map((engine) => {
                 const Icon = engine.icon;
+                const models = modelsForEngine(answers, engine.name);
+                const modelSummary = models.length > 1 ? `${models[0]} +${models.length - 1} more` : models[0] || "Model not recorded";
                 return (
-                  <div key={engine.name} className="flex w-20 items-center justify-center gap-1.5 sm:w-28">
-                    <Icon className="h-3.5 w-3.5 text-brand-600" />
-                    <span className="normal-case font-medium text-brand-700">{engine.name}</span>
+                  <div key={engine.name} className="flex w-28 flex-col items-center justify-center gap-0.5 px-1 text-center sm:w-36">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="normal-case font-medium text-brand-700">{engine.name}</span>
+                    </div>
+                    <span className="max-w-full break-all text-[9px] font-normal normal-case leading-3 text-brand-500" title={models.length ? `Model used: ${models.join(", ")}` : "No model recorded in saved answers"}>
+                      {modelSummary}
+                    </span>
                   </div>
                 );
               })}
@@ -889,7 +907,7 @@ function PromptsSection({
                         {ENGINES.map((engine) => {
                           const c = citations[engine.key];
                           return (
-                            <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
+                            <div key={engine.name} className="flex w-28 items-center justify-center px-1 sm:w-36">
                               {c.status === "recommended" ? (
                                 <span
                                   className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400"
@@ -900,11 +918,11 @@ function PromptsSection({
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
-                                  className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Other reference: ${c.competitor}`}
+                                  className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-warning-500/25 bg-warning-500/10 px-1.5 py-1 text-left text-[10px] font-medium leading-tight text-warning-700 shadow-xs dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300"
+                                  title={`Cited brand: ${c.competitor || "Rival"}`}
                                 >
-                                  <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
-                                  <span className="truncate">{c.competitor || "Rival"}</span>
+                                  <BrandLogo name={c.competitor || "Rival"} domain={c.competitorDomain} />
+                                  <span className="min-w-0 whitespace-normal break-words">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
                                 <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
@@ -974,7 +992,7 @@ function PromptsSection({
                         {ENGINES.map((engine) => {
                           const c = citations[engine.key];
                           return (
-                            <div key={engine.name} className="flex w-20 items-center justify-center sm:w-28">
+                            <div key={engine.name} className="flex w-28 items-center justify-center px-1 sm:w-36">
                               {c.status === "recommended" ? (
                                 <span
                                   className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400"
@@ -985,11 +1003,11 @@ function PromptsSection({
                                 </span>
                               ) : c.status === "competitor" ? (
                                 <span
-                                  className="inline-flex max-w-[95px] sm:max-w-[105px] items-center gap-1.5 rounded-full border border-warning-500/25 bg-warning-500/10 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300 truncate shadow-xs"
-                                  title={`Other reference: ${c.competitor}`}
+                                  className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-warning-500/25 bg-warning-500/10 px-1.5 py-1 text-left text-[10px] font-medium leading-tight text-warning-700 shadow-xs dark:border-warning-400/25 dark:bg-warning-400/10 dark:text-warning-300"
+                                  title={`Cited brand: ${c.competitor || "Rival"}`}
                                 >
-                                  <span className="h-1.5 w-1.5 rounded-full bg-warning-500 dark:bg-warning-400 shrink-0" />
-                                  <span className="truncate">{c.competitor || "Rival"}</span>
+                                  <BrandLogo name={c.competitor || "Rival"} domain={c.competitorDomain} />
+                                  <span className="min-w-0 whitespace-normal break-words">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
                                 <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
