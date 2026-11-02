@@ -6,7 +6,7 @@ import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, S
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
-import Link from "next/link";
+import { SiteSwitcher } from "@/components/layout/site-switcher";
 import {
   PERIOD_DAYS,
   setActivePeriod,
@@ -20,7 +20,6 @@ import { CommandPalette } from "@/components/ui/command-palette";
 
 /** Breadcrumb scope + title for each route, matching workspace architecture. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
-  "/clients": { scope: "Portfolio", title: "Projects" },
   "/dashboard": { scope: "Workspace", title: "Dashboard" },
   "/website": { scope: "Workspace", title: "Website Audit" },
   "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },
@@ -106,18 +105,7 @@ export function TopNav({
       {/* Breadcrumb with persistent Selected Project */}
       <div className="flex items-center gap-2 text-[13px]">
         {selectedProject ? (
-          <Link
-            href="/clients"
-            className="flex items-center gap-1.5 font-medium text-brand-700 hover:text-brand-950 transition"
-            title="Switch project"
-          >
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[9px] font-bold text-brand-800">
-              {selectedProject.name.slice(0, 2).toUpperCase()}
-            </span>
-            <span className="max-w-[130px] sm:max-w-[180px] truncate font-semibold">
-              {selectedProject.name}
-            </span>
-          </Link>
+          <SiteSwitcher variant="chip" />
         ) : (
           <span className="font-semibold text-brand-950">Reigel AI</span>
         )}
