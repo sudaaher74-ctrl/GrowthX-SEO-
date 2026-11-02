@@ -309,6 +309,7 @@ export function GitHubFixesLogView({
         return {
           key: `${report.id}-${ch.issueId}-${idx}`,
           runId: report.id,
+          issueId: ch.issueId || null,
           runStartedAt: report.startedAt,
           runStatus: report.status,
           reviewState: report.reviewState,
@@ -352,6 +353,7 @@ export function GitHubFixesLogView({
         return {
           key: `eng-run-${r.id}`,
           runId: r.id,
+          issueId: matchedFinding?.id ?? null,
           runStartedAt: r.startedAt,
           runStatus: r.status,
           reviewState: rep?.reviewState ?? ("OPEN" as const),
@@ -612,7 +614,7 @@ export function GitHubFixesLogView({
       if (lc === "DISMISSED") continue;
       const modGroup = groupOf(f.source);
       const fRun = findingRunMap.get(f.id);
-      const findingChange = prChanges.find((change) => change.findingTitle === f.title);
+      const findingChange = prChanges.find((change) => change.issueId === f.id) ?? prChanges.find((change) => change.findingTitle === f.title && (!change.url || f.affectedPages?.includes(change.url)));
       const isActioned = ["QUEUED", "APPROVED", "APPLYING", "VERIFYING", "VERIFIED", "MEASURED", "RESOLVED"].includes(lc);
       const evidenceSummary = f.evidence
         .slice(0, 3)
@@ -657,7 +659,7 @@ export function GitHubFixesLogView({
       });
 
       // Ensure Before / After Diffs filter shows every module's before/after blueprint even before a PR is merged
-      if (!prChanges.some((c) => c.findingTitle === f.title)) {
+      if (!prChanges.some((c) => c.issueId === f.id || (c.findingTitle === f.title && (!c.url || f.affectedPages?.includes(c.url))))) {
         entries.push({
           id: `finding-diff-${f.id}`,
           timestamp: f.lastTransitionAt || f.resolvedAt || f.detectedAt,
@@ -754,9 +756,16 @@ export function GitHubFixesLogView({
     const queuedOrActive = activeFindings.filter((f) =>
       ["QUEUED", "APPROVED", "APPLYING", "VERIFYING"].includes(f.lifecycle ?? "DETECTED"),
     );
-    const verifiedOrResolved =
-      prChanges.filter((c) => c.verification === "MATCHED").length +
-      activeFindings.filter((f) => ["VERIFIED", "MEASURED", "RESOLVED"].includes(f.lifecycle ?? "")).length;
+    const verifiedItems = new Set<string>();
+    for (const change of prChanges) {
+      if (change.verification === "MATCHED") {
+        verifiedItems.add(change.issueId || `${change.runId}:${change.url || change.file}:${change.findingTitle}`);
+      }
+    }
+    for (const finding of activeFindings) {
+      if (["VERIFIED", "MEASURED", "RESOLVED"].includes(finding.lifecycle ?? "")) verifiedItems.add(finding.id);
+    }
+    const verifiedOrResolved = verifiedItems.size;
     const prCount = runs.filter((r) => Boolean(r.pullRequestUrl)).length;
     const distinctPagesAndFiles = new Set([
       ...prChanges.map((c) => c.url || c.file).filter(Boolean),
@@ -1043,9 +1052,9 @@ export function GitHubFixesLogView({
           sub={connectedRepo ? `${connectedRepo.owner}/${connectedRepo.name}` : "Connect repo below"}
         />
         <Kpi
-          label="Before & After Diffs"
+          label="Before & After Records"
           value={count(kpiStats.beforeAfterCount)}
-          sub={`${count(prChanges.length)} PR diffs · ${count(kpiStats.totalAcrossTabs)} blueprints`}
+          sub={`${count(prChanges.length)} proposed or verified PR changes · ${count(kpiStats.totalAcrossTabs)} finding blueprints`}
         />
         <Kpi
           label="Confirmed Improved"
