@@ -192,117 +192,42 @@ export function GapsTab({
 
   return (
     <div className="space-y-4">
-      {/* ── TOP BRIEFING & STRATEGY BOX ── */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-5 shadow-card"
-        style={{ borderColor: "var(--border-color)" }}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-xs">
-              <Compass size={18} />
-            </div>
-            <div>
-              <h1 className="text-[16px] font-bold text-brand-950 tracking-[-0.01em]">
-                What your competitors have that you don&apos;t
-              </h1>
-              <p className="mt-0.5 text-[12px] text-brand-400">
-                Compare pages saved in your completed website audits. These are suggested content gaps from crawl evidence; Google rankings and traffic are not measured here.
-              </p>
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1.5 self-start sm:self-center px-3 py-1 rounded-full text-[11px] font-mono font-semibold bg-signal-400/15 text-signal-400 border border-signal-400/30 shrink-0">
-            <Sparkles size={11} className="text-signal-400" />
-            <span>AI Competitive Intelligence</span>
-          </div>
+      {competitors.length > 1 && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-xl border bg-surface-1 px-4 py-3"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-brand-400">
+            <SlidersHorizontal size={12} className="text-brand-400" />
+            Filter by rival:
+          </span>
+          {[{ domain: "all", name: "All competitors" }, ...rivals].map((r) => {
+            const isSelected = rivalFilter === r.domain;
+            return (
+              <button
+                key={r.domain}
+                type="button"
+                onClick={() => setRivalFilter(r.domain)}
+                aria-pressed={isSelected}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all",
+                  isSelected
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "border bg-surface-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100/50",
+                )}
+                style={{ borderColor: isSelected ? undefined : "var(--border-color)" }}
+              >
+                {r.domain === "all" ? (
+                  <Layers size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
+                ) : (
+                  <Building2 size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
+                )}
+                {r.name}
+              </button>
+            );
+          })}
         </div>
-
-        {/* 3 Step Walkthrough */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div
-            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
-              1
-            </span>
-            <div>
-              <p className="text-[12px] font-bold text-brand-950">1. Review Opportunities</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
-                Look through the list. Highest-impact gaps are ranked at the top of each category.
-              </p>
-            </div>
-          </div>
-
-          <div
-            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
-              2
-            </span>
-            <div>
-              <p className="text-[12px] font-bold text-brand-950">2. Generate Action Plan</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
-                Click <span className="font-semibold text-signal-400">&quot;Get a plan&quot;</span> on anything you want to target. You get ready-to-use prompts and structure.
-              </p>
-            </div>
-          </div>
-
-          <div
-            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
-              3
-            </span>
-            <div>
-              <p className="text-[12px] font-bold text-brand-950">3. Outrank &amp; Capture Traffic</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
-                Publish the content or send the plan straight to your web team to claim the search traffic.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Competitor Filter Bar */}
-        {competitors.length > 1 && (
-          <div
-            className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-brand-400">
-              <SlidersHorizontal size={12} className="text-brand-400" />
-              Filter by Rival:
-            </span>
-            {[{ domain: "all", name: "All competitors" }, ...rivals].map((r) => {
-              const isSelected = rivalFilter === r.domain;
-              return (
-                <button
-                  key={r.domain}
-                  type="button"
-                  onClick={() => setRivalFilter(r.domain)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all",
-                    isSelected
-                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs scale-[1.02]"
-                      : "border bg-surface-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100/50",
-                  )}
-                  style={{ borderColor: isSelected ? undefined : "var(--border-color)" }}
-                >
-                  {r.domain === "all" ? (
-                    <Layers size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
-                  ) : (
-                    <Building2 size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
-                  )}
-                  {r.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {facts.isLoading ? (
         <div
