@@ -70,7 +70,7 @@ export function BattlegroundTab({
 
   return (
     <div className="space-y-4">
-      {/* Competitor pick-list: toggling one off drops it from the scoreboard */}
+      {/* Competitor pick-list: toggle tracked competitors on or off */}
       <div className="flex flex-wrap items-center gap-2">
         {competitors.map((c) => {
           const on = selectedIds.includes(c.id);
