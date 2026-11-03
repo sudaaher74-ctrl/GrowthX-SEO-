@@ -187,7 +187,7 @@ export class AuditReportService {
           missingTitle: ok.filter((p) => !(p.title ?? '').trim()).length,
           missingDescription: ok.filter((p) => !(p.metaDescription ?? '').trim()).length,
           missingHeadline: ok.filter((p) => !p.h1?.length).length,
-          hiddenFromGoogle: ok.filter((p) => /NOINDEX|NON_INDEXABLE|BLOCKED/i.test(p.indexability ?? '')).length,
+          hiddenFromGoogle: ok.filter((p) => /NOINDEX|NOT_INDEXABLE|NON_INDEXABLE|BLOCKED/i.test(p.indexability ?? '')).length,
           withGoogleDetails: ok.filter((p) => p._count.schemas > 0).length,
         };
       }

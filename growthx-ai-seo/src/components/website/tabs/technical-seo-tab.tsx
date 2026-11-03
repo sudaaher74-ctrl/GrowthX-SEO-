@@ -197,7 +197,7 @@ export function TechnicalSeoTab({
     if (thinCount > 0) {
       opps.push({
         id: "thin",
-        title: `Expand thin content pages (${thinCount} pages under 300 words)`,
+        title: `Review page content (${thinCount} pages flagged)`,
         count: thinCount,
       });
     }

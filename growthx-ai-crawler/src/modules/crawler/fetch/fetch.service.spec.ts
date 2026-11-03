@@ -88,6 +88,14 @@ describe('FetchService', () => {
     });
   });
 
+  it('waits past a stable loading message until the route content arrives', async () => {
+    server = await startFixtureServer({ '/': { body: `<html><head><title>Loading</title></head><body><div id="root">Loading your fresh experience...</div><script>setTimeout(() => { document.querySelector('#root').innerHTML = '<main><h1>Fresh milk delivery</h1><p>Order fresh milk for your home.</p></main>'; document.title = 'Fresh milk delivery'; }, 2200);</script></body></html>` } });
+    const out = await fetcher.fetch(server.url('/'), { forceRender: true });
+    expect(out.tier).toBe('rendered');
+    expect(out.html).toContain('<h1>Fresh milk delivery</h1>');
+    expect(out.renderDiff?.renderedTitle).toBe('Fresh milk delivery');
+  });
+
   it('does not render a page the origin already serves complete', async () => {
     server = await startFixtureServer({ '/': { body: staticPage({ title: 'Complete' }) } });
 

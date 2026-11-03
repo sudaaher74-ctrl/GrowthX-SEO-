@@ -31,6 +31,7 @@ export interface ExtractedPage {
   metaDescription?: string;
   metaDescriptionLength: number;
   canonicalUrl?: string;
+  canonicalUrls?: string[];
   canonicalIsSelfReferential?: boolean;
   metaRobots?: string;
   headings: HeadingNode[];
@@ -97,6 +98,11 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
   const metaDescription = $('meta[name="description" i]').attr('content')?.trim() || undefined;
   const metaRobots = $('meta[name="robots" i]').attr('content')?.trim() || $('meta[name="googlebot" i]').attr('content')?.trim() || undefined;
 
+  const canonicalUrls = [...new Set($('link[rel="canonical" i]').map((_, el) => {
+    const href = $(el).attr('href')?.trim();
+    if (!href) return null;
+    try { return new URL(href, pageUrl).toString(); } catch { return href; }
+  }).get())];
   const rawCanonical = $('link[rel="canonical" i]').attr('href')?.trim();
   let canonicalUrl: string | undefined;
   let canonicalIsSelfReferential: boolean | undefined;
@@ -253,6 +259,7 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
     metaDescription,
     metaDescriptionLength: metaDescription?.length ?? 0,
     canonicalUrl,
+    canonicalUrls,
     canonicalIsSelfReferential,
     metaRobots,
     headings,

@@ -832,6 +832,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           metaRobots: htmlData.robotsMeta,
           xRobotsTag: outcome.headers['x-robots-tag'],
           canonicalUrl: htmlData.canonicalUrl,
+          canonicalUrls: htmlData.canonicalUrls,
+          renderUnavailable: outcome.renderUnavailable,
           pageUrl: outcome.finalUrl,
           fetchFailed: Boolean(outcome.error),
         });
@@ -858,7 +860,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           contentType: fetchRes.contentType,
           htmlSnapshotUrl: snapshotUrl,
           ...v2Columns,
-          title: htmlData.title,
+          title: outcome.renderUnavailable ? null : htmlData.title,
           metaDescription: htmlData.metaDescription,
           canonicalUrl: htmlData.canonicalUrl,
           robotsMeta: htmlData.robotsMeta,
@@ -867,7 +869,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           h3: htmlData.h3,
           wordCount: content.wordCount,
           readingTimeMin: content.readingTimeMin,
-          contentHash: content.contentHash,
+          contentHash: outcome.renderUnavailable ? null : content.contentHash,
           simHash: content.simHash || undefined,
         };
         const alreadyStored = this.prisma.page.findUnique ? await this.prisma.page.findUnique({
@@ -941,7 +943,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         if (outcome.error || outcome.blockedSuspected) {
           await this.recorder.persistFetchFailureIssue(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         } else {
-          await this.issueEngine.evaluateAndPersistIssues(
+          if (!outcome.renderUnavailable) await this.issueEngine.evaluateAndPersistIssues(
             payload.jobId,
             await this.recorder.resolveProjectId(payload.websiteId),
             payload.websiteId,
@@ -957,7 +959,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             content,
             schemas,
             inSitemap,
-            true
+            true,
+            pageType
           );
 
           // The legacy engine knows nothing about rendering, so the highest-value

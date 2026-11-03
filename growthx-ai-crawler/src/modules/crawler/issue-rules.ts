@@ -250,7 +250,18 @@ export function evaluatePage(input: PageRuleInput): Finding[] {
     }));
   }
 
-  if (!extracted.canonicalUrl) {
+  const conflictingCanonicals = (extracted.canonicalUrls?.length || 0) > 1;
+  const utilityPage = /\/(?:app\/)?(?:login|register|sign-in|signup|account|cart|checkout|wallet)(?:\/|$)/i.test(new URL(url).pathname);
+  const searchContent = !utilityPage && !/(?:^|[,;\s])(?:noindex|none)(?:$|[,;\s])/i.test(extracted.metaRobots || '');
+  if (conflictingCanonicals) {
+    findings.push(content('CONFLICTING_CANONICALS', 'HIGH', 'CONFIRMED', url, {
+      description: 'Page declares conflicting canonical URLs.',
+      explanation: 'The page declares more than one preferred URL.',
+      impact: 'Search engines may ignore conflicting hints; the indexed URL was not measured.',
+      recommendation: 'Review the intended preferred URL and remove conflicting canonical tags.',
+      evidence: extracted.canonicalUrls!.join(' | '), sourceField: 'extracted.canonicalUrls',
+    }));
+  } else if (!extracted.canonicalUrl) {
     findings.push(content('NO_CANONICAL', 'MEDIUM', 'LIKELY', url, {
       description: 'Page declares no canonical URL.',
       explanation:
@@ -267,8 +278,8 @@ export function evaluatePage(input: PageRuleInput): Finding[] {
       description: crossDomain ? 'Canonical points to a different domain.' : 'Canonical points to a different URL.',
       explanation: 'A canonical tells search engines to index the target instead of this page.',
       impact: crossDomain
-        ? 'This page is asking search engines to credit another domain entirely. It will not rank on its own.'
-        : 'This page will not rank in its own right; its signals are handed to the canonical target.',
+        ? 'Search engines may consolidate this page with the declared external target.'
+        : 'Search engines may consolidate this page with the declared target. The indexed URL was not measured.',
       recommendation: crossDomain ? 'Point the canonical at this page unless handing the ranking away is deliberate.' : 'Confirm the canonical target is the page you want indexed.',
       evidence: `<link rel="canonical" href="${extracted.canonicalUrl}"> on ${url}`,
       sourceField: 'extracted.canonicalUrl',
@@ -297,7 +308,7 @@ export function evaluatePage(input: PageRuleInput): Finding[] {
 
   // Suppressed for a page in a duplicate cluster: the defect there is
   // duplication, reported once for the cluster, not thinness on each copy.
-  if (extracted.wordCount < THIN_CONTENT_WORDS && !input.duplicateCluster) {
+  if (searchContent && extracted.wordCount < THIN_CONTENT_WORDS && !input.duplicateCluster) {
     findings.push(content('THIN_CONTENT', 'MEDIUM', 'LIKELY', url, {
       description: `Page has ${extracted.wordCount} words of main content.`,
       explanation: `Below roughly ${THIN_CONTENT_WORDS} words there is usually not enough substance to answer a query fully.`,
@@ -345,7 +356,7 @@ export function evaluatePage(input: PageRuleInput): Finding[] {
     }
   }
 
-  if (!input.inSitemap && status === 200 && !isHomepage) {
+  if (!input.inSitemap && status === 200 && !isHomepage && searchContent && !conflictingCanonicals && extracted.canonicalIsSelfReferential !== false) {
     findings.push(content('NOT_IN_SITEMAP', 'LOW', 'ADVISORY', url, {
       description: 'Page is not listed in the sitemap.',
       explanation: 'A sitemap is how a site tells search engines which URLs it considers worth indexing.',

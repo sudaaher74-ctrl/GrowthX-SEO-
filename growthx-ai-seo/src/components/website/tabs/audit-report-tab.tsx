@@ -48,7 +48,7 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
     <div className="space-y-4">
       <Panel
         title="Full website report"
-        subtitle="Everything the audit found, in plain words: what's wrong, why it matters, how to fix it and whether you can do it yourself. Written by Sarvam 105B from your website's real data."
+        subtitle="Everything the audit found, in plain words: what's wrong, why it matters, how to fix it and whether you can do it yourself. Based on the saved audit findings."
         actions={
           <ActionButton
             variant="primary"

@@ -51,9 +51,10 @@ export function TechnicalHealthPillars({
   securityGood,
   onSwitchTab,
 }: TechnicalHealthPillarsProps) {
-  const healthBadgeStyle = getHealthBadgeStyle(healthScore);
-  const healthStatusText = getHealthStatusText(healthScore);
-  const healthTone = getHealthTone(healthScore);
+  const needsReview = healthScore != null && (severityCounts.HIGH > 0 || severityCounts.CRITICAL > 0 || summary.indexabilityUnknown > 0 || canonicalIssuesCount > 0);
+  const healthBadgeStyle = needsReview ? "bg-warning-50 text-warning-700 border-warning-200/50" : getHealthBadgeStyle(healthScore);
+  const healthStatusText = needsReview ? "Needs review" : getHealthStatusText(healthScore);
+  const healthTone = needsReview ? "warn" : getHealthTone(healthScore);
 
   const blockedCount = summary.blocked;
   const errorPagesCount = summary.errored;
@@ -107,7 +108,7 @@ export function TechnicalHealthPillars({
                 ? "Scan to analyze health"
                 : severityCounts.CRITICAL > 0
                 ? `${severityCounts.CRITICAL} critical issues found`
-                : "Baseline parameters normal"
+                : needsReview ? "Review findings and incomplete checks" : "Score reflects the checks completed"
             }
             buttonText="View Recommendations"
             onButtonClick={() => {
