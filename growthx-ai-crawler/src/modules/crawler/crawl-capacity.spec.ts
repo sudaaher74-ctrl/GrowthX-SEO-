@@ -115,10 +115,13 @@ describe('crawl capacity', () => {
       expect(created[0]).toMatchObject({ concurrency: limits.maxConcurrency, depthLimit: limits.maxDepth, pageLimit: limits.maxPageLimit });
     });
 
-    it('gives every crawl a page ceiling, even when none was asked for', async () => {
-      const { start, created } = fakeService(null);
+    it('starts uncapped by default and passes no page ceiling to the worker', async () => {
+      const { start, created, self } = fakeService(null);
       await start();
-      expect(created[0].pageLimit).toBe(crawlLimits().defaultPageLimit);
+      expect(created[0].pageLimit).toBeNull();
+      expect(self.queue.addCrawlJob.mock.calls[0][0].pageLimit).toBeUndefined();
+      expect(created[0].concurrency).toBe(5);
+      expect(created[0].depthLimit).toBe(10);
     });
 
     it('keeps a smaller page limit a caller asked for', async () => {
@@ -144,7 +147,7 @@ describe('crawl capacity', () => {
       expect(created[0].pageLimit).toBe(150);
     });
 
-    it('requires an exact true setting to opt in', async () => {
+    it('restores finite page limits only when explicitly disabled', async () => {
       process.env.CRAWL_UNLIMITED_PAGES = 'false';
       const { start, created } = fakeService(null);
       await start();

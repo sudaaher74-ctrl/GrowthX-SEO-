@@ -1715,7 +1715,7 @@ export function crawlLimits() {
     maxDepth: num('CRAWL_MAX_DEPTH', 25),
     defaultPageLimit: num('CRAWL_DEFAULT_PAGE_LIMIT', 2000),
     maxPageLimit: num('CRAWL_MAX_PAGE_LIMIT', 5000),
-    unlimitedPages: process.env.CRAWL_UNLIMITED_PAGES === 'true',
+    unlimitedPages: process.env.CRAWL_UNLIMITED_PAGES !== 'false',
   };
 }
 
