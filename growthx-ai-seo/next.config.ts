@@ -65,7 +65,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/local",
-        destination: "/google-business-profile",
+        destination: "/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/google-business-profile",
+        destination: "/dashboard",
         permanent: false,
       },
       // Billing and plans were removed; what a workspace may use is now its tokens.
