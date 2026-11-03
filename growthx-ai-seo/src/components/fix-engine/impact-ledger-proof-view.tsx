@@ -133,9 +133,9 @@ export function ImpactLedgerProofView({
                 <History className="h-4 w-4" />
               </span>
               <h2 className="text-[16px] font-semibold text-brand-900">
-                Impact & change history
+                Improvement journey
               </h2>
-              <Pill tone="default">Verified changes only</Pill>
+              <Pill tone="default">Recorded activity</Pill>
             </div>
             <p className="max-w-3xl text-[13px] text-brand-600">
               See what changed on your site, what we verified, and what the connected search or AI data can measure.
@@ -206,7 +206,7 @@ export function ImpactLedgerProofView({
           )}
         >
           <Sparkles className="h-4 w-4" />
-          Verified live changes & 30/90-day measures
+          Improvement journeys
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
             {cards.length}
           </span>
@@ -222,7 +222,7 @@ export function ImpactLedgerProofView({
           )}
         >
           <Layers className="h-4 w-4" />
-          Recent Activity Ledger
+          All activity
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
             {ledgerEvents.length}
           </span>
@@ -269,6 +269,7 @@ export function ImpactLedgerProofView({
                 <VisualProofCard
                   key={card.runId}
                   card={card}
+                  events={ledgerEvents.filter((event) => event.automationRunId === card.runId)}
                   onLaunchIteration={onLaunchIteration}
                 />
               ))}
@@ -331,9 +332,11 @@ export function ImpactLedgerProofView({
 // ───────────────────────────────────────────────────────────── Visual Proof Card
 function VisualProofCard({
   card,
+  events,
   onLaunchIteration,
 }: {
   card: ProofOfImpactCard;
+  events: FixLedgerEntry[];
   onLaunchIteration?: (instruction: string) => void;
 }) {
   const metrics30d = card.metrics30d;
@@ -366,7 +369,7 @@ function VisualProofCard({
             {card.liftStatus === "MONITORING" && (
               <Pill tone="default">
                 <Clock className="mr-1 h-3 w-3 inline" />
-                Monitoring Window
+                Awaiting measurement
               </Pill>
             )}
           </div>
@@ -401,6 +404,38 @@ function VisualProofCard({
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/50 p-4">
+        <h4 className="text-[13px] font-semibold text-brand-900">What happened</h4>
+        {events.length > 0 ? (
+          <ol className="mt-3 space-y-3">
+            {[...events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((event) => (
+              <li key={event.id} className="flex gap-3 text-[12px]">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent-600" aria-hidden="true" />
+                <div><span className="font-semibold text-brand-900">{eventLabel(event.eventType)}</span>
+                  <span className="ml-2 text-brand-500">{new Date(event.createdAt).toLocaleString()}</span>
+                  {event.description && <p className="mt-1 text-brand-600">{event.description}</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : <p className="mt-2 text-[12px] text-brand-500">No matching activity is available among the most recent 100 events.</p>}
+        <p className="mt-3 text-[11px] text-brand-500">Activity is matched to this task by its run ID. Older events may not appear.</p>
+      </div>
+      <div className="mt-4 rounded-xl border border-brand-200 p-4">
+        <h4 className="text-[13px] font-semibold text-brand-900">Results over time</h4>
+        <p className="mt-1 text-[11px] text-brand-500">Search clicks for the reported page. Measurements describe changes over time; they do not establish that this task caused them.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {[{ label: "30-day check", metric: card.metrics30d }, { label: "90-day check", metric: card.metrics90d }].map(({ label, metric }) => (
+            <div key={label} className="rounded-lg border border-brand-200 bg-brand-50/50 p-3">
+              <div className="text-[12px] font-semibold text-brand-900">{label}</div>
+              {metric?.status === "OBSERVED" && metric.beforeClicks != null && metric.afterClicks != null ? (
+                <p className="mt-1 text-[12px] text-brand-700">Baseline: {metric.beforeClicks} clicks · After: {metric.afterClicks} clicks</p>
+              ) : <p className="mt-1 text-[12px] text-brand-500">Not measured yet</p>}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -514,7 +549,7 @@ function VisualProofCard({
           <div className="flex flex-col gap-2 rounded bg-warn-100/60 p-3 border border-warn-200 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-warn-800">
-                Strategy Pivot Prepared:
+                Suggested follow-up:
               </span>
               <p className="text-[12px] font-medium text-warn-950">
                 {card.loopStatus.pivotTitle}
@@ -526,7 +561,7 @@ function VisualProofCard({
                 onClick={() => onLaunchIteration(card.loopStatus!.pivotAction!)}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded bg-accent-700 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-accent-800 transition-colors"
               >
-                Launch Iteration 2 in GitHub Fix Engine
+                Review follow-up in Fix Engine
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             )}
