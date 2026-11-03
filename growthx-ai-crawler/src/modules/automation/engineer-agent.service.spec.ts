@@ -328,6 +328,20 @@ describe('EngineerAgentService', () => {
     expect(run.filesChanged).toEqual(['app/page.tsx']);
   });
 
+  it('requires a fresh read after a successful edit before another change to the same file', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: '<title>Old title</title>', new: '<title>First title</title>' }),
+      act({ tool: 'read', path: 'app/page.tsx' }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: '<title>First title</title>', new: '<title>Second title</title>' }),
+      act({ tool: 'finish', summary: 'Updated the title.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(router.generate.mock.calls[2][0].prompt).toMatch(/Read the relevant section of app\/page.tsx again/);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects repeated identical failed edit attempts with clear guidance', async () => {
     replies.push(
       act({ tool: 'read', path: 'app/page.tsx' }),
