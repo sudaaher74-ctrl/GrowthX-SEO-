@@ -13,7 +13,7 @@ import { ImpactLedgerProofView } from "@/components/fix-engine/impact-ledger-pro
 const TABS = [
   { id: "improvement", label: "Improvement", icon: Wrench },
   { id: "github-fixes", label: "GitHub Fixes & Improvement Log", icon: GitPullRequest },
-  { id: "impact-ledger", label: "Impact Ledger & 30d/90d Proof", icon: History },
+  { id: "impact-ledger", label: "Improvement Journey", icon: History },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
