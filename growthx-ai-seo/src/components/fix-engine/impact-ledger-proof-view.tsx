@@ -113,55 +113,44 @@ export function ImpactLedgerProofView({
 
   return (
     <div className="space-y-6">
-      {/* Overview Banner */}
-      <Panel>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center rounded bg-accent-100 p-1 text-accent-700">
-                <History className="h-4 w-4" />
-              </span>
-              <h2 className="text-[16px] font-semibold text-brand-900">
-                Improvement journey
-              </h2>
-              <Pill tone="default">Recorded activity</Pill>
+      {/* Overview */}
+      <Panel padded>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-100 text-accent-700">
+              <History className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-[18px] font-semibold tracking-tight text-brand-900">Improvement journey</h2>
+              <p className="mt-1 text-[13px] leading-5 text-brand-600">Track your changes and see their results over time.</p>
             </div>
-            <p className="max-w-3xl text-[13px] text-brand-600">
-              See what changed on your site, what we verified, and what the connected search or AI data can measure.
-            </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <ActionButton
-              variant="secondary"
-              onClick={handleEvaluateClick}
-              disabled={evaluateLoopMutation.isPending}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", evaluateLoopMutation.isPending && "animate-spin")} />
-              {evaluateLoopMutation.isPending ? "Evaluating Loop…" : "Recheck impact measurements"}
-            </ActionButton>
-          </div>
+          <ActionButton variant="secondary" onClick={handleEvaluateClick} disabled={evaluateLoopMutation.isPending}>
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", evaluateLoopMutation.isPending && "animate-spin")} />
+            {evaluateLoopMutation.isPending ? "Checking…" : "Recheck results"}
+          </ActionButton>
         </div>
 
         {evaluatingMessage && (
-          <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50/80 p-3.5 text-[12px] text-brand-900 flex items-start justify-between gap-3 shadow-xs">
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="h-4 w-4 text-accent-700 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{evaluatingMessage}</span>
-            </div>
-            <button
-              onClick={() => setEvaluatingMessage(null)}
-              className="text-[11px] font-semibold text-brand-500 hover:text-brand-800 shrink-0"
-            >
-              Dismiss
-            </button>
+          <div role="status" className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-[12px] text-brand-800">
+            <span className="leading-relaxed">{evaluatingMessage}</span>
+            <button onClick={() => setEvaluatingMessage(null)} className="shrink-0 font-semibold text-brand-500 hover:text-brand-800">Dismiss</button>
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[12px] text-brand-600">
-          <span><strong className="text-brand-900">{verifiedCount}</strong> verified live</span>
-          <span><strong className="text-brand-900">{measuredCount}</strong> with measurements</span>
-          <span><strong className="text-brand-900">{ledgerEvents.length}</strong> recent events</span>
+        <div className="mt-5 grid gap-3 border-t border-brand-200 pt-5 sm:grid-cols-3">
+          <div className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3">
+            <p className="text-[11px] font-medium text-brand-500">Verified live</p>
+            <p className="mt-1 text-[20px] font-semibold leading-none text-brand-900">{proofQuery.isLoading ? "…" : proofQuery.error ? "—" : verifiedCount}</p>
+          </div>
+          <div className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3">
+            <p className="text-[11px] font-medium text-brand-500">With measurements</p>
+            <p className="mt-1 text-[20px] font-semibold leading-none text-brand-900">{proofQuery.isLoading ? "…" : proofQuery.error ? "—" : measuredCount}</p>
+          </div>
+          <div className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3">
+            <p className="text-[11px] font-medium text-brand-500">Recent events</p>
+            <p className="mt-1 text-[20px] font-semibold leading-none text-brand-900">{ledgerQuery.isLoading ? "…" : ledgerQuery.error ? "—" : ledgerEvents.length}</p>
+          </div>
         </div>
       </Panel>
 
