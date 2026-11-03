@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { ActionButton, Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
+import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { FailedState, LoadingState } from "@/components/ui/truthful-state";
 import { errorMessage } from "@/lib/error-message";
 import { api } from "@/lib/api-client";
@@ -76,7 +76,7 @@ export function ImpactLedgerProofView({
 
   const cards = proofQuery.data ?? [];
   const ledgerEvents = ledgerQuery.data ?? [];
-  const [now] = useState(() => Date.now());
+  
 
   const handleEvaluateClick = () => {
     if (cards.length === 0) {
@@ -108,19 +108,8 @@ export function ImpactLedgerProofView({
     });
   }, [ledgerEvents, ledgerFilter]);
 
-  // Derive KPIs
-  const verifiedCount = cards.filter((c) => c.after.verificationStatus === "VERIFIED_LIVE").length;
-  const monitoringCount = cards.filter((c) => c.liftStatus === "MONITORING").length;
-  const loopCount = cards.filter((c) => c.liftStatus === "FLAT").length;
-
-  // The API returns up to 100 events newest-first; report the age of the oldest available event.
-  const earliestEvent = ledgerEvents.reduce<(typeof ledgerEvents)[number] | null>(
-    (earliest, event) => !earliest || new Date(event.createdAt).getTime() < new Date(earliest.createdAt).getTime() ? event : earliest,
-    null,
-  );
-  const daysActive = earliestEvent
-    ? Math.max(0, Math.floor((now - new Date(earliestEvent.createdAt).getTime()) / 86400000))
-    : null;
+  const verifiedCount = cards.filter((card) => card.after.verificationStatus === "VERIFIED_LIVE").length;
+  const measuredCount = cards.filter((card) => card.metrics30d?.status === "OBSERVED" || card.metrics90d?.status === "OBSERVED").length;
 
   return (
     <div className="space-y-6">
@@ -169,28 +158,10 @@ export function ImpactLedgerProofView({
           </div>
         )}
 
-        {/* Milestone KPIs */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi
-            label="Available History"
-            value={daysActive == null ? "—" : `${daysActive} days`}
-            sub={earliestEvent ? `From oldest available event · ${new Date(earliestEvent.createdAt).toLocaleDateString()}` : "No tracking events yet"}
-          />
-          <Kpi
-            label="Verified Fixes Live"
-            value={String(verifiedCount)}
-            sub="Confirmed live on HTML"
-          />
-          <Kpi
-            label="Recent Ledger Events"
-            value={String(ledgerEvents.length)}
-            sub="Up to the latest 100 records"
-          />
-          <Kpi
-            label="Needs review"
-            value={loopCount > 0 ? String(loopCount) : monitoringCount > 0 ? "Monitoring" : cards.length > 0 ? "None" : "No data"}
-            sub={loopCount > 0 ? "Measured comparisons show no positive change" : monitoringCount > 0 ? `${monitoringCount} live fixes still need measurement` : cards.length > 0 ? "No follow-up review needed" : "No verified live fixes to evaluate"}
-          />
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[12px] text-brand-600">
+          <span><strong className="text-brand-900">{verifiedCount}</strong> verified live</span>
+          <span><strong className="text-brand-900">{measuredCount}</strong> with measurements</span>
+          <span><strong className="text-brand-900">{ledgerEvents.length}</strong> recent events</span>
         </div>
       </Panel>
 
@@ -263,15 +234,32 @@ export function ImpactLedgerProofView({
           ) : (
             <>
               <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-4 py-3 text-[12px] text-brand-700">
-                Shows up to 20 verified changes. A live check confirms the page shown on each card. It may not cover every page named in the original issue, and measured changes do not prove the fix caused them.
+                Showing up to 20 recent changes. Results do not prove what caused them.
               </div>
               {cards.map((card) => (
-                <VisualProofCard
-                  key={card.runId}
-                  card={card}
-                  events={ledgerEvents.filter((event) => event.automationRunId === card.runId)}
-                  onLaunchIteration={onLaunchIteration}
-                />
+                <details key={card.runId} className="group overflow-hidden rounded-xl border border-brand-200 bg-white">
+                  <summary className="flex cursor-pointer list-none flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] font-semibold text-brand-900">{card.title}</h3>
+                      <p className="mt-1 break-all text-[11px] text-brand-500">{card.url}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 text-[11px]">
+                      <Pill tone={card.after.verificationStatus === "VERIFIED_LIVE" ? "good" : "default"}>
+                        {card.after.verificationStatus === "VERIFIED_LIVE" ? "Verified live" : "Not verified"}
+                      </Pill>
+                      <Pill tone="default">{card.metrics30d?.status === "OBSERVED" ? "Results available" : "Awaiting results"}</Pill>
+                      <span className="font-semibold text-accent-700 group-open:hidden">View details ↓</span>
+                      <span className="hidden font-semibold text-accent-700 group-open:inline">Hide details ↑</span>
+                    </div>
+                  </summary>
+                  <div className="border-t border-brand-200 p-3">
+                    <VisualProofCard
+                      card={card}
+                      events={ledgerEvents.filter((event) => event.automationRunId === card.runId)}
+                      onLaunchIteration={onLaunchIteration}
+                    />
+                  </div>
+                </details>
               ))}
             </>
           )}
@@ -421,8 +409,8 @@ function VisualProofCard({
               </li>
             ))}
           </ol>
-        ) : <p className="mt-2 text-[12px] text-brand-500">No matching activity is available among the most recent 100 events.</p>}
-        <p className="mt-3 text-[11px] text-brand-500">Activity is matched to this task by its run ID. Older events may not appear.</p>
+        ) : <p className="mt-2 text-[12px] text-brand-500">No matching activity found in recent records.</p>}
+        <p className="mt-3 text-[11px] text-brand-500">Older activity may not appear.</p>
       </div>
       <div className="mt-4 rounded-xl border border-brand-200 p-4">
         <h4 className="text-[13px] font-semibold text-brand-900">Results over time</h4>
@@ -467,7 +455,7 @@ function VisualProofCard({
             <div className="rounded bg-white p-2 border border-brand-200">
               <span className="text-[11px] text-brand-500 block">AI response mention rate (sample):</span>
               <span className="font-semibold text-brand-800">
-                {card.before.aiVisibility || "Not measured"}
+                {"Not available"}
               </span>
             </div>
           </div>
@@ -486,9 +474,9 @@ function VisualProofCard({
           </div>
 
           <div className="mt-3">
-            <label className="text-[11px] font-medium text-good-800">Verified live HTML snapshot:</label>
+            <label className="text-[11px] font-medium text-good-800">Saved page snapshot:</label>
             <div className="mt-1 rounded bg-white p-3 font-mono text-[12px] text-good-950 border border-good-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-              {card.after.text || "No live HTML text was captured"}
+              {card.after.text || "No page snapshot was captured"}
             </div>
           </div>
 
@@ -499,7 +487,7 @@ function VisualProofCard({
                 <span className="font-semibold text-brand-900">
                   {metrics30d?.afterClicks != null ? metrics30d?.afterClicks : "Not measured"}
                 </span>
-                {clicksDeltaPct != null && (
+                {metrics30d?.status === "OBSERVED" && metrics30d.afterClicks != null && clicksDeltaPct != null && (
                   <span className={cn(
                     "rounded px-1.5 py-0.2 text-[10px] font-bold",
                     clicksDeltaPct > 0 ? "bg-good-100 text-good-800" :
@@ -513,7 +501,7 @@ function VisualProofCard({
             <div className="rounded bg-white p-2 border border-good-200">
               <span className="text-[11px] text-brand-500 block">AI brand mention rate</span>
               <span className="font-semibold text-brand-900">
-                {card.after.aiVisibility || "Not measured"}
+                {"Not available"}
               </span>
             </div>
           </div>
@@ -632,7 +620,7 @@ function LedgerTimelineItem({ event }: { event: FixLedgerEntry }) {
       </div>
 
       <h4 className="mt-2 text-[14px] font-semibold text-brand-900">{event.title}</h4>
-      <p className="mt-1 text-[13px] text-brand-600">{event.description}</p>
+      <details className="mt-2"><summary className="cursor-pointer text-[12px] font-medium text-accent-700">View details</summary><p className="mt-2 text-[12px] text-brand-600">{event.description}</p></details>
 
       {/* Meta links */}
       {(event.affectedUrl || event.pullRequestUrl) && (
