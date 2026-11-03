@@ -263,7 +263,7 @@ export function ImpactLedgerProofView({
           ) : (
             <>
               <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-4 py-3 text-[12px] text-brand-700">
-                A live check confirms the page shown on each card. It may not cover every page named in the original issue, and measured changes do not prove the fix caused them.
+                Shows up to 20 verified changes. A live check confirms the page shown on each card. It may not cover every page named in the original issue, and measured changes do not prove the fix caused them.
               </div>
               {cards.map((card) => (
                 <VisualProofCard
@@ -426,13 +426,13 @@ function VisualProofCard({
       </div>
       <div className="mt-4 rounded-xl border border-brand-200 p-4">
         <h4 className="text-[13px] font-semibold text-brand-900">Results over time</h4>
-        <p className="mt-1 text-[11px] text-brand-500">Search clicks for the reported page. Measurements describe changes over time; they do not establish that this task caused them.</p>
+        <p className="mt-1 text-[11px] text-brand-500">Search Console clicks for the reported page. The baseline covers 28 days; later windows may have different lengths. Changes do not establish that this task caused them.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {[{ label: "30-day check", metric: card.metrics30d }, { label: "90-day check", metric: card.metrics90d }].map(({ label, metric }) => (
             <div key={label} className="rounded-lg border border-brand-200 bg-brand-50/50 p-3">
               <div className="text-[12px] font-semibold text-brand-900">{label}</div>
               {metric?.status === "OBSERVED" && metric.beforeClicks != null && metric.afterClicks != null ? (
-                <p className="mt-1 text-[12px] text-brand-700">Baseline: {metric.beforeClicks} clicks · After: {metric.afterClicks} clicks</p>
+                <p className="mt-1 text-[12px] text-brand-700">Baseline (28 days): {metric.beforeClicks} clicks · {label}: {metric.afterClicks} clicks</p>
               ) : <p className="mt-1 text-[12px] text-brand-500">Not measured yet</p>}
             </div>
           ))}
