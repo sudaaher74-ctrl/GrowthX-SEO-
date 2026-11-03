@@ -729,14 +729,17 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     }
 
     const allVerified = results.length > 0 && results.every((result) => result.verificationStatus === 'VERIFIED');
+    const incomplete = results.find((result) => result.verificationStatus === 'NOT_CHECKED')
+      || results.find((result) => result.verificationStatus === 'UNSUPPORTED')
+      || results.find((result) => result.verificationStatus !== 'VERIFIED');
     return {
       success: allVerified,
-      verificationStatus: allVerified ? 'VERIFIED' : results.some((result) => result.verificationStatus === 'UNSUPPORTED') ? 'UNSUPPORTED' : 'PENDING_DEPLOYMENT',
+      verificationStatus: allVerified ? 'VERIFIED' : incomplete?.verificationStatus || 'NOT_CHECKED',
       mergedAt,
       results,
       message: allVerified
         ? `Verified all ${results.length} changed page${results.length === 1 ? '' : 's'} live after merge.`
-        : results.find((result) => result.verificationStatus !== 'VERIFIED')?.message || 'The merged changes are still being checked.',
+        : incomplete?.message || 'No changes could be checked.',
     };
   }
 
@@ -1181,7 +1184,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               summary: `No positive change was observed in the available measured comparison for ${affectedUrl}. Review the underlying measurements before deciding on another change.`,
               evidence: [
                 { label: 'Evaluation Period', value: `${daysSinceRun} days after live verification`, source: 'Fix Engine Ledger' },
-                { label: 'Search Console comparison', value: hasSearchComparison ? `${seoImpact.baselineClicks} baseline clicks; `${day30Window!.clicks} clicks in the first 30 days after verification; `${clicksDelta == null ? 'percentage change unavailable because baseline is zero' : `${clicksDelta}% change`}` : 'Not available for both comparison periods', source: 'Google Search Console' },
+                { label: 'Search Console comparison', value: hasSearchComparison ? `${seoImpact.baselineClicks} baseline clicks; ${day30Window!.clicks} clicks in the first 30 days after verification; ${clicksDelta == null ? 'percentage change unavailable because baseline is zero' : `${clicksDelta}% change`}` : 'Not available for both comparison periods', source: 'Google Search Console' },
                 { label: 'AI mention comparison', value: hasAiComparison ? measuredAiComparisons.map((m) => `${m.provider}/${m.model}: ${m.beforeMentionRate}% to ${m.afterMentionRate}%`).join('; ') : 'Not available for both periods', source: 'Saved successful AI responses' },
                 { label: 'Interpretation', value: 'Observed comparisons do not prove that this fix caused the result.', source: 'Fix Engine Ledger' },
               ] as any,
@@ -1525,7 +1528,7 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
       }
     }
     const comparable = baseClicks != null && baseClicks > 0 && latestClicks != null;
-    const overallDelta = comparable ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : null;
+    const overallDelta = comparable && latestClicks != null ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : null;
     return {
       baselineClicks: baseClicks ?? null,
       currentClicks: latestClicks,
