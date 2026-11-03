@@ -95,6 +95,7 @@ Rules:
 - Look before you change: find the right file, read it (in 80-120 line ranges), then edit. Copy "old" exactly from what you read.
 - Always provide valid read ranges with start <= end (for example, start: 1, end: 120). Never use start > end.
 - If an edit fails because text was not found, you MUST read the target file again to inspect the exact lines before trying another edit. Never retry an edit without reading the file first.
+- After any successful edit, read the relevant section again before editing that file. The file may have changed and old text may no longer exist.
 - Never repeat an identical failed edit. If an edit fails, check the actual file content, indentation, and surrounding lines.
 - Keep "old" short (2 to 6 exact lines) and "new" concise (3 to 15 lines) so your JSON response is never truncated. Never paste an entire file into "old" or "new".
 - Prefer editing actual website HTML/TSX/JSX page files (like index.html or src/app/page.tsx) rather than large .md strategy files.
@@ -445,7 +446,7 @@ export class EngineerAgentService {
         origin,
       );
 
-      if (steps.some((step) => step.step === 'stopped')) throw new Error('The engineer stopped before completing the change. Nothing was pushed.');
+      if (steps.some((step) => step.step === 'stopped')) throw new Error(`The engineer stopped before completing the change. Nothing was pushed. ${outcome.summary}`);
       if (box.changed.size === 0) {
         return this.finish(runId, AutomationRunStatus.FAILED, steps, {
           error: `The engineer finished without changing any files. ${outcome.summary}`,
@@ -619,6 +620,11 @@ export class EngineerAgentService {
         if (action.tool === 'read') {
           readPaths.add(actionPath);
           if (failedEditsByFile.has(actionPath)) readAfterFailure.add(actionPath);
+        }
+        if (action.tool === 'edit' || action.tool === 'metadata') {
+          readPaths.delete(actionPath);
+          readAfterFailure.delete(actionPath);
+          result += ` Read the relevant section of ${actionPath} again before making another edit to this file.`;
         }
         consecutiveFailures = 0;
       } catch (error: any) {
