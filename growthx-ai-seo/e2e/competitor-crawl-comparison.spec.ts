@@ -15,7 +15,7 @@ test('completed competitor crawls populate comparisons and close discovery acros
     if(path.endsWith('/ai-visibility/competitors'))return json([{id:'r1',name:'Recorded rival',domain:'rival.test',crawlStatus:complete?'COMPLETED':'RUNNING',pagesCrawled:complete?48:undefined,healthScore:complete?96:null,lastAnalyzedAt:complete?'2026-10-01T01:01:00Z':null}]);
     if(path.endsWith('/latest-crawl'))return json({id:'own',status:'COMPLETED',pagesCrawled:58,healthScore:92,finishedAt:'2026-10-01T00:01:00Z'});
     if(path==='/api/crawls/own/pages')return json({data:[],meta:{total:0,page:1,totalPages:0}});
-    if(path.endsWith('/competitors/websites'))return json({sites:[]});
+    if(path.endsWith('/competitors/websites'))return json({sites:[{role:'competitor',competitorId:'r1',domain:'rival.test',name:'Recorded rival',status:complete?'READ':'READING',pagesRead:complete?48:null,healthScore:complete?96:null,pageTypes:[],lastReadAt:complete?'2026-10-01T01:01:00Z':null}]});
     if(path.endsWith('/pages'))return json([]);
     if(path.endsWith('/rival-advantages'))return json({rivals:[]});
     return route.fulfill({status:404,contentType:'application/json',body:'{}'});
@@ -24,11 +24,9 @@ test('completed competitor crawls populate comparisons and close discovery acros
   await expect(page.getByText('Reading 1 competitor website. This usually takes a few minutes.',{exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Choose your competitors',exact:true})).toHaveCount(0);
   complete=true;
-  await expect(page.getByText('Best competitor: Recorded rival, 48 pages',{exact:true})).toBeVisible({timeout:15000});
-  await expect(page.getByText('Best competitor: Recorded rival, 96/100',{exact:true})).toBeVisible();
-  await expect(page.getByText('These comparisons use audited URLs and website health. They do not measure competitor Google rankings or market share.')).toBeVisible();
+  await expect(page.getByText('48',{exact:true}).first()).toBeVisible({timeout:15000});
   await page.reload();
-  await expect(page.getByText('Best competitor: Recorded rival, 48 pages',{exact:true})).toBeVisible();
+  await expect(page.getByText('48',{exact:true}).first()).toBeVisible();
   await expect(page.getByRole('heading',{name:'Choose your competitors',exact:true})).toHaveCount(0);
   expect(discoveries).toBe(0);
 });

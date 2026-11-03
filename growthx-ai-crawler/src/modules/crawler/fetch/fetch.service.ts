@@ -7,6 +7,7 @@ import { EscalationReason, shouldEscalateToRender, spaFingerprints } from './ren
 import { registrableDomain, sameRegistrableDomain } from '../url/registrable-domain';
 import { deadlineSignal } from './http-deadline';
 import { isHtmlResponse } from '../crawlable';
+import { renderedContentReady } from './render-readiness';
 
 /** One hop of a redirect chain, recorded rather than collapsed. */
 export interface RedirectHop {
@@ -540,6 +541,14 @@ export class FetchService {
           { timeout: Number(process.env.RENDER_STABLE_TIMEOUT_MS || 12_000), polling: 150 },
         )
         .catch(() => undefined);
+
+      const ready = await page.waitForFunction(renderedContentReady, undefined, {
+        timeout: Number(process.env.RENDER_STABLE_TIMEOUT_MS || 12_000), polling: 150,
+      }).then(() => true).catch(() => false);
+      if (!ready) {
+        this.logger.debug(`[${targetUrl}] rendered content remained empty or loading; assessment unavailable.`);
+        return undefined;
+      }
 
       const html = await page.content().catch(() => '');
       const measured = await page

@@ -81,7 +81,7 @@ export function ImpactLedgerProofView({
   const handleEvaluateClick = () => {
     if (cards.length === 0) {
       setEvaluatingMessage(
-        "No deployed fixes to evaluate yet. Complete and deploy an improvement from your plan, and the closed-loop engine will automatically track and evaluate its 14d/30d performance.",
+        "No verified live changes to measure yet. Review a fix and verify it on the website first.",
       );
       return;
     }
@@ -236,6 +236,7 @@ export function ImpactLedgerProofView({
                       <Pill tone={card.after.verificationStatus === "VERIFIED_LIVE" ? "good" : "default"}>
                         {card.after.verificationStatus === "VERIFIED_LIVE" ? "Verified live" : "Not verified"}
                       </Pill>
+                      {(card.attemptRunIds?.length ?? 0) > 1 ? <Pill tone="default">{card.attemptRunIds!.length} attempts</Pill> : null}
                       <Pill tone="default">{card.metrics30d?.status === "OBSERVED" ? "Results available" : "Awaiting results"}</Pill>
                       <span className="font-semibold text-accent-700 group-open:hidden">View details ↓</span>
                       <span className="hidden font-semibold text-accent-700 group-open:inline">Hide details ↑</span>
@@ -244,7 +245,7 @@ export function ImpactLedgerProofView({
                   <div className="border-t border-brand-200 p-3">
                     <VisualProofCard
                       card={card}
-                      events={ledgerEvents.filter((event) => event.automationRunId === card.runId)}
+                      events={ledgerEvents.filter((event) => (card.attemptRunIds ?? [card.runId]).includes(event.automationRunId ?? ""))}
                       onLaunchIteration={onLaunchIteration}
                     />
                   </div>

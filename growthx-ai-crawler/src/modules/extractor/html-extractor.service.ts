@@ -6,6 +6,7 @@ export interface ExtractedHtmlData {
   title?: string;
   metaDescription?: string;
   canonicalUrl?: string;
+  canonicalUrls?: string[];
   robotsMeta?: string;
   h1: string[];
   h2: string[];
@@ -43,14 +44,11 @@ export class HtmlExtractorService {
     const robotsMeta = $('meta[name="robots" i]').attr('content')?.trim() || $('meta[name="googlebot" i]').attr('content')?.trim();
 
     // 3. Canonical
-    let canonicalUrl = $('link[rel="canonical" i]').attr('href')?.trim();
-    if (canonicalUrl && !canonicalUrl.startsWith('http')) {
-      try {
-        canonicalUrl = resolveUrl(pageUrl, canonicalUrl);
-      } catch {
-        // A malformed canonical stays as-is; the validator flags it downstream.
-      }
-    }
+    const canonicalUrls = [...new Set($('link[rel="canonical" i]').map((_, el) => {
+      const href = $(el).attr('href')?.trim();
+      return href ? resolveUrl(pageUrl, href) : null;
+    }).get())];
+    const canonicalUrl = canonicalUrls[0];
 
     // 4. Headings
     const h1 = $('h1').map((_, el) => $(el).text().replace(/\s+/g, ' ').trim()).get().filter(Boolean);
@@ -103,6 +101,7 @@ export class HtmlExtractorService {
       title,
       metaDescription,
       canonicalUrl,
+      canonicalUrls,
       robotsMeta,
       h1,
       h2,

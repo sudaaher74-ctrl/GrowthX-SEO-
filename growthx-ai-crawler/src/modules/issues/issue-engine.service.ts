@@ -8,6 +8,7 @@ import { ContentMetrics } from '../analyzer/content-analyzer.service';
 import { ValidatedSchema } from '../analyzer/schema-validator.service';
 import { fingerprintFor, fingerprintScope, issueGroupKey } from './fingerprint.util';
 import { detectSoft404 } from './soft-404';
+import { normalizeUrl } from '../crawler/url/url-normalizer';
 
 export interface DetectedIssueInput {
   issueType: string;
@@ -69,6 +70,25 @@ export class IssueEngineService {
   ): Promise<PersistedIssue[]> {
     const issues: DetectedIssueInput[] = [];
     const isHomePage = this.isRootUrl(pageUrl);
+    const utilityPage = /\/(?:app\/)?(?:login|register|sign-in|signup|account|cart|checkout|wallet)(?:\/|$)/i.test(new URL(pageUrl).pathname);
+    const searchContent = !utilityPage && !/(?:^|[,;\s])(?:noindex|none)(?:$|[,;\s])/i.test(htmlData.robotsMeta || '');
+    const canonicalTargets = [...new Set((htmlData.canonicalUrls || [htmlData.canonicalUrl]).filter(Boolean).map(url => normalizeUrl(url!)).filter(Boolean))];
+    if (canonicalTargets.length > 1) issues.push({
+      issueType: 'CONFLICTING_CANONICALS', severity: 'HIGH', confidence: 'CONFIRMED', category: 'TECHNICAL', affectedUrl: pageUrl,
+      description: 'Page declares conflicting canonical URLs.',
+      explanation: 'The page declares more than one preferred URL. Search engines may ignore these conflicting hints.',
+      impact: 'The intended preferred URL is unclear; this does not establish which URL Google indexed.',
+      recommendation: 'Choose the intended canonical URL and remove conflicting tags from the shared template or page.',
+      evidence: canonicalTargets.join(' | '), dedupKey: `${pageUrl}::CONFLICTING_CANONICALS`, aiFixAvailable: false,
+    });
+    else if (canonicalTargets.length === 1 && canonicalTargets[0] !== normalizeUrl(pageUrl)) issues.push({
+      issueType: 'CANONICAL_POINTS_ELSEWHERE', severity: 'LOW', confidence: 'ADVISORY', category: 'TECHNICAL', affectedUrl: pageUrl,
+      description: 'Page declares another URL as its preferred version.',
+      explanation: 'This can be intentional for duplicate pages. A unique page should be reviewed.',
+      impact: 'Search engines may consolidate this page with the declared target.',
+      recommendation: 'Check whether the target is intentional before changing the canonical.',
+      evidence: `${pageUrl} -> ${canonicalTargets[0]}`, dedupKey: `${pageUrl}::CANONICAL_POINTS_ELSEWHERE`, aiFixAvailable: false,
+    });
 
     // 1. Missing Title
     if (!htmlData.title || htmlData.title.trim() === '') {
@@ -285,7 +305,7 @@ export class IssueEngineService {
     // 8. Context-Aware Thin Content Detection. Skipped for a soft 404: a
     // not-found page is short because it is missing, and saying so once is
     // enough.
-    if (statusCode === 200 && !soft404) {
+    if (statusCode === 200 && !soft404 && searchContent) {
       const thinThreshold = this.getThinContentThreshold(pageType, pageUrl);
       if (thinThreshold > 0 && content.wordCount < thinThreshold) {
         issues.push({
@@ -527,7 +547,7 @@ export class IssueEngineService {
     }
 
     // 17. XML Sitemap check
-    if (!inSitemap && statusCode === 200 && !isHomePage) {
+    if (!inSitemap && statusCode === 200 && !isHomePage && searchContent && (canonicalTargets.length === 0 || (canonicalTargets.length === 1 && canonicalTargets[0] === normalizeUrl(pageUrl)))) {
       issues.push({
         issueType: 'NOT_IN_SITEMAP',
         severity: 'LOW',
@@ -548,7 +568,8 @@ export class IssueEngineService {
     for (const schema of schemas) {
       if (schema.findings && schema.findings.length > 0) {
         for (const finding of schema.findings) {
-          // Avoid creating multiple low severity noise rows
+          // Ratings are optional and cannot be invented to satisfy an audit.
+          if (!finding.isRequired && ['aggregateRating', 'review'].includes(finding.property)) continue;
           issues.push({
             issueType: `SCHEMA_${schema.schemaType}_${finding.property.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`,
             severity: finding.severity,
@@ -556,9 +577,9 @@ export class IssueEngineService {
             category: 'SCHEMA',
             affectedUrl: pageUrl,
             description: finding.message,
-            explanation: `Structured data for ${schema.schemaType} does not conform to Schema.org standards.`,
+            explanation: finding.isRequired ? `A required property for the checked ${schema.schemaType} feature is missing or invalid.` : `An optional ${schema.schemaType} enhancement is available.`,
             impact: finding.isRequired
-              ? 'Prevents eligibility for Google rich snippets.'
+              ? 'May affect eligibility for the checked rich result feature.'
               : 'May limit enhanced rich snippet features in search results.',
             recommendation: finding.recommendation,
             evidence: `Schema: ${schema.schemaType} | Property: ${finding.property}`,

@@ -9,6 +9,20 @@ export interface IssueCopy {
 }
 
 export const ISSUE_COPY: Record<string, IssueCopy> = {
+  CONFLICTING_CANONICALS: {
+    title: '{n} pages declare more than one preferred address',
+    cost: 'Conflicting signals can make it harder for search engines to choose the intended page address.',
+    action: 'Ask your web developer to check which address should be preferred and keep one consistent setting for that page.',
+    fixClass: 'MANUAL',
+    technical: 'Multiple distinct rel=canonical targets were observed on the same page.',
+  },
+  CANONICAL_POINTS_ELSEWHERE: {
+    title: '{n} pages declare another preferred address',
+    cost: 'This may be intentional for duplicate pages. It does not by itself show a search problem.',
+    action: 'Review the preferred address before making changes. Keep it if the other address is the intended main version.',
+    fixClass: 'MANUAL',
+    technical: 'The rel=canonical target differs from the current page URL.',
+  },
   MISSING_TITLE: {
     title: '{n} pages have no name in Google search results',
     cost: 'These pages get {traffic}. Google invents a title from whatever text it finds, and it is usually wrong',

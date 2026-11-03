@@ -51,6 +51,7 @@ describe('PerformanceService', () => {
     mockedAxios.get.mockResolvedValueOnce({
       status: 200,
       data: {
+        loadingExperience: { metrics: { INTERACTION_TO_NEXT_PAINT: { percentile: 85.67 } } },
         lighthouseResult: {
           categories: {
             performance: { score: 0.884 },

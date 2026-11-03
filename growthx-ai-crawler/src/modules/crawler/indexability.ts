@@ -10,7 +10,9 @@ export type IndexabilityReasonCode =
   | 'X_ROBOTS_TAG_NOINDEX'
   | 'CANONICAL_POINTS_ELSEWHERE'
   | 'FETCH_FAILED'
-  | 'NOT_FETCHED';
+  | 'NOT_FETCHED'
+  | 'CONFLICTING_CANONICALS'
+  | 'RENDER_UNAVAILABLE';
 
 export interface IndexabilityReason {
   code: IndexabilityReasonCode;
@@ -30,6 +32,8 @@ export interface IndexabilitySignals {
   xRobotsTag?: string;
   /** Raw `<link rel="canonical">` href, already absolutised. */
   canonicalUrl?: string;
+  canonicalUrls?: string[];
+  renderUnavailable?: boolean;
   /** The URL this page was fetched at, to test a canonical for self-reference. */
   pageUrl: string;
   /** True when no origin response was obtained at all. */
@@ -104,6 +108,17 @@ export function computeIndexability(signals: IndexabilitySignals): IndexabilityR
     reasons.push({ code: 'X_ROBOTS_TAG_NOINDEX', evidence: `X-Robots-Tag: ${signals.xRobotsTag}` });
   }
 
+  // HTTP and robots directives remain evidence even when rendering fails.
+  if (reasons.length > 0 && (signals.renderUnavailable || (signals.canonicalUrls?.length || 0) > 1)) return { indexability: 'NOT_INDEXABLE', reasons };
+  if (signals.renderUnavailable) return {
+    indexability: 'UNKNOWN',
+    reasons: [{ code: 'RENDER_UNAVAILABLE', evidence: 'The rendered page could not be assessed.' }],
+  };
+  const canonicals = [...new Set((signals.canonicalUrls || []).map(url => normalizeUrl(url)).filter(Boolean))];
+  if (canonicals.length > 1) return {
+    indexability: 'UNKNOWN',
+    reasons: [{ code: 'CONFLICTING_CANONICALS', evidence: `Conflicting canonical targets: ${canonicals.join(', ')}` }],
+  };
   if (signals.canonicalUrl) {
     const canonical = normalizeUrl(signals.canonicalUrl);
     const self = normalizeUrl(signals.pageUrl);

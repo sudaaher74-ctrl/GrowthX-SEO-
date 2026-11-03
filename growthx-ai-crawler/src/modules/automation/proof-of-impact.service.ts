@@ -729,14 +729,17 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     }
 
     const allVerified = results.length > 0 && results.every((result) => result.verificationStatus === 'VERIFIED');
+    const incomplete = results.find((result) => result.verificationStatus === 'NOT_CHECKED')
+      || results.find((result) => result.verificationStatus === 'UNSUPPORTED')
+      || results.find((result) => result.verificationStatus !== 'VERIFIED');
     return {
       success: allVerified,
-      verificationStatus: allVerified ? 'VERIFIED' : results.some((result) => result.verificationStatus === 'UNSUPPORTED') ? 'UNSUPPORTED' : 'PENDING_DEPLOYMENT',
+      verificationStatus: allVerified ? 'VERIFIED' : incomplete?.verificationStatus || 'NOT_CHECKED',
       mergedAt,
       results,
       message: allVerified
         ? `Verified all ${results.length} changed page${results.length === 1 ? '' : 's'} live after merge.`
-        : results.find((result) => result.verificationStatus !== 'VERIFIED')?.message || 'The merged changes are still being checked.',
+        : incomplete?.message || 'No changes could be checked.',
     };
   }
 
@@ -911,24 +914,23 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
     for (const run of runs) {
       const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
-      const changeStep = steps.find((s: any) => s.change);
-      const change = changeStep?.change;
-      const verifiedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'VERIFIED_LIVE');
+      const verifiedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'VERIFIED_LIVE' && s.pageId);
       if (run.status !== 'MERGED' || !verifiedSnap) continue;
-      const beforeSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'BEFORE');
-      const proposedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'PROPOSED');
+      const change = steps.find((step: any) => step.change?.url === verifiedSnap.url && verifiedSnap.contentSnippet?.startsWith(`${String(step.change.field).toUpperCase()}:`))?.change;
+      const beforeSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'BEFORE' && s.url === verifiedSnap.url);
+      const proposedSnap = snapshots.find((s) => s.automationRunId === run.id && s.snapshotType === 'PROPOSED' && s.url === verifiedSnap.url);
 
       if (!change && !verifiedSnap && !beforeSnap && !proposedSnap && run.filesChanged.length === 0) {
         continue;
       }
 
-      const affectedUrl = change?.url || verifiedSnap?.url || beforeSnap?.url || proposedSnap?.url || `https://${domain}`;
-      const field = change?.field || (verifiedSnap?.title ? 'META_TITLE' : 'CODE_AND_SEO_UPDATE');
-      const file = change?.file || (run.filesChanged.length > 1 ? `${run.filesChanged[0]} (+${run.filesChanged.length - 1} more files)` : run.filesChanged[0]) || 'Repository Code';
+      const affectedUrl = verifiedSnap.url;
+      const field = change?.field || verifiedSnap.contentSnippet?.match(/^([A-Z_]+):/)?.[1] || (verifiedSnap?.title ? 'META_TITLE' : 'CODE_AND_SEO_UPDATE');
+      const file = change?.file || 'Verified page';
 
       const targetElement = this.mapFieldToOnScreenElement(field, file);
-      const beforeText = beforeSnap?.title || beforeSnap?.metaDescription || beforeSnap?.contentSnippet || null;
-      const afterText = verifiedSnap.title || verifiedSnap.metaDescription || verifiedSnap.contentSnippet || null;
+      const beforeText = field === 'META_TITLE' ? beforeSnap?.title ?? null : field === 'META_DESCRIPTION' ? beforeSnap?.metaDescription ?? null : beforeSnap?.contentSnippet ?? null;
+      const afterText = field === 'META_TITLE' ? verifiedSnap.title ?? null : field === 'META_DESCRIPTION' ? verifiedSnap.metaDescription ?? null : verifiedSnap.contentSnippet ?? null;
 
       const seoImpact = await this.getFixGscImpact(projectId, affectedUrl, verifiedSnap.capturedAt);
       const baselineWindow = seoImpact.windows.find((w) => w.period === 'Baseline (28d)');
@@ -976,7 +978,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
 
       proofCards.push({
         runId: run.id,
-        title: change?.findingTitle ? `Live page check for: ${change.findingTitle}` : run.filesChanged.length > 1 ? `Verified code update across ${run.filesChanged.length} files` : run.filesChanged.length ? `Verified code update in ${run.filesChanged[0]}` : `SEO Fix PR #${run.id.slice(0, 6)}`,
+        title: change?.findingTitle ? `Live page check for: ${change.findingTitle}` : run.filesChanged.length > 1 ? `Live page check: ${new URL(affectedUrl).pathname}` : run.filesChanged.length ? `Verified code update in ${run.filesChanged[0]}` : `SEO Fix PR #${run.id.slice(0, 6)}`,
         url: affectedUrl,
         file,
         field,
@@ -1025,7 +1027,16 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    return proofCards;
+    // Repeated attempts with the same measured outcome are one journey.
+    // Preserve their run IDs so the activity history remains accessible.
+    const journeys = new Map<string, any>();
+    for (const card of proofCards) {
+      const key = JSON.stringify([card.url, card.field, card.after.text]);
+      const previous = journeys.get(key);
+      if (!previous) journeys.set(key, { ...card, attemptRunIds: [card.runId] });
+      else previous.attemptRunIds.push(card.runId);
+    }
+    return [...journeys.values()];
   }
 
   /**
@@ -1068,7 +1079,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
       const changeStep = steps.find((s: any) => s.change);
       const change = changeStep?.change;
-      const affectedUrl = change?.url || verifiedSnap.url || `https://${domain}`;
+      const affectedUrl = verifiedSnap.url;
       const file = change?.file || run.filesChanged[0] || 'src/app/page.tsx';
 
       const daysSinceRun = Math.floor((Date.now() - verifiedSnap.capturedAt.getTime()) / 86400000);
@@ -1181,7 +1192,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               summary: `No positive change was observed in the available measured comparison for ${affectedUrl}. Review the underlying measurements before deciding on another change.`,
               evidence: [
                 { label: 'Evaluation Period', value: `${daysSinceRun} days after live verification`, source: 'Fix Engine Ledger' },
-                { label: 'Search Console comparison', value: hasSearchComparison ? `${seoImpact.baselineClicks} baseline clicks; `${day30Window!.clicks} clicks in the first 30 days after verification; `${clicksDelta == null ? 'percentage change unavailable because baseline is zero' : `${clicksDelta}% change`}` : 'Not available for both comparison periods', source: 'Google Search Console' },
+                { label: 'Search Console comparison', value: hasSearchComparison ? `${seoImpact.baselineClicks} baseline clicks; ${day30Window!.clicks} clicks in the first 30 days after verification; ${clicksDelta == null ? 'percentage change unavailable because baseline is zero' : `${clicksDelta}% change`}` : 'Not available for both comparison periods', source: 'Google Search Console' },
                 { label: 'AI mention comparison', value: hasAiComparison ? measuredAiComparisons.map((m) => `${m.provider}/${m.model}: ${m.beforeMentionRate}% to ${m.afterMentionRate}%`).join('; ') : 'Not available for both periods', source: 'Saved successful AI responses' },
                 { label: 'Interpretation', value: 'Observed comparisons do not prove that this fix caused the result.', source: 'Fix Engine Ledger' },
               ] as any,
@@ -1525,7 +1536,7 @@ ${detail.aiImpact.models.map((m) => `- **${m.model}**: Before ${m.beforeMentionR
       }
     }
     const comparable = baseClicks != null && baseClicks > 0 && latestClicks != null;
-    const overallDelta = comparable ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : null;
+    const overallDelta = comparable && latestClicks != null ? Math.round(((latestClicks - baseClicks) / baseClicks) * 100) : null;
     return {
       baselineClicks: baseClicks ?? null,
       currentClicks: latestClicks,

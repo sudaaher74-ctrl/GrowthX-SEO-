@@ -2433,6 +2433,7 @@ export interface FixLedgerEntry {
 
 export interface ProofOfImpactCard {
   runId: string;
+  attemptRunIds?: string[];
   title: string;
   url: string;
   file: string;

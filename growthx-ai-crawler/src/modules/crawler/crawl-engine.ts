@@ -380,6 +380,8 @@ export class CrawlEngine {
       metaRobots: extracted?.metaRobots,
       xRobotsTag: outcome.headers['x-robots-tag'],
       canonicalUrl: extracted?.canonicalUrl,
+      canonicalUrls: extracted?.canonicalUrls,
+      renderUnavailable: outcome.renderUnavailable,
       pageUrl: outcome.finalUrl,
       fetchFailed: Boolean(outcome.error),
     });

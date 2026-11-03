@@ -2232,15 +2232,11 @@ export function GitHubFixesLogView({
                   <div className="flex flex-wrap items-center gap-2">
                     <ActionButton
                       variant="primary"
-                      disabled={isEngineerBusy || runPlanFixesMutation.isPending || runEngineerMutation.isPending}
+                      disabled={isEngineerBusy || runPlanFixesMutation.isPending || runEngineerMutation.isPending || (!ctx.matchedFindings.length && !ctx.rawInstruction.trim())}
                       icon={<RefreshCw size={12} />}
                       onClick={() => {
                         if (ctx.matchedFindings.length > 0) {
                           runPlanFixesMutation.mutate({ findingIds: ctx.matchedFindings.map((finding) => finding.id) });
-                        } else if (selectedFindingIds.length > 0) {
-                          runPlanFixesMutation.mutate({ findingIds: selectedFindingIds });
-                        } else if (filteredFindings.length > 0) {
-                          runPlanFixesMutation.mutate({ findingIds: [filteredFindings[0].id] });
                         } else if (ctx.rawInstruction) {
                           runEngineerMutation.mutate(ctx.rawInstruction.split("EXECUTION PLAN")[0].trim());
                         }

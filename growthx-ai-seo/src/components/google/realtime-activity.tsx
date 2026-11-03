@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ActionButton, Panel } from "@/components/ui/console";
@@ -7,6 +8,7 @@ import { api } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
 
 export function RealtimeActivity({ projectId, compact = false }: { projectId: string | null | undefined; compact?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   const report = useQuery({
     queryKey: ["ga4-realtime", projectId],
     queryFn: () => api.ga4Realtime(projectId!),
@@ -17,21 +19,22 @@ export function RealtimeActivity({ projectId, compact = false }: { projectId: st
     refetchIntervalInBackground: false,
   });
   const live = !report.isError ? report.data?.data : null;
-  if (compact) {
-    const unavailable = report.isError || report.data?.state !== "READY";
+  if (compact && !expanded) {
+    const unavailable = report.isError || report.data?.state !== "READY" || !live || !Number.isFinite(live.activeUsers);
     return (
       <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card" aria-live="polite">
         <p className="text-xs font-medium text-brand-400">Realtime activity</p>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950" aria-label="Active users in last 30 minutes">
-            {report.isPending ? "—" : unavailable ? "—" : count(report.data.data?.activeUsers ?? 0)}
+            {report.isPending ? "—" : unavailable ? "—" : count(live!.activeUsers)}
           </span>
-          <span className="text-xs text-brand-400">active now</span>
+          <span className="text-xs text-brand-400">active in 30 min</span>
         </div>
         <p className="mt-2 text-xs text-brand-400">
-          {report.isPending ? "Loading activity…" : report.isError ? "Realtime data unavailable" : unavailable ? (report.data?.message ?? "Connect Google Analytics to see activity") : `Last 30 minutes · updated ${new Date(report.data.data?.fetchedAt ?? "").toLocaleTimeString()}`}
+          {report.isPending ? "Loading activity…" : report.isError ? "Realtime activity is unavailable" : unavailable ? (report.data?.message ?? "Connect Google Analytics to see activity") : `Last 30 minutes · updated ${new Date(report.data.data?.fetchedAt ?? "").toLocaleTimeString()}`}
         </p>
         <p className="mt-1 text-[11px] text-brand-400">Refreshes every 5 minutes</p>
+        <button type="button" className="mt-2 text-xs text-primary-700 underline" onClick={() => setExpanded(true)}>View realtime details</button>
       </div>
     );
   }

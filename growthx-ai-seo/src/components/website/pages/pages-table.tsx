@@ -312,7 +312,7 @@ export function PagesTable({
                         {page.jsRequired && (
                           <span
                             className="rounded border bg-accent-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-accent-700"
-                            title="This page's content only exists after JavaScript runs. Most AI answer engines do not execute it."
+                            title="The crawler found additional content after running JavaScript. Search and AI visibility were not measured by this check."
                           >
                             JS
                           </span>

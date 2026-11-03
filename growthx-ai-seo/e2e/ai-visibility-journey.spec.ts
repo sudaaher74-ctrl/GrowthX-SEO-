@@ -168,16 +168,8 @@ test("reviews local questions before checking and preserves missing-source truth
       name: "Tracked prompts",
     }),
   ).toBeVisible();
-  await page.getByText("Analysis details", {exact:false}).click();
-  await expect(
-    page.getByText("Lead measurement is unknown", { exact: false }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Review location", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Connect and sync Search Console.", { exact: true }),
-  ).toBeVisible();
+  // The removed source-detail panel must not return as an empty dashboard section.
+  await expect(page.getByText("Analysis details", { exact: false })).toHaveCount(0);
   await page.getByRole("button", {name:"Edit", exact:true}).click();
   await expect(
     page.getByRole("textbox", { name: /^Buyer question / }),
