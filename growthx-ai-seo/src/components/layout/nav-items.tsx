@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, Wrench, Bot, Link2, MapPin } from "lucide-react";
+import { Activity, Crosshair, Globe, Wrench, Bot, Link2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -125,11 +125,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       href: "/ai-visibility",
       icon: Bot,
       step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Run AI visibility monitoring" },
-    },
-    {
-      label: "Google Business Profile",
-      href: "/google-business-profile",
-      icon: MapPin,
     },
     {
       label: "Fix Engine",
