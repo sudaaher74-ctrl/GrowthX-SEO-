@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Coins, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
+import { Check, LogOut, Moon, MoreHorizontal, Settings, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -90,13 +90,7 @@ export function Sidebar({
           </div>
         </nav>
 
-        {compact ? (
-          <Link href="/tokens" title="Tokens" aria-label="Tokens" onClick={() => setMobileOpen?.(false)} className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl text-brand-500 transition hover:bg-brand-100/60 hover:text-brand-950">
-            <Coins size={17} />
-          </Link>
-        ) : (
-          <TokensChip onNavigate={() => setMobileOpen?.(false)} />
-        )}
+        <TokensChip variant={compact ? "icon" : "card"} onNavigate={() => setMobileOpen?.(false)} />
 
         {/* User */}
         {(() => {

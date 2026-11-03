@@ -13,7 +13,7 @@ import { TokenMeter } from "@/components/tokens/token-meter";
  * failed, or when the deployment has tokens switched off — rather than a
  * placeholder balance that would be wrong for someone.
  */
-export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () => void; variant?: "card" | "bar" }) {
+export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () => void; variant?: "card" | "bar" | "icon" }) {
   const { orgId } = useWorkspace();
   const tokens = useTokens(orgId);
   const data = tokens.data;
@@ -30,6 +30,17 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
         : standing === "tracking"
           ? "Usage is counted, not limited"
           : `Refills ${refills}`;
+
+  if (variant === "icon") {
+    const description = `${formatTokens(data.available)} tokens · ${caption}`;
+    return (
+      <Link href="/tokens" onClick={onNavigate} title={description} aria-label={description}
+        className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl text-brand-500 transition hover:bg-brand-100/60 hover:text-brand-950">
+        <Coins size={17} aria-hidden="true" />
+        <span className="sr-only">{description}</span>
+      </Link>
+    );
+  }
 
   if (variant === "bar") {
     // The top bar's compact form: the balance and the same caption, on two lines.

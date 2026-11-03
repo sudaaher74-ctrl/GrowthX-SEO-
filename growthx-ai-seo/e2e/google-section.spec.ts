@@ -211,6 +211,7 @@ test.describe("Google section, hub", () => {
     await open(page, '/google', { ga4, realtime });
     await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveText('332');
     await expect(page.getByRole('heading', { name: 'No historical GA4 activity' })).toBeVisible();
+    await page.getByRole('button', { name: 'View realtime details' }).click();
     await expect(page.getByText(/GA4 property: reigel/)).toBeVisible();
     await expect(page.getByText(/Google Analytics 4 is not connected/)).toHaveCount(0);
     await expect(page.getByRole('table', { name: 'Realtime users by country' })).toContainText('India');
@@ -223,6 +224,7 @@ test.describe("Google section, hub", () => {
     await open(page, '/google', { realtime: { state: 'READY', propertyName: 'reigel', data: { activeUsers: 0, countries: [], windowMinutes: 30, fetchedAt: new Date().toISOString() } } });
     await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveText('0');
     await page.route(`${API}/api/projects/${PROJECT}/analytics/realtime`, (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ state: 'NEEDS_SELECTION', message: 'Choose a GA4 property.', data: null }) }));
+    await page.getByRole('button', { name: 'View realtime details' }).click();
     await page.getByRole('button', { name: 'Refresh realtime' }).click();
     await expect(page.getByText('Choose a GA4 property.', { exact: false })).toBeVisible();
     await expect(page.getByLabel('Active users in last 30 minutes', { exact: true })).toHaveCount(0);

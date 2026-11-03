@@ -114,7 +114,10 @@ function serve(getTokens: () => unknown, extra?: (path: string, route: Route) =>
 }
 
 async function open(page: Page, path: string, tokens: () => unknown, extra?: Parameters<typeof serve>[1]) {
-  await page.addInitScript(() => window.localStorage.setItem("growthx.token", "smoke-test-token"));
+  await page.addInitScript(() => {
+    window.localStorage.setItem("growthx.token", "smoke-test-token");
+    window.localStorage.setItem("growthx_sidebar_rail", "false");
+  });
   await page.route(`${API}/**`, serve(tokens, extra));
   await page.goto(path, { waitUntil: "domcontentloaded" });
 }

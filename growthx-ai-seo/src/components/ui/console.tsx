@@ -121,7 +121,7 @@ export function Kpi({
         {aside}
       </div>
       {meter != null && (
-        <div className="mt-2.5">
+        <div className="mt-2.5" role="progressbar" aria-label={typeof label === "string" ? label : "Progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, meter))}>
           <MeterBar value={meter} tone={meter >= 70 ? "good" : "accent"} width="100%" />
         </div>
       )}

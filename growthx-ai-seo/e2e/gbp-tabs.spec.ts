@@ -4,5 +4,8 @@ import {test,expect} from '@playwright/test';
 for(const route of ['/google-business-profile','/reports/business-profile'])test(`retired Business Profile route ${route} is unavailable`,async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('growthx.token','test-token'));
  await page.goto(route);
- await expect(page.getByRole('heading',{name:'404',exact:true})).toBeVisible();
+ if(route === '/google-business-profile') {
+   await expect(page).toHaveURL(/\/dashboard$/);
+   await expect(page.getByRole('link',{name:'Google Business Profile',exact:true})).toHaveCount(0);
+ } else await expect(page.getByRole('heading',{name:'404',exact:true})).toBeVisible();
 });

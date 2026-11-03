@@ -8,7 +8,7 @@ for (const measured of [false, true]) test(`audit counts and ${measured ? "recor
     localStorage.setItem("growthx.org", "org_test");
     localStorage.setItem("growthx.project", "project_test");
   });
-  const pages = Array.from({length:58},(_,i)=>({id:`p${i}`,url:`https://example.com/page-${i}`,statusCode:200,indexability:"INDEXABLE",responseTimeMs:1800,title:`Page ${i}`,performance:measured && i===0?{performanceScore:0,lcpMs:1800,inpMs:null,clsScore:0}:null}));
+  const pages = Array.from({length:58},(_,i)=>({id:`p${i}`,url:i===0?"https://example.com/":`https://example.com/page-${i}`,statusCode:200,indexability:"INDEXABLE",responseTimeMs:1800,title:`Page ${i}`,performance:measured && i===0?{performanceScore:0,lcpMs:1800,inpMs:null,clsScore:0}:null}));
   const issues = Array.from({length:236},(_,i)=>({id:`i${i}`,issueType:"LONG_TITLE",category:"CONTENT",severity:"LOW",description:`Finding ${i}`,affectedUrl:pages[i%58].url}));
   await page.route(`${API_BASE}/**`, async route => {
     const url=new URL(route.request().url()); const path=url.pathname; requests.push(path+url.search);
@@ -30,15 +30,15 @@ for (const measured of [false, true]) test(`audit counts and ${measured ? "recor
   await expect(page.getByRole("tab",{name:/10 problem types/})).toBeVisible();
   expect(requests.some(r=>r.includes("/issues?page=2&limit=200"))).toBeTruthy();
   await page.getByRole("tab",{name:"Speed",exact:true}).click();
-  await expect(page.getByText("Core Web Vitals Trend",{exact:true})).toBeVisible();
+  await expect(page.getByText("Homepage Core Web Vitals trend",{exact:true})).toBeVisible();
   if(measured){
     await expect(page.getByText("0.000",{exact:true}).first()).toBeVisible();
-    await expect(page.getByRole("img",{name:"LCP recorded audit measurements"})).toBeVisible();
+    await expect(page.getByRole("img",{name:"LCP values for the homepage from completed audits"})).toBeVisible();
     await page.getByText("View recorded values",{exact:true}).click();
     await expect(page.getByText(/: 1.8s$/)).toBeVisible();
   }else{
-    await expect(page.getByText("Speed measurements unavailable for this audit.",{exact:true})).toBeVisible();
-    await expect(page.getByText("No recorded LCP history yet.",{exact:false})).toBeVisible();
+    await expect(page.getByText("No speed results for this audit",{exact:true})).toBeVisible();
+    await expect(page.getByText("No LCP history yet",{exact:false})).toBeVisible();
   }
-  await expect(page.getByText("No real-user INP data recorded",{exact:true})).toBeVisible();
+  await expect(page.getByText("Homepage INP",{exact:true})).toHaveCount(0);
 });
