@@ -425,10 +425,11 @@ describe('ProofOfImpactService', () => {
       expect(cards).toHaveLength(1);
       const card = cards[0];
       expect(card.targetElement).toBe('Page Title & SERP Snippet Header');
-      expect(card.before.text).toBe('Cart - Milquu');
-      expect(card.before.timeframe).toBe('Before (30–90 Days Ago)');
+      // Proposed code is not a captured baseline.
+      expect(card.before.text).toBeNull();
+      expect(card.before.timeframe).toBe('Snapshot saved before the pull request');
       expect(card.after.text).toBe('Fresh A2 Milk Cart & Instant Checkout | MilQuu Fresh');
-      expect(card.after.timeframe).toBe('Now (Live on Production)');
+      expect(card.after.timeframe).toBe('Verified live HTML snapshot');
       expect(card.after.verificationStatus).toBe('VERIFIED_LIVE');
     });
   });
@@ -498,7 +499,7 @@ describe('ProofOfImpactService', () => {
             fingerprint: 'impact-loop-pivot-run_flat-iteration-2',
             source: 'WEBSITE',
             category: 'TECHNICAL',
-            title: expect.stringContaining('[Iteration 2 Strategy Pivot]'),
+            title: expect.stringContaining('[Review measured impact]'),
             status: 'OPEN',
           }),
         }),
