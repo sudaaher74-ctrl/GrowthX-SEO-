@@ -74,4 +74,10 @@ test('saved proposals reach the engineer without becoming fabricated detector fi
   await expect(instruction).toHaveValue(/Inspect the saved answer/);
   expect((await instruction.inputValue()).length).toBeLessThanOrEqual(2000);
   expect(engineerRequests).toBe(0);
+  for (const alias of ['impact-ledger', 'ledger', 'proof']) {
+    await page.goto(`/fix-engine?tab=${alias}`);
+    await expect(page.getByRole('tab', { name: 'Improvement Journey', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'GitHub Fixes & Improvement Log', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByText('Complete Improvement Log — What We Did & What We Improved', { exact: true })).toBeVisible();
+  }
 });

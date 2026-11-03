@@ -159,7 +159,9 @@ interface UnifiedLogEntry {
 export function GitHubFixesLogView({
   initialFindingId,
   initialInstruction,
+  initialSection = "ALL",
 }: {
+  initialSection?: "ALL" | "IMPROVEMENT_LOG";
   initialFindingId?: string | null;
   initialInstruction?: string;
 }) {
@@ -167,7 +169,7 @@ export function GitHubFixesLogView({
   const queryClient = useQueryClient();
 
   const [moduleFilter, setModuleFilter] = useState<string>("ALL");
-  const [subSection, setSubSection] = useState<SubSection>("ALL");
+  const [subSection, setSubSection] = useState<SubSection>(initialSection);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "FIXED_OR_PR" | "IN_PLAN" | "OPEN">("ALL");
   const [logCategoryFilter, setLogCategoryFilter] = useState<"ALL" | "GITHUB_PR" | "CODE_DIFF" | "VERIFICATION" | "PLAN_ACTION">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
