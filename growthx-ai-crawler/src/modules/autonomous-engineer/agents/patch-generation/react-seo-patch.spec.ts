@@ -46,4 +46,17 @@ describe('React SEO patches', () => {
     const ts = await import('typescript');
     expect((ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) as any).parseDiagnostics).toHaveLength(0);
   });
+
+  it('supports export default function Component() and conditional JSX returns', async () => {
+    await fs.writeFile(
+      file,
+      'export default function Account() { const loading = false; return loading ? <div>Loading...</div> : <section><h1>My Account</h1></section>; }',
+    );
+    expect((await patchReactSeo(file, 'title', 'Manage Account | Milquu Fresh')).applied).toBe(true);
+    expect((await patchReactSeo(file, 'title', 'Account Settings | Milquu Fresh')).applied).toBe(true);
+    const source = await fs.readFile(file, 'utf8');
+    expect(source).toContain('Account Settings | Milquu Fresh');
+    const ts = await import('typescript');
+    expect((ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) as any).parseDiagnostics).toHaveLength(0);
+  });
 });

@@ -102,7 +102,7 @@ Rules:
 - Never create audit-message constants, placeholder files, or standalone notes as a substitute for implementing a fix. New helpers must be connected to existing website code.
 - For page titles, locate the routes and rendered page components and update their actual metadata.
 - For sitemap, robots.txt, or canonical domain issues, check both root files (public/sitemap.xml, public/robots.txt, src/app/sitemap.ts, src/app/robots.ts, src/lib/site.ts) and monorepo app workspaces (such as growthx-ai-seo/src/lib/site.ts or growthx-ai-seo/src/app/sitemap.ts).
-- Prefer the metadata tool for React page titles. A registry entry alone does not update client navigation unless the page mounts its metadata component. Reuse the existing unique title when possible. Keep titles at most 60 characters. Do not rewrite descriptions or policy text when only a title fix was requested.
+- Prefer the metadata tool for React page titles, or if the metadata tool reports that a component or route is unsupported, use the edit tool to add or update <Helmet><title>...</title></Helmet> directly in the rendered page component. A registry entry alone does not update client navigation unless the page mounts its metadata component. Reuse the existing unique title when possible. Keep titles at most 60 characters. Do not rewrite descriptions or policy text when only a title fix was requested.
 - Spend at most 10 turns discovering files. Then implement a small change and finish; if required context is unavailable, explain that limitation instead of repeatedly searching.
 - A page title means the document <title> metadata, not its visible H1. Preserve visible headings and content unless the instruction explicitly asks to change them.
 - Use "summary" only with "finish", in one short sentence. Edit actions contain only tool, path, old and new; do not put reasoning or commentary in any field.
@@ -633,12 +633,12 @@ export class EngineerAgentService {
         if (!(error instanceof SandboxError) && error?.code !== 'ENOENT' && error?.code !== 'EISDIR') throw error;
         ok = false;
         result = `Error: ${error instanceof SandboxError ? error.message : `${action.path ?? ''} could not be used.`}`;
-        if (action.tool === 'edit' || action.tool === 'metadata') {
+        if (action.tool === 'edit') {
           // Require a fresh read after failed edits
           readPaths.delete(actionPath);
           readAfterFailure.delete(actionPath);
           result += ` The next action must be a narrow fresh read of the exact section to change in ${actionPath}; use start/end around the relevant lines, then copy the returned text exactly. Do not repeat this edit.`;
-          if (action.tool === 'edit' && typeof action.old === 'string') {
+          if (typeof action.old === 'string') {
             failedEditSignatures.add(`${actionPath}:::${action.old}`);
           }
           const fileFailures = (failedEditsByFile.get(actionPath) ?? 0) + 1;
@@ -646,9 +646,11 @@ export class EngineerAgentService {
           if (fileFailures >= 2) {
             result += ` (Stop: ${fileFailures} edits in ${actionPath} failed. Call finish now and explain the limitation; do not continue searching or retrying.)`;
           }
+        } else if (action.tool === 'metadata') {
+          result += ` If the metadata tool cannot patch ${actionPath}, read the router to verify the static route or use the "edit" tool on ${actionPath} directly.`;
         }
         consecutiveFailures += 1;
-        recoveryLimitReached = (action.tool === 'edit' || action.tool === 'metadata') && (failedEditsByFile.get(actionPath) ?? 0) >= 2;
+        recoveryLimitReached = action.tool === 'edit' && (failedEditsByFile.get(actionPath) ?? 0) >= 2;
         if (consecutiveFailures >= 5) {
           result += ` (Stop: 5 consecutive actions failed. Call finish now with a summary explaining what blocked the change.)`;
         }

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { patchReactSeo } from '../autonomous-engineer/agents/patch-generation/react-seo-patch';
-import { resolveReactRoute } from './react-route';
+import { findReactRouteForFile, resolveReactRoute } from './react-route';
 
 /**
  * The only way the engineer touches a customer's repository.
@@ -84,12 +84,18 @@ export class RepoSandbox {
         try { await fs.lstat(path.resolve(this.root, candidate)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }
         await this.source(candidate);
       }
-      const routed = await resolveReactRoute(path.resolve(this.root, app), pathname);
+      const appRoot = path.resolve(this.root, app);
+      const routed = await resolveReactRoute(appRoot, pathname);
       const realRouted = routed ? await fs.realpath(routed).catch(() => path.resolve(routed)) : null;
       const realAbs = await fs.realpath(abs).catch(() => path.resolve(abs));
-      if (!realRouted || realRouted !== realAbs) throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
+      if (!realRouted || realRouted !== realAbs) {
+        const reverseRoute = await findReactRouteForFile(appRoot, realAbs);
+        if (!reverseRoute) {
+          throw new SandboxError('The declared route does not resolve to this page. Read the router and use its exact static page route.');
+        }
+      }
     }
-    for (const entry of ['main.jsx', 'main.tsx', 'index.jsx', 'index.tsx']) {
+    for (const entry of ['main.jsx', 'main.tsx', 'index.jsx', 'index.tsx', 'App.jsx', 'App.tsx']) {
       const rel = path.posix.join(app, 'src', entry);
       try { await fs.lstat(path.resolve(this.root, rel)); } catch (error: any) { if (error.code === 'ENOENT') continue; throw error; }
       await this.source(rel);

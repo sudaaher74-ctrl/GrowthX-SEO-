@@ -108,6 +108,7 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     /unrelated to this repository|external to this repository/i.test(errorText) ||
     Boolean(detectedRepoDomain);
   const isNoChangesNeeded = /finished without changing any files/i.test(errorText);
+  const hasMetadataToolFailure = run.steps.some((s) => s.step === "metadata" && !s.ok);
 
   const groupFromInstruction = GROUPS.find((g) =>
     rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
@@ -160,7 +161,15 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     detectedRepoDomain,
     isRepoDomainMismatch,
     isNoChangesNeeded,
+    hasMetadataToolFailure,
   };
+}
+
+function buildDirectEditRetryInstruction(ctx: ReturnType<typeof resolveRunContext>): string {
+  const base = (ctx.rawInstruction || ctx.headline).split("EXECUTION PLAN")[0].trim();
+  const guidance =
+    '\nIMPORTANT: Do NOT use the "metadata" tool on this repository. Use the "edit" tool directly on the actual page/screen JSX or TSX component files (after reading each target file with "read") to add or update <Helmet><title>...</title></Helmet> (importing { Helmet } from \'react-helmet-async\' if needed). Keep titles at most 60 characters and do not modify route registry files.';
+  return `${base.slice(0, 1950 - guidance.length)}${guidance}`;
 }
 
 export function GitHubFixesLogView({
@@ -718,6 +727,16 @@ export function GitHubFixesLogView({
     }
     // A row action is a single-finding action; replace any prior batch selection.
     setSelectedFindingIds([finding.id]);
+    const priorRun = findingRunMap.get(finding.id);
+    if (priorRun?.status === "FAILED") {
+      const priorCtx = resolveRunContext(priorRun, allFindings);
+      if (priorCtx.hasMetadataToolFailure) {
+        dismissRunMutation.mutate(priorRun.id);
+        setSubSection("GITHUB_RUNNER");
+        runEngineerMutation.mutate(buildDirectEditRetryInstruction(priorCtx));
+        return;
+      }
+    }
     runPlanFixesMutation.mutate({ findingIds: [finding.id] });
   };
 
@@ -1271,7 +1290,9 @@ export function GitHubFixesLogView({
                                 disabled={isEngineerBusy || runPlanFixesMutation.isPending}
                                 icon={<RefreshCw size={12} />}
                                 onClick={() => {
-                                  if (ctx.matchedFindings.length > 0) {
+                                  if (ctx.hasMetadataToolFailure) {
+                                    runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
+                                  } else if (ctx.matchedFindings.length > 0) {
                                     runPlanFixesMutation.mutate({
                                       findingIds: ctx.matchedFindings.map((mf) => mf.id),
                                     });
@@ -2036,7 +2057,7 @@ export function GitHubFixesLogView({
                     {run.error || "This run ended before it created a reviewable pull request."}
                   </p>
 
-                  {(ctx.isRepoDomainMismatch || ctx.isNoChangesNeeded) && (
+                  {(ctx.isRepoDomainMismatch || ctx.isNoChangesNeeded || ctx.hasMetadataToolFailure) && (
                     <div className="rounded-lg border border-warning-200 bg-warning-50/60 px-3.5 py-2.5 text-xs leading-5 text-warning-700">
                       <strong className="font-bold">Why this happened &amp; how to fix it: </strong>
                       {ctx.isRepoDomainMismatch ? (
@@ -2053,6 +2074,14 @@ export function GitHubFixesLogView({
                           <strong>Change GitHub Repo</strong> below to connect the repository for{" "}
                           <strong>{domain || "this site"}</strong>, or click{" "}
                           <strong>Verify / Apply via CMS</strong> to verify the live site directly.
+                        </>
+                      ) : ctx.hasMetadataToolFailure ? (
+                        <>
+                          The automated <code>metadata</code> route patcher encountered a sub-screen or{" "}
+                          <code>export default function</code> component. Click{" "}
+                          <strong>Retry with GitHub</strong> below to automatically switch the engineer
+                          to direct JSX component editing (<code>edit</code> mode) and open your Pull
+                          Request, or click <strong>Verify / Apply via CMS</strong>.
                         </>
                       ) : (
                         <>
@@ -2116,7 +2145,9 @@ export function GitHubFixesLogView({
                         onClick={() => {
                           dismissRunMutation.mutate(run.id);
                           setSubSection("GITHUB_RUNNER");
-                          if (ctx.matchedFindings.length > 0) {
+                          if (ctx.hasMetadataToolFailure) {
+                            runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
+                          } else if (ctx.matchedFindings.length > 0) {
                             runPlanFixesMutation.mutate({
                               findingIds: ctx.matchedFindings.map((finding) => finding.id),
                             });
