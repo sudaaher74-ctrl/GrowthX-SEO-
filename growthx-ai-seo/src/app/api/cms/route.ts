@@ -1,6 +1,62 @@
+import * as crypto from "node:crypto";
 import * as dns from "node:dns/promises";
 import * as net from "node:net";
 import { NextRequest, NextResponse } from "next/server";
+
+function getVaultKey(): Buffer {
+  const secret =
+    process.env.ENCRYPTION_KEY ||
+    process.env.JWT_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    "reigel-cms-vault-key-v1";
+  return crypto.createHash("sha256").update(secret).digest();
+}
+
+function encryptCmsVault(payload: Record<string, unknown>): string {
+  const key = getVaultKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
+}
+
+function decryptCmsVault<T = Record<string, any>>(token: string): T {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) {
+    throw new Error("Reconnect your CMS platform in Settings to refresh credentials.");
+  }
+  const key = getVaultKey();
+  const iv = Buffer.from(parts[0], "base64url");
+  const tag = Buffer.from(parts[1], "base64url");
+  const encrypted = Buffer.from(parts[2], "base64url");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+  return JSON.parse(decrypted) as T;
+}
+
+function sanitizeJsonLdPayload(raw: string): string {
+  const trimmed = raw
+    .trim()
+    .replace(/^<script[^>]*>/i, "")
+    .replace(/<\/script>$/i, "")
+    .trim();
+  try {
+    const parsed = JSON.parse(trimmed);
+    return JSON.stringify(parsed)
+      .replace(/</g, "\\u003c")
+      .replace(/>/g, "\\u003e")
+      .replace(/&/g, "\\u0026");
+  } catch {
+    return trimmed
+      .replace(/<\/script/gi, "<\\/script")
+      .replace(/<!--/g, "\\u003c!--");
+  }
+}
 
 function ipv4ToInt(ip: string): number {
   return ip.split(".").reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
@@ -280,6 +336,12 @@ export async function POST(req: NextRequest) {
         seoPlugin: detectedPlugin,
         status: "CONNECTED",
         lastSyncedAt: new Date().toISOString(),
+        vaultToken: encryptCmsVault({
+          siteUrl,
+          username,
+          appPassword,
+          seoPlugin: detectedPlugin,
+        }),
       });
     }
 
@@ -330,6 +392,10 @@ export async function POST(req: NextRequest) {
         shopName: shopData?.shop?.name || rawDomain,
         status: "CONNECTED",
         lastSyncedAt: new Date().toISOString(),
+        vaultToken: encryptCmsVault({
+          shopDomain: shopOrigin,
+          accessToken,
+        }),
       });
     }
 
@@ -378,16 +444,314 @@ export async function POST(req: NextRequest) {
         shortName?: string;
         customDomains?: Array<{ url?: string }>;
       };
+      const resolvedSiteUrl =
+        siteUrl ||
+        wfSite?.customDomains?.[0]?.url ||
+        `https://${wfSite?.shortName || siteId}.webflow.io`;
       return NextResponse.json({
         connected: true,
         siteId,
         siteName: wfSite?.displayName || wfSite?.shortName || siteId,
-        siteUrl:
-          siteUrl ||
-          wfSite?.customDomains?.[0]?.url ||
-          `https://${wfSite?.shortName || siteId}.webflow.io`,
+        siteUrl: resolvedSiteUrl,
         status: "CONNECTED",
         lastSyncedAt: new Date().toISOString(),
+        vaultToken: encryptCmsVault({
+          siteId,
+          apiToken,
+          siteUrl: resolvedSiteUrl,
+        }),
+      });
+    }
+
+    if (action === "apply-wordpress") {
+      const creds = decryptCmsVault<{
+        siteUrl: string;
+        username: string;
+        appPassword: string;
+        seoPlugin?: string;
+      }>(body.vaultToken);
+      const authHeader = buildBasicAuth(creds.username, creds.appPassword);
+      const targetUrl = String(body.targetUrl || "").trim();
+      const field = String(body.field || "META_TITLE");
+      const afterValue = String(body.afterValue || "").trim();
+      const publishMode = body.publishMode === "publish" ? "publish" : "draft";
+
+      let slug = "";
+      try {
+        const parsed = new URL(targetUrl);
+        slug = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/").pop() || "";
+      } catch {
+        slug = "";
+      }
+
+      let wpItem: { id: number; restBase: "pages" | "posts"; contentRaw?: string } | null = null;
+      for (const restBase of ["pages", "posts"] as const) {
+        const endpoint = slug
+          ? `${creds.siteUrl}/wp-json/wp/v2/${restBase}?slug=${encodeURIComponent(slug)}&context=edit&per_page=1`
+          : `${creds.siteUrl}/wp-json/wp/v2/${restBase}?context=edit&per_page=1`;
+        const res = await safeCmsFetch(endpoint, {
+          headers: {
+            Authorization: authHeader,
+            Accept: "application/json",
+            "User-Agent": "Reigel-SEO-Agent/1.0",
+          },
+        });
+        if (res.ok) {
+          const items = (await res.json()) as Array<{ id: number; content?: { raw?: string; rendered?: string } }>;
+          if (Array.isArray(items) && items.length > 0) {
+            wpItem = {
+              id: items[0].id,
+              restBase,
+              contentRaw: items[0].content?.raw || items[0].content?.rendered || "",
+            };
+            break;
+          }
+        }
+      }
+
+      if (!wpItem) {
+        return NextResponse.json(
+          { message: `Could not locate a matching WordPress page or post for ${targetUrl}.` },
+          { status: 400 },
+        );
+      }
+
+      const payload: Record<string, any> = {};
+      const meta: Record<string, any> = {};
+      const plugin = creds.seoPlugin || "core";
+
+      if (field === "META_TITLE") {
+        payload.title = afterValue;
+        if (plugin === "yoast") meta._yoast_wpseo_title = afterValue;
+        if (plugin === "rankmath") meta.rank_math_title = afterValue;
+        if (plugin === "aioseo") meta._aioseo_title = afterValue;
+      } else if (field === "META_DESCRIPTION") {
+        payload.excerpt = afterValue;
+        if (plugin === "yoast") meta._yoast_wpseo_metadesc = afterValue;
+        if (plugin === "rankmath") meta.rank_math_description = afterValue;
+        if (plugin === "aioseo") meta._aioseo_description = afterValue;
+      } else if (field === "FAQ_SCHEMA" || field === "LOCAL_BUSINESS_SCHEMA") {
+        const safeJsonLd = sanitizeJsonLdPayload(afterValue);
+        payload.content = `${wpItem.contentRaw || ""}\n<!-- wp:html -->\n<script type="application/ld+json">\n${safeJsonLd}\n</script>\n<!-- /wp:html -->`;
+      } else {
+        payload.content = `${wpItem.contentRaw || ""}\n${afterValue}`;
+      }
+      if (Object.keys(meta).length > 0) {
+        payload.meta = meta;
+      }
+
+      const updateUrl =
+        publishMode === "draft"
+          ? `${creds.siteUrl}/wp-json/wp/v2/${wpItem.restBase}/${wpItem.id}/autosaves`
+          : `${creds.siteUrl}/wp-json/wp/v2/${wpItem.restBase}/${wpItem.id}`;
+
+      let updateRes = await safeCmsFetch(updateUrl, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": "Reigel-SEO-Agent/1.0",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!updateRes.ok && publishMode === "draft" && (updateRes.status === 400 || updateRes.status === 404)) {
+        updateRes = await safeCmsFetch(
+          `${creds.siteUrl}/wp-json/wp/v2/${wpItem.restBase}/${wpItem.id}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: authHeader,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "User-Agent": "Reigel-SEO-Agent/1.0",
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+      }
+
+      if (!updateRes.ok) {
+        return NextResponse.json(
+          { message: `WordPress REST API returned HTTP ${updateRes.status} when applying update.` },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        runId: `wp-${Date.now()}`,
+        wpPostId: wpItem.id,
+        wpAdminEditUrl: `${creds.siteUrl}/wp-admin/post.php?post=${wpItem.id}&action=edit`,
+        publishMode,
+        status: publishMode === "publish" ? "PUBLISHED" : "STAGED_DRAFT",
+      });
+    }
+
+    if (action === "apply-shopify") {
+      const creds = decryptCmsVault<{ shopDomain: string; accessToken: string }>(body.vaultToken);
+      const targetUrl = String(body.targetUrl || "").trim();
+      const field = String(body.field || "META_TITLE");
+      const afterValue = String(body.afterValue || "").trim();
+
+      const parsed = new URL(targetUrl);
+      const segments = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
+      const handle = segments[segments.length - 1] || "";
+      const isProduct = segments.includes("products");
+      const resourceKind = isProduct ? "products" : "pages";
+
+      const listEndpoint = handle
+        ? `${creds.shopDomain}/admin/api/2024-10/${resourceKind}.json?handle=${encodeURIComponent(handle)}&limit=1`
+        : `${creds.shopDomain}/admin/api/2024-10/pages.json?limit=1`;
+
+      const listRes = await safeCmsFetch(listEndpoint, {
+        headers: {
+          "X-Shopify-Access-Token": creds.accessToken,
+          Accept: "application/json",
+          "User-Agent": "Reigel-SEO-Agent/1.0",
+        },
+      });
+      if (!listRes.ok) {
+        return NextResponse.json(
+          { message: `Shopify Admin API returned HTTP ${listRes.status}.` },
+          { status: 400 },
+        );
+      }
+      const listData = (await listRes.json()) as Record<string, any[]>;
+      const items = listData[resourceKind] || listData.pages || [];
+      if (!items.length) {
+        return NextResponse.json(
+          { message: `Could not locate a Shopify ${isProduct ? "product" : "page"} matching ${targetUrl}.` },
+          { status: 400 },
+        );
+      }
+
+      const item = items[0];
+      const resourceId = Number(item.id);
+      const singular = isProduct ? "product" : "page";
+      const updatePayload: Record<string, any> = { id: resourceId };
+
+      if (field === "META_TITLE") {
+        updatePayload.metafields_global_title_tag = afterValue;
+      } else if (field === "META_DESCRIPTION") {
+        updatePayload.metafields_global_description_tag = afterValue;
+      } else if (field === "FAQ_SCHEMA" || field === "LOCAL_BUSINESS_SCHEMA") {
+        const safeJsonLd = sanitizeJsonLdPayload(afterValue);
+        updatePayload.body_html = `${item.body_html || ""}\n<script type="application/ld+json">${safeJsonLd}</script>`;
+      } else {
+        updatePayload.body_html = `${item.body_html || ""}\n${afterValue}`;
+      }
+
+      const updateRes = await safeCmsFetch(
+        `${creds.shopDomain}/admin/api/2024-10/${resourceKind}/${resourceId}.json`,
+        {
+          method: "PUT",
+          headers: {
+            "X-Shopify-Access-Token": creds.accessToken,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": "Reigel-SEO-Agent/1.0",
+          },
+          body: JSON.stringify({ [singular]: updatePayload }),
+        },
+      );
+
+      if (!updateRes.ok) {
+        return NextResponse.json(
+          { message: `Shopify Admin API rejected the update (HTTP ${updateRes.status}).` },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        runId: `shopify-${Date.now()}`,
+        shopifyResourceId: resourceId,
+        adminEditUrl: `${creds.shopDomain}/admin/${resourceKind}/${resourceId}`,
+        status: "PUBLISHED",
+      });
+    }
+
+    if (action === "apply-webflow") {
+      const creds = decryptCmsVault<{ siteId: string; apiToken: string; siteUrl?: string }>(body.vaultToken);
+      const targetUrl = String(body.targetUrl || "").trim();
+      const field = String(body.field || "META_TITLE");
+      const afterValue = String(body.afterValue || "").trim();
+
+      const parsed = new URL(targetUrl);
+      const targetSlug = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/").pop() || "";
+
+      const listRes = await safeCmsFetch(
+        `https://api.webflow.com/v2/sites/${encodeURIComponent(creds.siteId)}/pages`,
+        {
+          headers: {
+            Authorization: `Bearer ${creds.apiToken}`,
+            Accept: "application/json",
+            "User-Agent": "Reigel-SEO-Agent/1.0",
+          },
+        },
+      );
+      if (!listRes.ok) {
+        return NextResponse.json(
+          { message: `Webflow API returned HTTP ${listRes.status} when listing pages.` },
+          { status: 400 },
+        );
+      }
+      const listData = (await listRes.json()) as {
+        pages?: Array<{ id: string; slug?: string | null; title?: string; seo?: { title?: string; description?: string } }>;
+      };
+      const pages = Array.isArray(listData.pages) ? listData.pages : [];
+      const matched =
+        pages.find((p) => (p.slug || "") === targetSlug) ||
+        (!targetSlug ? pages.find((p) => !p.slug || p.slug === "index" || p.slug === "home") : undefined) ||
+        pages[0];
+
+      if (!matched) {
+        return NextResponse.json(
+          { message: `No Webflow pages found in site ${creds.siteId}.` },
+          { status: 400 },
+        );
+      }
+
+      const updateBody: Record<string, any> = {
+        title: matched.title,
+        seo: { ...(matched.seo || {}) },
+      };
+      if (field === "META_TITLE") {
+        updateBody.title = afterValue;
+        updateBody.seo.title = afterValue;
+      } else {
+        updateBody.seo.description = afterValue;
+      }
+
+      const updateRes = await safeCmsFetch(
+        `https://api.webflow.com/v2/pages/${encodeURIComponent(matched.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${creds.apiToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": "Reigel-SEO-Agent/1.0",
+          },
+          body: JSON.stringify(updateBody),
+        },
+      );
+
+      if (!updateRes.ok) {
+        return NextResponse.json(
+          { message: `Webflow API returned HTTP ${updateRes.status} when updating page.` },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        runId: `webflow-${Date.now()}`,
+        webflowPageId: matched.id,
+        adminEditUrl: `https://webflow.com/design/${creds.siteId}`,
+        status: "STAGED_DRAFT",
       });
     }
 

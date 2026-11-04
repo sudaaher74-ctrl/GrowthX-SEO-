@@ -17,9 +17,11 @@ import {
   BacklinkPageDto,
   BacklinkAnalyticsDto,
   ExploreBacklinksDto,
+  ImportAndAnalyzeGapDto,
   ImportBacklinksDto,
   PlanBacklinkDto,
   SyncBacklinkIntelligenceDto,
+  SyncLinkGapDto,
   UpdateOutreachDto,
   VerifyBacklinksDto,
 } from "./backlinks.dto";
@@ -125,6 +127,37 @@ export class BacklinksController {
       offset: offset ? Number(offset) : undefined,
       forceRefresh,
     });
+  }
+
+  @Get("intelligence/gap")
+  getCompetitorLinkGap(
+    @Param("projectId") projectId: string,
+    @Query("competitorDomain") competitorDomain?: string,
+    @Query("refresh") refresh?: string,
+    @Req() req?: any,
+  ) {
+    const forceRefresh = refresh === "true";
+    this.assertCanForceRefresh(req, forceRefresh);
+    return this.intelligence.getCompetitorLinkGap(projectId, {
+      forceRefresh,
+      competitorDomain,
+    });
+  }
+
+  @Post("intelligence/gap/sync")
+  syncCompetitorLinkGap(
+    @Param("projectId") projectId: string,
+    @Body() body?: SyncLinkGapDto,
+  ) {
+    return this.intelligence.syncCompetitorLinkGap(projectId, body?.competitorDomain);
+  }
+
+  @Post("intelligence/gap/import-and-analyze")
+  importAndAnalyzeGapSource(
+    @Param("projectId") projectId: string,
+    @Body() body: ImportAndAnalyzeGapDto,
+  ) {
+    return this.intelligence.importAndAnalyzeGapSource(projectId, body);
   }
 
   @Get()

@@ -23,22 +23,34 @@ describe('BacklinkIntelligenceService', () => {
           domain: 'milquufresh.in',
           url: 'https://milquufresh.in',
         }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       crawlJob: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
       competitorDomain: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          { domain: 'countrydelight.in' },
+          { domain: 'akshayakalpa.org' },
+        ]),
       },
       backlinkDomainSnapshot: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockImplementation((args) => Promise.resolve({ id: 'snap_1', ...args.data, checkedAt: new Date() })),
       },
       backlinkSource: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'source_1', sourceUrl: 'https://dairyreview.com/post' }),
+        findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn().mockResolvedValue({ id: 'source_1', sourceUrl: 'https://dairyreview.com/post' }),
       },
       backlink: {
+        findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn().mockResolvedValue({ id: 'link_1', targetUrl: 'https://milquufresh.in/' }),
+      },
+      publicBacklinkEdge: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -248,6 +260,93 @@ describe('BacklinkIntelligenceService', () => {
       expect(res.items[0].anchor).toBe('Pure A2 Milk');
       expect(res.items[0].backlinks).toBe(85);
       expect(res.items[0].referringDomains).toBe(12);
+    });
+  });
+
+  describe('getCompetitorLinkGap', () => {
+    it('computes competitor link gap excluding domains that already link to own site and ranks multi-competitor overlaps first', async () => {
+      prisma.backlinkDomainSnapshot.findMany.mockResolvedValueOnce([
+        {
+          domain: 'milquufresh.in',
+          targetKind: 'OWN',
+          checkedAt: new Date(),
+          referringDomains: 1,
+          topReferringDomains: [{ domain: 'already-links-to-us.com', rank: 500, backlinks: 3, dofollowBacklinks: 3 }],
+          backlinksList: [],
+        },
+        {
+          domain: 'countrydelight.in',
+          targetKind: 'COMPETITOR',
+          checkedAt: new Date(),
+          referringDomains: 3,
+          topReferringDomains: [
+            { domain: 'already-links-to-us.com', rank: 500, backlinks: 2, dofollowBacklinks: 2 },
+            { domain: 'punefoodie.com', rank: 620, backlinks: 4, dofollowBacklinks: 4 },
+            { domain: 'indianstartupnews.com', rank: 480, backlinks: 1, dofollowBacklinks: 1 },
+          ],
+          backlinksList: [
+            {
+              urlFrom: 'https://punefoodie.com/best-a2-milk-pune',
+              urlTo: 'https://countrydelight.in/',
+              domainFrom: 'punefoodie.com',
+              anchor: 'Best Milk Delivery',
+              dofollow: true,
+              domainFromRank: 620,
+            },
+          ],
+        },
+        {
+          domain: 'akshayakalpa.org',
+          targetKind: 'COMPETITOR',
+          checkedAt: new Date(),
+          referringDomains: 1,
+          topReferringDomains: [
+            { domain: 'punefoodie.com', rank: 620, backlinks: 2, dofollowBacklinks: 2 },
+          ],
+          backlinksList: [
+            {
+              urlFrom: 'https://punefoodie.com/best-a2-milk-pune',
+              urlTo: 'https://akshayakalpa.org/',
+              domainFrom: 'punefoodie.com',
+              anchor: 'Organic Milk',
+              dofollow: true,
+              domainFromRank: 620,
+            },
+          ],
+        },
+      ]);
+
+      prisma.backlink.findMany.mockResolvedValueOnce([
+        {
+          targetKind: 'COMPETITOR',
+          targetHost: 'countrydelight.in',
+          targetUrl: 'https://countrydelight.in/pune',
+          status: 'VERIFIED',
+          followState: 'FOLLOWED',
+          anchorText: 'Country Delight Pune',
+          firstObservedAt: new Date('2026-10-01T00:00:00Z'),
+          source: {
+            id: 'src_verified_1',
+            sourceUrl: 'https://organicliving.in/top-dairy-brands',
+            status: 'READ',
+            discovery: 'PROJECT_CRAWL',
+          },
+        },
+      ]);
+
+      const gap = await service.getCompetitorLinkGap('proj_1');
+      expect(gap.ownDomain).toBe('milquufresh.in');
+      expect(gap.totalGapDomains).toBe(3); // punefoodie.com, organicliving.in, indianstartupnews.com
+      expect(gap.multiCompetitorOverlapCount).toBe(1); // punefoodie.com links to 2 competitors
+      expect(gap.verifiedGapSourcesCount).toBe(1); // organicliving.in is VERIFIED by Reigel
+
+      // punefoodie.com should be #1 because it links to 2 competitors
+      expect(gap.items[0].referringDomain).toBe('punefoodie.com');
+      expect(gap.items[0].competitorOverlapCount).toBe(2);
+      expect(gap.items[0].sampleSourceUrl).toBe('https://punefoodie.com/best-a2-milk-pune');
+
+      // already-links-to-us.com must be excluded
+      expect(gap.items.find((i) => i.referringDomain === 'already-links-to-us.com')).toBeUndefined();
     });
   });
 });

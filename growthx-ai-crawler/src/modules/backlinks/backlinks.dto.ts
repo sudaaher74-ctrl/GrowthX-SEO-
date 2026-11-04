@@ -22,6 +22,24 @@ export class SyncBacklinkIntelligenceDto {
   targetKind?: "OWN" | "COMPETITOR";
 }
 
+export class SyncLinkGapDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  competitorDomain?: string;
+}
+
+export class ImportAndAnalyzeGapDto {
+  @IsString()
+  @MaxLength(2048)
+  sourceUrl!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  targetUrl?: string;
+}
+
 export class UpdateOutreachDto {
   @IsOptional()
   @IsString()

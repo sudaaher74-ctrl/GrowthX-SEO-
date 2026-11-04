@@ -12,6 +12,7 @@ import { BacklinkAnalysis } from './backlink-analysis';
 import { BacklinkDiscoveryPanel } from './backlink-discovery';
 import { RecommendationDiscovery } from './recommendation-discovery';
 import { BacklinkOverview } from './backlink-overview';
+import { CompetitorLinkGap } from './competitor-link-gap';
 
 const date = (value: string | null) => (value ? new Date(value).toLocaleString() : 'Not checked');
 const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -43,7 +44,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<'overview' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
+  const [tab, setTab] = useState<'overview' | 'link-gap' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
 
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset],
@@ -156,6 +157,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         {(
           [
             { id: 'overview', label: 'Overview' },
+            { id: 'link-gap', label: 'Competitor Link Gap' },
             { id: 'recommendations', label: 'Opportunities' },
             { id: 'explorer', label: 'Profile & reports' },
             { id: 'evidence', label: 'Source checks' },
@@ -175,6 +177,13 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       </nav>
 
       {tab === 'overview' ? <BacklinkOverview projectId={projectId} report={data} onSources={() => setTab('evidence')} onOpportunities={() => setTab('actions')} /> : null}
+
+      {tab === 'link-gap' ? (
+        <CompetitorLinkGap
+          projectId={projectId}
+          onOpenOpportunities={() => setTab('recommendations')}
+        />
+      ) : null}
 
       {/* Opportunities */}
       {tab === 'recommendations' ? (

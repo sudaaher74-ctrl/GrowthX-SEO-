@@ -26,7 +26,7 @@ import {
   GooglePlacesLogo,
 } from "@/components/settings/integration-logos";
 import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
-import { WordPressConnectModal } from "@/components/settings/wordpress-connect-modal";
+import { WordPressConnectModal, type CmsConnectPlatform } from "@/components/settings/wordpress-connect-modal";
 import {
   useConnectRepository,
   useRepository,
@@ -275,6 +275,22 @@ function IntegrationsView() {
     retry: false,
   });
 
+  // Shopify connection query
+  const shopifyQuery = useQuery({
+    queryKey: ["shopify-connection", projectId],
+    queryFn: () => (projectId ? api.getShopifyConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  // Webflow connection query
+  const webflowQuery = useQuery({
+    queryKey: ["webflow-connection", projectId],
+    queryFn: () => (projectId ? api.getWebflowConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
   const disconnectWp = useMutation({
     mutationFn: () => api.disconnectWordPress(projectId!),
     onSuccess: () => {
@@ -284,7 +300,25 @@ function IntegrationsView() {
     onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
   });
 
-  const [wpModalOpen, setWpModalOpen] = useState(false);
+  const disconnectShopify = useMutation({
+    mutationFn: () => api.disconnectShopify(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shopify-connection", projectId] });
+      setActionNotice({ type: "success", text: "Shopify store disconnected." });
+    },
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
+  });
+
+  const disconnectWebflow = useMutation({
+    mutationFn: () => api.disconnectWebflow(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["webflow-connection", projectId] });
+      setActionNotice({ type: "success", text: "Webflow site disconnected." });
+    },
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
+  });
+
+  const [cmsModalPlatform, setCmsModalPlatform] = useState<CmsConnectPlatform | null>(null);
 
   const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
@@ -412,6 +446,10 @@ function IntegrationsView() {
   const isGa4Connected = ga4?.status === "CONNECTED";
   const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
   const connectedGoogleCount = Number(isGscConnected) + Number(isGa4Connected);
+  const connectedCmsCount =
+    Number(Boolean(wpQuery.data?.connected)) +
+    Number(Boolean(shopifyQuery.data?.connected)) +
+    Number(Boolean(webflowQuery.data?.connected));
   const googleStatusLabel = googleQuery.isLoading
     ? "Checking Google connections…"
     : googleQuery.isError
@@ -424,6 +462,7 @@ function IntegrationsView() {
       : isGitHubConnected
         ? "GitHub repository connected"
         : "GitHub repository not connected";
+  const cmsStatusLabel = `${connectedCmsCount} of 3 CMS platforms connected`;
 
   return (
     <div className="space-y-6">
@@ -457,7 +496,7 @@ function IntegrationsView() {
             <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-500">Workspace connections</p>
             <h2 className="mt-0.5 text-lg font-bold text-brand-950">Connect your tools</h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-brand-600">
-              Manage Google data sources and the GitHub repository used for code changes. Each card shows its connection and latest sync status.
+              Manage Google data sources, GitHub repositories, and direct CMS connections (WordPress, Shopify, Webflow). Each card shows its live connection status.
             </p>
           </div>
         </div>
@@ -467,6 +506,9 @@ function IntegrationsView() {
           </span>
           <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
             {githubStatusLabel}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
+            {cmsStatusLabel}
           </span>
         </div>
       </section>
@@ -602,7 +644,7 @@ function IntegrationsView() {
               </div>
               {wpQuery.data?.connected ? (
                 <div className="flex items-center gap-1.5">
-                  <button type="button" onClick={() => setWpModalOpen(true)} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                  <button type="button" onClick={() => setCmsModalPlatform("wordpress")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                     Change
                   </button>
                   <button type="button" disabled={disconnectWp.isPending} onClick={() => disconnectWp.mutate()} className="rounded-lg border border-error-200 px-2.5 py-1.5 text-xs font-semibold text-error-700 hover:bg-error-50">
@@ -610,7 +652,7 @@ function IntegrationsView() {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setWpModalOpen(true)} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                <button type="button" onClick={() => setCmsModalPlatform("wordpress")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
                   Connect
                 </button>
               )}
@@ -622,20 +664,97 @@ function IntegrationsView() {
               </div>
             )}
           </section>
+
+          {/* Shopify */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-xs font-bold text-brand-900">
+                SH
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-semibold text-brand-950">Shopify</h3>
+                <p className="truncate text-[11px] text-brand-500">Update page, product & article SEO via Admin API</p>
+              </div>
+              {shopifyQuery.data?.connected ? (
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setCmsModalPlatform("shopify")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                    Change
+                  </button>
+                  <button type="button" disabled={disconnectShopify.isPending} onClick={() => disconnectShopify.mutate()} className="rounded-lg border border-error-200 px-2.5 py-1.5 text-xs font-semibold text-error-700 hover:bg-error-50">
+                    {disconnectShopify.isPending ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setCmsModalPlatform("shopify")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                  Connect
+                </button>
+              )}
+            </div>
+            {shopifyQuery.data?.connected && (
+              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <p className="font-mono text-brand-900">{shopifyQuery.data.storeDomain}</p>
+                {shopifyQuery.data.shopName && <p className="mt-1">Store · {shopifyQuery.data.shopName}</p>}
+              </div>
+            )}
+          </section>
+
+          {/* Webflow */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-xs font-bold text-brand-900">
+                WF
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-semibold text-brand-950">Webflow</h3>
+                <p className="truncate text-[11px] text-brand-500">Update page SEO & Open Graph via Webflow v2 API</p>
+              </div>
+              {webflowQuery.data?.connected ? (
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setCmsModalPlatform("webflow")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                    Change
+                  </button>
+                  <button type="button" disabled={disconnectWebflow.isPending} onClick={() => disconnectWebflow.mutate()} className="rounded-lg border border-error-200 px-2.5 py-1.5 text-xs font-semibold text-error-700 hover:bg-error-50">
+                    {disconnectWebflow.isPending ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setCmsModalPlatform("webflow")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                  Connect
+                </button>
+              )}
+            </div>
+            {webflowQuery.data?.connected && (
+              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <p className="font-medium text-brand-900">{webflowQuery.data.siteName || webflowQuery.data.siteId}</p>
+                {webflowQuery.data.customDomain && <p className="mt-1 font-mono">{webflowQuery.data.customDomain}</p>}
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
-      {wpModalOpen && projectId && (
+      {cmsModalPlatform && projectId && (
         <WordPressConnectModal
           projectId={projectId}
+          initialPlatform={cmsModalPlatform}
           existingSiteUrl={wpQuery.data?.siteUrl}
           existingUsername={wpQuery.data?.username}
-          onClose={() => setWpModalOpen(false)}
+          defaultSiteUrl={
+            cmsModalPlatform === "shopify"
+              ? shopifyQuery.data?.storeDomain
+              : cmsModalPlatform === "webflow"
+                ? webflowQuery.data?.customDomain
+                : wpQuery.data?.siteUrl
+          }
+          onClose={() => setCmsModalPlatform(null)}
           onConnected={(info) => {
-            setWpModalOpen(false);
+            setCmsModalPlatform(null);
+            qc.invalidateQueries({ queryKey: ["wordpress-connection", projectId] });
+            qc.invalidateQueries({ queryKey: ["shopify-connection", projectId] });
+            qc.invalidateQueries({ queryKey: ["webflow-connection", projectId] });
             setActionNotice({
               type: "success",
-              text: `WordPress site ${info.siteUrl} connected as ${info.username} (${info.seoPlugin}).`,
+              text: `${(info.platform || cmsModalPlatform).toUpperCase()} connected (${info.siteUrl}).`,
             });
           }}
         />

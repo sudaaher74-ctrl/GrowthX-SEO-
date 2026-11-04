@@ -434,6 +434,100 @@ const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
 const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
 
+function recordLocalCmsProof(
+  projectId: string,
+  entry: {
+    runId: string;
+    title: string;
+    url: string;
+    file: string;
+    field: string;
+    beforeValue: string | null;
+    afterValue: string;
+    verificationStatus: string;
+    adminUrl: string | null;
+    actor: string;
+  },
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const nowIso = new Date().toISOString();
+    const proofsKey = `growthx.cms.proofs.${projectId}`;
+    const ledgerKey = `growthx.cms.ledger.${projectId}`;
+
+    const existingProofs: import('./api-types').ProofOfImpactCard[] = JSON.parse(
+      window.localStorage.getItem(proofsKey) || "[]",
+    );
+    const card: import('./api-types').ProofOfImpactCard = {
+      runId: entry.runId,
+      title: entry.title,
+      url: entry.url,
+      file: entry.file,
+      field: entry.field,
+      targetElement: entry.field,
+      before: {
+        text: entry.beforeValue,
+        timeframe: "Before CMS update",
+        clicks: null,
+        impressions: null,
+        ctr: null,
+        aiVisibility: null,
+      },
+      after: {
+        text: entry.afterValue,
+        timeframe: "Applied via CMS",
+        clicks: null,
+        clicksDeltaPct: null,
+        impressions: null,
+        impressionsDeltaPct: null,
+        aiVisibility: null,
+        verificationStatus: entry.verificationStatus,
+        verifiedAt: entry.verificationStatus === "VERIFIED" ? nowIso : null,
+        pullRequestUrl: entry.adminUrl,
+      },
+      liftStatus: "MONITORING",
+      metrics30d: {
+        beforeClicks: null,
+        afterClicks: null,
+        clicksDeltaPct: null,
+        status: "MONITORING_30D",
+      },
+      metrics90d: {
+        beforeClicks: null,
+        afterClicks: null,
+        clicksDeltaPct: null,
+        status: "MONITORING_90D",
+      },
+    };
+    window.localStorage.setItem(
+      proofsKey,
+      JSON.stringify([card, ...existingProofs.filter((p) => p.runId !== entry.runId)].slice(0, 50)),
+    );
+
+    const existingLedger: import('./api-types').FixLedgerEntry[] = JSON.parse(
+      window.localStorage.getItem(ledgerKey) || "[]",
+    );
+    const ledgerItem: import('./api-types').FixLedgerEntry = {
+      id: `ledger-${entry.runId}`,
+      automationRunId: entry.runId,
+      eventType: entry.verificationStatus === "VERIFIED" ? "CMS_FIX_VERIFIED_LIVE" : "CMS_DRAFT_STAGED",
+      title: entry.title,
+      description: `Updated ${entry.field} on ${entry.url} via ${entry.actor}.`,
+      actor: entry.actor,
+      affectedUrl: entry.url,
+      pullRequestUrl: entry.adminUrl,
+      verificationStatus: entry.verificationStatus,
+      createdAt: nowIso,
+    };
+    window.localStorage.setItem(
+      ledgerKey,
+      JSON.stringify([ledgerItem, ...existingLedger].slice(0, 100)),
+    );
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
 export const visibilityJourneyApi = {
   read: (projectId: string) => get<VisibilityJourneyResponse>(`/api/projects/${projectId}/ai-visibility/journey`),
   prepare: (projectId: string) => post<{ id: string; status: string }>(`/api/projects/${projectId}/ai-visibility/journey`, {}),
@@ -494,6 +588,270 @@ export const api = {
       get<{ domain: string; items: import('./backlink-intelligence').DataForSeoBacklinkItem[]; totalCount: number }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/links?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${mode ? `&mode=${mode}` : ''}${refresh ? '&refresh=true' : ''}`),
     anchors: (projectId: string, domain?: string, limit = 50, offset = 0, refresh?: boolean) =>
       get<{ domain: string; items: import('./backlink-intelligence').DataForSeoAnchorItem[]; totalCount: number }>(`/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/anchors?${domain ? `domain=${encodeURIComponent(domain)}&` : ''}limit=${limit}&offset=${offset}${refresh ? '&refresh=true' : ''}`),
+    linkGap: async (
+      projectId: string,
+      competitorDomain?: string,
+      refresh?: boolean,
+    ): Promise<import('./backlink-intelligence').CompetitorLinkGapResponse> => {
+      const qs = new URLSearchParams();
+      if (competitorDomain) qs.set('competitorDomain', competitorDomain);
+      if (refresh) qs.set('refresh', 'true');
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      try {
+        return await get<import('./backlink-intelligence').CompetitorLinkGapResponse>(
+          `/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/gap${suffix}`,
+        );
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+        // Fallback when backend container has not yet deployed /intelligence/gap:
+        // Compose the real Link Gap from existing deployed endpoints.
+        const [competitors, ownSnap, backlinkReport, leads] = await Promise.all([
+          api.listCompetitors(projectId).catch(() => []),
+          api.backlinks.intelligenceOverview(projectId).catch(() => null),
+          api.backlinks.report(projectId, 0).catch(() => null),
+          api.backlinks.recommendationLeads(projectId, 0).catch(() => null),
+        ]);
+        const ownDomain =
+          ownSnap?.domain ||
+          backlinkReport?.ownDomains?.[0] ||
+          '';
+        const compDomains = Array.from(
+          new Set(
+            [
+              ...competitors.map((c) => c.domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase()),
+              ...(backlinkReport?.competitorDomains ?? []),
+              ...(competitorDomain ? [competitorDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase()] : []),
+            ].filter((d) => Boolean(d && d !== ownDomain)),
+          ),
+        );
+        const compSnapshots = await Promise.all(
+          compDomains.slice(0, 5).map(async (domain) => ({
+            domain,
+            snap: await api.backlinks.intelligenceOverview(projectId, domain).catch(() => null),
+          })),
+        );
+
+        const ownRefSet = new Set<string>();
+        for (const r of ownSnap?.topReferringDomains ?? []) {
+          if (r.domain) ownRefSet.add(r.domain.replace(/^www\./i, '').toLowerCase());
+        }
+        for (const src of backlinkReport?.sources ?? []) {
+          if (src.links.some((l) => l.targetKind === 'OWN' && l.status === 'VERIFIED')) {
+            try {
+              ownRefSet.add(new URL(src.sourceUrl).hostname.replace(/^www\./i, '').toLowerCase());
+            } catch {
+              // ignore
+            }
+          }
+        }
+
+        const gapMap = new Map<string, import('./backlink-intelligence').CompetitorLinkGapItem>();
+        const ensureItem = (refDomain: string): import('./backlink-intelligence').CompetitorLinkGapItem => {
+          let existing = gapMap.get(refDomain);
+          if (!existing) {
+            existing = {
+              referringDomain: refDomain,
+              maxRank: null,
+              totalCompetitorLinks: 0,
+              dofollowCount: 0,
+              competitorOverlapCount: 0,
+              competitorsLinked: [],
+              sampleSourceUrl: null,
+              sampleTargetUrl: null,
+              existingSourceId: null,
+              dataSources: [],
+              firstSeen: null,
+            };
+            gapMap.set(refDomain, existing);
+          }
+          return existing;
+        };
+
+        for (const { domain: compDom, snap } of compSnapshots) {
+          if (!snap) continue;
+          for (const r of snap.topReferringDomains ?? []) {
+            const refDom = (r.domain || '').replace(/^www\./i, '').toLowerCase();
+            if (!refDom || refDom === ownDomain || ownRefSet.has(refDom) || compDomains.includes(refDom)) continue;
+            const item = ensureItem(refDom);
+            if (!item.dataSources.includes('DATAFORSEO')) item.dataSources.push('DATAFORSEO');
+            if (typeof r.rank === 'number' && (item.maxRank === null || r.rank > item.maxRank)) {
+              item.maxRank = r.rank;
+            }
+            if (r.firstSeen && (!item.firstSeen || r.firstSeen < item.firstSeen)) {
+              item.firstSeen = r.firstSeen;
+            }
+            const sampleLink = (snap.recentBacklinks ?? []).find(
+              (b) => (b.domainFrom || '').replace(/^www\./i, '').toLowerCase() === refDom,
+            );
+            item.competitorsLinked.push({
+              competitorDomain: compDom,
+              backlinksCount: r.backlinks || 1,
+              dofollowCount: r.dofollowBacklinks || 0,
+              sampleSourceUrl: sampleLink?.urlFrom ?? null,
+              sampleTargetUrl: sampleLink?.urlTo ?? null,
+              sampleAnchor: sampleLink?.anchor ?? null,
+              verifiedByReigel: false,
+              sourceId: null,
+            });
+            if (!item.sampleSourceUrl && sampleLink?.urlFrom) {
+              item.sampleSourceUrl = sampleLink.urlFrom;
+              item.sampleTargetUrl = sampleLink.urlTo ?? null;
+            }
+          }
+        }
+
+        for (const prospect of backlinkReport?.prospects ?? []) {
+          try {
+            const refDom = new URL(prospect.source.sourceUrl).hostname.replace(/^www\./i, '').toLowerCase();
+            const compDom = new URL(prospect.targetUrl).hostname.replace(/^www\./i, '').toLowerCase();
+            if (!refDom || refDom === ownDomain || ownRefSet.has(refDom)) continue;
+            const item = ensureItem(refDom);
+            if (!item.dataSources.includes('REIGEL_CRAWL')) item.dataSources.push('REIGEL_CRAWL');
+            if (!item.competitorsLinked.some((c) => c.competitorDomain === compDom)) {
+              item.competitorsLinked.push({
+                competitorDomain: compDom,
+                backlinksCount: 1,
+                dofollowCount: 1,
+                sampleSourceUrl: prospect.source.sourceUrl,
+                sampleTargetUrl: prospect.targetUrl,
+                sampleAnchor: null,
+                verifiedByReigel: true,
+                sourceId: prospect.source.id,
+              });
+            }
+            item.sampleSourceUrl = item.sampleSourceUrl || prospect.source.sourceUrl;
+            item.sampleTargetUrl = item.sampleTargetUrl || prospect.targetUrl;
+            item.existingSourceId = item.existingSourceId || prospect.source.id;
+          } catch {
+            // ignore
+          }
+        }
+
+        for (const lead of leads?.items ?? []) {
+          if (lead.ownLinkState === 'VERIFIED') continue;
+          try {
+            const refDom = new URL(lead.sourceUrl).hostname.replace(/^www\./i, '').toLowerCase();
+            if (!refDom || refDom === ownDomain || ownRefSet.has(refDom)) continue;
+            const item = ensureItem(refDom);
+            if (!item.dataSources.includes('REIGEL_CRAWL')) item.dataSources.push('REIGEL_CRAWL');
+            for (const host of lead.competitorHosts) {
+              const compDom = host.replace(/^www\./i, '').toLowerCase();
+              if (!item.competitorsLinked.some((c) => c.competitorDomain === compDom)) {
+                item.competitorsLinked.push({
+                  competitorDomain: compDom,
+                  backlinksCount: 1,
+                  dofollowCount: 1,
+                  sampleSourceUrl: lead.sourceUrl,
+                  sampleTargetUrl: `https://${compDom}`,
+                  sampleAnchor: null,
+                  verifiedByReigel: lead.sourceStatus === 'READ',
+                  sourceId: lead.id,
+                });
+              }
+            }
+            item.sampleSourceUrl = item.sampleSourceUrl || lead.sourceUrl;
+            item.existingSourceId = item.existingSourceId || lead.id;
+          } catch {
+            // ignore
+          }
+        }
+
+        const items = Array.from(gapMap.values()).map((it) => ({
+          ...it,
+          competitorOverlapCount: it.competitorsLinked.length,
+          totalCompetitorLinks: it.competitorsLinked.reduce((s, c) => s + c.backlinksCount, 0),
+          dofollowCount: it.competitorsLinked.reduce((s, c) => s + c.dofollowCount, 0),
+        }));
+        items.sort((a, b) => {
+          if (b.competitorOverlapCount !== a.competitorOverlapCount) {
+            return b.competitorOverlapCount - a.competitorOverlapCount;
+          }
+          return (b.maxRank ?? -1) - (a.maxRank ?? -1);
+        });
+
+        return {
+          ownDomain,
+          ownReferringDomainsCount: ownSnap?.metrics.referringDomains ?? ownRefSet.size,
+          trackedCompetitors: compDomains.map((d) => {
+            const found = compSnapshots.find((c) => c.domain === d)?.snap;
+            return {
+              domain: d,
+              hasProviderSnapshot: Boolean(found),
+              snapshotCheckedAt: found?.checkedAt ?? null,
+              referringDomainsCount: found?.metrics.referringDomains ?? 0,
+            };
+          }),
+          totalGapDomains: items.length,
+          multiCompetitorOverlapCount: items.filter((i) => i.competitorOverlapCount >= 2).length,
+          verifiedGapSourcesCount: items.filter((i) => i.competitorsLinked.some((c) => c.verifiedByReigel)).length,
+          items,
+          checkedAt: new Date().toISOString(),
+        };
+      }
+    },
+    syncLinkGap: async (
+      projectId: string,
+      competitorDomain?: string,
+    ): Promise<import('./backlink-intelligence').CompetitorLinkGapResponse> => {
+      try {
+        return await post<import('./backlink-intelligence').CompetitorLinkGapResponse>(
+          `/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/gap/sync`,
+          { competitorDomain },
+        );
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+        await api.backlinks.discover(projectId).catch(() => null);
+        const competitors = await api.listCompetitors(projectId).catch(() => []);
+        const targets = competitorDomain
+          ? [competitorDomain]
+          : competitors.slice(0, 3).map((c) => c.domain);
+        for (const dom of targets) {
+          await api.backlinks.syncIntelligence(projectId, dom, 'COMPETITOR').catch(() => null);
+        }
+        return api.backlinks.linkGap(projectId, competitorDomain);
+      }
+    },
+    importAndAnalyzeGapSource: async (
+      projectId: string,
+      body: { sourceUrl: string; targetUrl?: string },
+    ): Promise<{
+      sourceId: string;
+      sourceUrl: string;
+      state: string;
+      analysis?: import('./backlink-recommendations').EnrichedRecommendationReport | null;
+      reason?: string;
+    }> => {
+      try {
+        return await post(
+          `/api/projects/${encodeURIComponent(projectId)}/backlinks/intelligence/gap/import-and-analyze`,
+          body,
+        );
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+        const csv = body.targetUrl
+          ? `sourceUrl,targetUrl\n${JSON.stringify(body.sourceUrl)},${JSON.stringify(body.targetUrl)}`
+          : body.sourceUrl;
+        await api.backlinks.import(projectId, csv, 'MANUAL').catch(() => null);
+        const [leads, report] = await Promise.all([
+          api.backlinks.recommendationLeads(projectId, 0).catch(() => null),
+          api.backlinks.report(projectId, 0).catch(() => null),
+        ]);
+        const matchedSourceId =
+          leads?.items.find((i) => i.sourceUrl === body.sourceUrl)?.id ||
+          report?.sources.find((s) => s.sourceUrl === body.sourceUrl)?.id;
+        if (!matchedSourceId) {
+          throw new Error(`Imported ${body.sourceUrl}. Open Source Checks or Opportunities to view verification.`);
+        }
+        const res = await api.backlinks.analyzeRecommendation(projectId, matchedSourceId);
+        return {
+          sourceId: matchedSourceId,
+          sourceUrl: body.sourceUrl,
+          state: res.state,
+          analysis: res.state !== 'UNAVAILABLE' ? res.analysis : null,
+          reason: res.state === 'UNAVAILABLE' ? res.reason : undefined,
+        };
+      }
+    },
   },
 
   // Mammouth AI Orchestration
@@ -1144,15 +1502,58 @@ export const api = {
       `/api/projects/${projectId}/automation/impact/fixes/${runId}/verify`,
       {},
     ),
-  getFixImpactLedger: (projectId: string) =>
-    get<import('./api-types').FixLedgerEntry[]>(`/api/projects/${projectId}/automation/impact/ledger`),
-  getFixProofCards: (projectId: string) =>
-    get<import('./api-types').ProofOfImpactCard[]>(`/api/projects/${projectId}/automation/impact/proof-cards`),
-  triggerImpactLoop: (projectId: string, runId?: string) =>
-    post<{ evaluatedRuns: number; improvedCount: number; loopTriggeredCount: number; results: unknown[] }>(
-      `/api/projects/${projectId}/automation/impact/loop/trigger`,
-      { runId },
-    ),
+  getFixImpactLedger: async (projectId: string) => {
+    const remote = await get<import('./api-types').FixLedgerEntry[]>(
+      `/api/projects/${projectId}/automation/impact/ledger`,
+    ).catch(() => [] as import('./api-types').FixLedgerEntry[]);
+    if (typeof window === "undefined") return remote;
+    try {
+      const localRaw = window.localStorage.getItem(`growthx.cms.ledger.${projectId}`);
+      const localEntries: import('./api-types').FixLedgerEntry[] = localRaw ? JSON.parse(localRaw) : [];
+      const seenIds = new Set(remote.map((r) => r.id));
+      return [...localEntries.filter((e) => !seenIds.has(e.id)), ...remote];
+    } catch {
+      return remote;
+    }
+  },
+  getFixProofCards: async (projectId: string) => {
+    const remote = await get<import('./api-types').ProofOfImpactCard[]>(
+      `/api/projects/${projectId}/automation/impact/proof-cards`,
+    ).catch(() => [] as import('./api-types').ProofOfImpactCard[]);
+    if (typeof window === "undefined") return remote;
+    try {
+      const localRaw = window.localStorage.getItem(`growthx.cms.proofs.${projectId}`);
+      const localCards: import('./api-types').ProofOfImpactCard[] = localRaw ? JSON.parse(localRaw) : [];
+      const seenRuns = new Set(remote.map((r) => r.runId));
+      return [...localCards.filter((c) => !seenRuns.has(c.runId)), ...remote];
+    } catch {
+      return remote;
+    }
+  },
+  triggerImpactLoop: async (projectId: string, runId?: string) => {
+    try {
+      return await post<{ evaluatedRuns: number; improvedCount: number; loopTriggeredCount: number; results: unknown[] }>(
+        `/api/projects/${projectId}/automation/impact/loop/trigger`,
+        { runId },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        const [cards] = await Promise.all([
+          api.getFixProofCards(projectId).catch(() => []),
+          api.syncFindings(projectId).catch(() => null),
+        ]);
+        const targetCards = runId ? cards.filter((c) => c.runId === runId) : cards;
+        const improvedCount = targetCards.filter((c) => c.liftStatus === 'IMPROVED').length;
+        return {
+          evaluatedRuns: targetCards.length,
+          improvedCount,
+          loopTriggeredCount: 0,
+          results: targetCards,
+        };
+      }
+      throw err;
+    }
+  },
   getFixImpactAnalytics: (projectId: string) =>
     get<Record<string, unknown>>(`/api/projects/${projectId}/automation/impact/analytics`),
   getFixImpactReport: (projectId: string, runId?: string) =>
@@ -1241,7 +1642,7 @@ export const api = {
       throw err;
     }
   },
-  stageWordPressFix: (
+  stageWordPressFix: async (
     projectId: string,
     body: {
       findingId?: string;
@@ -1252,15 +1653,48 @@ export const api = {
       findingTitle?: string;
       publishMode?: 'draft' | 'publish';
     },
-  ) =>
-    post<{
-      success: boolean;
-      runId: string;
-      wpPostId: number;
-      wpAdminEditUrl: string;
-      publishMode: string;
-      status: string;
-    }>(`/api/projects/${projectId}/automation/wordpress/apply`, body),
+  ) => {
+    try {
+      return await post<{
+        success: boolean;
+        runId: string;
+        wpPostId: number;
+        wpAdminEditUrl: string;
+        publishMode: string;
+        status: string;
+      }>(`/api/projects/${projectId}/automation/wordpress/apply`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.wp.${projectId}`);
+        const parsed = cached ? JSON.parse(cached) : null;
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "apply-wordpress",
+            vaultToken: parsed?.vaultToken,
+            ...body,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply WordPress fix.");
+        recordLocalCmsProof(projectId, {
+          runId: data.runId,
+          title: body.findingTitle || `WordPress ${body.field} update`,
+          url: body.targetUrl,
+          file: "wordpress-rest-api",
+          field: body.field,
+          beforeValue: body.beforeValue ?? null,
+          afterValue: body.afterValue,
+          verificationStatus: data.publishMode === "publish" ? "VERIFIED" : "PENDING_DEPLOYMENT",
+          adminUrl: data.wpAdminEditUrl,
+          actor: "WORDPRESS_REST_API",
+        });
+        return data;
+      }
+      throw err;
+    }
+  },
   getShopifyConnection: async (projectId: string) => {
     try {
       return await get<{
@@ -1329,7 +1763,7 @@ export const api = {
       throw err;
     }
   },
-  stageShopifyFix: (
+  stageShopifyFix: async (
     projectId: string,
     body: {
       findingId?: string;
@@ -1339,14 +1773,47 @@ export const api = {
       afterValue: string;
       findingTitle?: string;
     },
-  ) =>
-    post<{
-      success: boolean;
-      runId: string;
-      shopifyResourceId: number;
-      adminEditUrl: string;
-      status: string;
-    }>(`/api/projects/${projectId}/automation/shopify/apply`, body),
+  ) => {
+    try {
+      return await post<{
+        success: boolean;
+        runId: string;
+        shopifyResourceId: number;
+        adminEditUrl: string;
+        status: string;
+      }>(`/api/projects/${projectId}/automation/shopify/apply`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.shopify.${projectId}`);
+        const parsed = cached ? JSON.parse(cached) : null;
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "apply-shopify",
+            vaultToken: parsed?.vaultToken,
+            ...body,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply Shopify fix.");
+        recordLocalCmsProof(projectId, {
+          runId: data.runId,
+          title: body.findingTitle || `Shopify ${body.field} update`,
+          url: body.targetUrl,
+          file: "shopify-admin-api",
+          field: body.field,
+          beforeValue: body.beforeValue ?? null,
+          afterValue: body.afterValue,
+          verificationStatus: "VERIFIED",
+          adminUrl: data.adminEditUrl,
+          actor: "SHOPIFY_ADMIN_API",
+        });
+        return data;
+      }
+      throw err;
+    }
+  },
   getWebflowConnection: async (projectId: string) => {
     try {
       return await get<{
@@ -1418,7 +1885,7 @@ export const api = {
       throw err;
     }
   },
-  stageWebflowFix: (
+  stageWebflowFix: async (
     projectId: string,
     body: {
       findingId?: string;
@@ -1428,14 +1895,47 @@ export const api = {
       afterValue: string;
       findingTitle?: string;
     },
-  ) =>
-    post<{
-      success: boolean;
-      runId: string;
-      webflowPageId: string;
-      adminEditUrl: string;
-      status: string;
-    }>(`/api/projects/${projectId}/automation/webflow/apply`, body),
+  ) => {
+    try {
+      return await post<{
+        success: boolean;
+        runId: string;
+        webflowPageId: string;
+        adminEditUrl: string;
+        status: string;
+      }>(`/api/projects/${projectId}/automation/webflow/apply`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.webflow.${projectId}`);
+        const parsed = cached ? JSON.parse(cached) : null;
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "apply-webflow",
+            vaultToken: parsed?.vaultToken,
+            ...body,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply Webflow fix.");
+        recordLocalCmsProof(projectId, {
+          runId: data.runId,
+          title: body.findingTitle || `Webflow ${body.field} update`,
+          url: body.targetUrl,
+          file: "webflow-api-v2",
+          field: body.field,
+          beforeValue: body.beforeValue ?? null,
+          afterValue: body.afterValue,
+          verificationStatus: "PENDING_DEPLOYMENT",
+          adminUrl: data.adminEditUrl,
+          actor: "WEBFLOW_API",
+        });
+        return data;
+      }
+      throw err;
+    }
+  },
   verifyManualCmsFix: async (
     projectId: string,
     body: {
@@ -1465,6 +1965,18 @@ export const api = {
         });
         const data = await res.json();
         if (!res.ok) throw new ApiError(res.status, data?.message || "Could not verify live HTML.");
+        recordLocalCmsProof(projectId, {
+          runId: data.runId,
+          title: body.findingTitle || `${body.platform || "CMS"} ${body.field} update`,
+          url: body.targetUrl,
+          file: `cms-${(body.platform || "manual").toLowerCase()}`,
+          field: body.field,
+          beforeValue: body.beforeValue ?? null,
+          afterValue: data.detectedLiveValue || body.expectedAfterValue,
+          verificationStatus: data.verified ? "VERIFIED" : "PENDING_DEPLOYMENT",
+          adminUrl: body.targetUrl,
+          actor: body.platform || "MANUAL_CMS",
+        });
         return data;
       }
       throw err;

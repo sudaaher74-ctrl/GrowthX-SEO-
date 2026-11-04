@@ -32,3 +32,45 @@ export type BacklinkOverviewResponse = {
   costUsd: number | null;
   warning?: string;
 };
+
+export type CompetitorLinkGapCompetitorMatch = {
+  competitorDomain: string;
+  backlinksCount: number;
+  dofollowCount: number;
+  sampleSourceUrl: string | null;
+  sampleTargetUrl: string | null;
+  sampleAnchor: string | null;
+  verifiedByReigel: boolean;
+  sourceId: string | null;
+};
+
+export type CompetitorLinkGapItem = {
+  referringDomain: string;
+  maxRank: number | null;
+  totalCompetitorLinks: number;
+  dofollowCount: number;
+  competitorOverlapCount: number;
+  competitorsLinked: CompetitorLinkGapCompetitorMatch[];
+  sampleSourceUrl: string | null;
+  sampleTargetUrl: string | null;
+  existingSourceId: string | null;
+  dataSources: Array<'DATAFORSEO' | 'REIGEL_CRAWL' | 'PUBLIC_ARCHIVE'>;
+  firstSeen: string | null;
+};
+
+export type CompetitorLinkGapResponse = {
+  ownDomain: string;
+  ownReferringDomainsCount: number;
+  trackedCompetitors: Array<{
+    domain: string;
+    hasProviderSnapshot: boolean;
+    snapshotCheckedAt: string | null;
+    referringDomainsCount: number;
+  }>;
+  totalGapDomains: number;
+  multiCompetitorOverlapCount: number;
+  verifiedGapSourcesCount: number;
+  items: CompetitorLinkGapItem[];
+  checkedAt: string;
+  warning?: string;
+};
