@@ -26,6 +26,7 @@ import {
   GooglePlacesLogo,
 } from "@/components/settings/integration-logos";
 import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
+import { WordPressConnectModal } from "@/components/settings/wordpress-connect-modal";
 import {
   useConnectRepository,
   useRepository,
@@ -265,6 +266,25 @@ function IntegrationsView() {
     queryFn: () => (projectId ? api.googleConnections(projectId) : null),
     enabled: Boolean(projectId),
   });
+
+  // WordPress connection query
+  const wpQuery = useQuery({
+    queryKey: ["wordpress-connection", projectId],
+    queryFn: () => (projectId ? api.getWordPressConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const disconnectWp = useMutation({
+    mutationFn: () => api.disconnectWordPress(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wordpress-connection", projectId] });
+      setActionNotice({ type: "success", text: "WordPress site disconnected." });
+    },
+    onError: (err) => setActionNotice({ type: "error", text: errorMessage(err) }),
+  });
+
+  const [wpModalOpen, setWpModalOpen] = useState(false);
 
   const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
@@ -569,8 +589,57 @@ function IntegrationsView() {
               </div>
             )}
           </section>
+
+          {/* WordPress CMS */}
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <div className="flex min-h-11 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-brand-900">
+                <Globe className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-semibold text-brand-950">WordPress CMS</h3>
+                <p className="truncate text-[11px] text-brand-500">Stage SEO revisions via Application Password</p>
+              </div>
+              {wpQuery.data?.connected ? (
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setWpModalOpen(true)} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                    Change
+                  </button>
+                  <button type="button" disabled={disconnectWp.isPending} onClick={() => disconnectWp.mutate()} className="rounded-lg border border-error-200 px-2.5 py-1.5 text-xs font-semibold text-error-700 hover:bg-error-50">
+                    {disconnectWp.isPending ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setWpModalOpen(true)} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                  Connect
+                </button>
+              )}
+            </div>
+            {wpQuery.data?.connected && (
+              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
+                <p className="font-mono text-brand-900">{wpQuery.data.siteUrl}</p>
+                <p className="mt-1">User · {wpQuery.data.username} ({(wpQuery.data.seoPlugin || "core").toUpperCase()})</p>
+              </div>
+            )}
+          </section>
         </div>
       </div>
+
+      {wpModalOpen && projectId && (
+        <WordPressConnectModal
+          projectId={projectId}
+          existingSiteUrl={wpQuery.data?.siteUrl}
+          existingUsername={wpQuery.data?.username}
+          onClose={() => setWpModalOpen(false)}
+          onConnected={(info) => {
+            setWpModalOpen(false);
+            setActionNotice({
+              type: "success",
+              text: `WordPress site ${info.siteUrl} connected as ${info.username} (${info.seoPlugin}).`,
+            });
+          }}
+        />
+      )}
 
       {/* Unified Google -> GitHub -> Select Project -> Share with Coding Agent Modal */}
       {githubModalOpen && (

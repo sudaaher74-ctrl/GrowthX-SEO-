@@ -1160,6 +1160,78 @@ export const api = {
       `/api/projects/${projectId}/automation/impact/report${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`,
     ),
 
+  // ── WordPress & Non-GitHub CMS Publishing
+  getWordPressConnection: (projectId: string) =>
+    get<{
+      connected: boolean;
+      siteUrl: string | null;
+      username: string | null;
+      displayName?: string | null;
+      seoPlugin: string | null;
+      status: string;
+      statusMessage: string | null;
+      lastSyncedAt: string | null;
+    }>(`/api/projects/${projectId}/automation/wordpress`),
+  connectWordPress: (
+    projectId: string,
+    body: {
+      siteUrl: string;
+      username: string;
+      appPassword: string;
+      seoPlugin?: 'yoast' | 'rankmath' | 'aioseo' | 'core';
+    },
+  ) =>
+    post<{
+      connected: boolean;
+      siteUrl: string;
+      username: string;
+      displayName: string;
+      seoPlugin: string;
+      status: string;
+      lastSyncedAt: string;
+    }>(`/api/projects/${projectId}/automation/wordpress/connect`, body),
+  disconnectWordPress: (projectId: string) =>
+    post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/wordpress/disconnect`, {}),
+  stageWordPressFix: (
+    projectId: string,
+    body: {
+      findingId?: string;
+      targetUrl: string;
+      field: string;
+      beforeValue?: string;
+      afterValue: string;
+      findingTitle?: string;
+      publishMode?: 'draft' | 'publish';
+    },
+  ) =>
+    post<{
+      success: boolean;
+      runId: string;
+      wpPostId: number;
+      wpAdminEditUrl: string;
+      publishMode: string;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/wordpress/apply`, body),
+  verifyManualCmsFix: (
+    projectId: string,
+    body: {
+      findingId?: string;
+      targetUrl: string;
+      field: string;
+      beforeValue?: string;
+      expectedAfterValue: string;
+      findingTitle?: string;
+      platform?: string;
+    },
+  ) =>
+    post<{
+      verified: boolean;
+      runId: string;
+      targetUrl: string;
+      detectedLiveValue: string;
+      message: string;
+    }>(`/api/projects/${projectId}/automation/cms/verify-manual`, body),
+
   // ── Admin
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
   getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),

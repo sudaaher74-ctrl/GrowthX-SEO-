@@ -3,9 +3,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, GitPullRequest, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, GitPullRequest, Globe, RefreshCw } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
+import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
 import { useFindings, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -56,8 +57,10 @@ export function PlanView({
 }: {
   onOpenGitHubFixes?: (findingId?: string) => void;
 } = {}) {
-  const { projectId } = useWorkspace();
+  const { projectId, projects } = useWorkspace();
+  const domain = projects.find((p) => p.id === projectId)?.name ?? null;
   const [group, setGroup] = useState<string>("ALL");
+  const [cmsFinding, setCmsFinding] = useState<GrowthOpportunity | null | undefined>(undefined);
   const findings = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
   const queryClient = useQueryClient();
@@ -118,6 +121,13 @@ export function PlanView({
               Fix with GitHub &amp; Log →
             </ActionButton>
           )}
+          <ActionButton
+            variant="secondary"
+            icon={<Globe size={12} />}
+            onClick={() => setCmsFinding(null)}
+          >
+            WordPress &amp; CMS Apply
+          </ActionButton>
           <ActionButton disabled={refresh.isPending} icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />} onClick={() => refresh.mutate()}>
             {refresh.isPending ? "Analysing…" : "Refresh plan"}
           </ActionButton>
@@ -145,12 +155,22 @@ export function PlanView({
                 busy={transition.isPending}
                 onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
                 onOpenGitHubFixes={onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined}
+                onOpenCmsApply={() => setCmsFinding(f)}
               />
             ))}
           </ul>
         )}
         {transition.error && <p className="border-t px-4 py-2.5 text-[11.5px] text-error-700">{errorMessage(transition.error)}</p>}
       </Panel>
+
+      {cmsFinding !== undefined && (
+        <CmsApplyModal
+          projectId={projectId}
+          domain={domain}
+          finding={cmsFinding}
+          onClose={() => setCmsFinding(undefined)}
+        />
+      )}
     </div>
   );
 }
@@ -160,11 +180,13 @@ function FindingRow({
   busy,
   onMove,
   onOpenGitHubFixes,
+  onOpenCmsApply,
 }: {
   finding: GrowthOpportunity;
   busy: boolean;
   onMove: (to: string, reason?: string) => void;
   onOpenGitHubFixes?: () => void;
+  onOpenCmsApply?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState(false);
@@ -238,6 +260,15 @@ function FindingRow({
                 onClick={onOpenGitHubFixes}
               >
                 Fix with GitHub →
+              </ActionButton>
+            )}
+            {onOpenCmsApply && (
+              <ActionButton
+                variant="secondary"
+                icon={<Globe size={12} />}
+                onClick={onOpenCmsApply}
+              >
+                Apply in WordPress / CMS →
               </ActionButton>
             )}
             {["DETECTED", "QUEUED"].includes(lifecycle) && !dismissing && (

@@ -1,11 +1,66 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Optional, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
 import { EngineerAgentService } from './engineer-agent.service';
 import { ProofOfImpactService } from './proof-of-impact.service';
+import { WordPressCmsService } from './wordpress-cms.service';
 import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength, IsArray, ArrayMaxSize } from 'class-validator';
+
+export class ConnectWordPressDto {
+  @IsString()
+  siteUrl: string;
+  @IsString()
+  username: string;
+  @IsString()
+  appPassword: string;
+  @IsOptional()
+  @IsEnum(['yoast', 'rankmath', 'aioseo', 'core'])
+  seoPlugin?: 'yoast' | 'rankmath' | 'aioseo' | 'core';
+}
+
+export class StageWordPressFixDto {
+  @IsOptional()
+  @IsString()
+  findingId?: string;
+  @IsString()
+  targetUrl: string;
+  @IsString()
+  field: string;
+  @IsOptional()
+  @IsString()
+  beforeValue?: string;
+  @IsString()
+  afterValue: string;
+  @IsOptional()
+  @IsString()
+  findingTitle?: string;
+  @IsOptional()
+  @IsEnum(['draft', 'publish'])
+  publishMode?: 'draft' | 'publish';
+}
+
+export class VerifyManualCmsFixDto {
+  @IsOptional()
+  @IsString()
+  findingId?: string;
+  @IsString()
+  targetUrl: string;
+  @IsString()
+  field: string;
+  @IsOptional()
+  @IsString()
+  beforeValue?: string;
+  @IsString()
+  expectedAfterValue: string;
+  @IsOptional()
+  @IsString()
+  findingTitle?: string;
+  @IsOptional()
+  @IsString()
+  platform?: string;
+}
 
 export class ConnectRepoDto {
   @IsString()
@@ -66,6 +121,7 @@ export class AutomationController {
     private readonly content: ContentGenerationService,
     private readonly engineer: EngineerAgentService,
     private readonly proofOfImpact: ProofOfImpactService,
+    @Optional() private readonly wordpress?: WordPressCmsService,
   ) {}
 
   // ── repository
@@ -271,5 +327,51 @@ export class AutomationController {
   ) {
     const runId = req.query?.runId as string | undefined;
     return this.proofOfImpact.generateImpactReport(projectId, runId);
+  }
+
+  // ── WordPress & Non-GitHub CMS Integration
+
+  @Get('wordpress')
+  @ApiOperation({ summary: 'Get WordPress connection status for this project' })
+  @ApiParam({ name: 'projectId' })
+  getWordPressConnection(@Param('projectId') projectId: string) {
+    return this.wordpress!.getConnection(projectId);
+  }
+
+  @Post('wordpress/connect')
+  @ApiOperation({ summary: 'Verify and connect a WordPress site via Application Password' })
+  @ApiParam({ name: 'projectId' })
+  connectWordPress(
+    @Param('projectId') projectId: string,
+    @Body() body: ConnectWordPressDto,
+  ) {
+    return this.wordpress!.connectWordPress(projectId, body);
+  }
+
+  @Post('wordpress/disconnect')
+  @ApiOperation({ summary: 'Disconnect WordPress integration for this project' })
+  @ApiParam({ name: 'projectId' })
+  disconnectWordPress(@Param('projectId') projectId: string) {
+    return this.wordpress!.disconnectWordPress(projectId);
+  }
+
+  @Post('wordpress/apply')
+  @ApiOperation({ summary: 'Stage a draft revision or apply an SEO fix via WordPress REST API' })
+  @ApiParam({ name: 'projectId' })
+  stageWordPressFix(
+    @Param('projectId') projectId: string,
+    @Body() body: StageWordPressFixDto,
+  ) {
+    return this.wordpress!.stageWordPressFix(projectId, body);
+  }
+
+  @Post('cms/verify-manual')
+  @ApiOperation({ summary: 'Verify a manually applied CMS fix against live HTML and record proof' })
+  @ApiParam({ name: 'projectId' })
+  verifyManualCmsFix(
+    @Param('projectId') projectId: string,
+    @Body() body: VerifyManualCmsFixDto,
+  ) {
+    return this.wordpress!.verifyManualCmsFix(projectId, body);
   }
 }

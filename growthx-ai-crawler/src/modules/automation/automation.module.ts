@@ -14,11 +14,12 @@ import { ContentAgentService } from './content-agent.service';
 
 import { ProofOfImpactService } from './proof-of-impact.service';
 import { EngineerQueueService } from './engineer-queue.service';
+import { WordPressCmsService } from './wordpress-cms.service';
 
 @Module({
   imports: [DatabaseModule, AiSearchModule, AutonomousEngineerModule, SecurityModule, StrategyModule, ImpactModule],
   controllers: [AutomationController, ContentAgentController],
-  providers: [AutomationService, EngineerAgentService, EngineerQueueService, ContentGenerationService, ContentAgentService, ProofOfImpactService],
-  exports: [AutomationService, ContentGenerationService, ContentAgentService, ProofOfImpactService],
+  providers: [AutomationService, EngineerAgentService, EngineerQueueService, ContentGenerationService, ContentAgentService, ProofOfImpactService, WordPressCmsService],
+  exports: [AutomationService, ContentGenerationService, ContentAgentService, ProofOfImpactService, WordPressCmsService],
 })
 export class AutomationModule {}
