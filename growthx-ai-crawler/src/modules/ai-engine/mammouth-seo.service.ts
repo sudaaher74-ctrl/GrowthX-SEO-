@@ -54,7 +54,7 @@ export class MammouthSeoService {
   /**
    * Fast connection test to verify Mammouth AI API key and reachability.
    */
-  async testConnection(): Promise<{
+  async testConnection(organizationId?: string): Promise<{
     connected: boolean;
     provider: string;
     model: string;
@@ -84,6 +84,7 @@ export class MammouthSeoService {
         prompt: 'Return a JSON ping response: {"status": "ok", "provider": "Mammouth AI"}',
         provider: AiProvider.MAMMOUTH,
         task: AiTask.FAST,
+        organizationId,
         maxTokens: 50,
         allowFallback: false,
         jsonSchema: {
@@ -114,10 +115,15 @@ export class MammouthSeoService {
     }
   }
 
+  private tenantScopeKey(organizationId?: string, projectId?: string): string {
+    return `${organizationId || 'anon'}:${projectId || 'default'}`;
+  }
+
   // ── 1. Website SEO Audit ───────────────────────────────────────────────────
 
   async analyzeWebsiteAudit(input: WebsiteAuditInput): Promise<WebsiteAuditResult> {
-    const cacheKey = `audit:${input.domain}:${input.pagesCrawled}`;
+    const scope = this.tenantScopeKey(input.organizationId, input.projectId);
+    const cacheKey = `audit:${scope}:${input.domain}:${input.pagesCrawled}`;
     const cached = this.getCached<WebsiteAuditResult>(cacheKey);
     if (cached) return cached;
 
@@ -149,7 +155,8 @@ export class MammouthSeoService {
   // ── 2. Competitor Intelligence ─────────────────────────────────────────────
 
   async analyzeCompetitorIntelligence(input: CompetitorIntelligenceInput): Promise<CompetitorIntelligenceResult> {
-    const cacheKey = `comp:${input.domain}:${(input.competitors || []).map(c => c.domain).join(',')}`;
+    const scope = this.tenantScopeKey(input.organizationId, input.projectId);
+    const cacheKey = `comp:${scope}:${input.domain}:${(input.competitors || []).map(c => c.domain).join(',')}`;
     const cached = this.getCached<CompetitorIntelligenceResult>(cacheKey);
     if (cached) return cached;
 
@@ -177,7 +184,8 @@ export class MammouthSeoService {
   // ── 3. Keyword Strategy ────────────────────────────────────────────────────
 
   async generateKeywordStrategy(input: KeywordStrategyInput): Promise<KeywordStrategyResult> {
-    const cacheKey = `keywords:${input.businessDomain}:${input.seedKeywords.slice(0, 5).join(',')}`;
+    const scope = this.tenantScopeKey(input.organizationId, input.projectId);
+    const cacheKey = `keywords:${scope}:${input.businessDomain}:${input.seedKeywords.slice(0, 5).join(',')}`;
     const cached = this.getCached<KeywordStrategyResult>(cacheKey);
     if (cached) return cached;
 
@@ -205,7 +213,8 @@ export class MammouthSeoService {
   // ── 4. Content / On-page SEO ───────────────────────────────────────────────
 
   async analyzeContentOnPage(input: ContentOnPageInput): Promise<ContentOnPageResult> {
-    const cacheKey = `content:${input.pageUrl}`;
+    const scope = this.tenantScopeKey(input.organizationId, input.projectId);
+    const cacheKey = `content:${scope}:${input.pageUrl}`;
     const cached = this.getCached<ContentOnPageResult>(cacheKey);
     if (cached) return cached;
 
@@ -234,7 +243,8 @@ export class MammouthSeoService {
   // ── 5. AEV / AI Search Visibility ──────────────────────────────────────────
 
   async analyzeAevVisibility(input: AevVisibilityInput): Promise<AevVisibilityResult> {
-    const cacheKey = `aev:${input.websiteDomain}:${input.brandName}`;
+    const scope = this.tenantScopeKey(input.organizationId, input.projectId);
+    const cacheKey = `aev:${scope}:${input.websiteDomain}:${input.brandName}`;
     const cached = this.getCached<AevVisibilityResult>(cacheKey);
     if (cached) return cached;
 

@@ -1,5 +1,6 @@
 import {
   Equals,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -9,6 +10,43 @@ import {
   Min,
 } from "class-validator";
 import { Type } from "class-transformer";
+
+export class SyncBacklinkIntelligenceDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  domain?: string;
+
+  @IsOptional()
+  @IsIn(["OWN", "COMPETITOR"])
+  targetKind?: "OWN" | "COMPETITOR";
+}
+
+export class UpdateOutreachDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  status?: any;
+
+  @IsOptional()
+  @IsBoolean()
+  approvedByUser?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000)
+  pitchDraft?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  contactChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  outcome?: string;
+}
 
 export class ImportBacklinksDto {
   @IsString() @MaxLength(500000) text!: string;

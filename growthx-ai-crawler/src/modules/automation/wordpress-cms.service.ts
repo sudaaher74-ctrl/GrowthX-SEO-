@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { AutomationRunKind, AutomationRunStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
+import { assertPublicUrl, browserMayLoad, SsrfBlockedError } from '../security/ssrf';
 
 export interface ConnectWordPressInput {
   siteUrl: string;
@@ -51,12 +52,118 @@ export class WordPressCmsService {
     } catch {
       throw new BadRequestException('Enter a valid WordPress site URL.');
     }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new BadRequestException('Only http:// and https:// WordPress site URLs are supported.');
+    }
+    if (parsed.username || parsed.password) {
+      throw new BadRequestException('Do not embed credentials inside the WordPress site URL.');
+    }
+    try {
+      assertPublicUrl(parsed.toString());
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
     // Strip /wp-admin or /wp-login.php if the user pasted their admin URL
     const cleanPath = parsed.pathname
       .replace(/\/wp-admin(\/.*)?$/i, '')
       .replace(/\/wp-login\.php$/i, '')
       .replace(/\/+$/, '');
     return `${parsed.origin}${cleanPath}`;
+  }
+
+  private async assertSafeOutboundUrl(targetUrl: string): Promise<URL> {
+    let parsed: URL;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      throw new BadRequestException('Invalid target URL.');
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new BadRequestException('Only http:// and https:// URLs are allowed.');
+    }
+    if (parsed.username || parsed.password) {
+      throw new BadRequestException('Credentials in URLs are not permitted.');
+    }
+    try {
+      assertPublicUrl(parsed.toString());
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
+    const allowed = await browserMayLoad(parsed.toString());
+    if (!allowed) {
+      throw new BadRequestException(
+        `Refusing to connect to an internal or reserved address: ${parsed.hostname}`,
+      );
+    }
+    return parsed;
+  }
+
+  /**
+   * Executes an outbound HTTP request after verifying that the target URL and
+   * any redirect hops resolve exclusively to public internet addresses. Strips
+   * Authorization headers if a redirect ever crosses origins.
+   */
+  private async safeFetch(url: string, init: RequestInit, timeoutMs = 15000): Promise<Response> {
+    let currentUrl = url;
+    const initialOrigin = (await this.assertSafeOutboundUrl(currentUrl)).origin;
+    const maxRedirects = 3;
+
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      const currentParsed = hop === 0 ? new URL(currentUrl) : await this.assertSafeOutboundUrl(currentUrl);
+      const headers = new Headers(init.headers ?? {});
+      if (currentParsed.origin !== initialOrigin) {
+        headers.delete('Authorization');
+      }
+
+      const response = await fetch(currentUrl, {
+        ...init,
+        headers,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return response;
+        if (hop === maxRedirects) {
+          throw new BadRequestException('Too many redirects from target site.');
+        }
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+
+      return response;
+    }
+
+    throw new BadRequestException('Too many redirects from target site.');
+  }
+
+  /**
+   * Sanitizes a JSON-LD payload before embedding inside `<script type="application/ld+json">`
+   * so that `</script>` or `<!--` sequences can never break out of the script context.
+   */
+  private sanitizeJsonLdPayload(raw: string): string {
+    const stripped = raw
+      .trim()
+      .replace(/^<script[^>]*>/i, '')
+      .replace(/<\/script>$/i, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(stripped);
+      return JSON.stringify(parsed, null, 2)
+        .replace(/<\//g, '<\\/')
+        .replace(/<!--/g, '<\\!--');
+    } catch {
+      return stripped
+        .replace(/<\//g, '<\\/')
+        .replace(/<!--/g, '<\\!--');
+    }
   }
 
   private buildBasicAuthHeader(username: string, appPassword: string): string {
@@ -123,15 +230,14 @@ export class WordPressCmsService {
     // 1. Verify against /wp-json/wp/v2/users/me
     let wpUser: { id?: number; name?: string; slug?: string; capabilities?: Record<string, boolean> } | null = null;
     try {
-      const response = await fetch(`${siteUrl}/wp-json/wp/v2/users/me?context=edit`, {
+      const response = await this.safeFetch(`${siteUrl}/wp-json/wp/v2/users/me?context=edit`, {
         method: 'GET',
         headers: {
           Authorization: authHeader,
           Accept: 'application/json',
           'User-Agent': 'Reigel-SEO-Agent/1.0',
         },
-        signal: AbortSignal.timeout(15000),
-      });
+      }, 15000);
 
       if (response.status === 401 || response.status === 403) {
         throw new BadRequestException(
@@ -155,11 +261,10 @@ export class WordPressCmsService {
     let detectedPlugin: string = input.seoPlugin || 'core';
     if (!input.seoPlugin) {
       try {
-        const rootRes = await fetch(`${siteUrl}/wp-json`, {
+        const rootRes = await this.safeFetch(`${siteUrl}/wp-json`, {
           method: 'GET',
           headers: { Accept: 'application/json', 'User-Agent': 'Reigel-SEO-Agent/1.0' },
-          signal: AbortSignal.timeout(10000),
-        });
+        }, 10000);
         if (rootRes.ok) {
           const rootData = (await rootRes.json()) as { namespaces?: string[] };
           const namespaces = Array.isArray(rootData?.namespaces) ? rootData.namespaces : [];
@@ -340,14 +445,13 @@ export class WordPressCmsService {
       const queryUrl = slug
         ? `${siteUrl}/wp-json/wp/v2/${type}?slug=${encodeURIComponent(slug)}&context=edit`
         : `${siteUrl}/wp-json/wp/v2/${type}?per_page=1&context=edit`;
-      const res = await fetch(queryUrl, {
+      const res = await this.safeFetch(queryUrl, {
         headers: {
           Authorization: authHeader,
           Accept: 'application/json',
           'User-Agent': 'Reigel-SEO-Agent/1.0',
         },
-        signal: AbortSignal.timeout(15000),
-      });
+      }, 15000);
       if (res.ok) {
         const items = (await res.json()) as any[];
         if (Array.isArray(items) && items.length > 0) {
@@ -388,7 +492,8 @@ export class WordPressCmsService {
       metaPayload._aioseo_description = input.afterValue;
     } else if (input.field.includes('SCHEMA')) {
       const rawContent = wpItem.content?.raw || wpItem.content?.rendered || '';
-      const schemaBlock = `\n<!-- wp:html -->\n<script type="application/ld+json">\n${input.afterValue.trim()}\n</script>\n<!-- /wp:html -->`;
+      const safeJsonLd = this.sanitizeJsonLdPayload(input.afterValue);
+      const schemaBlock = `\n<!-- wp:html -->\n<script type="application/ld+json">\n${safeJsonLd}\n</script>\n<!-- /wp:html -->`;
       updateBody.content = `${rawContent}${schemaBlock}`;
     } else {
       updateBody.excerpt = input.afterValue;
@@ -405,7 +510,7 @@ export class WordPressCmsService {
         ? `${siteUrl}/wp-json/wp/v2/${endpointType}/${wpItem.id}/autosaves`
         : `${siteUrl}/wp-json/wp/v2/${endpointType}/${wpItem.id}`;
 
-    const updateRes = await fetch(targetEndpoint, {
+    const updateRes = await this.safeFetch(targetEndpoint, {
       method: 'POST',
       headers: {
         Authorization: authHeader,
@@ -414,8 +519,7 @@ export class WordPressCmsService {
         'User-Agent': 'Reigel-SEO-Agent/1.0',
       },
       body: JSON.stringify(updateBody),
-      signal: AbortSignal.timeout(15000),
-    });
+    }, 15000);
 
     if (!updateRes.ok) {
       const errText = await updateRes.text().catch(() => '');
@@ -561,18 +665,18 @@ export class WordPressCmsService {
 
     let html = '';
     try {
-      const response = await fetch(targetUrl, {
+      const response = await this.safeFetch(targetUrl, {
         method: 'GET',
         headers: {
           Accept: 'text/html,application/xhtml+xml',
           'User-Agent': 'Reigel-SEO-Verifier/1.0',
         },
-        signal: AbortSignal.timeout(15000),
-      });
+      }, 15000);
       if (!response.ok) {
         throw new BadRequestException(`Live page returned HTTP ${response.status} when checking ${targetUrl}.`);
       }
-      html = await response.text();
+      const rawText = await response.text();
+      html = rawText.slice(0, 2_000_000);
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
       throw new BadRequestException(`Could not fetch live page ${targetUrl}: ${err?.message || 'network error'}`);

@@ -106,8 +106,8 @@ export class MammouthSeoController {
 
   @Post('test-connection')
   @ApiOperation({ summary: 'Test connectivity to Mammouth AI API' })
-  async testConnection() {
-    return this.mammouthService.testConnection();
+  async testConnection(@Req() req: any) {
+    return this.mammouthService.testConnection(req.user?.organizationId ?? req.organizationId);
   }
 
   @Post('website-audit')

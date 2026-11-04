@@ -217,5 +217,33 @@ describe('MammouthSeoService', () => {
       expect(res2).toEqual(res1);
       expect(mockRouter.generate).toHaveBeenCalledTimes(1); // Cached, called once!
     });
+
+    it('isolates cached AI responses across different organizations', async () => {
+      mockRouter.generate.mockResolvedValue({
+        provider: AiProvider.MAMMOUTH,
+        model: 'mammouth-recommended',
+        text: JSON.stringify({
+          clusters: [],
+          keywordPrioritization: [],
+          cannibalizationOpportunities: [],
+          recommendations: [],
+        }),
+        usage: { inputTokens: 100, outputTokens: 50, estimatedCostUsd: 0.0005 },
+        refused: false,
+      });
+
+      await service.generateKeywordStrategy({
+        seedKeywords: ['organic milk'],
+        businessDomain: 'example.com',
+        organizationId: 'org_alpha',
+      });
+      await service.generateKeywordStrategy({
+        seedKeywords: ['organic milk'],
+        businessDomain: 'example.com',
+        organizationId: 'org_beta',
+      });
+
+      expect(mockRouter.generate).toHaveBeenCalledTimes(2);
+    });
   });
 });

@@ -1,4 +1,187 @@
+import * as dns from "node:dns/promises";
+import * as net from "node:net";
 import { NextRequest, NextResponse } from "next/server";
+
+function ipv4ToInt(ip: string): number {
+  return ip.split(".").reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
+}
+
+const PRIVATE_V4: Array<[string, number]> = [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
+];
+
+function isPrivateV4(ip: string): boolean {
+  const value = ipv4ToInt(ip);
+  return PRIVATE_V4.some(([base, bits]) => {
+    const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+    return (value & mask) === (ipv4ToInt(base) & mask);
+  });
+}
+
+function ipv6Groups(ip: string): number[] {
+  let address = ip.toLowerCase().split("%")[0];
+  const v4Tail = /(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (v4Tail) {
+    const n = ipv4ToInt(v4Tail[1]);
+    address =
+      address.slice(0, -v4Tail[1].length) +
+      `${(n >>> 16).toString(16)}:${(n & 0xffff).toString(16)}`;
+  }
+  const [head, tail] = address.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail !== undefined && tail !== "" ? tail.split(":") : [];
+  const fill = address.includes("::") ? 8 - left.length - right.length : 0;
+  return [...left, ...Array(Math.max(0, fill)).fill("0"), ...right].map((g) =>
+    parseInt(g || "0", 16),
+  );
+}
+
+function isPrivateV6(ip: string): boolean {
+  const g = ipv6Groups(ip);
+  if (g.length !== 8) return true;
+  const embeddedV4 = () =>
+    `${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`;
+  if (g.every((x) => x === 0)) return true;
+  if (g.slice(0, 7).every((x) => x === 0) && g[7] === 1) return true;
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff)
+    return isPrivateV4(embeddedV4());
+  if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0))
+    return isPrivateV4(embeddedV4());
+  if ((g[0] & 0xfe00) === 0xfc00) return true;
+  if ((g[0] & 0xffc0) === 0xfe80) return true;
+  if ((g[0] & 0xff00) === 0xff00) return true;
+  return false;
+}
+
+function isPrivateIpAddress(ip: string): boolean {
+  const bare = ip.replace(/^\[|\]$/g, "");
+  const family = net.isIP(bare);
+  if (family === 4) return isPrivateV4(bare);
+  if (family === 6) return isPrivateV6(bare);
+  return false;
+}
+
+const INTERNAL_HOST_PATTERN =
+  /^(localhost|localhost\.localdomain|ip6-localhost|ip6-loopback|metadata\.google\.internal)$|\.(localhost|local|internal|intranet|lan|home\.arpa)$/i;
+
+async function assertPublicOutboundUrl(rawUrl: string): Promise<URL> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("Enter a valid public URL.");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Only http:// and https:// URLs are permitted.");
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error("Credentials embedded in URLs are not permitted.");
+  }
+
+  const host = parsed.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "").toLowerCase();
+  if (!host || INTERNAL_HOST_PATTERN.test(host)) {
+    throw new Error(`Refusing to connect to an internal or reserved host: ${host || "empty"}`);
+  }
+
+  if (net.isIP(host)) {
+    if (isPrivateIpAddress(host)) {
+      throw new Error(`Refusing to connect to a private or reserved IP address: ${host}`);
+    }
+    return parsed;
+  }
+
+  try {
+    const records = await dns.lookup(host, { all: true });
+    if (records.some((r) => isPrivateIpAddress(r.address))) {
+      throw new Error(`Refusing to connect to an internal or reserved address for ${host}`);
+    }
+  } catch (err: any) {
+    if (err?.message?.startsWith("Refusing to connect")) {
+      throw err;
+    }
+  }
+
+  return parsed;
+}
+
+async function safeCmsFetch(
+  targetUrl: string,
+  init: RequestInit,
+  timeoutMs = 15000,
+): Promise<Response> {
+  let currentUrl = targetUrl;
+  const initialOrigin = (await assertPublicOutboundUrl(currentUrl)).origin;
+  const maxRedirects = 3;
+
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const currentParsed =
+      hop === 0 ? new URL(currentUrl) : await assertPublicOutboundUrl(currentUrl);
+    const headers = new Headers(init.headers ?? {});
+    if (currentParsed.origin !== initialOrigin) {
+      headers.delete("Authorization");
+    }
+
+    const res = await fetch(currentUrl, {
+      ...init,
+      headers,
+      redirect: "manual",
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) return res;
+      if (hop === maxRedirects) {
+        throw new Error("Too many redirects from target site.");
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    return res;
+  }
+
+  throw new Error("Too many redirects from target site.");
+}
+
+function assertSameOriginRequest(req: NextRequest): void {
+  const secFetchSite = req.headers.get("sec-fetch-site");
+  if (secFetchSite === "cross-site") {
+    throw new Error("Cross-site requests are not permitted.");
+  }
+  const origin = req.headers.get("origin");
+  if (origin) {
+    let originHost: string;
+    try {
+      originHost = new URL(origin).host.toLowerCase();
+    } catch {
+      throw new Error("Invalid request origin.");
+    }
+    const reqHost = (
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      req.nextUrl.host ||
+      ""
+    )
+      .split(",")[0]
+      .trim()
+      .toLowerCase();
+    if (reqHost && originHost !== reqHost) {
+      throw new Error("Cross-origin requests are not permitted.");
+    }
+  }
+}
 
 function normalizeSiteUrl(rawUrl: string): string {
   const trimmed = (rawUrl || "").trim();
@@ -26,6 +209,7 @@ function buildBasicAuth(username: string, appPassword: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
     const body = await req.json();
     const action = body?.action as string;
 
@@ -42,14 +226,13 @@ export async function POST(req: NextRequest) {
       }
 
       const authHeader = buildBasicAuth(username, appPassword);
-      const userRes = await fetch(`${siteUrl}/wp-json/wp/v2/users/me?context=edit`, {
+      const userRes = await safeCmsFetch(`${siteUrl}/wp-json/wp/v2/users/me?context=edit`, {
         method: "GET",
         headers: {
           Authorization: authHeader,
           Accept: "application/json",
           "User-Agent": "Reigel-SEO-Agent/1.0",
         },
-        cache: "no-store",
       });
 
       if (userRes.status === 401 || userRes.status === 403) {
@@ -74,10 +257,9 @@ export async function POST(req: NextRequest) {
       let detectedPlugin = body.seoPlugin || "core";
       if (!body.seoPlugin) {
         try {
-          const rootRes = await fetch(`${siteUrl}/wp-json`, {
+          const rootRes = await safeCmsFetch(`${siteUrl}/wp-json`, {
             headers: { Accept: "application/json", "User-Agent": "Reigel-SEO-Agent/1.0" },
-            cache: "no-store",
-          });
+          }, 10000);
           if (rootRes.ok) {
             const rootData = (await rootRes.json()) as { namespaces?: string[] };
             const ns = Array.isArray(rootData?.namespaces) ? rootData.namespaces : [];
@@ -119,12 +301,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const pageRes = await fetch(targetUrl, {
+      const pageRes = await safeCmsFetch(targetUrl, {
         headers: {
           Accept: "text/html,application/xhtml+xml",
           "User-Agent": "Reigel-SEO-Verifier/1.0",
         },
-        cache: "no-store",
       });
 
       if (!pageRes.ok) {
@@ -134,7 +315,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const html = await pageRes.text();
+      const rawHtml = await pageRes.text();
+      const html = rawHtml.slice(0, 2_000_000);
       const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
       const liveTitle = titleMatch ? titleMatch[1].replace(/\s+/g, " ").trim() : "";
 

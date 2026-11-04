@@ -5,8 +5,11 @@ describe('WordPressCmsService', () => {
   let service: WordPressCmsService;
   let prisma: any;
   let security: any;
+  const savedEnv = { ...process.env };
 
   beforeEach(() => {
+    delete process.env.ALLOW_PRIVATE_CRAWL_TARGETS;
+    delete process.env.SSRF_ALLOWED_HOSTS;
     prisma = {
       integration: {
         findUnique: jest.fn(),
@@ -43,6 +46,7 @@ describe('WordPressCmsService', () => {
   });
 
   afterEach(() => {
+    process.env = { ...savedEnv };
     jest.restoreAllMocks();
   });
 
@@ -244,6 +248,94 @@ describe('WordPressCmsService', () => {
       expect(res.verified).toBe(true);
       expect(res.detectedLiveValue).toBe('Updated Organic Title');
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalled();
+    });
+
+    it('refuses SSRF attempts targeting loopback, private RFC1918, or cloud metadata IPs before sending any request', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+
+      await expect(
+        service.connectWordPress('proj_1', {
+          siteUrl: 'http://169.254.169.254/latest/meta-data/',
+          username: 'admin',
+          appPassword: 'secret',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.verifyManualCmsFix('proj_1', {
+          targetUrl: 'http://127.0.0.1:3000/internal',
+          field: 'META_TITLE',
+          expectedAfterValue: 'Test',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.verifyManualCmsFix('proj_1', {
+          targetUrl: 'http://localhost:5432/',
+          field: 'META_TITLE',
+          expectedAfterValue: 'Test',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('refuses open redirects that point to internal or cloud metadata addresses', async () => {
+      jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({ location: 'http://169.254.169.254/latest/meta-data/' }),
+      });
+
+      await expect(
+        service.verifyManualCmsFix('proj_1', {
+          targetUrl: 'https://example-wp.com/redirect-me',
+          field: 'META_TITLE',
+          expectedAfterValue: 'Test',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('escapes closing </script> tags when staging JSON-LD schema blocks in WordPress', async () => {
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_wp_1',
+        projectId: 'proj_1',
+        provider: 'wordpress',
+        accessToken: 'enc_app_pass',
+        googleAccountEmail: 'admin',
+        selectedResourceId: 'https://example-wp.com',
+        status: 'CONNECTED',
+      });
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_wp_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_2' });
+
+      let capturedBody = '';
+      jest.spyOn(global, 'fetch' as any).mockImplementation(async (_url: any, init: any) => {
+        if (init?.method === 'POST') {
+          capturedBody = String(init.body || '');
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 100 }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{ id: 42, slug: 'home', content: { raw: '<p>Welcome</p>' } }],
+        };
+      });
+
+      await service.stageWordPressFix('proj_1', {
+        targetUrl: 'https://example-wp.com/home',
+        field: 'JSON_LD_SCHEMA',
+        afterValue: '{"@context":"https://schema.org","name":"Evil </script><script>alert(1)</script>"}',
+        publishMode: 'publish',
+      });
+
+      const parsedPayload = JSON.parse(capturedBody);
+      expect(parsedPayload.content).not.toContain('</script><script>');
+      expect(parsedPayload.content).toContain('<\\/script>');
     });
   });
 });

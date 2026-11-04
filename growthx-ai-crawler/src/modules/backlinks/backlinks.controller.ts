@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
@@ -17,6 +19,8 @@ import {
   ExploreBacklinksDto,
   ImportBacklinksDto,
   PlanBacklinkDto,
+  SyncBacklinkIntelligenceDto,
+  UpdateOutreachDto,
   VerifyBacklinksDto,
 } from "./backlinks.dto";
 import { BacklinksService } from "./backlinks.service";
@@ -39,6 +43,12 @@ export class BacklinksController {
     private readonly intelligence: BacklinkIntelligenceService,
   ) {}
 
+  private assertCanForceRefresh(req: any, forceRefresh: boolean) {
+    if (forceRefresh && req?.membershipRole === "VIEWER") {
+      throw new ForbiddenException("Viewers cannot trigger live provider refreshes.");
+    }
+  }
+
   // ── DataForSEO Backlink Intelligence
 
   @Get("intelligence")
@@ -46,14 +56,17 @@ export class BacklinksController {
     @Param("projectId") projectId: string,
     @Query("domain") domain?: string,
     @Query("refresh") refresh?: string,
+    @Req() req?: any,
   ) {
-    return this.intelligence.getOverview(projectId, domain, refresh === "true");
+    const forceRefresh = refresh === "true";
+    this.assertCanForceRefresh(req, forceRefresh);
+    return this.intelligence.getOverview(projectId, domain, forceRefresh);
   }
 
   @Post("intelligence/sync")
   syncIntelligence(
     @Param("projectId") projectId: string,
-    @Body() body?: { domain?: string; targetKind?: "OWN" | "COMPETITOR" },
+    @Body() body?: SyncBacklinkIntelligenceDto,
   ) {
     return this.intelligence.syncDomainIntelligence(projectId, body?.domain, body?.targetKind);
   }
@@ -65,11 +78,14 @@ export class BacklinksController {
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
     @Query("refresh") refresh?: string,
+    @Req() req?: any,
   ) {
+    const forceRefresh = refresh === "true";
+    this.assertCanForceRefresh(req, forceRefresh);
     return this.intelligence.getReferringDomains(projectId, domain, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
-      forceRefresh: refresh === "true",
+      forceRefresh,
     });
   }
 
@@ -81,12 +97,15 @@ export class BacklinksController {
     @Query("offset") offset?: string,
     @Query("mode") mode?: "as_is" | "one_per_domain",
     @Query("refresh") refresh?: string,
+    @Req() req?: any,
   ) {
+    const forceRefresh = refresh === "true";
+    this.assertCanForceRefresh(req, forceRefresh);
     return this.intelligence.getBacklinksList(projectId, domain, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
       mode,
-      forceRefresh: refresh === "true",
+      forceRefresh,
     });
   }
 
@@ -97,11 +116,14 @@ export class BacklinksController {
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
     @Query("refresh") refresh?: string,
+    @Req() req?: any,
   ) {
+    const forceRefresh = refresh === "true";
+    this.assertCanForceRefresh(req, forceRefresh);
     return this.intelligence.getAnchors(projectId, domain, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
-      forceRefresh: refresh === "true",
+      forceRefresh,
     });
   }
 
@@ -231,7 +253,7 @@ export class BacklinksController {
   updateRecommendationOutreach(
     @Param("projectId") projectId: string,
     @Param("sourceId") sourceId: string,
-    @Body() body: { status?: any; approvedByUser?: boolean; pitchDraft?: string; contactChannel?: string; outcome?: string },
+    @Body() body: UpdateOutreachDto,
   ) {
     return this.recommendations.updateOutreach(projectId, sourceId, body);
   }

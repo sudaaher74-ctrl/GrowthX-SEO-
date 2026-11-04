@@ -10,10 +10,13 @@ import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength, IsArray,
 
 export class ConnectWordPressDto {
   @IsString()
+  @MaxLength(512)
   siteUrl: string;
   @IsString()
+  @MaxLength(256)
   username: string;
   @IsString()
+  @MaxLength(256)
   appPassword: string;
   @IsOptional()
   @IsEnum(['yoast', 'rankmath', 'aioseo', 'core'])
@@ -23,18 +26,24 @@ export class ConnectWordPressDto {
 export class StageWordPressFixDto {
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   findingId?: string;
   @IsString()
+  @MaxLength(2048)
   targetUrl: string;
   @IsString()
+  @MaxLength(128)
   field: string;
   @IsOptional()
   @IsString()
+  @MaxLength(50000)
   beforeValue?: string;
   @IsString()
+  @MaxLength(50000)
   afterValue: string;
   @IsOptional()
   @IsString()
+  @MaxLength(512)
   findingTitle?: string;
   @IsOptional()
   @IsEnum(['draft', 'publish'])
@@ -44,21 +53,28 @@ export class StageWordPressFixDto {
 export class VerifyManualCmsFixDto {
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   findingId?: string;
   @IsString()
+  @MaxLength(2048)
   targetUrl: string;
   @IsString()
+  @MaxLength(128)
   field: string;
   @IsOptional()
   @IsString()
+  @MaxLength(50000)
   beforeValue?: string;
   @IsString()
+  @MaxLength(50000)
   expectedAfterValue: string;
   @IsOptional()
   @IsString()
+  @MaxLength(512)
   findingTitle?: string;
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   platform?: string;
 }
 

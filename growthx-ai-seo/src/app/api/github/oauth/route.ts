@@ -61,8 +61,37 @@ export async function GET() {
   });
 }
 
+function assertSameOriginRequest(req: NextRequest): void {
+  const secFetchSite = req.headers.get("sec-fetch-site");
+  if (secFetchSite === "cross-site") {
+    throw new Error("Cross-site requests are not permitted.");
+  }
+  const origin = req.headers.get("origin");
+  if (origin) {
+    let originHost: string;
+    try {
+      originHost = new URL(origin).host.toLowerCase();
+    } catch {
+      throw new Error("Invalid request origin.");
+    }
+    const reqHost = (
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      req.nextUrl.host ||
+      ""
+    )
+      .split(",")[0]
+      .trim()
+      .toLowerCase();
+    if (reqHost && originHost !== reqHost) {
+      throw new Error("Cross-origin requests are not permitted.");
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
     const body = (await req.json()) as {
       action?: string;
       deviceCode?: string;
