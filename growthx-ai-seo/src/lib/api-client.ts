@@ -1161,18 +1161,42 @@ export const api = {
     ),
 
   // ── WordPress & Non-GitHub CMS Publishing
-  getWordPressConnection: (projectId: string) =>
-    get<{
-      connected: boolean;
-      siteUrl: string | null;
-      username: string | null;
-      displayName?: string | null;
-      seoPlugin: string | null;
-      status: string;
-      statusMessage: string | null;
-      lastSyncedAt: string | null;
-    }>(`/api/projects/${projectId}/automation/wordpress`),
-  connectWordPress: (
+  getWordPressConnection: async (projectId: string) => {
+    try {
+      return await get<{
+        connected: boolean;
+        siteUrl: string | null;
+        username: string | null;
+        displayName?: string | null;
+        seoPlugin: string | null;
+        status: string;
+        statusMessage: string | null;
+        lastSyncedAt: string | null;
+      }>(`/api/projects/${projectId}/automation/wordpress`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.wp.${projectId}`);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          connected: false,
+          siteUrl: null,
+          username: null,
+          seoPlugin: null,
+          status: "DISCONNECTED",
+          statusMessage: null,
+          lastSyncedAt: null,
+        };
+      }
+      throw err;
+    }
+  },
+  connectWordPress: async (
     projectId: string,
     body: {
       siteUrl: string;
@@ -1180,18 +1204,43 @@ export const api = {
       appPassword: string;
       seoPlugin?: 'yoast' | 'rankmath' | 'aioseo' | 'core';
     },
-  ) =>
-    post<{
-      connected: boolean;
-      siteUrl: string;
-      username: string;
-      displayName: string;
-      seoPlugin: string;
-      status: string;
-      lastSyncedAt: string;
-    }>(`/api/projects/${projectId}/automation/wordpress/connect`, body),
-  disconnectWordPress: (projectId: string) =>
-    post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/wordpress/disconnect`, {}),
+  ) => {
+    try {
+      return await post<{
+        connected: boolean;
+        siteUrl: string;
+        username: string;
+        displayName: string;
+        seoPlugin: string;
+        status: string;
+        lastSyncedAt: string;
+      }>(`/api/projects/${projectId}/automation/wordpress/connect`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "connect-wordpress", ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect WordPress.");
+        window.localStorage.setItem(`growthx.wp.${projectId}`, JSON.stringify(data));
+        return data;
+      }
+      throw err;
+    }
+  },
+  disconnectWordPress: async (projectId: string) => {
+    try {
+      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/wordpress/disconnect`, {});
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        window.localStorage.removeItem(`growthx.wp.${projectId}`);
+        return { disconnected: true };
+      }
+      throw err;
+    }
+  },
   stageWordPressFix: (
     projectId: string,
     body: {
@@ -1212,7 +1261,7 @@ export const api = {
       publishMode: string;
       status: string;
     }>(`/api/projects/${projectId}/automation/wordpress/apply`, body),
-  verifyManualCmsFix: (
+  verifyManualCmsFix: async (
     projectId: string,
     body: {
       findingId?: string;
@@ -1223,14 +1272,29 @@ export const api = {
       findingTitle?: string;
       platform?: string;
     },
-  ) =>
-    post<{
-      verified: boolean;
-      runId: string;
-      targetUrl: string;
-      detectedLiveValue: string;
-      message: string;
-    }>(`/api/projects/${projectId}/automation/cms/verify-manual`, body),
+  ) => {
+    try {
+      return await post<{
+        verified: boolean;
+        runId: string;
+        targetUrl: string;
+        detectedLiveValue: string;
+        message: string;
+      }>(`/api/projects/${projectId}/automation/cms/verify-manual`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify-manual", ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not verify live HTML.");
+        return data;
+      }
+      throw err;
+    }
+  },
 
   // ── Admin
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
