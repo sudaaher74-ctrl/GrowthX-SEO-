@@ -13,6 +13,7 @@ import {
   GitBranch,
   GitCompare,
   GitPullRequest,
+  Globe,
   History,
   Layers,
   Printer,
@@ -24,7 +25,9 @@ import {
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { LoadingState } from "@/components/ui/truthful-state";
+import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
 import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
+import { WordPressConnectModal, type CmsConnectPlatform } from "@/components/settings/wordpress-connect-modal";
 import { useFindings, useIssueGroups, useProfile, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import type { AutomationRun, FixChangeReport } from "@/lib/api-types";
@@ -44,16 +47,16 @@ const FIELD_LABELS: Record<string, string> = {
   ORGANIZATION_SCHEMA: "Organization / LocalBusiness Structured Data",
   BREADCRUMB_SCHEMA: "Breadcrumb Structured Data",
   INTERNAL_LINKING: "Internal Navigation Link",
-  NEW_FILE_CREATED: "New Page / Component Created in Repo",
+  NEW_FILE_CREATED: "New Page / Component Created",
   CODE_AND_SEO_UPDATE: "Code & On-Page SEO Improvement",
 };
 
 const LIFECYCLE_LABEL: Record<string, string> = {
   DETECTED: "Detected",
-  QUEUED: "In Fix Plan",
+  QUEUED: "In Improvement Plan",
   APPROVED: "Approved",
-  APPLYING: "Applying via GitHub",
-  VERIFYING: "GitHub PR Open / Verifying",
+  APPLYING: "Applying Change",
+  VERIFYING: "Staged / Verifying Live",
   VERIFIED: "Confirmed Fixed Live",
   MEASURED: "Impact Measured",
   FAILED: "Failed",
@@ -147,7 +150,8 @@ export function GitHubFixesLogView({
   initialFindingId?: string | null;
   initialInstruction?: string;
 }) {
-  const { projectId } = useWorkspace();
+  const { projectId, projects } = useWorkspace();
+  const domain = projects.find((p) => p.id === projectId)?.name ?? null;
   const queryClient = useQueryClient();
 
   const [moduleFilter, setModuleFilter] = useState<string>("ALL");
@@ -159,6 +163,8 @@ export function GitHubFixesLogView({
   const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
   const [engineerPrompt, setEngineerPrompt] = useState(initialInstruction ?? "");
   const [showRepoConnect, setShowRepoConnect] = useState(false);
+  const [cmsFinding, setCmsFinding] = useState<GrowthOpportunity | null | undefined>(undefined);
+  const [cmsModalPlatform, setCmsModalPlatform] = useState<CmsConnectPlatform | null>(null);
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const autoVerificationAttempts = useRef(new Map<string, number>());
 
@@ -169,6 +175,41 @@ export function GitHubFixesLogView({
   const repoQuery = useQuery({
     queryKey: ["automation-repo", projectId],
     queryFn: () => api.getRepository(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const wpQuery = useQuery({
+    queryKey: ["wordpress-connection", projectId],
+    queryFn: () => api.getWordPressConnection(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const shopifyQuery = useQuery({
+    queryKey: ["shopify-connection", projectId],
+    queryFn: () => api.getShopifyConnection(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const webflowQuery = useQuery({
+    queryKey: ["webflow-connection", projectId],
+    queryFn: () => api.getWebflowConnection(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const proofCardsQuery = useQuery({
+    queryKey: ["fix-proof-cards", projectId],
+    queryFn: () => api.getFixProofCards(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const ledgerQuery = useQuery({
+    queryKey: ["fix-impact-ledger", projectId],
+    queryFn: () => api.getFixImpactLedger(projectId!),
     enabled: Boolean(projectId),
     retry: false,
   });
@@ -203,11 +244,18 @@ export function GitHubFixesLogView({
     queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId, isPollingRuns] });
     queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
     queryClient.invalidateQueries({ queryKey: ["issue-groups", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["fix-proof-cards", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["fix-impact-ledger", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["wordpress-connection", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["shopify-connection", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["webflow-connection", projectId] });
   };
 
   const allFindings = useMemo(() => findingsQuery.data?.items ?? [], [findingsQuery.data]);
   const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const changeReports = useMemo(() => changesQuery.data ?? [], [changesQuery.data]);
+  const proofCards = useMemo(() => proofCardsQuery.data ?? [], [proofCardsQuery.data]);
+  const ledgerEvents = useMemo(() => ledgerQuery.data ?? [], [ledgerQuery.data]);
   const connectedRepo = repoQuery.data ?? null;
   const isEngineerBusy = runs.some((r) => ["PENDING", "RUNNING"].includes(r.status));
 
@@ -376,7 +424,7 @@ export function GitHubFixesLogView({
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [changeReports, runs, allFindings, moduleFilter, searchQuery]);
 
-  // KPI Metrics
+  // KPI Metrics across GitHub + CMS (WordPress / Shopify / Webflow / Manual)
   const kpiStats = useMemo(() => {
     const activeFindings = allFindings.filter((f) => f.lifecycle !== "DISMISSED");
     const queuedOrActive = activeFindings.filter((f) =>
@@ -388,25 +436,62 @@ export function GitHubFixesLogView({
         verifiedItems.add(change.issueId || `${change.runId}:${change.url || change.file}:${change.findingTitle}`);
       }
     }
+    for (const card of proofCards) {
+      if (card.after?.verificationStatus === "VERIFIED") {
+        verifiedItems.add(card.runId);
+      }
+    }
     for (const finding of activeFindings) {
       if (["VERIFIED", "MEASURED", "RESOLVED"].includes(finding.lifecycle ?? "")) verifiedItems.add(finding.id);
     }
     const verifiedOrResolved = verifiedItems.size;
     const prCount = new Set([...runs.map((r) => r.pullRequestUrl), ...changeReports.map((r) => r.pullRequestUrl)].filter(Boolean)).size;
+    const cmsRunIds = new Set(
+      [
+        ...proofCards.filter((c) => !c.after?.pullRequestUrl).map((c) => c.runId),
+        ...ledgerEvents.filter((e) => !e.pullRequestUrl && e.automationRunId).map((e) => e.automationRunId!),
+      ].filter(Boolean),
+    );
+    const appliedTotal = prCount + cmsRunIds.size;
     const distinctPagesAndFiles = new Set([
       ...prChanges.map((c) => c.url || c.file).filter(Boolean),
       ...runs.flatMap((r) => r.filesChanged),
+      ...proofCards.map((c) => c.url || c.file).filter(Boolean),
+      ...ledgerEvents.map((e) => e.affectedUrl).filter(Boolean),
     ]).size;
+
+    const connectedPlatforms: string[] = [];
+    if (connectedRepo) connectedPlatforms.push("GitHub");
+    if (wpQuery.data?.connected) connectedPlatforms.push("WordPress");
+    if (shopifyQuery.data?.connected) connectedPlatforms.push("Shopify");
+    if (webflowQuery.data?.connected) connectedPlatforms.push("Webflow");
 
     return {
       totalAcrossTabs: activeFindings.length,
       inPlanCount: queuedOrActive.length,
       prCount,
-      beforeAfterCount: prChanges.length,
+      cmsFixCount: cmsRunIds.size,
+      appliedTotal,
+      connectedPlatformsLabel:
+        connectedPlatforms.length > 0
+          ? connectedPlatforms.join(" · ")
+          : "GitHub, WP, Shopify, Webflow",
+      beforeAfterCount: prChanges.length + proofCards.filter((c) => !c.after?.pullRequestUrl).length,
       verifiedCount: verifiedOrResolved,
       pagesAndFiles: distinctPagesAndFiles,
     };
-  }, [allFindings, prChanges, runs, changeReports]);
+  }, [
+    allFindings,
+    prChanges,
+    runs,
+    changeReports,
+    proofCards,
+    ledgerEvents,
+    connectedRepo,
+    wpQuery.data?.connected,
+    shopifyQuery.data?.connected,
+    webflowQuery.data?.connected,
+  ]);
 
   const runPlanFixesMutation = useMutation({
     mutationFn: async (payload: { findingIds?: string[]; sourceModule?: string }) => {
@@ -655,32 +740,32 @@ export function GitHubFixesLogView({
           sub="Audit, Traffic, Rivals, AI & Links"
         />
         <Kpi
-          label="In Fix Plan"
+          label="In Improvement Plan"
           value={count(kpiStats.inPlanCount)}
           tone={kpiStats.inPlanCount > 0 ? "good" : "default"}
-          sub="Queued for GitHub PR"
+          sub="Queued for GitHub or CMS"
         />
         <Kpi
-          label="GitHub Pull Requests"
-          value={count(kpiStats.prCount)}
-          tone={kpiStats.prCount > 0 ? "good" : "default"}
-          sub={connectedRepo ? `${connectedRepo.owner}/${connectedRepo.name}` : "Connect repo below"}
+          label="Applied Fixes & PRs"
+          value={count(kpiStats.appliedTotal)}
+          tone={kpiStats.appliedTotal > 0 ? "good" : "default"}
+          sub={kpiStats.connectedPlatformsLabel}
         />
         <Kpi
           label="Before & After Records"
           value={count(kpiStats.beforeAfterCount)}
-          sub="Recorded changes in GitHub PRs"
+          sub="GitHub PRs & CMS updates"
         />
         <Kpi
           label="Checks Confirmed"
           value={count(kpiStats.verifiedCount)}
           tone={kpiStats.verifiedCount > 0 ? "good" : "default"}
-          sub="Live matches or manually confirmed findings"
+          sub="Live matches across platforms"
         />
         <Kpi
           label="Pages & Files Tracked"
           value={count(kpiStats.pagesAndFiles)}
-          sub="In recorded pull requests"
+          sub="In PRs & CMS updates"
         />
       </div>
 
@@ -710,6 +795,12 @@ export function GitHubFixesLogView({
 
         <div className="flex flex-wrap items-center gap-2">
           <ActionButton
+            icon={<Globe size={12} />}
+            onClick={() => setCmsFinding(null)}
+          >
+            Apply via CMS / Platform
+          </ActionButton>
+          <ActionButton
             icon={<RefreshCw size={12} className={changesQuery.isFetching || runsQuery.isFetching ? "animate-spin" : undefined} />}
             onClick={invalidateAll}
           >
@@ -735,8 +826,8 @@ export function GitHubFixesLogView({
           {(
             [
               { id: "ALL", label: "Issues & Fix Plan", icon: Layers },
-              { id: "GITHUB_RUNNER", label: "GitHub PR Runs", icon: GitPullRequest },
-              { id: "BEFORE_AFTER", label: "Before & After Diffs", icon: GitCompare },
+              { id: "GITHUB_RUNNER", label: "Deployment Runs", icon: GitPullRequest },
+              { id: "BEFORE_AFTER", label: "Before & After Proof", icon: GitCompare },
               { id: "IMPROVEMENT_LOG", label: "Improvement Log", icon: History },
               { id: "FAILED", label: "Failed", icon: CircleX },
             ] as const
@@ -781,37 +872,61 @@ export function GitHubFixesLogView({
       </div>
 
       {/* =====================================================================
-          SECTION A: FIX ALL TABS ISSUES WITH GITHUB
+          SECTION A: FIX ALL TABS ISSUES ACROSS PLATFORMS (CMS + GITHUB)
          ===================================================================== */}
       {(subSection === "ALL" || subSection === "GITHUB_RUNNER") && (
         <Panel
-          title={subSection === "ALL" ? "Issues and fix plan" : "GitHub PR runs"}
-          subtitle={subSection === "ALL" ? "Select findings from your connected sources and prepare a draft pull request." : "Follow fixes being prepared. Review completed pull requests in the Improvement Log."}
+          title={subSection === "ALL" ? "Issues and improvement plan" : "Deployment & automation runs"}
+          subtitle={
+            subSection === "ALL"
+              ? "Select findings from your connected sources and apply them via WordPress, Shopify, Webflow, Manual CMS, or a GitHub Pull Request."
+              : "Follow active GitHub PR runs and CMS updates. Review completed changes in the Improvement Log."
+          }
           actions={
-            connectedRepo ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Pill tone="good">GitHub Connected</Pill>
-                <span className="font-mono text-[11.5px] font-semibold text-brand-900">
-                  {connectedRepo.owner}/{connectedRepo.name}
-                </span>
-                <span className="text-[11px] text-brand-400">
-                  ({connectedRepo.defaultBranch} · {connectedRepo.framework})
-                </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {wpQuery.data?.connected && (
+                <Pill tone="good">WordPress · {wpQuery.data.siteUrl}</Pill>
+              )}
+              {shopifyQuery.data?.connected && (
+                <Pill tone="good">Shopify · {shopifyQuery.data.shopDomain}</Pill>
+              )}
+              {webflowQuery.data?.connected && (
+                <Pill tone="good">Webflow · {webflowQuery.data.siteName || webflowQuery.data.siteId}</Pill>
+              )}
+              <button
+                type="button"
+                onClick={() => setCmsModalPlatform("wordpress")}
+                className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
+              >
+                {wpQuery.data?.connected || shopifyQuery.data?.connected || webflowQuery.data?.connected
+                  ? "Manage CMS"
+                  : "+ Connect WP / Shopify / Webflow"}
+              </button>
+              {connectedRepo ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Pill tone="good">GitHub · {connectedRepo.owner}/{connectedRepo.name}</Pill>
+                  <button
+                    type="button"
+                    onClick={() => setShowRepoConnect((v) => !v)}
+                    className="text-[11px] font-semibold text-accent-700 hover:underline"
+                  >
+                    {showRepoConnect ? "Hide GitHub" : "Change repo"}
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => setShowRepoConnect((v) => !v)}
-                  className="text-[11.5px] font-semibold text-accent-700 hover:underline"
+                  className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
                 >
-                  {showRepoConnect ? "Hide repo settings" : "Change repo"}
+                  {showRepoConnect ? "Hide GitHub setup" : "+ Connect GitHub"}
                 </button>
-              </div>
-            ) : (
-              <Pill tone="warn">GitHub repository not connected</Pill>
-            )
+              )}
+            </div>
           }
         >
           <div className="space-y-4 p-4">
-            {(!connectedRepo || showRepoConnect) && (
+            {showRepoConnect && (
               <div className="rounded-xl border bg-brand-50/40 p-4">
                 <RepoConnectForm
                   projectId={projectId}
@@ -833,7 +948,7 @@ export function GitHubFixesLogView({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand-500">
-                    Active GitHub Fix Tasks ({count(visibleTaskRuns.length)})
+                    Active Deployment Tasks ({count(visibleTaskRuns.length)})
                   </span>
                   <span className="text-[11px] text-brand-400">
                     {isEngineerBusy ? "Auto-updating every 7.5s…" : "All tasks finished"}
@@ -1074,13 +1189,13 @@ export function GitHubFixesLogView({
               <div className="space-y-0.5">
                 <p className="text-[12.5px] font-semibold text-brand-950">
                   {selectedFindingIds.length > 8
-                    ? "Select up to 8 findings per GitHub run"
+                    ? "Select up to 8 findings per batch run"
                     : selectedFindingIds.length > 0
-                      ? `${count(selectedFindingIds.length)} of 8 findings selected for this GitHub run`
-                      : `Select findings below from ${moduleFilter === "ALL" ? "all 5 tabs" : GROUPS.find((g) => g.id === moduleFilter)?.label ?? moduleFilter} to fix via GitHub`}
+                      ? `${count(selectedFindingIds.length)} of 8 findings selected`
+                      : `Select findings below from ${moduleFilter === "ALL" ? "all 5 tabs" : GROUPS.find((g) => g.id === moduleFilter)?.label ?? moduleFilter} to apply via CMS or GitHub`}
                 </p>
                 <p className="text-[11.5px] text-brand-500">
-                  Fix Engine clones your repo, edits the relevant pages/metadata/schema/content on a new branch, validates the changed files, and opens a Pull Request with Before &amp; After proof.
+                  Stage or publish changes directly via <strong>WordPress</strong>, <strong>Shopify</strong>, <strong>Webflow</strong>, or <strong>Manual CMS</strong>, or open an automated <strong>GitHub Pull Request</strong> with Before &amp; After proof.
                 </p>
               </div>
 
@@ -1097,7 +1212,19 @@ export function GitHubFixesLogView({
                     Clear ({selectedFindingIds.length})
                   </button>
                 )}
-                {readyLowRiskGroups.length > 0 && (
+                <ActionButton
+                  variant="secondary"
+                  icon={<Globe size={12} />}
+                  onClick={() => {
+                    const firstSelected = selectedFindingIds.length > 0
+                      ? allFindings.find((f) => f.id === selectedFindingIds[0]) ?? null
+                      : filteredFindings[0] ?? null;
+                    setCmsFinding(firstSelected);
+                  }}
+                >
+                  Apply via CMS (WP / Shopify / Webflow)
+                </ActionButton>
+                {readyLowRiskGroups.length > 0 && connectedRepo && (
                   <ActionButton
                     disabled={!connectedRepo || isEngineerBusy || runLowRiskFixesMutation.isPending}
                     icon={<Wrench size={12} />}
@@ -1131,7 +1258,7 @@ export function GitHubFixesLogView({
                   {runPlanFixesMutation.isPending
                     ? "Opening GitHub PR…"
                     : selectedFindingIds.length > 0
-                      ? `Fix ${count(selectedFindingIds.length)} Selected with GitHub PR`
+                      ? `Fix ${count(selectedFindingIds.length)} Selected via GitHub PR`
                       : `Queue next 8 ${moduleFilter === "ALL" ? "plan" : GROUPS.find((g) => g.id === moduleFilter)?.label} findings`}
                 </ActionButton>
               </div>
@@ -1190,7 +1317,7 @@ export function GitHubFixesLogView({
                             <Pill tone={BAND[f.potential]}>{f.potential.toLowerCase()} impact</Pill>
                             <Pill tone={EFFORT[f.effort]}>{f.effort.toLowerCase()} effort</Pill>
                             {isTaskRunning ? (
-                              <Pill tone="warn">⟳ Task Running on GitHub…</Pill>
+                              <Pill tone="warn">⟳ Task Running…</Pill>
                             ) : isTaskComplete || isConfirmedByWorkflow ? (
                               <Pill tone="good">
                                 ✓ {isTaskComplete ? "Verified Live" : "Confirmed Fixed"}
@@ -1256,13 +1383,20 @@ export function GitHubFixesLogView({
                                 transition.mutate({
                                   id: f.id,
                                   to: "RESOLVED",
-                                  reason: "Confirmed fixed in GitHub Fix Engine",
+                                  reason: "Confirmed fixed in Fix Engine",
                                 })
                               }
                             >
                               Confirm Fixed
                             </ActionButton>
                           )}
+                        <ActionButton
+                          variant="secondary"
+                          icon={<Globe size={12} />}
+                          onClick={() => setCmsFinding(f)}
+                        >
+                          Apply via CMS
+                        </ActionButton>
                         {(!prUrl || isTaskComplete || isConfirmedByWorkflow) && (
                           <ActionButton
                             variant={isTaskComplete || isConfirmedByWorkflow ? "secondary" : "primary"}
@@ -1275,8 +1409,8 @@ export function GitHubFixesLogView({
                             : isTaskComplete || isConfirmedByWorkflow
                                 ? "Re-run on GitHub"
                                 : isTaskFailed
-                                  ? "Retry Fix with GitHub"
-                                  : "Fix with GitHub"}
+                                  ? "Retry on GitHub"
+                                  : "GitHub PR"}
                           </ActionButton>
                         )}
                       </div>
@@ -1290,7 +1424,7 @@ export function GitHubFixesLogView({
 
             {subSection === "GITHUB_RUNNER" && visibleTaskRuns.length === 0 && (
               <div className="rounded-lg border border-dashed p-6 text-center text-[12px] text-brand-500">
-                No GitHub fix is running. Open pull requests and their proof are in the Improvement Log.
+                No active deployment task is currently running. Completed GitHub PRs and CMS updates appear in <strong>Before &amp; After Proof</strong> and <strong>Improvement Log</strong>.
               </div>
             )}
 
@@ -1336,15 +1470,108 @@ export function GitHubFixesLogView({
       )}
 
       {/* =====================================================================
-          SECTION B: BEFORE & AFTER COMPARISONS (WHAT WE FIXED & IMPROVED)
+          SECTION B: BEFORE & AFTER COMPARISONS (CMS + GITHUB)
          ===================================================================== */}
       {subSection === "BEFORE_AFTER" && (
         <Panel
-          title="Recorded pull request changes"
-          subtitle="Before and proposed code changes from actual GitHub pull requests. A live match is shown only after verification."
+          title="Before & After Proof"
+          subtitle="Recorded before and after changes across WordPress, Shopify, Webflow, Manual CMS, and GitHub Pull Requests. Live verification is confirmed directly on your website."
         >
           <div className="space-y-6 p-4">
-            {/* Part 1: Recorded GitHub PR Before & After Changes */}
+            {/* Part 1: CMS & Live HTML Proof Cards */}
+            {proofCards.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[12px] font-bold uppercase tracking-[0.06em] text-brand-500">
+                    CMS &amp; Live Website Before / After Proof ({count(proofCards.length)})
+                  </h3>
+                  <ActionButton
+                    icon={<Globe size={12} />}
+                    onClick={() => setCmsFinding(null)}
+                  >
+                    + Stage or Verify CMS Change
+                  </ActionButton>
+                </div>
+
+                <div className="space-y-3">
+                  {proofCards.map((card) => (
+                    <div
+                      key={card.runId}
+                      className="rounded-xl border bg-white p-4 shadow-2xs space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone="info">{card.file || "CMS Update"}</Pill>
+                          <span className="text-[13px] font-bold text-brand-950">
+                            {card.title}
+                          </span>
+                          <Pill
+                            tone={
+                              card.after?.verificationStatus === "VERIFIED"
+                                ? "good"
+                                : "warn"
+                            }
+                          >
+                            {card.after?.verificationStatus === "VERIFIED"
+                              ? "Verified Live on Website"
+                              : "Staged / Pending Live Check"}
+                          </Pill>
+                        </div>
+                        {card.after?.pullRequestUrl && (
+                          <a
+                            href={card.after.pullRequestUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50"
+                          >
+                            Open in Admin / PR <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 text-[11.5px] text-brand-500">
+                        {card.url && (
+                          <span>
+                            Page:{" "}
+                            <a
+                              href={card.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-accent-700 hover:underline"
+                            >
+                              {card.url}
+                            </a>
+                          </span>
+                        )}
+                        <span>Field: {FIELD_LABELS[card.field] || card.field}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-error-200/70 bg-error-50/50 p-3">
+                          <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.06em] text-error-700">
+                            Before ({card.before?.timeframe || "Baseline"})
+                          </span>
+                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-error-700">
+                            {card.before?.text || "<not set / baseline before fix>"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border border-success-200/70 bg-success-50/50 p-3">
+                          <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.06em] text-success-700">
+                            After ({card.after?.timeframe || "Updated"})
+                          </span>
+                          <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-success-700">
+                            {card.after?.text || "<updated value>"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Part 2: Recorded GitHub PR Before & After Changes */}
             {filteredPrChanges.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -1490,9 +1717,9 @@ export function GitHubFixesLogView({
               </div>
             )}
 
-            {filteredPrChanges.length === 0 && (
+            {filteredPrChanges.length === 0 && proofCards.length === 0 && (
               <div className="rounded-lg border border-dashed p-6 text-center text-[12px] text-brand-500">
-                No recorded pull request changes match this filter.
+                No recorded Before &amp; After changes match this filter yet. Apply a finding via <strong>WordPress</strong>, <strong>Shopify</strong>, <strong>Webflow</strong>, <strong>Manual CMS</strong>, or <strong>GitHub PR</strong> to record Before &amp; After proof.
               </div>
             )}
           </div>
@@ -1500,17 +1727,59 @@ export function GitHubFixesLogView({
       )}
 
       {/* =====================================================================
-          SECTION C: COMPLETE IMPROVEMENT LOG (WHAT WE DID & WHAT WE IMPROVED)
+          SECTION C: COMPLETE IMPROVEMENT LOG (CMS + GITHUB)
          ===================================================================== */}
       {subSection === "IMPROVEMENT_LOG" && (
         <Panel
           title="Improvement Log"
-          subtitle="Pull requests prepared for review and changes merged into your repository. Live proof is shown only when the page check matches."
+          subtitle="Chronological history of updates applied via WordPress, Shopify, Webflow, Manual CMS, and GitHub Pull Requests."
         >
-          <div className="space-y-3 p-4">
-            {pullRequestLog.length === 0 ? (
+          <div className="space-y-4 p-4">
+            {/* CMS & Platform Ledger Entries */}
+            {ledgerEvents.length > 0 && (
+              <div className="space-y-2.5">
+                <h3 className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand-500">
+                  CMS &amp; Website Activity Ledger ({count(ledgerEvents.length)})
+                </h3>
+                {ledgerEvents.map((ev) => (
+                  <article key={ev.id} className="space-y-2 rounded-xl border bg-white p-4 shadow-2xs">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone="info">{ev.actor || "CMS"}</Pill>
+                          <Pill tone={ev.verificationStatus === "VERIFIED" ? "good" : "warn"}>
+                            {ev.verificationStatus === "VERIFIED" ? "Verified Live" : ev.eventType}
+                          </Pill>
+                          <span className="font-mono text-[11px] text-brand-400">
+                            {new Date(ev.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <h4 className="text-[13px] font-bold text-brand-950">{ev.title}</h4>
+                        <p className="text-[12px] text-brand-600">{ev.description}</p>
+                        {ev.affectedUrl && (
+                          <p className="font-mono text-[11px] text-brand-500">Target URL: {ev.affectedUrl}</p>
+                        )}
+                      </div>
+                      {ev.pullRequestUrl && (
+                        <a
+                          href={ev.pullRequestUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50"
+                        >
+                          Open Link <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {/* GitHub Pull Requests */}
+            {pullRequestLog.length === 0 && ledgerEvents.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center text-[12px] text-brand-500">
-                No pull requests match this filter. Fixes still in the plan appear under Issues &amp; Active Fixes.
+                No applied improvements recorded yet. Apply a finding under <strong>Issues &amp; Fix Plan</strong> via CMS (WordPress / Shopify / Webflow / Manual) or GitHub PR.
               </div>
             ) : pullRequestLog.map((item) => {
               const changes = item.report?.changes ?? [];
@@ -1573,7 +1842,7 @@ export function GitHubFixesLogView({
         </Panel>
       )}
       {/* =====================================================================
-          SECTION D: FAILED GITHUB TASKS
+          SECTION D: FAILED TASKS
          ===================================================================== */}
       {subSection === "FAILED" && (
         <Panel
@@ -1584,7 +1853,7 @@ export function GitHubFixesLogView({
             <div className="px-5 py-10 text-center">
               <CircleX size={22} className="mx-auto text-brand-400" aria-hidden="true" />
               <p className="mt-2 text-sm font-semibold text-brand-800">No failed tasks</p>
-              <p className="mt-1 text-xs text-brand-500">Failed GitHub runs will be collected here for review and retry.</p>
+              <p className="mt-1 text-xs text-brand-500">Failed runs will be collected here for review and retry.</p>
             </div>
           ) : (
             <div className="divide-y divide-line">
@@ -1628,6 +1897,15 @@ export function GitHubFixesLogView({
                   )}
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {ctx.matchedFindings.length > 0 && (
+                      <ActionButton
+                        variant="secondary"
+                        icon={<Globe size={12} />}
+                        onClick={() => setCmsFinding(ctx.matchedFindings[0])}
+                      >
+                        Apply via CMS Instead
+                      </ActionButton>
+                    )}
                     <ActionButton
                       variant="primary"
                       disabled={isEngineerBusy || runPlanFixesMutation.isPending || runEngineerMutation.isPending || (!ctx.matchedFindings.length && !ctx.rawInstruction.trim())}
@@ -1651,6 +1929,37 @@ export function GitHubFixesLogView({
             </div>
           )}
         </Panel>
+      )}
+
+      {cmsFinding !== undefined && (
+        <CmsApplyModal
+          projectId={projectId}
+          domain={domain}
+          finding={cmsFinding}
+          onClose={() => {
+            setCmsFinding(undefined);
+            invalidateAll();
+          }}
+        />
+      )}
+
+      {cmsModalPlatform && (
+        <WordPressConnectModal
+          projectId={projectId}
+          initialPlatform={cmsModalPlatform}
+          defaultSiteUrl={domain ? `https://${domain}` : undefined}
+          existingSiteUrl={wpQuery.data?.siteUrl}
+          existingUsername={wpQuery.data?.username}
+          onClose={() => setCmsModalPlatform(null)}
+          onConnected={(info) => {
+            setCmsModalPlatform(null);
+            invalidateAll();
+            setActionBanner({
+              tone: "good",
+              text: `${(info.platform || "wordpress").toUpperCase()} connected (${info.siteUrl}). You can now stage or apply fixes directly from any finding below.`,
+            });
+          }}
+        />
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { GitPullRequest, Wrench } from "lucide-react";
+import { History, Wrench } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { PageHeader, Tabs, StatusNote } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
@@ -10,8 +10,8 @@ import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-vie
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 
 const TABS = [
-  { id: "improvement", label: "Improvement", icon: Wrench },
-  { id: "github-fixes", label: "GitHub Fixes & Improvement Log", icon: GitPullRequest },
+  { id: "improvement", label: "Improvement Plan", icon: Wrench },
+  { id: "github-fixes", label: "Improvements & Log", icon: History },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -29,9 +29,13 @@ function FixEngineClient() {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const legacyJourney = ["impact-ledger", "ledger", "proof"].includes(rawTab ?? "");
-  const tab: TabId = legacyJourney || rawTab === "github-fixes" || rawTab === "fixes"
-    ? "github-fixes"
-    : "improvement";
+  const tab: TabId =
+    legacyJourney ||
+    rawTab === "github-fixes" ||
+    rawTab === "fixes" ||
+    rawTab === "improvements"
+      ? "github-fixes"
+      : "improvement";
   const findingId = searchParams.get("findingId");
   const [statusMessage] = useState<string | null>(null);
   const [preparedTask, setPreparedTask] = useState<{ projectId: string; instruction: string; revision: number } | null>(null);
@@ -54,7 +58,7 @@ function FixEngineClient() {
     <div className="space-y-6 pb-16">
       <PageHeader
         title="Fix Engine"
-        subtitle="Your complete fix and improvement plan for Website Audit, Traffic, Competitor Intelligence and AI Visibility — with GitHub Pull Requests, Before & After proof, and a complete Improvement Log."
+        subtitle="Your complete fix and improvement plan across Website Audit, Traffic, Competitor Intelligence, Backlinks, and AI Visibility — apply updates via GitHub, WordPress, Shopify, Webflow, or Manual CMS with Before & After proof and a complete Improvement Log."
         actions={
           <div className="flex items-center gap-2">
             <a href="/reports/plan" className="text-[12px] font-semibold text-accent-700 hover:underline">Complete plan report →</a>

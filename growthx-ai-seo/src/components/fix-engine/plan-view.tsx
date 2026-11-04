@@ -118,7 +118,7 @@ export function PlanView({
               icon={<GitPullRequest size={12} />}
               onClick={() => onOpenGitHubFixes()}
             >
-              Fix with GitHub &amp; Log →
+              Improvements &amp; Log →
             </ActionButton>
           )}
           <ActionButton
@@ -126,7 +126,7 @@ export function PlanView({
             icon={<Globe size={12} />}
             onClick={() => setCmsFinding(null)}
           >
-            WordPress &amp; CMS Apply
+            Apply via CMS / Platform
           </ActionButton>
           <ActionButton disabled={refresh.isPending} icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />} onClick={() => refresh.mutate()}>
             {refresh.isPending ? "Analysing…" : "Refresh plan"}
@@ -253,22 +253,22 @@ function FindingRow({
             {lifecycle === "DETECTED" && (
               <ActionButton disabled={busy} onClick={() => onMove("QUEUED")}>Add to plan</ActionButton>
             )}
-            {onOpenGitHubFixes && (
-              <ActionButton
-                variant="primary"
-                icon={<GitPullRequest size={12} />}
-                onClick={onOpenGitHubFixes}
-              >
-                Fix with GitHub →
-              </ActionButton>
-            )}
             {onOpenCmsApply && (
               <ActionButton
-                variant="secondary"
+                variant="primary"
                 icon={<Globe size={12} />}
                 onClick={onOpenCmsApply}
               >
-                Apply in WordPress / CMS →
+                Apply via CMS / Platform →
+              </ActionButton>
+            )}
+            {onOpenGitHubFixes && (
+              <ActionButton
+                variant="secondary"
+                icon={<GitPullRequest size={12} />}
+                onClick={onOpenGitHubFixes}
+              >
+                Open in Improvements &amp; PRs →
               </ActionButton>
             )}
             {["DETECTED", "QUEUED"].includes(lifecycle) && !dismissing && (
