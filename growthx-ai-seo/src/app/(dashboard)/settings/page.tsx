@@ -24,6 +24,9 @@ import {
   GoogleAnalyticsLogo,
   GitHubLogo,
   GooglePlacesLogo,
+  WordPressLogo,
+  ShopifyLogo,
+  WebflowLogo,
 } from "@/components/settings/integration-logos";
 import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-connect-workflow";
 import { WordPressConnectModal, type CmsConnectPlatform } from "@/components/settings/wordpress-connect-modal";
@@ -519,18 +522,44 @@ function IntegrationsView() {
           <p className="text-xs text-brand-500">Connect the tools you want Reigel to use.</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Google Search Console */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <GoogleSearchConsoleLogo />
-              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Search Console</h3>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <GoogleSearchConsoleLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">Google Search Console</h3>
+                    {isGscConnected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {isGscConnected && gsc?.selectedResourceName
+                      ? gsc.selectedResourceName
+                      : "Search queries, clicks, impressions & indexing"}
+                  </p>
+                </div>
+              </div>
               {isGscConnected ? (
-                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "gsc" ? null : "gsc")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                <button
+                  type="button"
+                  onClick={() => setExpandedConnector(expandedConnector === "gsc" ? null : "gsc")}
+                  className="shrink-0 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                >
                   {expandedConnector === "gsc" ? "Done" : "Manage"}
                 </button>
               ) : (
-                <button type="button" disabled={(!isGscNeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))} onClick={() => isGscNeedsSelection ? setShowGscPicker(!showGscPicker) : authorizeGoogle.mutate("search_console")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                <button
+                  type="button"
+                  disabled={(!isGscNeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))}
+                  onClick={() => isGscNeedsSelection ? setShowGscPicker(!showGscPicker) : authorizeGoogle.mutate("search_console")}
+                  className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                >
                   {googleQuery.isLoading ? "Checking…" : googleQuery.isError ? "Unavailable" : isGscNeedsSelection ? "Select property" : "Connect"}
                 </button>
               )}
@@ -556,16 +585,42 @@ function IntegrationsView() {
           </section>
 
           {/* Google Analytics */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <GoogleAnalyticsLogo />
-              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Google Analytics</h3>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <GoogleAnalyticsLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">Google Analytics</h3>
+                    {isGa4Connected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {isGa4Connected && ga4?.selectedResourceName
+                      ? ga4.selectedResourceName
+                      : "Organic traffic, sessions & engagement metrics"}
+                  </p>
+                </div>
+              </div>
               {isGa4Connected ? (
-                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "ga4" ? null : "ga4")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                <button
+                  type="button"
+                  onClick={() => setExpandedConnector(expandedConnector === "ga4" ? null : "ga4")}
+                  className="shrink-0 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                >
                   {expandedConnector === "ga4" ? "Done" : "Manage"}
                 </button>
               ) : (
-                <button type="button" disabled={(!isGa4NeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))} onClick={() => isGa4NeedsSelection ? setShowGa4Picker(!showGa4Picker) : authorizeGoogle.mutate("analytics")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                <button
+                  type="button"
+                  disabled={(!isGa4NeedsSelection && (authorizeGoogle.isPending || !projectId || googleQuery.isLoading || googleQuery.isError))}
+                  onClick={() => isGa4NeedsSelection ? setShowGa4Picker(!showGa4Picker) : authorizeGoogle.mutate("analytics")}
+                  className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                >
                   {googleQuery.isLoading ? "Checking…" : googleQuery.isError ? "Unavailable" : isGa4NeedsSelection ? "Select property" : "Connect"}
                 </button>
               )}
@@ -591,34 +646,77 @@ function IntegrationsView() {
           </section>
 
           {/* Google Places */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <GooglePlacesLogo />
-              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">Google Places</h3>
-              <button type="button" disabled={localSeo.isLoading || localSeo.isError} onClick={() => { window.location.href = "/clients?tab=local"; }} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <GooglePlacesLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">Google Places</h3>
+                    {Boolean(localSeo.data?.businessName) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {localSeo.data?.businessName
+                      ? `${localSeo.data.businessName}${localSeo.data.reviewCount ? ` · ${localSeo.data.rating.toFixed(1)} ★ (${localSeo.data.reviewCount})` : ""}`
+                      : "Google Business Profile, reviews & local pack"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={localSeo.isLoading || localSeo.isError}
+                onClick={() => { window.location.href = "/clients?tab=local"; }}
+                className="shrink-0 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+              >
                 {localSeo.isLoading ? "Checking…" : localSeo.isError ? "Unavailable" : localSeo.data?.businessName ? "Manage" : "Set up"}
               </button>
             </div>
-            {localSeo.data?.businessName && (
-              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
-                <p className="font-medium text-brand-900">{localSeo.data.businessName}</p>
-                <p className="mt-1">{localSeo.data.reviewCount ? `${localSeo.data.rating.toFixed(1)} ★ · ${localSeo.data.reviewCount} reviews` : "No review data available"}</p>
-                <p className="mt-1">Last sync · {localSeo.data.updatedAt ? relativeTime(localSeo.data.updatedAt) : "Not synced yet"}</p>
-              </div>
-            )}
           </section>
 
           {/* GitHub */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <GitHubLogo />
-              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">GitHub</h3>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <GitHubLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">GitHub</h3>
+                    {isGitHubConnected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {isGitHubConnected
+                      ? `${repo.data?.owner}/${repo.data?.name}`
+                      : "Automated Pull Requests for code & template fixes"}
+                  </p>
+                </div>
+              </div>
               {isGitHubConnected ? (
-                <button type="button" onClick={() => setExpandedConnector(expandedConnector === "github" ? null : "github")} className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                <button
+                  type="button"
+                  onClick={() => setExpandedConnector(expandedConnector === "github" ? null : "github")}
+                  className="shrink-0 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                >
                   {expandedConnector === "github" ? "Done" : "Manage"}
                 </button>
               ) : (
-                <button type="button" disabled={repo.isLoading || repo.isError} onClick={openGitHubModal} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">{repo.isLoading ? "Checking…" : repo.isError ? "Unavailable" : "Connect"}</button>
+                <button
+                  type="button"
+                  disabled={repo.isLoading || repo.isError}
+                  onClick={openGitHubModal}
+                  className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+                >
+                  {repo.isLoading ? "Checking…" : repo.isError ? "Unavailable" : "Connect"}
+                </button>
               )}
             </div>
             {expandedConnector === "github" && isGitHubConnected && (
@@ -633,17 +731,29 @@ function IntegrationsView() {
           </section>
 
           {/* WordPress CMS */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-brand-900">
-                <Globe className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-semibold text-brand-950">WordPress CMS</h3>
-                <p className="truncate text-[11px] text-brand-500">Stage SEO revisions via Application Password</p>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <WordPressLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">WordPress CMS</h3>
+                    {wpQuery.data?.connected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {wpQuery.data?.connected
+                      ? `${wpQuery.data.siteUrl} · ${wpQuery.data.username} (${(wpQuery.data.seoPlugin || "core").toUpperCase()})`
+                      : "Stage SEO revisions via Application Password"}
+                  </p>
+                </div>
               </div>
               {wpQuery.data?.connected ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button type="button" onClick={() => setCmsModalPlatform("wordpress")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                     Change
                   </button>
@@ -652,31 +762,37 @@ function IntegrationsView() {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setCmsModalPlatform("wordpress")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                <button type="button" onClick={() => setCmsModalPlatform("wordpress")} className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
                   Connect
                 </button>
               )}
             </div>
-            {wpQuery.data?.connected && (
-              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
-                <p className="font-mono text-brand-900">{wpQuery.data.siteUrl}</p>
-                <p className="mt-1">User · {wpQuery.data.username} ({(wpQuery.data.seoPlugin || "core").toUpperCase()})</p>
-              </div>
-            )}
           </section>
 
           {/* Shopify */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-xs font-bold text-brand-900">
-                SH
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-semibold text-brand-950">Shopify</h3>
-                <p className="truncate text-[11px] text-brand-500">Update page, product & article SEO via Admin API</p>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <ShopifyLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">Shopify</h3>
+                    {shopifyQuery.data?.connected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {shopifyQuery.data?.connected
+                      ? `${shopifyQuery.data.storeDomain}${shopifyQuery.data.shopName ? ` · ${shopifyQuery.data.shopName}` : ""}`
+                      : "Update page, product & article SEO via Admin API"}
+                  </p>
+                </div>
               </div>
               {shopifyQuery.data?.connected ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button type="button" onClick={() => setCmsModalPlatform("shopify")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                     Change
                   </button>
@@ -685,31 +801,37 @@ function IntegrationsView() {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setCmsModalPlatform("shopify")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                <button type="button" onClick={() => setCmsModalPlatform("shopify")} className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
                   Connect
                 </button>
               )}
             </div>
-            {shopifyQuery.data?.connected && (
-              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
-                <p className="font-mono text-brand-900">{shopifyQuery.data.storeDomain}</p>
-                {shopifyQuery.data.shopName && <p className="mt-1">Store · {shopifyQuery.data.shopName}</p>}
-              </div>
-            )}
           </section>
 
           {/* Webflow */}
-          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-            <div className="flex min-h-11 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-xs font-bold text-brand-900">
-                WF
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-semibold text-brand-950">Webflow</h3>
-                <p className="truncate text-[11px] text-brand-500">Update page SEO & Open Graph via Webflow v2 API</p>
+          <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <WebflowLogo />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-brand-950">Webflow</h3>
+                    {webflowQuery.data?.connected && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-brand-500">
+                    {webflowQuery.data?.connected
+                      ? `${webflowQuery.data.siteName || webflowQuery.data.siteId}${webflowQuery.data.customDomain ? ` · ${webflowQuery.data.customDomain}` : ""}`
+                      : "Update page SEO & Open Graph via Webflow v2 API"}
+                  </p>
+                </div>
               </div>
               {webflowQuery.data?.connected ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button type="button" onClick={() => setCmsModalPlatform("webflow")} className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                     Change
                   </button>
@@ -718,17 +840,11 @@ function IntegrationsView() {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setCmsModalPlatform("webflow")} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+                <button type="button" onClick={() => setCmsModalPlatform("webflow")} className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
                   Connect
                 </button>
               )}
             </div>
-            {webflowQuery.data?.connected && (
-              <div className="mt-4 border-t border-brand-100 pt-3 text-xs text-brand-600">
-                <p className="font-medium text-brand-900">{webflowQuery.data.siteName || webflowQuery.data.siteId}</p>
-                {webflowQuery.data.customDomain && <p className="mt-1 font-mono">{webflowQuery.data.customDomain}</p>}
-              </div>
-            )}
           </section>
         </div>
       </div>

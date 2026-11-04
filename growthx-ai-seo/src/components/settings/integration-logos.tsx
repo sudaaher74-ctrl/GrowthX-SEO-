@@ -1,22 +1,22 @@
 import React from "react";
 
-export function GoogleSearchConsoleLogo({ className = "h-10 w-10" }: { className?: string }) {
+export function GoogleSearchConsoleLogo({ className = "h-11 w-11" }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-xl border border-brand-200/80 bg-white ${className}`}>
-      <svg className="h-6 w-6" viewBox="0 0 40 40" fill="none">
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 40 40" fill="none" aria-hidden="true">
         <path d="M13 27l5-6 4 3.5 5-8" stroke="#4285F4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="27" cy="16.5" r="2.2" fill="#34A853" />
-        <circle cx="22" cy="24.5" r="2.2" fill="#FBBC05" />
-        <circle cx="18" cy="21" r="2.2" fill="#EA4335" />
+        <circle cx="27" cy="16.5" r="2.4" fill="#34A853" />
+        <circle cx="22" cy="24.5" r="2.4" fill="#FBBC05" />
+        <circle cx="18" cy="21" r="2.4" fill="#EA4335" />
       </svg>
     </div>
   );
 }
 
-export function GoogleAnalyticsLogo({ className = "h-10 w-10" }: { className?: string }) {
+export function GoogleAnalyticsLogo({ className = "h-11 w-11" }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-xl border border-brand-200/80 bg-white ${className}`}>
-      <svg className="h-6 w-6" viewBox="0 0 40 40" fill="none">
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 40 40" fill="none" aria-hidden="true">
         <rect x="11" y="22" width="4.5" height="7" rx="2.25" fill="#F9AB00" />
         <rect x="17.75" y="16" width="4.5" height="13" rx="2.25" fill="#E37400" />
         <rect x="24.5" y="10" width="4.5" height="19" rx="2.25" fill="#E37400" />
@@ -25,31 +25,96 @@ export function GoogleAnalyticsLogo({ className = "h-10 w-10" }: { className?: s
   );
 }
 
-export function GitHubLogo({ className = "h-10 w-10" }: { className?: string }) {
+export function GitHubLogo({ className = "h-11 w-11" }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-xl border border-brand-200/80 bg-white ${className}`}>
-      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 text-brand-950 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           fillRule="evenodd"
           clipRule="evenodd"
           d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-          fill="#24292F"
+          fill="currentColor"
         />
       </svg>
     </div>
   );
 }
 
-export function GooglePlacesLogo({ className = "h-10 w-10" }: { className?: string }) {
+export function GooglePlacesLogo({ className = "h-11 w-11" }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-xl border border-brand-200/80 bg-white ${className}`}>
-      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
           fill="#EA4335"
         />
         <circle cx="12" cy="9" r="3" fill="white" />
         <circle cx="12" cy="9" r="1.5" fill="#4285F4" />
+      </svg>
+    </div>
+  );
+}
+
+export function WordPressLogo({ className = "h-11 w-11" }: { className?: string }) {
+  return (
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9.5" stroke="#21759B" strokeWidth="1.75" />
+        <path
+          d="M5.6 8.3L8.9 17.2L11.2 10.4L13.5 17.2L16.7 8.3"
+          stroke="#21759B"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M16.2 8.2C17.1 9.5 17.5 11.1 17 12.8L15.2 17.2"
+          stroke="#38BDF8"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+export function ShopifyLogo({ className = "h-11 w-11" }: { className?: string }) {
+  return (
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M15.8 6.2C15.7 4.4 14.3 3 12.5 3C10.7 3 9.3 4.4 9.2 6.2L6.2 6.9L4.8 19.8L16.5 21L19.2 19.6L17.8 6.7L15.8 6.2Z"
+          fill="#95BF47"
+        />
+        <path
+          d="M16.5 21L19.2 19.6L17.8 6.7L15.8 6.2V20.9L16.5 21Z"
+          fill="#5E8E3E"
+        />
+        <path
+          d="M10.7 6.2C10.8 5.1 11.5 4.3 12.5 4.3C13.5 4.3 14.2 5.1 14.3 6.2H10.7Z"
+          fill="white"
+          fillOpacity="0.85"
+        />
+        <path
+          d="M13.6 10.3C13.1 9.9 12.3 9.8 11.6 10C10.8 10.2 10.3 10.8 10.3 11.5C10.3 12.4 11.2 12.8 12.1 13.1C13 13.4 13.7 13.8 13.7 14.7C13.7 15.7 12.8 16.4 11.6 16.4C10.7 16.4 9.9 16.1 9.4 15.6"
+          stroke="white"
+          strokeWidth="1.65"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+export function WebflowLogo({ className = "h-11 w-11" }: { className?: string }) {
+  return (
+    <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M21.5 6L16.9 18H13.1L15 12.6H14.9C13.4 15.4 11 17.3 7.6 18V12.8C9.4 12.5 10.8 11.3 11.4 9.7H7.5V6H12.2V9.6H12.3L13.8 6H17.2V9.6H17.3L18.9 6H21.5Z"
+          fill="#146EF5"
+        />
+        <path d="M2.5 6H6.5V18H2.5V6Z" fill="#38BDF8" />
       </svg>
     </div>
   );
