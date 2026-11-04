@@ -342,6 +342,21 @@ describe('EngineerAgentService', () => {
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
   });
 
+  it('matches an edit path to the uniquely read repository subfolder path', async () => {
+    await fs.mkdir(path.join(dir, 'frontend-react/src/pages'), { recursive: true });
+    await fs.writeFile(path.join(dir, 'frontend-react/src/pages/MyAccount.jsx'), '<h1>Account</h1>\\n');
+    replies.push(
+      act({ tool: 'read', path: 'frontend-react/src/pages/MyAccount.jsx', start: 1, end: 20 }),
+      act({ tool: 'edit', path: 'src/pages/MyAccount.jsx', old: '<h1>Account</h1>', new: '<h1>My Account</h1>' }),
+      act({ tool: 'finish', summary: 'Updated the account page.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(run.filesChanged).toEqual(['frontend-react/src/pages/MyAccount.jsx']);
+    expect(git.commitAndPush).toHaveBeenCalledTimes(1);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects repeated identical failed edit attempts with clear guidance', async () => {
     replies.push(
       act({ tool: 'read', path: 'app/page.tsx' }),

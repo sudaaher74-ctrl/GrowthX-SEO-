@@ -591,7 +591,18 @@ export class EngineerAgentService {
 
       let result: string;
       let ok = true;
-      const actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+      let actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+      // Models sometimes omit a repository subfolder (for example, read
+      // frontend-react/src/pages/Account.jsx, then edit src/pages/Account.jsx).
+      // Reuse the exact path already read only when the suffix match is unique.
+      if ((action.tool === 'edit' || action.tool === 'metadata') && !readPaths.has(actionPath)) {
+        const suffix = `/${actionPath}`;
+        const matches = [...readPaths].filter((readPath) => readPath.endsWith(suffix));
+        if (matches.length === 1) {
+          actionPath = matches[0];
+          action.path = actionPath;
+        }
+      }
       try {
         if ((action.tool === 'edit' || action.tool === 'metadata') && !readPaths.has(actionPath)) {
           throw new SandboxError(`Read ${actionPath} before editing it. A fresh read is required to inspect the exact lines.`);
