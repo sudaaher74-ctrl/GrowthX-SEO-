@@ -29,6 +29,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/google": { scope: "Workspace", title: "Traffic" },
   "/traffic": { scope: "Workspace", title: "Traffic" },
   "/reports": { scope: "Workspace", title: "Reports" },
+  "/monthly-report": { scope: "Workspace", title: "Monthly Report" },
   "/integrations": { scope: "Workspace", title: "Integrations" },
   "/settings": { scope: "Workspace", title: "Settings" },
   "/tokens": { scope: "Workspace", title: "Tokens" },
@@ -133,7 +134,7 @@ export function TopNav({
         </button>
 
         {/* Period pills */}
-        <div className="hidden items-center rounded-lg border p-0.5 sm:flex" style={{ borderColor: "var(--border-color)" }}>
+        <div className={cn("items-center rounded-lg border p-0.5", pathname === "/monthly-report" ? "hidden" : "hidden sm:flex")} style={{ borderColor: "var(--border-color)" }}>
           {PERIOD_DAYS.map((p) => (
             <button
               key={p}

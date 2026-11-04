@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/console";
  * Fix Engine is not.
  */
 const REPORTS: { title: string; about: string; href: string; step?: number }[] = [
+  { title: "Monthly Report", about: "Recorded work, verified changes, and measured results for each month.", href: "/monthly-report" },
   { title: "Complete improvement plan", about: "Everything found across all tabs, ranked by impact, with the evidence and what to do.", href: "/reports/plan" },
   { title: "Website Audit", about: "Your crawl: health score, problems by severity, and the pages affected.", href: "/website?tab=report", step: 1 },
   { title: "Google", about: "Search Console and Analytics: traffic, queries, channels, alerts and index status.", href: "/reports/google", step: 2 },

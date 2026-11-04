@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, BarChart3, Search as SearchIcon, Zap, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Store, Wrench } from "lucide-react";
+import { Search, Sparkles, BarChart3, Search as SearchIcon, Zap, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Store, Wrench, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
@@ -49,6 +49,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-traffic", title: "Traffic", category: "Navigation", icon: SearchIcon, href: "/google", subtitle: "Visitors, search queries, landing pages & channels" },
     { id: "nav-ai", title: "AI Visibility", category: "Navigation", icon: Eye, href: "/ai-visibility", subtitle: "How ChatGPT, Gemini, Perplexity and Claude describe you" },
     { id: "nav-fix", title: "Fix Engine", category: "Navigation", icon: Wrench, href: "/fix-engine", subtitle: "Your improvement plan, and changes as a pull request" },
+    { id: "nav-monthly-report", title: "Monthly Report", category: "Navigation", icon: CalendarDays, href: "/monthly-report", subtitle: "Recorded work, verified changes, and measured results by month" },
     { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
     { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
