@@ -85,10 +85,29 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
   const directMatched = allFindings.filter((f) => {
     if (changeSteps.some((cs) => cs.change?.issueId === f.id)) return true;
     const snippet = f.title.toLowerCase().trim();
-    return snippet.length > 5 && rawInstruction.toLowerCase().includes(snippet);
+    if (snippet.length > 5 && rawInstruction.toLowerCase().includes(snippet)) return true;
+    const instrLower = rawInstruction.toLowerCase();
+    if (
+      instrLower.includes("sitemap") &&
+      instrLower.includes("domain") &&
+      (snippet.includes("sitemap") || f.summary.toLowerCase().includes("sitemap"))
+    ) {
+      return true;
+    }
+    return false;
   });
 
   const matchedFindings = directMatched;
+
+  const errorText = run.error ?? "";
+  const repoDomainMatch = errorText.match(
+    /uses the (?:domain\s+)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)/i,
+  );
+  const detectedRepoDomain = repoDomainMatch?.[1]?.toLowerCase() ?? null;
+  const isRepoDomainMismatch =
+    /unrelated to this repository|external to this repository/i.test(errorText) ||
+    Boolean(detectedRepoDomain);
+  const isNoChangesNeeded = /finished without changing any files/i.test(errorText);
 
   const groupFromInstruction = GROUPS.find((g) =>
     rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
@@ -138,6 +157,9 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     moduleLabel: resolvedGroup?.label ?? "Website Audit",
     headline,
     summaryAfter,
+    detectedRepoDomain,
+    isRepoDomainMismatch,
+    isNoChangesNeeded,
   };
 }
 
@@ -293,14 +315,59 @@ export function GitHubFixesLogView({
       runs
         .filter((run) => run.status === "FAILED")
         .map((run) => ({ run, ctx: resolveRunContext(run, allFindings) }))
-        .filter(({ run, ctx }) =>
-          (moduleFilter === "ALL" || ctx.moduleId === moduleFilter) &&
-          (!searchQuery.trim() ||
-            ctx.headline.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (run.error || "").toLowerCase().includes(searchQuery.toLowerCase())),
-        ),
+        .filter(({ run, ctx }) => {
+          if (
+            ctx.matchedFindings.length > 0 &&
+            ctx.matchedFindings.every((f) =>
+              ["VERIFIED", "MEASURED", "RESOLVED", "DISMISSED"].includes(f.lifecycle ?? ""),
+            )
+          ) {
+            return false;
+          }
+          return (
+            (moduleFilter === "ALL" || ctx.moduleId === moduleFilter) &&
+            (!searchQuery.trim() ||
+              ctx.headline.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              (run.error || "").toLowerCase().includes(searchQuery.toLowerCase()))
+          );
+        }),
     [runs, allFindings, moduleFilter, searchQuery],
   );
+
+  const repoMismatchInfo = useMemo(() => {
+    if (!connectedRepo || !domain) return null;
+    const normDomain = domain.toLowerCase().replace(/^www\./, "");
+    const domainRoot = normDomain.split(".")[0] ?? "";
+    const repoSlug = connectedRepo.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    const mismatchFromRun = failedTaskRuns.find(
+      ({ ctx }) => ctx.isRepoDomainMismatch && ctx.detectedRepoDomain && ctx.detectedRepoDomain !== normDomain,
+    )?.ctx.detectedRepoDomain;
+
+    if (mismatchFromRun) {
+      return {
+        repoName: `${connectedRepo.owner}/${connectedRepo.name}`,
+        repoDomain: mismatchFromRun,
+        projectDomain: normDomain,
+      };
+    }
+
+    const otherMatchingProject = projects.find((p) => {
+      if (p.id === projectId) return false;
+      const otherRoot = p.name.toLowerCase().replace(/^www\./, "").split(".")[0] ?? "";
+      return otherRoot.length >= 4 && repoSlug.includes(otherRoot) && !repoSlug.includes(domainRoot);
+    });
+
+    if (otherMatchingProject) {
+      return {
+        repoName: `${connectedRepo.owner}/${connectedRepo.name}`,
+        repoDomain: otherMatchingProject.name,
+        projectDomain: normDomain,
+      };
+    }
+
+    return null;
+  }, [connectedRepo, domain, failedTaskRuns, projects, projectId]);
 
   // Module counts across all findings + PR changes
   const moduleCounts = useMemo(() => {
@@ -583,6 +650,24 @@ export function GitHubFixesLogView({
     },
   });
 
+  const dismissRunMutation = useMutation({
+    mutationFn: (runId: string) => api.dismissAutomationRun(projectId!, runId),
+    onSuccess: () => {
+      invalidateAll();
+    },
+  });
+
+  const dismissAllFailedMutation = useMutation({
+    mutationFn: (runIds: string[]) => api.dismissFailedAutomationRuns(projectId!, runIds),
+    onSuccess: () => {
+      setActionBanner({
+        tone: "good",
+        text: "Cleared failed runs from your Fix Engine history.",
+      });
+      invalidateAll();
+    },
+  });
+
   useEffect(() => {
     const now = Date.now();
     for (const report of changeReports) {
@@ -708,6 +793,40 @@ export function GitHubFixesLogView({
         <StatusNote tone="bad">
           Earlier runs created only audit-message placeholder files. Those pull requests do not implement a website fix. Re-run the affected findings and review the actual page changes before merging or confirming them fixed.
         </StatusNote>
+      )}
+      {repoMismatchInfo && (
+        <div className="flex flex-col gap-3 rounded-xl border border-warning-200 bg-warning-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-[12.5px] font-bold text-warning-700">
+              Repository mismatch detected for {repoMismatchInfo.projectDomain}
+            </p>
+            <p className="text-[11.5px] text-warning-700">
+              Connected repository <strong>{repoMismatchInfo.repoName}</strong> contains code for{" "}
+              <strong>{repoMismatchInfo.repoDomain}</strong>, while you are viewing{" "}
+              <strong>{repoMismatchInfo.projectDomain}</strong>. Connect the{" "}
+              <strong>{repoMismatchInfo.projectDomain}</strong> repository before running GitHub PR fixes, or apply/verify changes via CMS &amp; Live Site.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <ActionButton
+              variant="primary"
+              icon={<GitBranch size={12} />}
+              onClick={() => {
+                setSubSection("ALL");
+                setShowRepoConnect(true);
+              }}
+            >
+              Change GitHub Repo
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              icon={<Globe size={12} />}
+              onClick={() => setCmsFinding(filteredFindings[0] ?? null)}
+            >
+              Apply / Verify via CMS
+            </ActionButton>
+          </div>
+        </div>
       )}
       {trackedRun && trackedRun.status !== "RUNNING" ? (
         <StatusNote tone={trackedRunVerified ? "good" : trackedRunMerged ? "warn" : trackedRun.status === "AWAITING_REVIEW" ? "info" : "bad"}>
@@ -1848,6 +1967,19 @@ export function GitHubFixesLogView({
         <Panel
           title={`Failed tasks (${failedTaskRuns.length})`}
           subtitle="Only unsuccessful runs appear here. Their findings remain open until a change is prepared, reviewed, and confirmed."
+          actions={
+            failedTaskRuns.length > 0 ? (
+              <ActionButton
+                disabled={dismissAllFailedMutation.isPending}
+                icon={<CircleX size={12} />}
+                onClick={() =>
+                  dismissAllFailedMutation.mutate(failedTaskRuns.map(({ run }) => run.id))
+                }
+              >
+                Clear all failed ({failedTaskRuns.length})
+              </ActionButton>
+            ) : undefined
+          }
         >
           {failedTaskRuns.length === 0 ? (
             <div className="px-5 py-10 text-center">
@@ -1857,13 +1989,40 @@ export function GitHubFixesLogView({
             </div>
           ) : (
             <div className="divide-y divide-line">
-              {failedTaskRuns.map(({ run, ctx }) => (
+              {failedTaskRuns.map(({ run, ctx }) => {
+                const targetUrlForRun =
+                  ctx.matchedFindings[0]?.affectedPages?.[0] ||
+                  (ctx.headline.toLowerCase().includes("sitemap") && domain
+                    ? `https://${domain}/sitemap.xml`
+                    : domain
+                      ? `https://${domain}`
+                      : "");
+                const synthesizedFinding: GrowthOpportunity = ctx.matchedFindings[0] ?? {
+                  id: `run-${run.id}`,
+                  source: ctx.moduleId,
+                  title: ctx.headline,
+                  summary: run.error || ctx.headline,
+                  recommendedAction:
+                    ctx.rawInstruction ||
+                    `Ensure ${targetUrlForRun || "the target page"} uses the canonical domain ${domain ?? ""}.`,
+                  affectedPages: targetUrlForRun ? [targetUrlForRun] : [],
+                  potential: "HIGH",
+                  effort: "LOW",
+                  priority: 90,
+                  status: "OPEN",
+                  lifecycle: "DETECTED",
+                };
+
+                return (
                 <article key={run.id} className="space-y-3 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Pill tone="bad">Failed</Pill>
                         <Pill tone="info">{ctx.moduleLabel}</Pill>
+                        {ctx.isRepoDomainMismatch && (
+                          <Pill tone="warn">Repository / Domain Mismatch</Pill>
+                        )}
                         <span className="font-mono text-[11px] text-brand-500">Run #{run.id.slice(0, 8)}</span>
                       </div>
                       <h3 className="text-sm font-semibold text-brand-950">{ctx.headline}</h3>
@@ -1876,6 +2035,34 @@ export function GitHubFixesLogView({
                   <p className="rounded-lg border border-error-200/70 bg-error-50/50 px-3 py-2 text-sm leading-5 text-error-700">
                     {run.error || "This run ended before it created a reviewable pull request."}
                   </p>
+
+                  {(ctx.isRepoDomainMismatch || ctx.isNoChangesNeeded) && (
+                    <div className="rounded-lg border border-warning-200 bg-warning-50/60 px-3.5 py-2.5 text-xs leading-5 text-warning-700">
+                      <strong className="font-bold">Why this happened &amp; how to fix it: </strong>
+                      {ctx.isRepoDomainMismatch ? (
+                        <>
+                          The connected GitHub repository{" "}
+                          {connectedRepo ? (
+                            <strong>
+                              ({connectedRepo.owner}/{connectedRepo.name})
+                            </strong>
+                          ) : null}{" "}
+                          uses the domain{" "}
+                          <strong>{ctx.detectedRepoDomain || "another project"}</strong>, while this
+                          workspace is <strong>{domain || "a different domain"}</strong>. Click{" "}
+                          <strong>Change GitHub Repo</strong> below to connect the repository for{" "}
+                          <strong>{domain || "this site"}</strong>, or click{" "}
+                          <strong>Verify / Apply via CMS</strong> to verify the live site directly.
+                        </>
+                      ) : (
+                        <>
+                          The engineer inspected the repository and found that the files already match
+                          the repository&apos;s domain configuration. You can verify the live website directly
+                          or confirm this finding as fixed below.
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {run.steps.length > 0 && (
                     <details className="rounded-lg border border-line bg-surface-2 px-3 py-2">
@@ -1896,36 +2083,89 @@ export function GitHubFixesLogView({
                     </details>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    {ctx.matchedFindings.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ctx.isRepoDomainMismatch && (
+                        <ActionButton
+                          variant="primary"
+                          icon={<GitBranch size={12} />}
+                          onClick={() => {
+                            setSubSection("ALL");
+                            setShowRepoConnect(true);
+                          }}
+                        >
+                          Change GitHub Repo
+                        </ActionButton>
+                      )}
                       <ActionButton
                         variant="secondary"
                         icon={<Globe size={12} />}
-                        onClick={() => setCmsFinding(ctx.matchedFindings[0])}
+                        onClick={() => setCmsFinding(synthesizedFinding)}
                       >
-                        Apply via CMS Instead
+                        Verify / Apply via CMS
                       </ActionButton>
-                    )}
-                    <ActionButton
-                      variant="primary"
-                      disabled={isEngineerBusy || runPlanFixesMutation.isPending || runEngineerMutation.isPending || (!ctx.matchedFindings.length && !ctx.rawInstruction.trim())}
-                      icon={<RefreshCw size={12} />}
-                      onClick={() => {
-                        if (ctx.matchedFindings.length > 0) {
-                          runPlanFixesMutation.mutate({ findingIds: ctx.matchedFindings.map((finding) => finding.id) });
-                        } else if (ctx.rawInstruction) {
-                          runEngineerMutation.mutate(ctx.rawInstruction.split("EXECUTION PLAN")[0].trim());
+                      <ActionButton
+                        variant={ctx.isRepoDomainMismatch ? "secondary" : "primary"}
+                        disabled={
+                          isEngineerBusy ||
+                          runPlanFixesMutation.isPending ||
+                          runEngineerMutation.isPending ||
+                          (!ctx.matchedFindings.length && !ctx.rawInstruction.trim())
                         }
-                      }}
-                    >
-                      Retry with GitHub
-                    </ActionButton>
-                    <ActionButton onClick={() => setSubSection("IMPROVEMENT_LOG")}>
-                      Open improvement log
-                    </ActionButton>
+                        icon={<RefreshCw size={12} />}
+                        onClick={() => {
+                          dismissRunMutation.mutate(run.id);
+                          setSubSection("GITHUB_RUNNER");
+                          if (ctx.matchedFindings.length > 0) {
+                            runPlanFixesMutation.mutate({
+                              findingIds: ctx.matchedFindings.map((finding) => finding.id),
+                            });
+                          } else if (ctx.rawInstruction) {
+                            runEngineerMutation.mutate(
+                              ctx.rawInstruction.split("EXECUTION PLAN")[0].trim(),
+                            );
+                          }
+                        }}
+                      >
+                        Retry with GitHub
+                      </ActionButton>
+                      <ActionButton
+                        icon={<CheckCircle2 size={12} />}
+                        onClick={() => {
+                          for (const mf of ctx.matchedFindings) {
+                            transition.mutate({
+                              id: mf.id,
+                              to: "RESOLVED",
+                              reason: `Confirmed resolved in Fix Engine (cleared Run #${run.id.slice(0, 8)})`,
+                            });
+                          }
+                          dismissRunMutation.mutate(run.id);
+                          setActionBanner({
+                            tone: "good",
+                            text: `Marked "${ctx.headline}" as Confirmed Fixed and cleared the failed run.`,
+                          });
+                        }}
+                      >
+                        Confirm Fixed &amp; Clear
+                      </ActionButton>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ActionButton
+                        icon={<CircleX size={12} />}
+                        disabled={dismissRunMutation.isPending}
+                        onClick={() => dismissRunMutation.mutate(run.id)}
+                      >
+                        Dismiss
+                      </ActionButton>
+                      <ActionButton onClick={() => setSubSection("IMPROVEMENT_LOG")}>
+                        Open improvement log
+                      </ActionButton>
+                    </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </Panel>

@@ -281,6 +281,21 @@ export class AutomationController {
     return this.automation.listRuns(projectId);
   }
 
+  @Post('runs/:runId/dismiss')
+  @ApiOperation({ summary: 'Dismiss a failed automation run from the project queue' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  dismissRun(@Param('projectId') projectId: string, @Param('runId') runId: string) {
+    return this.automation.dismissRun(projectId, runId);
+  }
+
+  @Post('runs/dismiss-failed')
+  @ApiOperation({ summary: 'Dismiss all failed automation runs for this project' })
+  @ApiParam({ name: 'projectId' })
+  dismissFailedRuns(@Param('projectId') projectId: string) {
+    return this.automation.dismissFailedRuns(projectId);
+  }
+
   @Get('engineer/status')
   engineerStatus() { return this.engineer.queueStatus(); }
 

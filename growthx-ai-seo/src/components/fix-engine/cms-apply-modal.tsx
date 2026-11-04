@@ -28,6 +28,9 @@ type CmsPlatform = "WordPress" | "Shopify" | "Webflow" | "Custom CMS";
 
 function inferDefaultField(finding?: GrowthOpportunity | null): string {
   const text = `${finding?.title || ""} ${finding?.recommendedAction || ""}`.toLowerCase();
+  if (text.includes("sitemap") || text.includes("robots.txt")) {
+    return "CODE_AND_SEO_UPDATE";
+  }
   if (text.includes("schema") || text.includes("json-ld") || text.includes("faq")) {
     return "FAQ_SCHEMA";
   }
@@ -37,8 +40,16 @@ function inferDefaultField(finding?: GrowthOpportunity | null): string {
   return "META_TITLE";
 }
 
-function inferDefaultProposal(finding?: GrowthOpportunity | null): string {
+function inferDefaultProposal(
+  finding?: GrowthOpportunity | null,
+  domain?: string | null,
+): string {
   if (!finding) return "";
+  const text = `${finding.title || ""} ${finding.recommendedAction || ""}`.toLowerCase();
+  if (text.includes("sitemap") && domain) {
+    const cleanDomain = domain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    return `https://${cleanDomain}`;
+  }
   const field = inferDefaultField(finding);
   if (field === "FAQ_SCHEMA") {
     return JSON.stringify(
@@ -88,7 +99,7 @@ export function CmsApplyModal({
   const [targetUrl, setTargetUrl] = useState(defaultUrl);
   const [field, setField] = useState(inferDefaultField(finding));
   const [beforeValue] = useState(finding?.evidence?.[0]?.value || "");
-  const [afterValue, setAfterValue] = useState(inferDefaultProposal(finding));
+  const [afterValue, setAfterValue] = useState(inferDefaultProposal(finding, domain));
   const [publishMode, setPublishMode] = useState<"draft" | "publish">("draft");
   const [platform, setPlatform] = useState<CmsPlatform>("WordPress");
   const [copied, setCopied] = useState(false);

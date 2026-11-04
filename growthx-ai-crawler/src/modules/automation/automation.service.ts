@@ -501,6 +501,20 @@ export class AutomationService {
     });
   }
 
+  async dismissRun(projectId: string, runId: string) {
+    await this.prisma.automationRun.deleteMany({
+      where: { id: runId, projectId, status: AutomationRunStatus.FAILED },
+    });
+    return { dismissed: true, runId };
+  }
+
+  async dismissFailedRuns(projectId: string) {
+    const res = await this.prisma.automationRun.deleteMany({
+      where: { projectId, status: AutomationRunStatus.FAILED },
+    });
+    return { dismissedCount: res.count };
+  }
+
   async listChanges(projectId: string) {
     const runs = await this.listRuns(projectId);
     const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });

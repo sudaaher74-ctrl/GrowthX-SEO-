@@ -101,6 +101,7 @@ Rules:
 - Prefer editing actual website HTML/TSX/JSX page files (like index.html or src/app/page.tsx) rather than large .md strategy files.
 - Never create audit-message constants, placeholder files, or standalone notes as a substitute for implementing a fix. New helpers must be connected to existing website code.
 - For page titles, locate the routes and rendered page components and update their actual metadata.
+- For sitemap, robots.txt, or canonical domain issues, check both root files (public/sitemap.xml, public/robots.txt, src/app/sitemap.ts, src/app/robots.ts, src/lib/site.ts) and monorepo app workspaces (such as growthx-ai-seo/src/lib/site.ts or growthx-ai-seo/src/app/sitemap.ts).
 - Prefer the metadata tool for React page titles. A registry entry alone does not update client navigation unless the page mounts its metadata component. Reuse the existing unique title when possible. Keep titles at most 60 characters. Do not rewrite descriptions or policy text when only a title fix was requested.
 - Spend at most 10 turns discovering files. Then implement a small change and finish; if required context is unavailable, explain that limitation instead of repeatedly searching.
 - A page title means the document <title> metadata, not its visible H1. Preserve visible headings and content unless the instruction explicitly asks to change them.
@@ -545,6 +546,7 @@ export class EngineerAgentService {
 
       const prompt = [
         `INSTRUCTION FROM THE SITE OWNER:\n${instruction}`,
+        siteOrigin ? `TARGET PROJECT SITE ORIGIN: ${siteOrigin}` : '',
         findingsContext.length ? `FINDINGS DATA (include every affected page when determining scope):\n${JSON.stringify(findingsContext)}` : '',
         `REPOSITORY: framework ${framework}, package manager ${packageManager}. Root:\n${rootListing}`,
         older.length ? `EARLIER STEPS (short):\n${older.join('\n')}` : '',

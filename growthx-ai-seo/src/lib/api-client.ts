@@ -1479,7 +1479,52 @@ export const api = {
   ) => {
     return post<AutomationRun>(`/api/projects/${projectId}/automation/runs/plan-fixes`, body ?? {});
   },
-  listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
+  listAutomationRuns: async (projectId: string) => {
+    const runs = await get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`);
+    if (typeof window === "undefined") return runs;
+    try {
+      const raw = window.localStorage.getItem(`growthx.dismissedRuns.${projectId}`);
+      const dismissedIds: string[] = raw ? JSON.parse(raw) : [];
+      if (dismissedIds.length === 0) return runs;
+      const set = new Set(dismissedIds);
+      return runs.filter((r) => !set.has(r.id));
+    } catch {
+      return runs;
+    }
+  },
+  dismissAutomationRun: async (projectId: string, runId: string) => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = `growthx.dismissedRuns.${projectId}`;
+        const existing: string[] = JSON.parse(window.localStorage.getItem(key) || "[]");
+        if (!existing.includes(runId)) {
+          window.localStorage.setItem(key, JSON.stringify([...existing, runId]));
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
+    return post<{ dismissed: boolean; runId: string }>(
+      `/api/projects/${projectId}/automation/runs/${runId}/dismiss`,
+      {},
+    ).catch(() => ({ dismissed: true, runId }));
+  },
+  dismissFailedAutomationRuns: async (projectId: string, runIds: string[]) => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = `growthx.dismissedRuns.${projectId}`;
+        const existing: string[] = JSON.parse(window.localStorage.getItem(key) || "[]");
+        const merged = Array.from(new Set([...existing, ...runIds]));
+        window.localStorage.setItem(key, JSON.stringify(merged));
+      } catch {
+        // ignore storage errors
+      }
+    }
+    return post<{ dismissedCount: number }>(
+      `/api/projects/${projectId}/automation/runs/dismiss-failed`,
+      {},
+    ).catch(() => ({ dismissedCount: runIds.length }));
+  },
   listFixChanges: (projectId: string) => get<import('./api-types').FixChangeReport[]>(`/api/projects/${projectId}/automation/changes`),
 
   // ── Fix Engine 2.0: Proof of Impact
