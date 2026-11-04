@@ -31,6 +31,17 @@ export interface VerifyManualCmsFixInput {
   platform?: string;
 }
 
+export interface ConnectShopifyInput {
+  shopDomain: string;
+  accessToken: string;
+}
+
+export interface ConnectWebflowInput {
+  siteId: string;
+  apiToken: string;
+  siteUrl?: string;
+}
+
 @Injectable()
 export class WordPressCmsService {
   private readonly logger = new Logger(WordPressCmsService.name);
@@ -823,5 +834,712 @@ export class WordPressCmsService {
         ? 'Confirmed live on your website! Recorded in the Impact Ledger and 30d/90d Proof.'
         : 'Recorded in your log. Live HTML still shows the previous version (clear your WordPress/Cloudflare cache and click Verify again).',
     };
+  }
+
+  // ── Shopify Admin API Connector ────────────────────────────────────────────
+
+  async getShopifyConnection(projectId: string) {
+    const row = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'shopify',
+        },
+      },
+    });
+
+    if (!row || row.status === 'DISCONNECTED' || !row.accessToken) {
+      return {
+        connected: false,
+        shopDomain: null,
+        shopName: null,
+        status: 'DISCONNECTED',
+        lastSyncedAt: null,
+      };
+    }
+
+    return {
+      connected: row.status === 'CONNECTED',
+      shopDomain: row.selectedResourceId || null,
+      shopName: row.selectedResourceName || null,
+      status: row.status,
+      lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
+    };
+  }
+
+  async connectShopify(projectId: string, input: ConnectShopifyInput) {
+    const rawDomain = (input.shopDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    const accessToken = (input.accessToken || '').trim();
+
+    if (!rawDomain || !accessToken) {
+      throw new BadRequestException('Shopify store domain (e.g. store.myshopify.com) and Admin API access token are required.');
+    }
+
+    const shopOrigin = this.normalizeSiteUrl(`https://${rawDomain}`);
+    const shopHost = new URL(shopOrigin).hostname;
+
+    let shopData: { shop?: { name?: string; domain?: string; myshopify_domain?: string; email?: string } } | null = null;
+    try {
+      const res = await this.safeFetch(`${shopOrigin}/admin/api/2024-10/shop.json`, {
+        method: 'GET',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          Accept: 'application/json',
+          'User-Agent': 'Reigel-SEO-Agent/1.0',
+        },
+      }, 15000);
+
+      if (res.status === 401 || res.status === 403) {
+        throw new BadRequestException(
+          'Shopify rejected the Admin API access token. Generate a Custom App token with read_products, write_products, read_content, and write_content scopes.',
+        );
+      }
+      if (!res.ok) {
+        throw new BadRequestException(`Shopify Admin API returned HTTP ${res.status} for ${shopHost}.`);
+      }
+      shopData = (await res.json()) as any;
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(`Could not reach Shopify Admin API at ${shopHost}: ${err?.message || 'network error'}`);
+    }
+
+    const encryptedToken = this.security.encryptCredentials(accessToken);
+    const shopName = shopData?.shop?.name || shopHost;
+    const now = new Date();
+
+    const integration = await this.prisma.integration.upsert({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'shopify',
+        },
+      },
+      create: {
+        projectId,
+        provider: 'shopify',
+        accessToken: encryptedToken,
+        googleAccountEmail: shopData?.shop?.email || shopHost,
+        grantedScopes: ['write_products', 'write_content'],
+        selectedResourceId: shopOrigin,
+        selectedResourceName: shopName,
+        status: 'CONNECTED',
+        statusMessage: null,
+        lastSyncedAt: now,
+      },
+      update: {
+        accessToken: encryptedToken,
+        googleAccountEmail: shopData?.shop?.email || shopHost,
+        grantedScopes: ['write_products', 'write_content'],
+        selectedResourceId: shopOrigin,
+        selectedResourceName: shopName,
+        status: 'CONNECTED',
+        statusMessage: null,
+        lastSyncedAt: now,
+      },
+    });
+
+    await this.prisma.integrationAuditEvent.create({
+      data: {
+        integrationId: integration.id,
+        projectId,
+        event: 'CONNECTED',
+        detail: `Shopify store ${shopName} (${shopOrigin}) connected`,
+      },
+    });
+
+    return {
+      connected: true,
+      shopDomain: shopOrigin,
+      shopName,
+      status: 'CONNECTED',
+      lastSyncedAt: now.toISOString(),
+    };
+  }
+
+  async disconnectShopify(projectId: string) {
+    const existing = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'shopify',
+        },
+      },
+    });
+    if (!existing) return { disconnected: true };
+
+    await this.prisma.integration.update({
+      where: { id: existing.id },
+      data: { accessToken: '', status: 'DISCONNECTED', statusMessage: null },
+    });
+
+    await this.prisma.integrationAuditEvent.create({
+      data: {
+        integrationId: existing.id,
+        projectId,
+        event: 'DISCONNECTED',
+        detail: 'Shopify integration disconnected by user',
+      },
+    });
+
+    return { disconnected: true };
+  }
+
+  async stageShopifyFix(projectId: string, input: StageWordPressFixInput) {
+    const integration = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'shopify',
+        },
+      },
+    });
+
+    if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
+      throw new BadRequestException('Connect your Shopify store in Settings → Integrations first.');
+    }
+
+    const shopOrigin = integration.selectedResourceId;
+    const accessToken = this.security.decryptCredentials(integration.accessToken);
+    if (!accessToken) {
+      throw new BadRequestException('Stored Shopify token could not be decrypted. Please reconnect Shopify in Settings.');
+    }
+
+    const targetUrl = (input.targetUrl || shopOrigin).trim();
+    let handle = '';
+    let resourceType: 'products' | 'pages' = 'pages';
+
+    try {
+      const parsed = new URL(targetUrl);
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      if (segments[0] === 'products' && segments[1]) {
+        resourceType = 'products';
+        handle = segments[1];
+      } else if (segments[0] === 'pages' && segments[1]) {
+        resourceType = 'pages';
+        handle = segments[1];
+      } else {
+        handle = segments[segments.length - 1] || '';
+      }
+    } catch {
+      handle = '';
+    }
+
+    const lookupUrl = handle
+      ? `${shopOrigin}/admin/api/2024-10/${resourceType}.json?handle=${encodeURIComponent(handle)}&limit=1`
+      : `${shopOrigin}/admin/api/2024-10/pages.json?limit=1`;
+
+    const lookupRes = await this.safeFetch(lookupUrl, {
+      method: 'GET',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        Accept: 'application/json',
+        'User-Agent': 'Reigel-SEO-Agent/1.0',
+      },
+    }, 15000);
+
+    if (!lookupRes.ok) {
+      throw new BadRequestException(`Shopify Admin API lookup returned HTTP ${lookupRes.status}.`);
+    }
+
+    const lookupJson = (await lookupRes.json()) as Record<string, any[]>;
+    const items = lookupJson[resourceType] || lookupJson.pages || lookupJson.products || [];
+    const targetItem = items[0];
+
+    if (!targetItem?.id) {
+      throw new NotFoundException(
+        `Could not find a matching Shopify ${resourceType === 'products' ? 'product' : 'page'} for handle "${handle || '/'}".`,
+      );
+    }
+
+    const singularKey = resourceType === 'products' ? 'product' : 'page';
+    const beforeValue = input.beforeValue || targetItem.title || '';
+
+    const updatePayload: Record<string, any> = { id: targetItem.id };
+    if (input.field === 'META_TITLE') {
+      updatePayload.metafields_global_title_tag = input.afterValue;
+    } else if (input.field === 'META_DESCRIPTION') {
+      updatePayload.metafields_global_description_tag = input.afterValue;
+    } else if (input.field.includes('SCHEMA')) {
+      const safeJsonLd = this.sanitizeJsonLdPayload(input.afterValue);
+      const existingHtml = targetItem.body_html || '';
+      updatePayload.body_html = `${existingHtml}\n<script type="application/ld+json">\n${safeJsonLd}\n</script>`;
+    } else {
+      updatePayload.metafields_global_description_tag = input.afterValue;
+    }
+
+    const updateRes = await this.safeFetch(
+      `${shopOrigin}/admin/api/2024-10/${resourceType}/${targetItem.id}.json`,
+      {
+        method: 'PUT',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'User-Agent': 'Reigel-SEO-Agent/1.0',
+        },
+        body: JSON.stringify({ [singularKey]: updatePayload }),
+      },
+      15000,
+    );
+
+    if (!updateRes.ok) {
+      const errText = await updateRes.text().catch(() => '');
+      throw new BadRequestException(`Shopify Admin API update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const shopAdminUrl = `${shopOrigin}/admin/${resourceType}/${targetItem.id}`;
+    const repo = await this.getOrCreateCmsRepository(projectId, 'shopify', shopOrigin, integration.selectedResourceName || 'shopify');
+    const now = new Date();
+
+    const run = await this.prisma.automationRun.create({
+      data: {
+        repositoryId: repo.id,
+        projectId,
+        kind: AutomationRunKind.FIXES,
+        status: AutomationRunStatus.MERGED,
+        branch: `shopify/${resourceType}-${targetItem.id}`,
+        pullRequestUrl: shopAdminUrl,
+        filesChanged: [`shopify:${resourceType}/${targetItem.handle || targetItem.id}`],
+        startedAt: now,
+        finishedAt: now,
+        steps: [
+          {
+            at: now.toISOString(),
+            step: 'shopify-update',
+            detail: `Applied ${input.field} update via Shopify Admin API (${singularKey} #${targetItem.id})`,
+            ok: true,
+            change: {
+              issueId: input.findingId || `shopify-${targetItem.id}`,
+              url: targetUrl,
+              field: input.field,
+              before: beforeValue || null,
+              after: input.afterValue,
+              why: input.findingTitle || 'Shopify Admin API SEO optimization',
+              file: `Shopify ${singularKey} #${targetItem.id}`,
+              measuredAt: now.toISOString(),
+              source: 'SHOPIFY_API',
+              findingTitle: input.findingTitle,
+            },
+          },
+        ],
+      },
+    });
+
+    await this.prisma.fixSnapshot.createMany({
+      data: [
+        {
+          projectId,
+          automationRunId: run.id,
+          url: targetUrl,
+          snapshotType: 'BEFORE',
+          title: beforeValue || null,
+          contentSnippet: beforeValue || null,
+        },
+        {
+          projectId,
+          automationRunId: run.id,
+          url: targetUrl,
+          snapshotType: 'VERIFIED_LIVE',
+          title: input.field === 'META_TITLE' ? input.afterValue : targetItem.title || null,
+          metaDescription: input.field === 'META_DESCRIPTION' ? input.afterValue : null,
+          contentSnippet: input.afterValue,
+        },
+      ],
+    });
+
+    await this.prisma.fixImpactLedgerEvent.create({
+      data: {
+        projectId,
+        automationRunId: run.id,
+        eventType: 'DEPLOYMENT_VERIFIED',
+        title: `Shopify Fix Published: ${input.findingTitle || input.field}`,
+        description: `Updated ${input.field} on ${targetUrl} via Shopify Admin API (${singularKey} #${targetItem.id}).`,
+        actor: 'SHOPIFY_AGENT',
+        affectedUrl: targetUrl,
+        pullRequestUrl: shopAdminUrl,
+        verificationStatus: 'VERIFIED_LIVE',
+        evidenceData: {
+          shopifyResourceId: targetItem.id,
+          resourceType,
+          field: input.field,
+          before: beforeValue,
+          after: input.afterValue,
+        },
+      },
+    });
+
+    if (input.findingId) {
+      await this.prisma.growthOpportunity
+        .update({ where: { id: input.findingId }, data: { lifecycle: 'VERIFIED' } })
+        .catch(() => null);
+    }
+
+    return {
+      success: true,
+      runId: run.id,
+      shopifyResourceId: targetItem.id,
+      adminEditUrl: shopAdminUrl,
+      status: 'VERIFIED_LIVE',
+    };
+  }
+
+  // ── Webflow Data API v2 Connector ──────────────────────────────────────────
+
+  async getWebflowConnection(projectId: string) {
+    const row = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'webflow',
+        },
+      },
+    });
+
+    if (!row || row.status === 'DISCONNECTED' || !row.accessToken) {
+      return {
+        connected: false,
+        siteId: null,
+        siteName: null,
+        siteUrl: null,
+        status: 'DISCONNECTED',
+        lastSyncedAt: null,
+      };
+    }
+
+    return {
+      connected: row.status === 'CONNECTED',
+      siteId: row.selectedResourceId || null,
+      siteName: row.selectedResourceName || null,
+      siteUrl: row.googleAccountEmail || null,
+      status: row.status,
+      lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
+    };
+  }
+
+  async connectWebflow(projectId: string, input: ConnectWebflowInput) {
+    const siteId = (input.siteId || '').trim();
+    const apiToken = (input.apiToken || '').trim();
+    const siteUrl = input.siteUrl ? this.normalizeSiteUrl(input.siteUrl) : '';
+
+    if (!siteId || !apiToken) {
+      throw new BadRequestException('Webflow Site ID and Data API v2 Token are required.');
+    }
+
+    let siteInfo: { id?: string; displayName?: string; shortName?: string; customDomains?: Array<{ url?: string }> } | null = null;
+    try {
+      const res = await this.safeFetch(
+        `https://api.webflow.com/v2/sites/${encodeURIComponent(siteId)}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            Accept: 'application/json',
+            'User-Agent': 'Reigel-SEO-Agent/1.0',
+          },
+        },
+        15000,
+      );
+
+      if (res.status === 401 || res.status === 403) {
+        throw new BadRequestException(
+          'Webflow rejected the API token or Site ID. Generate a Site API Token with pages:read and pages:write scopes in Webflow Site Settings → Apps & Integrations.',
+        );
+      }
+      if (!res.ok) {
+        throw new BadRequestException(`Webflow API returned HTTP ${res.status} for Site ID ${siteId}.`);
+      }
+      siteInfo = (await res.json()) as any;
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(`Could not verify Webflow Site ID ${siteId}: ${err?.message || 'network error'}`);
+    }
+
+    const encryptedToken = this.security.encryptCredentials(apiToken);
+    const siteName = siteInfo?.displayName || siteInfo?.shortName || siteId;
+    const resolvedUrl = siteUrl || siteInfo?.customDomains?.[0]?.url || `https://${siteInfo?.shortName || siteId}.webflow.io`;
+    const now = new Date();
+
+    const integration = await this.prisma.integration.upsert({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'webflow',
+        },
+      },
+      create: {
+        projectId,
+        provider: 'webflow',
+        accessToken: encryptedToken,
+        googleAccountEmail: resolvedUrl,
+        grantedScopes: ['pages:read', 'pages:write'],
+        selectedResourceId: siteId,
+        selectedResourceName: siteName,
+        status: 'CONNECTED',
+        statusMessage: null,
+        lastSyncedAt: now,
+      },
+      update: {
+        accessToken: encryptedToken,
+        googleAccountEmail: resolvedUrl,
+        grantedScopes: ['pages:read', 'pages:write'],
+        selectedResourceId: siteId,
+        selectedResourceName: siteName,
+        status: 'CONNECTED',
+        statusMessage: null,
+        lastSyncedAt: now,
+      },
+    });
+
+    await this.prisma.integrationAuditEvent.create({
+      data: {
+        integrationId: integration.id,
+        projectId,
+        event: 'CONNECTED',
+        detail: `Webflow site ${siteName} (${siteId}) connected`,
+      },
+    });
+
+    return {
+      connected: true,
+      siteId,
+      siteName,
+      siteUrl: resolvedUrl,
+      status: 'CONNECTED',
+      lastSyncedAt: now.toISOString(),
+    };
+  }
+
+  async disconnectWebflow(projectId: string) {
+    const existing = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'webflow',
+        },
+      },
+    });
+    if (!existing) return { disconnected: true };
+
+    await this.prisma.integration.update({
+      where: { id: existing.id },
+      data: { accessToken: '', status: 'DISCONNECTED', statusMessage: null },
+    });
+
+    await this.prisma.integrationAuditEvent.create({
+      data: {
+        integrationId: existing.id,
+        projectId,
+        event: 'DISCONNECTED',
+        detail: 'Webflow integration disconnected by user',
+      },
+    });
+
+    return { disconnected: true };
+  }
+
+  async stageWebflowFix(projectId: string, input: StageWordPressFixInput) {
+    const integration = await this.prisma.integration.findUnique({
+      where: {
+        projectId_provider: {
+          projectId,
+          provider: 'webflow',
+        },
+      },
+    });
+
+    if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
+      throw new BadRequestException('Connect your Webflow site in Settings → Integrations first.');
+    }
+
+    const siteId = integration.selectedResourceId;
+    const siteUrl = integration.googleAccountEmail || 'https://webflow.io';
+    const apiToken = this.security.decryptCredentials(integration.accessToken);
+    if (!apiToken) {
+      throw new BadRequestException('Stored Webflow token could not be decrypted. Please reconnect Webflow in Settings.');
+    }
+
+    const targetUrl = (input.targetUrl || siteUrl).trim();
+    let slug = '';
+    try {
+      const parsed = new URL(targetUrl);
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      slug = parts[parts.length - 1] || '';
+    } catch {
+      slug = '';
+    }
+
+    const pagesRes = await this.safeFetch(
+      `https://api.webflow.com/v2/sites/${encodeURIComponent(siteId)}/pages`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          Accept: 'application/json',
+          'User-Agent': 'Reigel-SEO-Agent/1.0',
+        },
+      },
+      15000,
+    );
+
+    if (!pagesRes.ok) {
+      throw new BadRequestException(`Webflow API pages list returned HTTP ${pagesRes.status}.`);
+    }
+
+    const pagesData = (await pagesRes.json()) as {
+      pages?: Array<{ id: string; slug?: string | null; title?: string; seo?: { title?: string; description?: string } }>;
+    };
+    const pages = Array.isArray(pagesData?.pages) ? pagesData.pages : [];
+    const targetPage =
+      pages.find((p) => (slug ? p.slug === slug : !p.slug || p.slug === 'index' || p.slug === 'home')) ||
+      pages[0];
+
+    if (!targetPage?.id) {
+      throw new NotFoundException(`Could not find a matching Webflow page for slug "${slug || '/'}".`);
+    }
+
+    const beforeValue =
+      input.beforeValue ||
+      (input.field === 'META_DESCRIPTION' ? targetPage.seo?.description : targetPage.seo?.title || targetPage.title) ||
+      '';
+
+    const seoPayload: Record<string, string> = {
+      title: targetPage.seo?.title || targetPage.title || '',
+      description: targetPage.seo?.description || '',
+    };
+
+    if (input.field === 'META_TITLE') {
+      seoPayload.title = input.afterValue;
+    } else if (input.field === 'META_DESCRIPTION') {
+      seoPayload.description = input.afterValue;
+    } else {
+      seoPayload.description = input.afterValue;
+    }
+
+    const updateRes = await this.safeFetch(
+      `https://api.webflow.com/v2/pages/${encodeURIComponent(targetPage.id)}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'User-Agent': 'Reigel-SEO-Agent/1.0',
+        },
+        body: JSON.stringify({
+          title: input.field === 'META_TITLE' ? input.afterValue : targetPage.title,
+          seo: seoPayload,
+        }),
+      },
+      15000,
+    );
+
+    if (!updateRes.ok) {
+      const errText = await updateRes.text().catch(() => '');
+      throw new BadRequestException(`Webflow API page metadata update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const webflowAdminUrl = `https://webflow.com/design/${siteId}`;
+    const repo = await this.getOrCreateCmsRepository(projectId, 'webflow', siteUrl, integration.selectedResourceName || 'webflow');
+    const now = new Date();
+
+    const run = await this.prisma.automationRun.create({
+      data: {
+        repositoryId: repo.id,
+        projectId,
+        kind: AutomationRunKind.FIXES,
+        status: AutomationRunStatus.MERGED,
+        branch: `webflow/page-${targetPage.id}`,
+        pullRequestUrl: webflowAdminUrl,
+        filesChanged: [`webflow:pages/${targetPage.slug || targetPage.id}`],
+        startedAt: now,
+        finishedAt: now,
+        steps: [
+          {
+            at: now.toISOString(),
+            step: 'webflow-update',
+            detail: `Applied ${input.field} update via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id})`,
+            ok: true,
+            change: {
+              issueId: input.findingId || `webflow-${targetPage.id}`,
+              url: targetUrl,
+              field: input.field,
+              before: beforeValue || null,
+              after: input.afterValue,
+              why: input.findingTitle || 'Webflow Data API v2 SEO optimization',
+              file: `Webflow Page (${targetPage.slug || 'home'})`,
+              measuredAt: now.toISOString(),
+              source: 'WEBFLOW_API',
+              findingTitle: input.findingTitle,
+            },
+          },
+        ],
+      },
+    });
+
+    await this.prisma.fixSnapshot.createMany({
+      data: [
+        {
+          projectId,
+          automationRunId: run.id,
+          url: targetUrl,
+          snapshotType: 'BEFORE',
+          title: beforeValue || null,
+          contentSnippet: beforeValue || null,
+        },
+        {
+          projectId,
+          automationRunId: run.id,
+          url: targetUrl,
+          snapshotType: 'VERIFIED_LIVE',
+          title: seoPayload.title || null,
+          metaDescription: seoPayload.description || null,
+          contentSnippet: input.afterValue,
+        },
+      ],
+    });
+
+    await this.prisma.fixImpactLedgerEvent.create({
+      data: {
+        projectId,
+        automationRunId: run.id,
+        eventType: 'DEPLOYMENT_VERIFIED',
+        title: `Webflow Fix Staged: ${input.findingTitle || input.field}`,
+        description: `Updated ${input.field} on ${targetUrl} via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id}).`,
+        actor: 'WEBFLOW_AGENT',
+        affectedUrl: targetUrl,
+        pullRequestUrl: webflowAdminUrl,
+        verificationStatus: 'VERIFIED_LIVE',
+        evidenceData: {
+          webflowPageId: targetPage.id,
+          slug: targetPage.slug,
+          field: input.field,
+          before: beforeValue,
+          after: input.afterValue,
+        },
+      },
+    });
+
+    if (input.findingId) {
+      await this.prisma.growthOpportunity
+        .update({ where: { id: input.findingId }, data: { lifecycle: 'VERIFIED' } })
+        .catch(() => null);
+    }
+
+    return {
+      success: true,
+      runId: run.id,
+      webflowPageId: targetPage.id,
+      adminEditUrl: webflowAdminUrl,
+      status: 'VERIFIED_LIVE',
+    };
+  }
+
+  async getAllCmsConnections(projectId: string) {
+    const [wordpress, shopify, webflow] = await Promise.all([
+      this.getConnection(projectId),
+      this.getShopifyConnection(projectId),
+      this.getWebflowConnection(projectId),
+    ]);
+    return { wordpress, shopify, webflow };
   }
 }

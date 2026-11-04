@@ -78,6 +78,28 @@ export class VerifyManualCmsFixDto {
   platform?: string;
 }
 
+export class ConnectShopifyDto {
+  @IsString()
+  @MaxLength(512)
+  shopDomain: string;
+  @IsString()
+  @MaxLength(512)
+  accessToken: string;
+}
+
+export class ConnectWebflowDto {
+  @IsString()
+  @MaxLength(256)
+  siteId: string;
+  @IsString()
+  @MaxLength(512)
+  apiToken: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  siteUrl?: string;
+}
+
 export class ConnectRepoDto {
   @IsString()
   owner: string;
@@ -389,5 +411,84 @@ export class AutomationController {
     @Body() body: VerifyManualCmsFixDto,
   ) {
     return this.wordpress!.verifyManualCmsFix(projectId, body);
+  }
+
+  @Get('cms/connections')
+  @ApiOperation({ summary: 'Get WordPress, Shopify, and Webflow CMS connection statuses for this project' })
+  @ApiParam({ name: 'projectId' })
+  getAllCmsConnections(@Param('projectId') projectId: string) {
+    return this.wordpress!.getAllCmsConnections(projectId);
+  }
+
+  // ── Shopify Admin API Integration
+
+  @Get('shopify')
+  @ApiOperation({ summary: 'Get Shopify connection status for this project' })
+  @ApiParam({ name: 'projectId' })
+  getShopifyConnection(@Param('projectId') projectId: string) {
+    return this.wordpress!.getShopifyConnection(projectId);
+  }
+
+  @Post('shopify/connect')
+  @ApiOperation({ summary: 'Verify and connect a Shopify store via Admin API token' })
+  @ApiParam({ name: 'projectId' })
+  connectShopify(
+    @Param('projectId') projectId: string,
+    @Body() body: ConnectShopifyDto,
+  ) {
+    return this.wordpress!.connectShopify(projectId, body);
+  }
+
+  @Post('shopify/disconnect')
+  @ApiOperation({ summary: 'Disconnect Shopify integration for this project' })
+  @ApiParam({ name: 'projectId' })
+  disconnectShopify(@Param('projectId') projectId: string) {
+    return this.wordpress!.disconnectShopify(projectId);
+  }
+
+  @Post('shopify/apply')
+  @ApiOperation({ summary: 'Apply an SEO fix via Shopify Admin API and record 30d/90d proof' })
+  @ApiParam({ name: 'projectId' })
+  stageShopifyFix(
+    @Param('projectId') projectId: string,
+    @Body() body: StageWordPressFixDto,
+  ) {
+    return this.wordpress!.stageShopifyFix(projectId, body);
+  }
+
+  // ── Webflow Data API v2 Integration
+
+  @Get('webflow')
+  @ApiOperation({ summary: 'Get Webflow connection status for this project' })
+  @ApiParam({ name: 'projectId' })
+  getWebflowConnection(@Param('projectId') projectId: string) {
+    return this.wordpress!.getWebflowConnection(projectId);
+  }
+
+  @Post('webflow/connect')
+  @ApiOperation({ summary: 'Verify and connect a Webflow site via Data API v2 token' })
+  @ApiParam({ name: 'projectId' })
+  connectWebflow(
+    @Param('projectId') projectId: string,
+    @Body() body: ConnectWebflowDto,
+  ) {
+    return this.wordpress!.connectWebflow(projectId, body);
+  }
+
+  @Post('webflow/disconnect')
+  @ApiOperation({ summary: 'Disconnect Webflow integration for this project' })
+  @ApiParam({ name: 'projectId' })
+  disconnectWebflow(@Param('projectId') projectId: string) {
+    return this.wordpress!.disconnectWebflow(projectId);
+  }
+
+  @Post('webflow/apply')
+  @ApiOperation({ summary: 'Apply an SEO fix via Webflow Data API v2 and record 30d/90d proof' })
+  @ApiParam({ name: 'projectId' })
+  stageWebflowFix(
+    @Param('projectId') projectId: string,
+    @Body() body: StageWordPressFixDto,
+  ) {
+    return this.wordpress!.stageWebflowFix(projectId, body);
   }
 }

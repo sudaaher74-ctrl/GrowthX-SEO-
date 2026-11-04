@@ -338,4 +338,123 @@ describe('WordPressCmsService', () => {
       expect(parsedPayload.content).toContain('<\\/script>');
     });
   });
+
+  describe('Shopify & Webflow Direct Connectors', () => {
+    it('verifies Shopify Admin API credentials and applies SEO title update', async () => {
+      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
+        if (String(url).includes('/shop.json')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ shop: { name: 'MilQuu Store', email: 'owner@milquu.in' } }),
+          };
+        }
+        if (init?.method === 'PUT') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ product: { id: 777 } }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] }),
+        };
+      });
+
+      prisma.integration.upsert.mockResolvedValue({ id: 'int_shopify_1' });
+      const connected = await service.connectShopify('proj_1', {
+        shopDomain: 'milquu-store.myshopify.com',
+        accessToken: 'shpat_secret_123',
+      });
+      expect(connected.connected).toBe(true);
+      expect(connected.shopName).toBe('MilQuu Store');
+
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_shopify_1',
+        projectId: 'proj_1',
+        provider: 'shopify',
+        accessToken: 'enc_shpat_secret_123',
+        selectedResourceId: 'https://milquu-store.myshopify.com',
+        selectedResourceName: 'MilQuu Store',
+        status: 'CONNECTED',
+      });
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_shop_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_shop_1' });
+
+      const applied = await service.stageShopifyFix('proj_1', {
+        targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
+        field: 'META_TITLE',
+        afterValue: 'Fresh A2 Gir Cow Milk Online',
+      });
+      expect(applied.success).toBe(true);
+      expect(applied.shopifyResourceId).toBe(777);
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ actor: 'SHOPIFY_AGENT' }),
+        }),
+      );
+    });
+
+    it('verifies Webflow Data API v2 credentials and applies page SEO metadata update', async () => {
+      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
+        if (init?.method === 'PUT') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 'page_wf_1' }),
+          };
+        }
+        if (String(url).endsWith('/pages')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              pages: [{ id: 'page_wf_1', slug: 'pricing', title: 'Pricing', seo: { title: 'Pricing' } }],
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'site_wf_1', displayName: 'MilQuu Webflow', shortName: 'milquu' }),
+        };
+      });
+
+      prisma.integration.upsert.mockResolvedValue({ id: 'int_wf_1' });
+      const connected = await service.connectWebflow('proj_1', {
+        siteId: 'site_wf_1',
+        apiToken: 'wf_token_123',
+      });
+      expect(connected.connected).toBe(true);
+      expect(connected.siteName).toBe('MilQuu Webflow');
+
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_wf_1',
+        projectId: 'proj_1',
+        provider: 'webflow',
+        accessToken: 'enc_wf_token_123',
+        selectedResourceId: 'site_wf_1',
+        selectedResourceName: 'MilQuu Webflow',
+        googleAccountEmail: 'https://milquu.webflow.io',
+        status: 'CONNECTED',
+      });
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_wf_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_wf_1' });
+
+      const applied = await service.stageWebflowFix('proj_1', {
+        targetUrl: 'https://milquu.webflow.io/pricing',
+        field: 'META_TITLE',
+        afterValue: 'A2 Milk Subscription Plans & Pricing',
+      });
+      expect(applied.success).toBe(true);
+      expect(applied.webflowPageId).toBe('page_wf_1');
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ actor: 'WEBFLOW_AGENT' }),
+        }),
+      );
+    });
+  });
 });

@@ -576,5 +576,24 @@ describe('ProofOfImpactService', () => {
         }),
       );
     });
+
+    it('runs daily automated 30d/90d evaluation sweep across all projects with merged runs', async () => {
+      prisma.automationRun.findMany.mockResolvedValue([{ projectId: 'proj_1' }]);
+      const evalSpy = jest.spyOn(service, 'evaluateAndTriggerLoop').mockResolvedValue({
+        evaluatedRuns: 1,
+        improvedCount: 1,
+        loopTriggeredCount: 0,
+        results: [],
+      });
+
+      const sweep = await service.runDailyImpactEvaluationSweep();
+      expect(sweep).toEqual({
+        projectsEvaluated: 1,
+        improvedCount: 1,
+        loopTriggeredCount: 0,
+      });
+      expect(evalSpy).toHaveBeenCalledWith('proj_1');
+      evalSpy.mockRestore();
+    });
   });
 });

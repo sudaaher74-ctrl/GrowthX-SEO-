@@ -1261,6 +1261,181 @@ export const api = {
       publishMode: string;
       status: string;
     }>(`/api/projects/${projectId}/automation/wordpress/apply`, body),
+  getShopifyConnection: async (projectId: string) => {
+    try {
+      return await get<{
+        connected: boolean;
+        shopDomain: string | null;
+        shopName: string | null;
+        status: string;
+        lastSyncedAt: string | null;
+      }>(`/api/projects/${projectId}/automation/shopify`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.shopify.${projectId}`);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          connected: false,
+          shopDomain: null,
+          shopName: null,
+          status: "DISCONNECTED",
+          lastSyncedAt: null,
+        };
+      }
+      throw err;
+    }
+  },
+  connectShopify: async (
+    projectId: string,
+    body: { shopDomain: string; accessToken: string },
+  ) => {
+    try {
+      return await post<{
+        connected: boolean;
+        shopDomain: string;
+        shopName: string;
+        status: string;
+        lastSyncedAt: string;
+      }>(`/api/projects/${projectId}/automation/shopify/connect`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "connect-shopify", ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect Shopify.");
+        window.localStorage.setItem(`growthx.shopify.${projectId}`, JSON.stringify(data));
+        return data;
+      }
+      throw err;
+    }
+  },
+  disconnectShopify: async (projectId: string) => {
+    try {
+      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/shopify/disconnect`, {});
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        window.localStorage.removeItem(`growthx.shopify.${projectId}`);
+        return { disconnected: true };
+      }
+      throw err;
+    }
+  },
+  stageShopifyFix: (
+    projectId: string,
+    body: {
+      findingId?: string;
+      targetUrl: string;
+      field: string;
+      beforeValue?: string;
+      afterValue: string;
+      findingTitle?: string;
+    },
+  ) =>
+    post<{
+      success: boolean;
+      runId: string;
+      shopifyResourceId: number;
+      adminEditUrl: string;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/shopify/apply`, body),
+  getWebflowConnection: async (projectId: string) => {
+    try {
+      return await get<{
+        connected: boolean;
+        siteId: string | null;
+        siteName: string | null;
+        siteUrl: string | null;
+        status: string;
+        lastSyncedAt: string | null;
+      }>(`/api/projects/${projectId}/automation/webflow`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(`growthx.webflow.${projectId}`);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          connected: false,
+          siteId: null,
+          siteName: null,
+          siteUrl: null,
+          status: "DISCONNECTED",
+          lastSyncedAt: null,
+        };
+      }
+      throw err;
+    }
+  },
+  connectWebflow: async (
+    projectId: string,
+    body: { siteId: string; apiToken: string; siteUrl?: string },
+  ) => {
+    try {
+      return await post<{
+        connected: boolean;
+        siteId: string;
+        siteName: string;
+        siteUrl: string;
+        status: string;
+        lastSyncedAt: string;
+      }>(`/api/projects/${projectId}/automation/webflow/connect`, body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        const res = await fetch("/api/cms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "connect-webflow", ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect Webflow.");
+        window.localStorage.setItem(`growthx.webflow.${projectId}`, JSON.stringify(data));
+        return data;
+      }
+      throw err;
+    }
+  },
+  disconnectWebflow: async (projectId: string) => {
+    try {
+      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/webflow/disconnect`, {});
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
+        window.localStorage.removeItem(`growthx.webflow.${projectId}`);
+        return { disconnected: true };
+      }
+      throw err;
+    }
+  },
+  stageWebflowFix: (
+    projectId: string,
+    body: {
+      findingId?: string;
+      targetUrl: string;
+      field: string;
+      beforeValue?: string;
+      afterValue: string;
+      findingTitle?: string;
+    },
+  ) =>
+    post<{
+      success: boolean;
+      runId: string;
+      webflowPageId: string;
+      adminEditUrl: string;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/webflow/apply`, body),
   verifyManualCmsFix: async (
     projectId: string,
     body: {

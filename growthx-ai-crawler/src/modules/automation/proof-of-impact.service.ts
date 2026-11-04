@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { GitService } from '../autonomous-engineer/agents/git/git.service';
 import { SecurityService } from '../security/security.service';
@@ -118,7 +119,10 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
         if (allSettled) continue;
         try {
           const result = await this.verifyDeployment(run.projectId, run.id);
-          if (result.verificationStatus === 'VERIFIED') this.logger.log(`Automatically verified merged Fix Engine run ${run.id} on the live website.`);
+          if (result.verificationStatus === 'VERIFIED') {
+            this.logger.log(`Automatically verified merged Fix Engine run ${run.id} on the live website.`);
+            await this.evaluateAndTriggerLoop(run.projectId, run.id).catch(() => null);
+          }
         } catch (error: any) {
           this.logger.warn(`Automatic live verification failed for run ${run.id}: ${error?.message || 'unknown error'}`);
         }
@@ -128,6 +132,55 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.autoVerifyRunning = false;
     }
+  }
+
+  /**
+   * Daily automated 7d / 30d / 90d Impact Ledger & Closed-Loop Evaluation Cron (3:00 AM UTC).
+   * Evaluates all projects with merged Fix Engine runs so positive search/AI lift is
+   * confirmed automatically and 30-day flat runs generate Iteration 2 pivots with zero manual intervention.
+   */
+  @Cron('0 3 * * *')
+  async runDailyImpactEvaluationSweep(): Promise<{
+    projectsEvaluated: number;
+    improvedCount: number;
+    loopTriggeredCount: number;
+  }> {
+    let projectsEvaluated = 0;
+    let improvedCount = 0;
+    let loopTriggeredCount = 0;
+
+    try {
+      await this.verifyMergedPullRequests();
+
+      const mergedRuns = await this.prisma.automationRun.findMany({
+        where: { status: 'MERGED' },
+        select: { projectId: true },
+        distinct: ['projectId'],
+      });
+
+      for (const { projectId } of mergedRuns) {
+        try {
+          const summary = await this.evaluateAndTriggerLoop(projectId);
+          projectsEvaluated++;
+          improvedCount += summary.improvedCount || 0;
+          loopTriggeredCount += summary.loopTriggeredCount || 0;
+        } catch (err: any) {
+          this.logger.warn(
+            `Daily 30d/90d impact evaluation failed for project ${projectId}: ${err?.message || 'unknown error'}`,
+          );
+        }
+      }
+
+      if (projectsEvaluated > 0) {
+        this.logger.log(
+          `Daily 30d/90d Impact Sweep completed: ${projectsEvaluated} projects evaluated, ${improvedCount} confirmed lifts, ${loopTriggeredCount} closed-loop pivots triggered.`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Daily 30d/90d impact evaluation sweep error: ${err?.message || 'unknown error'}`);
+    }
+
+    return { projectsEvaluated, improvedCount, loopTriggeredCount };
   }
 
   /**

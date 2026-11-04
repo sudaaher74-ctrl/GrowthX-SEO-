@@ -283,6 +283,114 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === "connect-shopify") {
+      const rawDomain = String(body.shopDomain || "")
+        .trim()
+        .replace(/^https?:\/\//i, "")
+        .replace(/\/.*$/, "");
+      const accessToken = String(body.accessToken || "").trim();
+
+      if (!rawDomain || !accessToken) {
+        return NextResponse.json(
+          { message: "Shopify store domain and Admin API access token are required." },
+          { status: 400 },
+        );
+      }
+
+      const shopOrigin = normalizeSiteUrl(`https://${rawDomain}`);
+      const shopRes = await safeCmsFetch(`${shopOrigin}/admin/api/2024-10/shop.json`, {
+        method: "GET",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          Accept: "application/json",
+          "User-Agent": "Reigel-SEO-Agent/1.0",
+        },
+      });
+
+      if (shopRes.status === 401 || shopRes.status === 403) {
+        return NextResponse.json(
+          {
+            message:
+              "Shopify rejected the Admin API access token. Ensure the token has read_products, write_products, read_content, and write_content scopes.",
+          },
+          { status: 400 },
+        );
+      }
+      if (!shopRes.ok) {
+        return NextResponse.json(
+          { message: `Shopify Admin API returned HTTP ${shopRes.status}.` },
+          { status: 400 },
+        );
+      }
+
+      const shopData = (await shopRes.json()) as { shop?: { name?: string } };
+      return NextResponse.json({
+        connected: true,
+        shopDomain: shopOrigin,
+        shopName: shopData?.shop?.name || rawDomain,
+        status: "CONNECTED",
+        lastSyncedAt: new Date().toISOString(),
+      });
+    }
+
+    if (action === "connect-webflow") {
+      const siteId = String(body.siteId || "").trim();
+      const apiToken = String(body.apiToken || "").trim();
+      const siteUrl = body.siteUrl ? normalizeSiteUrl(String(body.siteUrl)) : "";
+
+      if (!siteId || !apiToken) {
+        return NextResponse.json(
+          { message: "Webflow Site ID and Data API v2 Token are required." },
+          { status: 400 },
+        );
+      }
+
+      const wfRes = await safeCmsFetch(
+        `https://api.webflow.com/v2/sites/${encodeURIComponent(siteId)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            Accept: "application/json",
+            "User-Agent": "Reigel-SEO-Agent/1.0",
+          },
+        },
+      );
+
+      if (wfRes.status === 401 || wfRes.status === 403) {
+        return NextResponse.json(
+          {
+            message:
+              "Webflow rejected the API token or Site ID. Ensure the token has pages:read and pages:write scopes.",
+          },
+          { status: 400 },
+        );
+      }
+      if (!wfRes.ok) {
+        return NextResponse.json(
+          { message: `Webflow API returned HTTP ${wfRes.status} for Site ID ${siteId}.` },
+          { status: 400 },
+        );
+      }
+
+      const wfSite = (await wfRes.json()) as {
+        displayName?: string;
+        shortName?: string;
+        customDomains?: Array<{ url?: string }>;
+      };
+      return NextResponse.json({
+        connected: true,
+        siteId,
+        siteName: wfSite?.displayName || wfSite?.shortName || siteId,
+        siteUrl:
+          siteUrl ||
+          wfSite?.customDomains?.[0]?.url ||
+          `https://${wfSite?.shortName || siteId}.webflow.io`,
+        status: "CONNECTED",
+        lastSyncedAt: new Date().toISOString(),
+      });
+    }
+
     if (action === "verify-manual") {
       const targetUrl = String(body.targetUrl || "").trim();
       const expected = String(body.expectedAfterValue || "").trim();
