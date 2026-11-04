@@ -59,17 +59,17 @@ export function WordPressLogo({ className = "h-11 w-11" }: { className?: string 
   return (
     <div className={`flex shrink-0 items-center justify-center rounded-xl border border-brand-200/80 bg-surface-2 ${className}`}>
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="9.5" stroke="#21759B" strokeWidth="1.75" />
+        <circle cx="12" cy="12" r="9.5" stroke="var(--color-series-2)" strokeWidth="1.75" />
         <path
           d="M5.6 8.3L8.9 17.2L11.2 10.4L13.5 17.2L16.7 8.3"
-          stroke="#21759B"
+          stroke="var(--color-series-2)"
           strokeWidth="1.75"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <path
           d="M16.2 8.2C17.1 9.5 17.5 11.1 17 12.8L15.2 17.2"
-          stroke="#38BDF8"
+          stroke="var(--color-series-1)"
           strokeWidth="1.6"
           strokeLinecap="round"
         />
@@ -84,11 +84,11 @@ export function ShopifyLogo({ className = "h-11 w-11" }: { className?: string })
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           d="M15.8 6.2C15.7 4.4 14.3 3 12.5 3C10.7 3 9.3 4.4 9.2 6.2L6.2 6.9L4.8 19.8L16.5 21L19.2 19.6L17.8 6.7L15.8 6.2Z"
-          fill="#95BF47"
+          fill="var(--color-series-3)"
         />
         <path
           d="M16.5 21L19.2 19.6L17.8 6.7L15.8 6.2V20.9L16.5 21Z"
-          fill="#5E8E3E"
+          fill="var(--color-success-700)"
         />
         <path
           d="M10.7 6.2C10.8 5.1 11.5 4.3 12.5 4.3C13.5 4.3 14.2 5.1 14.3 6.2H10.7Z"
@@ -112,9 +112,9 @@ export function WebflowLogo({ className = "h-11 w-11" }: { className?: string })
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           d="M21.5 6L16.9 18H13.1L15 12.6H14.9C13.4 15.4 11 17.3 7.6 18V12.8C9.4 12.5 10.8 11.3 11.4 9.7H7.5V6H12.2V9.6H12.3L13.8 6H17.2V9.6H17.3L18.9 6H21.5Z"
-          fill="#146EF5"
+          fill="var(--color-series-1)"
         />
-        <path d="M2.5 6H6.5V18H2.5V6Z" fill="#38BDF8" />
+        <path d="M2.5 6H6.5V18H2.5V6Z" fill="var(--color-series-2)" />
       </svg>
     </div>
   );
