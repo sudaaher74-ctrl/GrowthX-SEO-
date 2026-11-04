@@ -32,6 +32,7 @@ export const DASHBOARD_ROUTES = [
   "/help",
   "/integrations",
   "/reports",
+  "/monthly-report",
   "/reports/ai-visibility",
   "/reports/google",
   "/reports/plan",

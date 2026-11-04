@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, Wrench, Bot, Link2 } from "lucide-react";
+import { Activity, Crosshair, Globe, Wrench, Bot, Link2, CalendarDays } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -134,6 +134,11 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "improvement", label: "Improvement", href: "/fix-engine?tab=improvement", tab: "improvement", isDefault: true },
         { id: "github-fixes", label: "GitHub Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
       ],
+    },
+    {
+      label: "Monthly Report",
+      href: "/monthly-report",
+      icon: CalendarDays,
     },
   ];
 
