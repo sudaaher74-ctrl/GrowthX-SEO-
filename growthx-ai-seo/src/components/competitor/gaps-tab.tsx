@@ -250,7 +250,7 @@ export function GapsTab({
           className="rounded-2xl border border-warning-200 bg-warning-50/50 p-6 text-center shadow-card"
         >
           <p className="text-[13px] text-brand-700">
-            We haven&apos;t read your website yet. Click <span className="font-bold text-signal-400">Run audit</span> at the top, then come back here.
+            We haven&apos;t read your website yet. Start a website check from Website Audit, then come back here.
           </p>
         </div>
       ) : (

@@ -67,10 +67,10 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
   const chip = variant === "chip";
 
   return (
-            <div className={cn("relative", chip ? "" : "px-1 mb-3")}>
+            <div className={cn("relative min-w-0", chip ? "" : "px-1 mb-3")}>
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
-                className={cn("flex items-center gap-2 border bg-white text-left transition hover:bg-brand-50", chip ? "h-11 rounded-full py-1 pl-1.5 pr-3" : "w-full rounded-lg px-2 py-2")}
+                className={cn("flex min-w-0 items-center gap-2 border bg-white text-left transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-primary-600", chip ? "h-9 max-w-[140px] rounded-lg py-1 pl-1.5 pr-2 sm:max-w-[180px] md:max-w-[210px]" : "w-full rounded-lg px-2 py-2")}
                 style={{ borderColor: "var(--border-color)" }}
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[9px] font-semibold text-brand-700">

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Sun, Zap } from "lucide-react";
+import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
@@ -11,8 +11,6 @@ import {
   PERIOD_DAYS,
   setActivePeriod,
   usePeriodDays,
-  usePortfolio,
-  useStartCrawl,
   useWorkspace,
 } from "@/hooks/use-growthx";
 import { useTheme } from "@/hooks/use-theme";
@@ -48,7 +46,7 @@ export function TopNav({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { orgId, projectId, projects } = useWorkspace();
+  const { projectId, projects } = useWorkspace();
   // Reads the shared window rather than a private copy, so the highlighted
   // pill is the window the queries are actually using.
   const period = usePeriodDays();
@@ -58,16 +56,6 @@ export function TopNav({
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const selectedProject = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
-
-  // The project list carries only id and name, so the domain comes from the
-  // portfolio — the same cached query the sidebar and dashboard already run,
-  // so this costs no extra request.
-  const portfolio = usePortfolio(orgId);
-  const startCrawl = useStartCrawl();
-  const auditDomain =
-    portfolio.data?.clients.find((client) => client.projectId === projectId)?.domain ??
-    portfolio.data?.clients[0]?.domain ??
-    null;
 
   async function signOut() {
     await api.logout();
@@ -84,12 +72,12 @@ export function TopNav({
   return (
     <header
       className={cn(
-        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-3 border-b bg-white px-4 transition-all duration-300 ease-in-out",
+        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-2 border-b bg-white px-3 transition-all duration-300 ease-in-out md:px-4",
         collapsed ? "md:left-[68px]" : "md:left-[232px]",
       )}
       style={{ borderColor: "var(--border-color)" }}
     >
-      <button className="md:hidden" onClick={() => setMobileOpen?.(true)} aria-label="Open navigation">
+      <button className="rounded-lg p-1.5 transition hover:bg-brand-100 md:hidden" onClick={() => setMobileOpen?.(true)} aria-label="Open navigation">
         <Menu size={18} className="text-brand-600" />
       </button>
 
@@ -98,23 +86,23 @@ export function TopNav({
         onClick={onToggleCollapse}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg text-brand-500 hover:text-brand-950 hover:bg-brand-100/60 transition"
+        className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-500 transition hover:bg-brand-100 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600 md:flex"
       >
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
 
       {/* Breadcrumb with persistent Selected Project */}
-      <div className="flex items-center gap-2 text-[13px]">
+      <div className="flex min-w-0 shrink items-center gap-2 text-[13px]">
         {selectedProject ? (
           <SiteSwitcher variant="chip" />
         ) : (
           <span className="font-semibold text-brand-950">Reigel AI</span>
         )}
-        <span className="text-brand-300">/</span>
-        <span className="font-medium text-brand-500">{meta.title}</span>
+        <span className="shrink-0 text-brand-300">/</span>
+        <span className="hidden truncate font-medium text-brand-600 sm:block" title={meta.title}>{meta.title}</span>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 md:gap-2">
         {/* Search */}
         {/* Was a bare <input> with no value, no onChange and no handler:
             typing in it did nothing at all. It is a button now, because
@@ -123,18 +111,20 @@ export function TopNav({
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:border-brand-300 lg:flex"
+          aria-label="Search pages and commands"
+          title="Search pages and commands (⌘K)"
+          className="hidden h-8 items-center gap-2 rounded-lg border px-2.5 text-left text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600 md:flex xl:min-w-56"
           style={{ borderColor: "var(--border-color)" }}
         >
-          <Search size={13} className="text-brand-400" />
-          <span className="w-44 text-[12px] text-brand-400">Search or jump to…</span>
-          <kbd className="rounded border px-1 font-mono text-[9px] text-brand-400" style={{ borderColor: "var(--border-color)" }}>
+          <Search size={15} className="shrink-0" />
+          <span className="hidden flex-1 text-[12px] text-brand-500 xl:inline">Search pages</span>
+          <kbd className="hidden rounded border px-1 font-mono text-[9px] text-brand-400 xl:inline" style={{ borderColor: "var(--border-color)" }}>
             ⌘K
           </kbd>
         </button>
 
         {/* Period pills */}
-        <div className={cn("items-center rounded-lg border p-0.5", pathname === "/monthly-report" ? "hidden" : "hidden sm:flex")} style={{ borderColor: "var(--border-color)" }}>
+        <div role="group" aria-label="Date range" className={cn("items-center rounded-lg border p-0.5", pathname === "/monthly-report" ? "hidden" : "hidden lg:flex")} style={{ borderColor: "var(--border-color)" }}>
           {PERIOD_DAYS.map((p) => (
             <button
               key={p}
@@ -142,7 +132,7 @@ export function TopNav({
               aria-pressed={period === p}
               title={`Show the last ${p} days`}
               className={cn(
-                "rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors",
+                "rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-primary-600",
                 period === p ? "bg-signal-400 font-bold text-signal-ink shadow-xs" : "text-brand-500 hover:text-brand-950",
               )}
             >
@@ -164,14 +154,14 @@ export function TopNav({
             aria-pressed={theme === "light"}
             title="Switch to Day mode"
             className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors",
+              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-primary-600",
               theme === "light"
                 ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
                 : "text-brand-400 hover:text-brand-950",
             )}
           >
             <Sun size={12} className={theme === "light" ? "text-signal-ink" : "text-brand-400"} />
-            <span className="hidden sm:inline font-semibold">Day</span>
+            <span className="hidden font-semibold xl:inline">Day</span>
           </button>
           <button
             type="button"
@@ -179,51 +169,22 @@ export function TopNav({
             aria-pressed={theme === "dark"}
             title="Switch to Night mode"
             className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors",
+              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-primary-600",
               theme === "dark"
                 ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
                 : "text-brand-400 hover:text-brand-950",
             )}
           >
             <Moon size={12} className={theme === "dark" ? "text-signal-ink fill-signal-ink" : "text-brand-400"} />
-            <span className="hidden sm:inline font-semibold">Night</span>
+            <span className="hidden font-semibold xl:inline">Night</span>
           </button>
         </div>
-
-        {/* This was a black primary button with no onClick — the most
-            prominent control in the product, on every page, doing nothing.
-            It now starts the same crawl the dashboard's "Audit Website"
-            starts, and lands on the audit page so the run is visible
-            rather than happening silently somewhere off screen. */}
-        <button
-          onClick={() => {
-            if (!auditDomain || startCrawl.isPending) return;
-            startCrawl.mutate(
-              { domain: auditDomain, maxDepth: 10, maxConcurrency: 3, useSitemap: true },
-              { onSuccess: () => router.push("/website") },
-            );
-          }}
-          disabled={!auditDomain || startCrawl.isPending}
-          title={
-            auditDomain
-              ? `Crawl ${auditDomain} and refresh the audit`
-              : "Add a project with a website before running an audit"
-          }
-          className="flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-colors hover:bg-signal-500 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {startCrawl.isPending ? (
-            <RefreshCw size={12} className="animate-spin" />
-          ) : (
-            <Zap size={12} />
-          )}
-          {startCrawl.isPending ? "Auditing…" : "Run audit"}
-        </button>
 
         <button
           onClick={signOut}
           aria-label="Sign out"
           title="Sign out"
-          className="rounded-lg border p-1.5 text-brand-500 transition-colors hover:text-brand-950"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600"
           style={{ borderColor: "var(--border-color)" }}
         >
           <LogOut size={13} />
