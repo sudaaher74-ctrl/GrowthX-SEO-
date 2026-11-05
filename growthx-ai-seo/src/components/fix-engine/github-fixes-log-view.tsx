@@ -109,6 +109,13 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     Boolean(detectedRepoDomain);
   const isNoChangesNeeded = /finished without changing any files/i.test(errorText);
   const hasMetadataToolFailure = run.steps.some((s) => s.step === "metadata" && !s.ok);
+  const hasEditFailure = run.steps.some(
+    (s) =>
+      (!s.ok && (s.step === "edit" || s.step === "read")) ||
+      (s.step === "stopped" &&
+        (s.detail?.toLowerCase().includes("recovery limit") ||
+          s.detail?.toLowerCase().includes("turn limit"))),
+  );
 
   const groupFromInstruction = GROUPS.find((g) =>
     rawInstruction.toLowerCase().includes(`[${g.label.toLowerCase()}]`),
@@ -162,14 +169,29 @@ function resolveRunContext(run: AutomationRun, allFindings: GrowthOpportunity[])
     isRepoDomainMismatch,
     isNoChangesNeeded,
     hasMetadataToolFailure,
+    hasEditFailure,
   };
 }
 
 function buildDirectEditRetryInstruction(ctx: ReturnType<typeof resolveRunContext>): string {
-  const base = (ctx.rawInstruction || ctx.headline).split("EXECUTION PLAN")[0].trim();
-  const guidance =
-    '\nIMPORTANT: Do NOT use the "metadata" tool on this repository. Use the "edit" tool directly on the actual page/screen JSX or TSX component files (after reading each target file with "read") to add or update <Helmet><title>...</title></Helmet> (importing { Helmet } from \'react-helmet-async\' if needed). Keep titles at most 60 characters and do not modify route registry files.';
-  return `${base.slice(0, 1950 - guidance.length)}${guidance}`;
+  const base = (ctx.rawInstruction || ctx.headline || "")
+    .split("EXECUTION PLAN")[0]
+    .split("RETRY EXECUTION GUIDANCE")[0]
+    .split("IMPORTANT:")[0]
+    .trim();
+
+  const targetPages = ctx.matchedFindings[0]?.affectedPages?.slice(0, 3).join(", ") || "";
+  const pagesHint = targetPages ? ` Focus on primary pages: ${targetPages}.` : "";
+
+  const guidance = `
+RETRY EXECUTION GUIDANCE:
+1. TARGET FILES: Look for top-level page components in frontend-react/src/pages/*.jsx (such as Cart.jsx, MyAccount.jsx, Policy.jsx, or src/app/**/page.tsx). Do not modify internal screen fragments (e.g. daily/screens/) or route registry files.${pagesHint}
+2. SAFE READING: ALWAYS specify BOTH "start" and "end" in every "read" call with a 60-80 line range (e.g. {"tool":"read","path":"...","start":1,"end":80}). Never omit "end" as reading too many lines will exceed output limits.
+3. SEARCH FIRST: To find where to insert or update the <title> or <Helmet>, use {"tool":"search","pattern":"return (","path":"..."} first to get the exact line number of the JSX return, then read 60 lines around that line before calling edit.
+4. EXACT EDIT: Copy the exact lines from your read output into "old". Never guess indentation or text. Add or update <Helmet><title>Page Title | Brand</title></Helmet> inside the JSX return, and import { Helmet } from 'react-helmet-async' at the top. Keep titles under 60 characters.
+5. FINISH CLEANLY: Update 2-3 key routed pages cleanly, verify with read, then call finish with a 1-sentence summary so a Pull Request can be created.`;
+
+  return `${base.slice(0, 1950 - guidance.length)}\n${guidance}`;
 }
 
 export function GitHubFixesLogView({
@@ -730,12 +752,10 @@ export function GitHubFixesLogView({
     const priorRun = findingRunMap.get(finding.id);
     if (priorRun?.status === "FAILED") {
       const priorCtx = resolveRunContext(priorRun, allFindings);
-      if (priorCtx.hasMetadataToolFailure) {
-        dismissRunMutation.mutate(priorRun.id);
-        setSubSection("GITHUB_RUNNER");
-        runEngineerMutation.mutate(buildDirectEditRetryInstruction(priorCtx));
-        return;
-      }
+      dismissRunMutation.mutate(priorRun.id);
+      setSubSection("GITHUB_RUNNER");
+      runEngineerMutation.mutate(buildDirectEditRetryInstruction(priorCtx));
+      return;
     }
     runPlanFixesMutation.mutate({ findingIds: [finding.id] });
   };
@@ -1287,28 +1307,16 @@ export function GitHubFixesLogView({
                             {!isSuccess && (
                               <ActionButton
                                 variant="primary"
-                                disabled={isEngineerBusy || runPlanFixesMutation.isPending}
+                                disabled={
+                                  isEngineerBusy ||
+                                  runPlanFixesMutation.isPending ||
+                                  runEngineerMutation.isPending
+                                }
                                 icon={<RefreshCw size={12} />}
                                 onClick={() => {
-                                  if (ctx.hasMetadataToolFailure) {
-                                    runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
-                                  } else if (ctx.matchedFindings.length > 0) {
-                                    runPlanFixesMutation.mutate({
-                                      findingIds: ctx.matchedFindings.map((mf) => mf.id),
-                                    });
-                                  } else if (selectedFindingIds.length > 0) {
-                                    runPlanFixesMutation.mutate({
-                                      findingIds: selectedFindingIds,
-                                    });
-                                  } else if (filteredFindings.length > 0) {
-                                    runPlanFixesMutation.mutate({
-                                      findingIds: [filteredFindings[0].id],
-                                    });
-                                  } else if (ctx.rawInstruction) {
-                                    runEngineerMutation.mutate(
-                                      ctx.rawInstruction.split("EXECUTION PLAN")[0].trim(),
-                                    );
-                                  }
+                                  dismissRunMutation.mutate(run.id);
+                                  setSubSection("GITHUB_RUNNER");
+                                  runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
                                 }}
                               >
                                 Retry &amp; Apply Repo Fix
@@ -2145,17 +2153,7 @@ export function GitHubFixesLogView({
                         onClick={() => {
                           dismissRunMutation.mutate(run.id);
                           setSubSection("GITHUB_RUNNER");
-                          if (ctx.hasMetadataToolFailure) {
-                            runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
-                          } else if (ctx.matchedFindings.length > 0) {
-                            runPlanFixesMutation.mutate({
-                              findingIds: ctx.matchedFindings.map((finding) => finding.id),
-                            });
-                          } else if (ctx.rawInstruction) {
-                            runEngineerMutation.mutate(
-                              ctx.rawInstruction.split("EXECUTION PLAN")[0].trim(),
-                            );
-                          }
+                          runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
                         }}
                       >
                         Retry with GitHub

@@ -92,8 +92,9 @@ You work by choosing ONE tool per turn and replying with JSON only. Tools:
 - {"tool":"finish","summary":"what you changed and why, for the person reviewing it"}
 
 Rules:
-- Look before you change: find the right file, read it (in 80-120 line ranges), then edit. Copy "old" exactly from what you read.
-- Always provide valid read ranges with start <= end (for example, start: 1, end: 120). Never use start > end.
+- Look before you change: find the right file, read it (in 60-100 line ranges), then edit. Copy "old" exactly from what you read.
+- Always provide valid read ranges with both start and end specified (for example, start: 1, end: 80, or start: 260, end: 320). Never use start > end. Never omit "end" on large files.
+- To locate where to insert or update metadata or tags in large components, use {"tool":"search","pattern":"return (","path":"..."} first to get the exact line number of the JSX return, then read 60 lines around that line before editing.
 - If an edit fails because text was not found, you MUST read the target file again to inspect the exact lines before trying another edit. Never retry an edit without reading the file first.
 - After any successful edit, read the relevant section again before editing that file. The file may have changed and old text may no longer exist.
 - Never repeat an identical failed edit. If an edit fails, check the actual file content, indentation, and surrounding lines.
@@ -365,6 +366,9 @@ export class EngineerAgentService {
         `${i + 1}. [${f.source}] ${f.title}${pagesPart}\n   Problem: ${clip(f.summary, 180)}\n   Fix: ${clip(f.recommendedAction, 260)}`,
       );
     }
+    lines.push(
+      `\nGuidance: Update 2-3 primary routed page components cleanly (such as Cart.jsx, MyAccount.jsx, Policy.jsx in frontend-react/src/pages/ or src/app/**/page.tsx). Use {"tool":"search","pattern":"return (","path":"..."} to locate the JSX return in large files, read 60 lines around it with both start and end specified, and add or update <Helmet><title>...</title></Helmet> inside the JSX return. Do not edit internal screen fragments or route registries. Finish once 2-3 key pages are updated so a pull request can be opened.`,
+    );
 
     const instruction = clip(lines.join('\n'), MAX_INSTRUCTION);
     return this.start(projectId, organizationId, instruction, findingsContext);
@@ -655,7 +659,8 @@ export class EngineerAgentService {
           result += ` (Stop: 5 consecutive actions failed. Call finish now with a summary explaining what blocked the change.)`;
         }
       }
-      const label = `${action.tool}${action.path ? ` ${action.path}` : action.pattern ? ` "${clip(action.pattern, 40)}"` : ''}${action.tool === 'read' ? `:${action.start ?? 1}-${action.end ?? 120}` : ''}`;
+      const readEndDefault = (action.start ?? 1) + 119;
+      const label = `${action.tool}${action.path ? ` ${action.path}` : action.pattern ? ` "${clip(action.pattern, 40)}"` : ''}${action.tool === 'read' ? `:${action.start ?? 1}-${action.end ?? readEndDefault}` : ''}`;
       history.push({ call: label, result });
 
       const stepEntry: RunStep = this.step(action.tool, clip(ok ? label : `${label}: ${result}`, 240), ok);

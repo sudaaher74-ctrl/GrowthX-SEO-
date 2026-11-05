@@ -206,7 +206,8 @@ export class RepoSandbox {
     }
 
     let to: number;
-    if (end !== undefined && end !== null) {
+    const hasExplicitEnd = end !== undefined && end !== null && String(end).trim() !== '';
+    if (hasExplicitEnd) {
       const numEnd = typeof end === 'number' ? end : typeof end === 'string' && String(end).trim() !== '' ? Number(end) : NaN;
       if (isNaN(numEnd) || !Number.isFinite(numEnd)) {
         throw new SandboxError(`Invalid end line "${end}". Line numbers must be positive integers.`);
@@ -228,7 +229,7 @@ export class RepoSandbox {
       }
       to = Math.min(lines.length, rawEnd);
     } else {
-      to = Math.min(lines.length, from + LIMITS.readLines - 1);
+      to = Math.min(lines.length, from + 119);
     }
 
     if (from > lines.length) {
@@ -243,14 +244,22 @@ export class RepoSandbox {
       );
     }
 
-    const selectedLines = lines.slice(from - 1, to);
+    let selectedLines = lines.slice(from - 1, to);
     if (selectedLines.length === 0) {
       throw new SandboxError(
         `Empty read range: no lines found in range ${from}-${to} for ${p} (${lines.length} lines total). Read a valid range within 1 to ${lines.length}.`,
       );
     }
 
-    const out = selectedLines.map((l, i) => `${from + i}: ${l}`).join('\n');
+    let out = selectedLines.map((l, i) => `${from + i}: ${l}`).join('\n');
+    if (!hasExplicitEnd && out.length > LIMITS.readChars) {
+      while (to > from && out.length > LIMITS.readChars) {
+        to = Math.max(from, to - 15);
+        selectedLines = lines.slice(from - 1, to);
+        out = selectedLines.map((l, i) => `${from + i}: ${l}`).join('\n');
+      }
+    }
+
     if (out.length > LIMITS.readChars) {
       throw new SandboxError(
         `Read output for ${p} (lines ${from}-${to}) is too large (${out.length} characters, limit is ${LIMITS.readChars}). Read a smaller range of 60-100 lines (for example, start: ${from}, end: ${from + Math.min(80, to - from)}) so file content reaches you without truncation.`,
