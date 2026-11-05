@@ -365,6 +365,27 @@ function harness(failSarvam = false) {
 }
 
 describe("durable visibility workflow", () => {
+  it('prepares and labels only Gemini/OpenRouter when the host selects them', async () => {
+    const previous = process.env.AI_VISIBILITY_PROVIDERS;
+    let h: ReturnType<typeof harness>;
+    try {
+      process.env.AI_VISIBILITY_PROVIDERS = 'GEMINI,OPENROUTER';
+      h = harness();
+    } finally {
+      if (previous === undefined) delete process.env.AI_VISIBILITY_PROVIDERS;
+      else process.env.AI_VISIBILITY_PROVIDERS = previous;
+    }
+    h.router.configuredProviders = () => [AiProvider.GEMINI, AiProvider.OPENROUTER];
+    h.router.configuredModels = () => ({ GEMINI: 'gemini-test', OPENROUTER: 'openrouter-test' });
+    h.row().brief = null;
+    await h.service.process({ id: 'journey', phase: 'PREPARE' });
+    expect(h.row().status).toBe('READY');
+    expect(h.row().brief.analysts.map((a: any) => a.provider)).toEqual(['GEMINI', 'OPENROUTER']);
+    expect(h.row().errors).toEqual([]);
+    expect((await h.service.read('p1')).providers.map(p => p.provider)).toEqual(['GEMINI', 'OPENROUTER']);
+    expect(h.router.generate.mock.calls.every(([request]: any[]) =>
+      request.allowFallback === false && request.provider !== AiProvider.SARVAM)).toBe(true);
+  });
   it("corrects missing locations and branded drafts once before saving ten buyer questions", async () => {
     const h = harness();
     h.row().brief = null;

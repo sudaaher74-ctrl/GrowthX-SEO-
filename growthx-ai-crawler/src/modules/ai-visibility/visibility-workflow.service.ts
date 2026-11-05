@@ -46,7 +46,7 @@ import {
 } from "./visibility-workflow.schema";
 
 const ACTIVE = ["QUEUED", "PREPARING", "CHECKING", "PLANNING"];
-const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM];
+import { visibilityProviders } from './visibility-providers';
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 type JobData = { id: string; phase: "PREPARE" | "CHECK" };
@@ -57,6 +57,7 @@ export class VisibilityWorkflowService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(VisibilityWorkflowService.name);
+  private readonly selectedProviders = visibilityProviders(process.env.AI_VISIBILITY_PROVIDERS);
   private jobs?: Queue<JobData>;
   private worker?: Worker<JobData>;
   private startup?: Promise<void>;
@@ -107,7 +108,7 @@ export class VisibilityWorkflowService
   }
 
   private providers() {
-    return PROVIDERS.filter((p) =>
+    return this.selectedProviders.filter((p) =>
       this.router.configuredProviders().includes(p),
     );
   }
@@ -122,7 +123,7 @@ export class VisibilityWorkflowService
     return {
       journey,
       answers,
-      providers: PROVIDERS.map((provider) => ({
+      providers: this.selectedProviders.map((provider) => ({
         provider,
         configured: configured.includes(provider),
         model: this.router.configuredModels()[provider] ?? null,
@@ -134,7 +135,7 @@ export class VisibilityWorkflowService
     await this.ready();
     if (!this.providers().length)
       throw new ServiceUnavailableException(
-        "Configure Gemini or Sarvam before building AI Visibility.",
+        "Configure a selected AI provider before building AI Visibility.",
       );
     let journey;
     try {
@@ -160,7 +161,7 @@ export class VisibilityWorkflowService
     await this.ready();
     if (!this.providers().length)
       throw new ServiceUnavailableException(
-        "Configure Gemini or Sarvam before checking answers.",
+        "Configure a selected AI provider before checking answers.",
       );
     const journey = await this.prisma.aiVisibilityJourney.findFirst({
       where: { id, projectId },
@@ -341,7 +342,7 @@ export class VisibilityWorkflowService
     let brief = previous.brief as unknown as VisibilityBrief | null;
     const analysts = brief?.analysts ?? [];
     const errors: string[] = [];
-    for (const provider of PROVIDERS) {
+    for (const provider of this.selectedProviders) {
       if (!this.providers().includes(provider)) {
         errors.push(
           `${provider} is not configured and did not analyse this business.`,
@@ -457,7 +458,7 @@ export class VisibilityWorkflowService
     });
     const errors: string[] = [];
     let finished = 0;
-    for (const provider of PROVIDERS) {
+    for (const provider of this.selectedProviders) {
       if (!this.providers().includes(provider)) {
         errors.push(
           `${provider} is not configured. Its 10 answers were not measured.`,
