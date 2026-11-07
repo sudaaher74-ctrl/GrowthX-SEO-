@@ -14,6 +14,7 @@ import {
   useWorkspace,
 } from "@/hooks/use-growthx";
 import { useTheme } from "@/hooks/use-theme";
+import { TokensChip } from "@/components/tokens/tokens-chip";
 import { CommandPalette } from "@/components/ui/command-palette";
 
 /** Breadcrumb scope + title for each route, matching workspace architecture. */
@@ -140,6 +141,9 @@ export function TopNav({
             </button>
           ))}
         </div>
+
+        {/* AI Compute / Tokens Chip */}
+        <TokensChip variant="bar" />
 
         {/* Theme Toggle */}
         <button

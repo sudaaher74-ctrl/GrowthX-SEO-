@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useProfile } from "@/hooks/use-growthx";
 import { useTheme } from "@/hooks/use-theme";
-import { TokensChip } from "@/components/tokens/tokens-chip";
 import { SiteSwitcher } from "@/components/layout/site-switcher";
 import { useMainNav, type NavGroupKey, type NavItem } from "@/components/layout/nav-items";
 
@@ -191,8 +190,6 @@ export function Sidebar({
             />
           </div>
         </nav>
-
-        <TokensChip variant={compact ? "icon" : "card"} onNavigate={() => setMobileOpen?.(false)} />
 
         {/* User Profile Dock */}
         {(() => {

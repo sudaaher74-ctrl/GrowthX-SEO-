@@ -63,26 +63,47 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
   }
 
   if (variant === "bar") {
-    // The top bar's compact form: the balance and the same caption, on two lines.
+    // Top bar compact pill: sits beside the theme toggle in the header navbar.
     return (
       <Link
         href="/tokens"
         onClick={onNavigate}
-        title={`${formatTokensExact(data.available)} tokens available`}
-        className="hidden h-11 shrink-0 flex-col justify-center rounded-2xl bg-brand-100 px-3.5 transition-colors hover:bg-brand-200 lg:flex"
+        title={`${formatTokensExact(data.available)} tokens available · ${caption}`}
+        className="flex h-8 shrink-0 items-center gap-2 rounded-lg border px-2.5 text-xs text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600"
+        style={{ borderColor: "var(--border-color)" }}
       >
-        <span className="flex items-center gap-1.5">
-          <Coins size={12} className={standing === "out" ? "text-error-600" : standing === "low" ? "text-warning-600" : "text-brand-400"} />
-          <span
-            className={cn(
-              "font-mono text-[12px] font-semibold leading-none",
-              standing === "out" ? "text-error-600" : standing === "low" ? "text-warning-700" : "text-brand-950",
-            )}
-          >
-            {formatTokens(data.available)}
-          </span>
+        <Coins
+          size={13}
+          className={cn(
+            "shrink-0",
+            standing === "out"
+              ? "text-error-600"
+              : standing === "low"
+                ? "text-warning-600"
+                : "text-signal-400",
+          )}
+        />
+        <span className="hidden sm:inline text-[11px] font-semibold text-brand-600">
+          AI Compute
         </span>
-        <span className="mt-1 text-[10px] leading-none text-brand-400">{caption}</span>
+        <span
+          className={cn(
+            "font-mono text-[11.5px] font-bold leading-none",
+            standing === "out"
+              ? "text-error-600"
+              : standing === "low"
+                ? "text-warning-700"
+                : "text-brand-950",
+          )}
+        >
+          {formatTokens(data.available)}
+        </span>
+        <span className="hidden xl:inline text-[10.5px] text-brand-400">
+          · {caption}
+        </span>
+        <span className="sr-only xl:hidden">
+          · {caption}
+        </span>
       </Link>
     );
   }
