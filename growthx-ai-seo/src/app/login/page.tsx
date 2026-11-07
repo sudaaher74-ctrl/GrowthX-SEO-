@@ -13,6 +13,7 @@ import {
   EyeOff,
   ArrowLeft,
   ArrowRight,
+  Globe,
   ShieldCheck,
   Loader2,
   Quote,
@@ -22,10 +23,19 @@ import { api, auth, getApiBase } from "@/lib/api-client";
 function LoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const urlParam = (searchParams.get("url") || "").trim();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(searchParams.get("error") || null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (urlParam) {
+      try {
+        localStorage.setItem("growthx_pending_domain", urlParam);
+      } catch {}
+    }
+  }, [urlParam]);
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -43,7 +53,26 @@ function LoginFormInner() {
 
       // Pick up the caller's first organization so the dashboard has a workspace
       const orgs = await api.listOrganizations();
-      if (orgs?.[0]?.id) auth.setOrgId(orgs[0].id);
+      const firstOrgId = orgs?.[0]?.id ?? null;
+      if (firstOrgId) auth.setOrgId(firstOrgId);
+
+      let pendingDomain = urlParam;
+      if (!pendingDomain) {
+        try {
+          pendingDomain = (localStorage.getItem("growthx_pending_domain") || "").trim();
+        } catch {}
+      }
+
+      if (pendingDomain) {
+        router.push(`/analyze?url=${encodeURIComponent(pendingDomain)}`);
+        return;
+      }
+
+      const existingProjects = firstOrgId ? await api.listProjects(firstOrgId).catch(() => []) : [];
+      if (!existingProjects || existingProjects.length === 0) {
+        router.push("/analyze");
+        return;
+      }
 
       router.push("/dashboard");
     } catch (err) {
@@ -55,12 +84,22 @@ function LoginFormInner() {
 
   return (
     <div className="w-full max-w-md mx-auto my-auto py-6 sm:py-8">
+      {/* Pending Website Audit Pill */}
+      {urlParam && (
+        <div className="mb-5 inline-flex items-center gap-2 rounded-xl border border-series-6/40 bg-series-6/10 px-3.5 py-2 text-xs font-semibold text-white">
+          <Globe size={14} className="text-series-6 shrink-0" />
+          <span>
+            Auditing <strong className="font-mono text-series-6">{urlParam}</strong> right after sign-in
+          </span>
+        </div>
+      )}
+
       {/* Heading */}
       <h2 className="text-3xl font-black text-white tracking-tight mb-1">
         Welcome back
       </h2>
       <p className="text-sm text-brand-400 mb-8">
-        Log in to your Reigel account
+        {urlParam ? `Sign in to start crawling ${urlParam}` : "Log in to your Reigel account"}
       </p>
 
       {/* Form */}

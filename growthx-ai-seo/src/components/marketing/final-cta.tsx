@@ -8,7 +8,13 @@ export function FinalCTA() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = url.trim() ? encodeURIComponent(url.trim()) : "";
+    const trimmed = url.trim();
+    if (trimmed) {
+      try {
+        localStorage.setItem("growthx_pending_domain", trimmed);
+      } catch {}
+    }
+    const clean = trimmed ? encodeURIComponent(trimmed) : "";
     window.location.href = clean ? `/login?url=${clean}` : "/login";
   };
 

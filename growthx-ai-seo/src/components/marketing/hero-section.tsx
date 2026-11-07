@@ -442,10 +442,15 @@ export function HeroSection() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const input = (e.currentTarget.elements.namedItem("url") as HTMLInputElement)?.value;
-                  const clean = input ? encodeURIComponent(input.trim()) : "";
+                  const input = (e.currentTarget.elements.namedItem("url") as HTMLInputElement)?.value?.trim() ?? "";
+                  if (input) {
+                    try {
+                      localStorage.setItem("growthx_pending_domain", input);
+                    } catch {}
+                  }
+                  const clean = input ? encodeURIComponent(input) : "";
                   window.location.href = signedIn
-                    ? clean ? `/dashboard?audit=${clean}` : "/dashboard"
+                    ? clean ? `/analyze?url=${clean}` : "/analyze"
                     : clean ? `/login?url=${clean}` : "/login";
                 }}
                 className="flex flex-col sm:flex-row items-stretch gap-2 bg-brand-900/90 border border-brand-800 p-1.5 rounded-2xl shadow-xl backdrop-blur-sm focus-within:border-series-6 transition-all max-w-md"

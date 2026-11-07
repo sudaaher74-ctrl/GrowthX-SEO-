@@ -7,7 +7,7 @@ export default function ProgressPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard");
+    router.replace("/analyze");
   }, [router]);
 
   return null;

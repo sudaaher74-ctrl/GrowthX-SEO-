@@ -1,6 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -67,13 +68,28 @@ interface SetupStep {
 const SEVERITY = SEVERITY_PLAIN;
 
 export default function UnifiedDashboardPage() {
-  const { orgId, projectId } = useWorkspace();
+  const router = useRouter();
+  const { orgId, projectId, projects, isLoading: workspaceLoading } = useWorkspace();
   const [metricKey, setMetricKey] = useState<MetricKey>("searchClicks");
   const [severityTab, setSeverityTab] = useState<"ALL" | IssueSeverity>("ALL");
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
   const [auditActionError, setAuditActionError] = useState<string | null>(null);
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
+
+  useEffect(() => {
+    let pendingDomain = "";
+    try {
+      pendingDomain = (localStorage.getItem("growthx_pending_domain") || "").trim();
+    } catch {}
+    if (pendingDomain) {
+      router.replace(`/analyze?url=${encodeURIComponent(pendingDomain)}`);
+      return;
+    }
+    if (!workspaceLoading && !portfolio.isLoading && orgId && projects.length === 0 && (portfolio.data?.clients.length ?? 0) === 0) {
+      router.replace("/analyze");
+    }
+  }, [workspaceLoading, portfolio.isLoading, portfolio.data?.clients.length, orgId, projects.length, router]);
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const startCrawlMutation = useStartCrawl();
@@ -135,7 +151,7 @@ export default function UnifiedDashboardPage() {
       label: "Add your website",
       why: "So we know which website to look after.",
       done: hasWebsite,
-      href: "/website",
+      href: "/analyze",
       cta: "Add website",
     },
     {
