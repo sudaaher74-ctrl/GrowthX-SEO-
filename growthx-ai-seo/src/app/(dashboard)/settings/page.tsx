@@ -448,24 +448,6 @@ function IntegrationsView() {
   const isGscNeedsSelection = gsc?.status === "NEEDS_SELECTION";
   const isGa4Connected = ga4?.status === "CONNECTED";
   const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
-  const connectedGoogleCount = Number(isGscConnected) + Number(isGa4Connected);
-  const connectedCmsCount =
-    Number(Boolean(wpQuery.data?.connected)) +
-    Number(Boolean(shopifyQuery.data?.connected)) +
-    Number(Boolean(webflowQuery.data?.connected));
-  const googleStatusLabel = googleQuery.isLoading
-    ? "Checking Google connections…"
-    : googleQuery.isError
-      ? "Google connection status unavailable"
-      : `${connectedGoogleCount} of 2 Google sources connected`;
-  const githubStatusLabel = repo.isLoading
-    ? "Checking GitHub…"
-    : repo.isError
-      ? "GitHub connection status unavailable"
-      : isGitHubConnected
-        ? "GitHub repository connected"
-        : "GitHub repository not connected";
-  const cmsStatusLabel = `${connectedCmsCount} of 3 CMS platforms connected`;
 
   return (
     <div className="space-y-6">
@@ -489,32 +471,6 @@ function IntegrationsView() {
           </button>
         </div>
       )}
-
-      <section className="flex flex-col gap-4 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
-            <Plug size={18} />
-          </span>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-500">Workspace connections</p>
-            <h2 className="mt-0.5 text-lg font-bold text-brand-950">Connect your tools</h2>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-brand-600">
-              Manage Google data sources, GitHub repositories, and direct CMS connections (WordPress, Shopify, Webflow). Each card shows its live connection status.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
-            {googleStatusLabel}
-          </span>
-          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
-            {githubStatusLabel}
-          </span>
-          <span className="inline-flex items-center rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-medium text-brand-700">
-            {cmsStatusLabel}
-          </span>
-        </div>
-      </section>
 
       <div>
         <div className="mb-3">
