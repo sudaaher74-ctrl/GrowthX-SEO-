@@ -17,7 +17,9 @@ import {
   Home,
   Layers,
   Loader2,
+  Lock,
   Radar,
+  Search,
   ShieldCheck,
   Sparkles,
   Zap,
@@ -374,91 +376,241 @@ function AnalyzeOnboardingInner() {
   if (signedIn !== true) return null;
 
   // ===========================================================================
-  // SCREEN 1: INPUT PHASE — NO BACKGROUND TREE OR PANELS, ONLY THE WEBSITE BAR
+  // SCREEN 1: PREMIUM ONBOARDING LAUNCH SCREEN (NO PRE-RENDERED CRAWL TREE)
   // ===========================================================================
   if (phase === "input") {
     return (
       <div
-        className="dash-dark dark relative flex h-screen w-full flex-col justify-between overflow-hidden select-none"
+        className="dash-dark dark relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none"
         style={{ background: "var(--color-canvas)" }}
       >
-        {/* Minimal Top Logo */}
-        <header className="relative z-20 flex h-16 shrink-0 items-center justify-between px-6 sm:px-10">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink">
-              R
-            </span>
-            <span className="text-lg font-extrabold tracking-tight text-brand-950">
-              Reigel
-            </span>
-          </Link>
+        {/* Architectural Technical Grid + Ambient Lime Spotlight + Radar Rings */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className="absolute left-1/2 top-1/3 h-[560px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(200, 245, 58, 0.22) 0%, rgba(9, 10, 13, 0) 70%)",
+            }}
+          />
 
-          {projects.length > 0 && (
-            <button
-              type="button"
-              onClick={() => router.push("/website")}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
-            >
-              <span>Website Audit</span>
-              <ArrowRight size={13} />
-            </button>
-          )}
+          {/* Concentric Radar Rings behind the hero card */}
+          <div className="absolute left-1/2 top-1/2 h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-200/30" />
+          <div className="absolute left-1/2 top-1/2 h-[440px] w-[440px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-brand-200/40" />
+
+          <svg
+            className="absolute inset-0 h-full w-full opacity-[0.11]"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <pattern
+                id="onboard-subgrid"
+                width="28"
+                height="28"
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d="M 28 0 L 0 0 0 28"
+                  fill="none"
+                  stroke="var(--color-brand-300)"
+                  strokeWidth="0.5"
+                />
+              </pattern>
+              <pattern
+                id="onboard-grid"
+                width="140"
+                height="140"
+                patternUnits="userSpaceOnUse"
+              >
+                <rect width="140" height="140" fill="url(#onboard-subgrid)" />
+                <path
+                  d="M 140 0 L 0 0 0 140"
+                  fill="none"
+                  stroke="var(--color-brand-400)"
+                  strokeWidth="1"
+                />
+                <circle cx="0" cy="0" r="1.5" fill="var(--color-signal-400)" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#onboard-grid)" />
+          </svg>
+        </div>
+
+        {/* Top Header */}
+        <header
+          className="relative z-20 flex h-16 shrink-0 items-center justify-between border-b bg-surface-1/80 px-6 backdrop-blur-md sm:px-10"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs">
+                R
+              </span>
+              <span className="text-lg font-extrabold tracking-tight text-brand-950">
+                Reigel
+              </span>
+            </Link>
+            <span className="hidden sm:inline text-brand-300">/</span>
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700">
+              <span className="h-2 w-2 rounded-full bg-signal-400 animate-pulse" />
+              Step 1 · Add Your Website
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-[11px] font-semibold text-brand-500">
+              <Lock size={11} className="text-signal-400" />
+              Safe Read-Only Crawler
+            </span>
+            {projects.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push("/website")}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+              >
+                <span>Website Audit</span>
+                <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
         </header>
 
-        {/* Centered Website Input Bar Only (No Background Clutter) */}
-        <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 pb-16">
-          <form onSubmit={handleStartAudit} noValidate className="w-full">
-            {error && (
-              <div
-                role="alert"
-                className="mb-3 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-4 py-2.5 text-xs font-semibold text-error-700"
-              >
-                <AlertTriangle size={14} className="shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+        {/* Centerpiece Onboarding Command Card */}
+        <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-4 py-8">
+          {/* Eyebrow Pill */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-signal-400/40 bg-primary-50 px-4 py-1.5 text-xs font-bold tracking-wide text-signal-400 shadow-xs">
+            <Sparkles size={13} />
+            <span>AUTONOMOUS TECHNICAL SEO &amp; AI SEARCH CRAWLER</span>
+          </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-1 px-4 py-3.5 focus-within:border-signal-400 transition-colors shadow-card">
-                <Globe size={18} className="shrink-0 text-signal-400" />
-                <span className="select-none font-mono text-sm font-bold text-brand-400">
-                  https://
+          {/* Headline */}
+          <h1 className="mt-5 text-center text-3xl font-extrabold tracking-tight text-brand-950 sm:text-5xl sm:leading-[1.12]">
+            Enter your website to launch{" "}
+            <span className="text-signal-400">a live structure audit.</span>
+          </h1>
+
+          {/* Subtitle */}
+          <p className="mt-3.5 max-w-xl text-center text-sm leading-relaxed text-brand-500 sm:text-base">
+            Add your domain below. Our live crawler will connect to your website,
+            map your pages step by step, inspect speed and SEO issues, and open
+            your full <strong className="font-semibold text-brand-800">Website Audit</strong> report automatically.
+          </p>
+
+          {/* Elevated Command Bar Card */}
+          <div className="mt-8 w-full rounded-3xl border border-brand-200 bg-surface-1/95 p-4 shadow-2xl backdrop-blur-xl sm:p-5">
+            <form onSubmit={handleStartAudit} noValidate>
+              {error && (
+                <div
+                  role="alert"
+                  className="mb-3.5 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-4 py-2.5 text-xs font-semibold text-error-700"
+                >
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-signal-400 transition-colors">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-signal-400">
+                    <Globe size={17} />
+                  </span>
+                  <span className="select-none font-mono text-sm font-bold text-brand-400">
+                    https://
+                  </span>
+                  <input
+                    id="onboarding-domain"
+                    type="text"
+                    required
+                    autoFocus
+                    value={domainInput}
+                    onChange={(e) => setDomainInput(e.target.value)}
+                    placeholder="yourwebsite.com"
+                    className="w-full min-w-0 border-0 bg-transparent font-mono text-base font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                    style={{ outline: "none", boxShadow: "none" }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 px-7 py-4 text-sm font-extrabold text-signal-ink shadow-[0_0_24px_rgba(200,245,58,0.3)] transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Starting Crawler…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Start Website Audit</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Trust & Capability Strip inside Card */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-brand-200/80 pt-3.5 text-xs text-brand-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-signal-400" />
+                  Starts from your root domain &amp; maps pages step by step
                 </span>
-                <input
-                  id="onboarding-domain"
-                  type="text"
-                  required
-                  autoFocus
-                  value={domainInput}
-                  onChange={(e) => setDomainInput(e.target.value)}
-                  placeholder="yourwebsite.com"
-                  className="w-full min-w-0 border-0 bg-transparent font-mono text-base font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                  style={{ outline: "none", boxShadow: "none" }}
-                />
+                <span className="inline-flex items-center gap-1.5">
+                  <Zap size={13} className="text-signal-400" />
+                  128+ SEO, speed &amp; AI visibility checks
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ShieldCheck size={13} className="text-signal-400" />
+                  Opens Website Audit automatically
+                </span>
               </div>
+            </form>
+          </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 px-7 py-4 text-sm font-extrabold text-signal-ink shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Starting…</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Start Website Audit</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
+          {/* 3 Compact Feature Pillars Below Card */}
+          <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                  <Radar size={13} />
+                </span>
+                <span>01 · Live Sitemap Spider</span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-brand-500">
+                Discovers your homepage, core folders, and sub-pages one by one in real time.
+              </p>
             </div>
-          </form>
+
+            <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                  <Search size={13} />
+                </span>
+                <span>02 · Technical &amp; Speed Audit</span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-brand-500">
+                Checks HTTP status, response speed, titles, meta descriptions, and headings on every file.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                  <Sparkles size={13} />
+                </span>
+                <span>03 · Instant Audit Dashboard</span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-brand-500">
+                Takes you straight to your Website Audit report as soon as the scan completes.
+              </p>
+            </div>
+          </div>
         </main>
 
-        <div className="h-12 shrink-0" />
+        {/* Subtle Footer */}
+        <footer className="relative z-10 pb-4 text-center font-mono text-[11px] text-brand-400">
+          Reigel Autonomous SEO &amp; AI Search Engine
+        </footer>
       </div>
     );
   }
