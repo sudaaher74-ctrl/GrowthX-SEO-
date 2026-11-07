@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useDeleteProject } from "@/hooks/use-growthx";
@@ -67,89 +67,123 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
   const chip = variant === "chip";
 
   return (
-            <div className={cn("relative min-w-0", chip ? "" : "px-1 mb-3")}>
-              <button
-                onClick={() => setSwitcherOpen((v) => !v)}
-                className={cn("flex min-w-0 items-center gap-2 border bg-white text-left transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-primary-600", chip ? "h-9 max-w-[140px] rounded-lg py-1 pl-1.5 pr-2 sm:max-w-[180px] md:max-w-[210px]" : "w-full rounded-lg px-2 py-2")}
-                style={{ borderColor: "var(--border-color)" }}
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[9px] font-semibold text-brand-700">
-                  {selected ? initialsOf(selected.name) : "—"}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-semibold text-brand-950">
-                    {selected?.name ?? "No projects yet"}
-                  </span>
-                  <span className="block truncate font-mono text-[9.5px] text-brand-400">
-                    {clientRow?.domain ?? "add a website"}
-                  </span>
-                </span>
-                <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
-              </button>
+    <div className={cn("relative min-w-0", chip ? "" : "px-0.5 mb-3")}>
+      <button
+        onClick={() => setSwitcherOpen((v) => !v)}
+        className={cn(
+          "flex min-w-0 items-center gap-2.5 border text-left transition-all focus-visible:outline-2 focus-visible:outline-primary-600",
+          chip
+            ? "h-9 max-w-[140px] rounded-xl bg-surface-1 py-1 pl-1.5 pr-2 hover:bg-surface-2 sm:max-w-[180px] md:max-w-[210px]"
+            : "w-full rounded-xl bg-surface-2/80 px-2.5 py-2 shadow-2xs hover:border-brand-300 hover:bg-surface-2",
+        )}
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-brand-100 font-mono text-[9.5px] font-bold text-brand-800">
+          {selected ? initialsOf(selected.name) : "—"}
+          {selected && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-success-500 ring-2 ring-surface-1" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-bold leading-tight text-brand-950">
+            {selected?.name ?? "No projects yet"}
+          </span>
+          <span className="mt-0.5 block truncate font-mono text-[10px] leading-tight text-brand-400">
+            {clientRow?.domain ?? "add a website"}
+          </span>
+        </span>
+        <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
+      </button>
 
-              {switcherOpen && (
-                <div
-                  className={cn("absolute z-40 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg", chip ? "left-0 w-[280px]" : "left-1 right-1")}
-                  style={{ borderColor: "var(--border-color)" }}
-                >
-                  {portfolio.data?.clients.map((client) => (
-                    <div key={client.projectId} className="group flex items-center hover:bg-brand-100">
-                      <button
-                        onClick={() => {
-                          setProjectId(client.projectId);
-                          setSwitcherOpen(false);
-                        }}
-                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
-                      >
-                        <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[8px] font-semibold text-brand-700">
-                          {client.initials}
-                        </span>
-                        <span className="flex-1 truncate text-[11.5px] text-brand-950">{client.name}</span>
-                        <span className="font-mono text-[9.5px] text-brand-500">
-                          {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteWebsite(client.projectId, client.name)}
-                        disabled={deleteProject.isPending}
-                        title={`Delete ${client.name}`}
-                        aria-label={`Delete ${client.name}`}
-                        className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-400 transition hover:bg-error-50 hover:text-error-600 disabled:opacity-50"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void handleAddWebsite();
-                    }}
-                    className="flex items-center gap-1 border-t p-1.5"
-                    style={{ borderColor: "var(--border-color)" }}
+      {switcherOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setSwitcherOpen(false)} />
+          <div
+            className={cn(
+              "absolute z-40 mt-1.5 overflow-hidden rounded-xl border bg-surface-1 p-1 shadow-xl",
+              chip ? "left-0 w-[280px]" : "left-0.5 right-0.5",
+            )}
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="max-h-56 overflow-y-auto space-y-0.5">
+              {portfolio.data?.clients.map((client) => {
+                const isSelected = client.projectId === selected?.id;
+                return (
+                  <div
+                    key={client.projectId}
+                    className={cn(
+                      "group flex items-center rounded-lg transition-colors",
+                      isSelected ? "bg-brand-100/80" : "hover:bg-brand-100/50",
+                    )}
                   >
-                    <input
-                      value={newSite}
-                      onChange={(e) => setNewSite(e.target.value)}
-                      placeholder="Add website, e.g. yoursite.com"
-                      className="min-w-0 flex-1 rounded-md border bg-white px-2 py-1.5 text-[11.5px] text-brand-950 outline-none focus:border-brand-400"
-                      style={{ borderColor: "var(--border-color)" }}
-                    />
                     <button
-                      type="submit"
-                      disabled={!newSite.trim() || adding}
-                      title="Add website"
-                      aria-label="Add website"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-50"
+                      onClick={() => {
+                        setProjectId(client.projectId);
+                        setSwitcherOpen(false);
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
                     >
-                      <Plus size={13} />
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-200 bg-surface-2 font-mono text-[8.5px] font-bold text-brand-700">
+                        {client.initials}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11.5px] font-semibold text-brand-950">
+                          {client.name}
+                        </span>
+                        <span className="block truncate font-mono text-[9.5px] text-brand-400">
+                          {client.domain}
+                        </span>
+                      </span>
+                      {client.aiCitationSharePct != null && (
+                        <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-brand-600">
+                          {client.aiCitationSharePct}%
+                        </span>
+                      )}
+                      {isSelected && <Check size={13} className="shrink-0 text-success-600" />}
                     </button>
-                  </form>
-                  {switcherError && <p className="px-2 pb-2 text-[10.5px] text-error-600">{switcherError}</p>}
-                </div>
-              )}
+                    <button
+                      onClick={() => handleDeleteWebsite(client.projectId, client.name)}
+                      disabled={deleteProject.isPending}
+                      title={`Delete ${client.name}`}
+                      aria-label={`Delete ${client.name}`}
+                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-400 opacity-0 transition group-hover:opacity-100 hover:bg-error-50 hover:text-error-600 disabled:opacity-50"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleAddWebsite();
+              }}
+              className="mt-1 flex items-center gap-1 border-t pt-1.5 px-1 pb-1"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <input
+                value={newSite}
+                onChange={(e) => setNewSite(e.target.value)}
+                placeholder="Add website, e.g. yoursite.com"
+                className="min-w-0 flex-1 rounded-lg border bg-surface-2 px-2.5 py-1.5 text-[11.5px] text-brand-950 outline-none focus:border-brand-400"
+                style={{ borderColor: "var(--border-color)" }}
+              />
+              <button
+                type="submit"
+                disabled={!newSite.trim() || adding}
+                title="Add website"
+                aria-label="Add website"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-400 text-signal-ink transition hover:opacity-90 disabled:opacity-50"
+              >
+                <Plus size={13} />
+              </button>
+            </form>
+            {switcherError && <p className="px-2 pb-1.5 text-[10.5px] text-error-600">{switcherError}</p>}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

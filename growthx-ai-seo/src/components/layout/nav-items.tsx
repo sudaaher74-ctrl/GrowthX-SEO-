@@ -1,6 +1,15 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crosshair, Globe, Wrench, Bot, Link2, CalendarDays } from "lucide-react";
+import {
+  BarChart3,
+  Crosshair,
+  Globe,
+  LayoutGrid,
+  Wrench,
+  Bot,
+  Link2,
+  CalendarDays,
+} from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
 
@@ -10,10 +19,13 @@ import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx"
  * sub-tab goes.
  */
 
+export type NavGroupKey = "overview" | "intelligence" | "execution";
+
 export interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  group?: NavGroupKey;
   aliases?: string[];
   /** Small right-aligned counter or metric. */
   tag?: string;
@@ -71,12 +83,14 @@ export function useMainNav(): { mainNav: NavItem[] } {
     {
       label: "Dashboard",
       href: "/dashboard",
-      icon: Activity,
+      icon: LayoutGrid,
+      group: "overview",
     },
     {
       label: "Website Audit",
       href: "/website",
       icon: Globe,
+      group: "overview",
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
@@ -92,7 +106,8 @@ export function useMainNav(): { mainNav: NavItem[] } {
     {
       label: "Traffic",
       href: "/google",
-      icon: Activity,
+      icon: BarChart3,
+      group: "overview",
       aliases: ["/traffic", "/google/traffic"],
       step: { n: 2, done: googleDone, hint: googleDone ? "Traffic connected" : "Connect Search Console or Analytics" },
       children: [
@@ -107,6 +122,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
+      group: "intelligence",
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
       children: [
         { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
@@ -119,17 +135,20 @@ export function useMainNav(): { mainNav: NavItem[] } {
       label: "Backlink Intelligence",
       href: "/backlinks",
       icon: Link2,
+      group: "intelligence",
     },
     {
       label: "AI Visibility",
       href: "/ai-visibility",
       icon: Bot,
+      group: "intelligence",
       step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Run AI visibility monitoring" },
     },
     {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
+      group: "execution",
       children: [
         { id: "improvement", label: "Improvement", href: "/fix-engine?tab=improvement", tab: "improvement", isDefault: true },
         { id: "github-fixes", label: "GitHub Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
@@ -139,6 +158,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
       label: "Monthly Report",
       href: "/monthly-report",
       icon: CalendarDays,
+      group: "execution",
     },
   ];
 

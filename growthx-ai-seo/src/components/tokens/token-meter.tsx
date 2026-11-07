@@ -21,7 +21,7 @@ export function TokenMeter({ pct, standing, className }: { pct: number; standing
       <div
         className={cn(
           "h-full rounded-full transition-[width] duration-500",
-          standing === "out" ? "bg-error-500" : standing === "low" ? "bg-warning-500" : "bg-accent-600",
+          standing === "out" ? "bg-error-500" : standing === "low" ? "bg-warning-500" : "bg-signal-400",
         )}
         style={{ width: `${pct}%` }}
       />

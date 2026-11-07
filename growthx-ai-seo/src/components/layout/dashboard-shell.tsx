@@ -97,7 +97,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           {isAdmin ? (
             <AdminSidebar collapsed={!collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
           ) : (
-            <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+            <Sidebar
+              collapsed={collapsed}
+              onToggleCollapse={() => toggleCollapsed()}
+              mobileOpen={mobileOpen}
+              setMobileOpen={setMobileOpen}
+            />
           )}
         </Suspense>
         <Suspense fallback={null}>
