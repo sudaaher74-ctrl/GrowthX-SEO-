@@ -12,7 +12,6 @@ import {
   Heading,
   Layers,
   Link2,
-  Sparkles,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -157,7 +156,7 @@ export function TodoRow({
           <div className="flex items-center gap-1 shrink-0">
             {isAiReady && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-signal-400/15 text-signal-ink px-1.5 py-0.2 text-[9.5px] font-bold border border-signal-400/30">
-                <Sparkles size={10} className="text-signal-400" />
+                <Zap size={10} className="text-signal-400" />
                 AI
               </span>
             )}
@@ -211,7 +210,7 @@ export function ProblemDetail({ group }: { group: IssueGroup }) {
 
           {isAiReady ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-1 text-[11px] font-bold text-signal-ink">
-              <Sparkles size={12} className="text-signal-400 shrink-0" />
+              <Zap size={12} className="text-signal-400 shrink-0" />
               1-Click AI Fix Ready
             </span>
           ) : group.fixClass === "APPROVAL" ? (
@@ -331,7 +330,7 @@ export function ProblemDetail({ group }: { group: IssueGroup }) {
           href={fix.href}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
         >
-          {isAiReady && <Sparkles size={13} className="text-signal-ink" />}
+          {isAiReady && <Zap size={13} className="text-signal-ink" />}
           {fix.cta}
           <ArrowRight size={13} />
         </Link>

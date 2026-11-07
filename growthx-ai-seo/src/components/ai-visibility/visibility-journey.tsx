@@ -15,10 +15,11 @@ import {
   LayoutGrid,
   Pencil,
   Plus,
+  Bot,
   RefreshCw,
-  Sparkles,
   Target,
   Trash2,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
@@ -63,7 +64,7 @@ function Journey({ projectId }: { projectId: string }) {
 
   return <div className="space-y-5 pb-12">
     <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
-      {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Sparkles size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
+      {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Bot size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
       <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
     </>} />
     <QueryState isLoading={query.isLoading} error={query.error}>
@@ -71,7 +72,7 @@ function Journey({ projectId }: { projectId: string }) {
       {data && !configured.length && <StatusNote tone="bad">AI checks are temporarily unavailable. Please contact support.</StatusNote>}
       {!run && <Panel padded>
         <div className="mx-auto max-w-xl space-y-4 py-8 text-center">
-          <Sparkles className="mx-auto text-primary-600" size={28} />
+          <Bot className="mx-auto text-primary-600" size={28} />
           <h2 className="text-xl font-semibold text-brand-950">See your business through your buyers’ prompts</h2>
           <p className="text-sm leading-6 text-brand-600">We use your website audit to draft relevant buyer prompts. You review them, we ask the available AI assistants, and you get real answers showing where your business is recommended.</p>
           <ActionButton variant="primary" disabled={busy || !configured.length || query.isLoading} onClick={() => prepare.mutate()}>{prepare.isPending ? "Preparing your prompts…" : "Prepare my prompts"}</ActionButton>
@@ -670,7 +671,7 @@ function PromptsSection({
       {cmoToast && (
         <div className="flex items-center justify-between rounded-xl border border-success-200 bg-success-50 p-4 text-xs font-medium text-success-700 shadow-sm">
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-success-700" />
+            <Check size={16} className="text-success-700" />
             <span>{cmoToast}</span>
           </div>
           <button
@@ -1332,7 +1333,7 @@ function PromptsSection({
 
                         <ActionButton
                           variant="secondary"
-                          icon={<Sparkles size={14} className="text-primary-600" />}
+                          icon={<Zap size={14} className="text-primary-600" />}
                           onClick={() => {
                             setActivePlanGap({
                               id: crypto.randomUUID(),

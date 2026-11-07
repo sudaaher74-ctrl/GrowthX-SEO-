@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Printer, Sparkles } from "lucide-react";
+import { Bot, ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
@@ -62,7 +62,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
         actions={
           <ActionButton
             variant="primary"
-            icon={report.isFetching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            icon={report.isFetching ? <Loader2 size={13} className="animate-spin" /> : <Bot size={13} />}
             onClick={() => report.refetch()}
             disabled={report.isFetching || !projectId}
           >

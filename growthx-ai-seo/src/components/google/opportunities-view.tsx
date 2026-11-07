@@ -6,7 +6,6 @@ import {
   Lightbulb,
   MousePointerClick,
   Search,
-  Sparkles,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -254,7 +253,7 @@ export function OpportunitiesView() {
                       <div className="space-y-1 flex-1 min-w-[260px]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-signal-400 text-signal-ink">
-                            <Sparkles size={11} />
+                            <Zap size={11} />
                           </span>
                           <h4 className="text-sm font-bold text-brand-950">{o.title}</h4>
                         </div>

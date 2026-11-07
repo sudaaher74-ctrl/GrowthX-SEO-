@@ -15,7 +15,6 @@ import {
   MousePointerClick,
   Search,
   Share2,
-  Sparkles,
   Target,
   Users,
 } from "lucide-react";
@@ -172,7 +171,7 @@ interface TrafficOriginItem {
 
 const TRAFFIC_TABS = [
   { id: "overview", label: "Traffic Overview", icon: Activity },
-  { id: "report", label: "Report", icon: Sparkles },
+  { id: "report", label: "Report", icon: FileText },
 ] as const;
 
 type TrafficTabId = (typeof TRAFFIC_TABS)[number]["id"];
@@ -872,7 +871,7 @@ function TrafficViewClient() {
                   onClick={() => selectTab("report")}
                   className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800 transition"
                 >
-                  <Sparkles size={12} />
+                  <FileText size={12} />
                   <span>Plan Target City Traffic in Report →</span>
                 </button>
               </div>

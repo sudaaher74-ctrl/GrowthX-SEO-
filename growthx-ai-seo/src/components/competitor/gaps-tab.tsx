@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Sparkles,
+  Zap,
   ExternalLink,
   Loader2,
   FileText,
@@ -466,7 +466,7 @@ function GapRow({
           onClick={onPlan}
           className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
         >
-          <Sparkles size={12} className="text-signal-ink" />
+          <Zap size={12} className="text-signal-ink" />
           <span>Get a plan</span>
         </button>
       </div>

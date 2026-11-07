@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, FileSpreadsheet, FileText, Loader2, Printer, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, FileSpreadsheet, FileText, Loader2, Printer, X } from "lucide-react";
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { api, type WebsiteAuditReport } from "@/lib/api-client";
 import { auditReportFilename, auditToCsv, auditToMarkdown, pageRows, severityWord } from "@/lib/audit-report";
@@ -52,7 +52,7 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
         actions={
           <ActionButton
             variant="primary"
-            icon={report.isFetching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            icon={report.isFetching ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
             onClick={() => report.refetch()}
             disabled={report.isFetching || !projectId}
           >

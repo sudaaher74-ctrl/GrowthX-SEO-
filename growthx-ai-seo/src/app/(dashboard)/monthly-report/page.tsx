@@ -17,6 +17,7 @@ import {
 import {
   BarChart3,
   CheckCircle2,
+  Bot,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -28,7 +29,6 @@ import {
   Printer,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
   TrendingDown,
   TrendingUp,
   Users,
@@ -1043,7 +1043,7 @@ export default function MonthlyReport() {
                         </div>
                       ) : displayedAiScans.length === 0 ? (
                         <div className="flex h-full flex-col items-center justify-center gap-1 text-xs text-brand-500">
-                          <Sparkles size={24} className="text-brand-300" />
+                          <Bot size={24} className="text-brand-300" />
                           Run an AI visibility check to see a trend.
                         </div>
                       ) : (

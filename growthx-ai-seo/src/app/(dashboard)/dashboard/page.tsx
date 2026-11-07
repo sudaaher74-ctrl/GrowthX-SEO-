@@ -7,14 +7,13 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,
+  Bot,
   Check,
   Globe,
   Layers,
   Plus,
   PlugZap,
   RefreshCw,
-  Sparkles,
-  Star,
 } from "lucide-react";
 import { StatusNote, relativeTime } from "@/components/ui/console";
 import {
@@ -577,7 +576,7 @@ export default function UnifiedDashboardPage() {
 
             <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-signal-400/15 text-signal-ink border border-signal-400/30">
-                <Sparkles size={15} className="text-signal-400" />
+                <Bot size={15} className="text-signal-400" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">AI Automation</p>

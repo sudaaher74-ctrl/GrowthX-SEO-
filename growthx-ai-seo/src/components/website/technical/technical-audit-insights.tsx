@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowRight, Lightbulb, Sparkles } from "lucide-react";
+import { ArrowRight, Lightbulb } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlQualityDiagnostics } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
@@ -237,7 +237,7 @@ export function TechnicalAuditInsights({
             onClick={onOpenRecommendations}
             className="w-full rounded-xl bg-signal-400 hover:bg-signal-500 py-1.5 text-xs font-bold text-signal-ink transition-all inline-flex items-center justify-center gap-1.5 shadow-xs"
           >
-            <Sparkles size={12} className="text-signal-ink" />
+            <Lightbulb size={12} className="text-signal-ink" />
             <span>View AI Recommendations</span>
           </button>
         </div>

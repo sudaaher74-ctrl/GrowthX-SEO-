@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Copy, FilePlus2, PenLine, Search, Sparkles } from "lucide-react";
+import { Check, Copy, FilePlus2, PenLine, Search } from "lucide-react";
 import { ActionButton, Panel, Pill } from "@/components/ui/console";
 import { CreateArticleModal } from "@/components/content/create-article-modal";
 import { AlmostWinningPanel, MeasuredBadge, SearchConnectNote } from "@/components/content/search-numbers";
@@ -147,7 +147,7 @@ export function ContentIdeasPanels({
             ))}
           </ul>
           <p className="flex items-center gap-1.5 border-t px-4 py-2.5 text-[11px] text-brand-400">
-            <Sparkles size={11} /> &ldquo;Write this post&rdquo; opens the article writer with the title and phrase filled in. The
+            <PenLine size={11} /> &ldquo;Write this post&rdquo; opens the article writer with the title and phrase filled in. The
             draft is saved in Content for you to check and edit.
           </p>
         </Panel>

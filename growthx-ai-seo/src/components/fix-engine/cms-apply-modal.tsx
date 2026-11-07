@@ -11,7 +11,6 @@ import {
   Layers,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react";
 import { ActionButton, Pill, StatusNote } from "@/components/ui/console";
@@ -695,7 +694,7 @@ export function CmsApplyModal({
 
             <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 text-[12px] text-brand-700 space-y-1.5">
               <p className="font-semibold text-brand-900 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-accent-700" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-accent-700" />
                 3-Step Guided Apply for {platform}:
               </p>
               {platform === "WordPress" && (

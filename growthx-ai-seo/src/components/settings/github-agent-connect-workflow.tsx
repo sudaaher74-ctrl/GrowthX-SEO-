@@ -15,7 +15,7 @@ import {
   KeyRound,
   LogOut,
   AlertCircle,
-  Sparkles,
+  Bot,
   ArrowRight,
 } from "lucide-react";
 import { GitHubLogo } from "@/components/settings/integration-logos";
@@ -826,7 +826,7 @@ export function GitHubAgentConnectWorkflow({
               <div className="flex flex-col justify-between rounded-xl border border-brand-200 bg-surface-1 p-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                    <Sparkles size={13} className="text-primary-600" />
+                    <Bot size={13} className="text-primary-600" />
                     <span>Dedicated GitHub App Flow</span>
                   </div>
                   <p className="text-[11px] text-brand-500">

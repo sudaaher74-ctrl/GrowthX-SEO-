@@ -20,7 +20,6 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  Sparkles,
   Wrench,
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
@@ -1605,7 +1604,7 @@ export function GitHubFixesLogView({
                     isEngineerBusy ||
                     runEngineerMutation.isPending
                   }
-                  icon={<Sparkles size={12} />}
+                  icon={<Wrench size={12} />}
                   onClick={() => runEngineerMutation.mutate(engineerPrompt.trim())}
                 >
                   {runEngineerMutation.isPending ? "Starting Engineer…" : "Run on GitHub & Open PR"}

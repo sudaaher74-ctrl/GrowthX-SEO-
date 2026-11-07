@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, BarChart3, Search as SearchIcon, Zap, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Store, Wrench, CalendarDays } from "lucide-react";
+import { Search, PenLine, BarChart3, Search as SearchIcon, Zap, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Store, Wrench, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
@@ -60,7 +60,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // counts or metrics — the palette has no workspace data loaded, so any
     // figure here would be a fabricated number shown to every tenant.
     { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/website"); }, subtitle: "Scan your site for SEO issues" },
-    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/competitor-intelligence?tab=opportunities"); }, subtitle: "Draft an SEO-optimized article from content opportunities" },
+    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: PenLine, action: () => { router.push("/competitor-intelligence?tab=opportunities"); }, subtitle: "Draft an SEO-optimized article from content opportunities" },
     // These two pointed at /search-console and /local-seo, neither of which
     // is a route in this app — the palette was written before it was mounted,
     // so nobody ever clicked them into a 404.

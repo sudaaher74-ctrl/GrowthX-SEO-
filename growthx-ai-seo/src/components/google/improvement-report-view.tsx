@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Building2, CheckCircle2, FileText, Loader2, MapPin, Plus, Printer, Sparkles, Wrench, X } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, FileText, Loader2, MapPin, Plus, Printer, Wrench, X } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { SourceBadge } from "@/components/google/parts";
 import { usePeriodDays, useWorkspace } from "@/hooks/use-growthx";
@@ -109,7 +109,7 @@ export function ImprovementReportView() {
             </Link>
             <ActionButton
               variant="primary"
-              icon={generateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              icon={generateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
               onClick={() => generateMutation.mutate()}
               disabled={generateMutation.isPending || !projectId}
             >

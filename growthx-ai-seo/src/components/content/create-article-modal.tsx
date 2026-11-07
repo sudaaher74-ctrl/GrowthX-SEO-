@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, X, Loader2, PenLine } from "lucide-react";
+import { X, Loader2, PenLine } from "lucide-react";
 import { ActionButton } from "@/components/ui/console";
 import { useCreateContentPiece, useDraftContent } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
@@ -81,7 +81,7 @@ export function CreateArticleModal({
         <div className="border-b border-brand-200 px-5 py-4 flex items-center justify-between bg-surface-2">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-accent-50 text-accent-700">
-              <Sparkles size={18} />
+              <PenLine size={18} />
             </div>
             <div>
               <h3 className="text-base font-bold text-brand-950">

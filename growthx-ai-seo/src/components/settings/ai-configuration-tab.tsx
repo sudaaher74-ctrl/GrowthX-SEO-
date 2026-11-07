@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Cpu, Loader2, Key, Sparkles, RefreshCw, Check, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Cpu, Loader2, Key, RefreshCw, Check, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api, type MammouthConfig } from "@/lib/api-client";
@@ -197,7 +197,7 @@ export function AiConfigurationTab() {
             <div className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">AI Provider</div>
             <div className="flex items-center justify-between">
               <span className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                <Sparkles size={16} className="text-slate-400" />
+                <Cpu size={16} className="text-brand-500" />
                 {config.provider}
               </span>
               <Badge variant="default" className="text-[11px] font-mono">

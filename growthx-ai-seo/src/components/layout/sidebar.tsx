@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   Settings,
-  Sparkles,
   Sun,
 } from "lucide-react";
 
@@ -134,7 +133,6 @@ export function Sidebar({
                         : "border border-brand-200 bg-surface-2 text-brand-500",
                     )}
                   >
-                    <Sparkles size={9} />
                     {completedSteps}/{stepItems.length} Ready
                   </span>
                 )}
