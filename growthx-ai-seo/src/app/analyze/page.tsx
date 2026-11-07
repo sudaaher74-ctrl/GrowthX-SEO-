@@ -55,17 +55,12 @@ interface TreeNodeData {
   statusCode?: number | null;
   indexability?: string | null;
   responseTimeMs?: number;
-  realCrawled: boolean;
 }
 
-const DEFAULT_SECTIONS = ["/products", "/about", "/contact", "/blog"];
-const DEFAULT_CHILDREN = [
-  "/products/overview",
-  "/products/features",
-  "/products/pricing",
-];
-
-function buildVisualTree(pages: CrawlPage[]): {
+/**
+ * Builds the tree strictly from real discovered pages (no hardcoded fake routes).
+ */
+function buildRealTree(pages: CrawlPage[]): {
   rootHome: TreeNodeData;
   sections: TreeNodeData[];
   children: TreeNodeData[];
@@ -80,7 +75,6 @@ function buildVisualTree(pages: CrawlPage[]): {
     statusCode: homePage?.statusCode,
     indexability: homePage?.indexability,
     responseTimeMs: homePage?.responseTimeMs,
-    realCrawled: Boolean(homePage),
   };
 
   const sectionMap = new Map<string, TreeNodeData>();
@@ -103,7 +97,6 @@ function buildVisualTree(pages: CrawlPage[]): {
         statusCode: page.statusCode,
         indexability: page.indexability,
         responseTimeMs: page.responseTimeMs,
-        realCrawled: true,
       });
     }
 
@@ -118,20 +111,20 @@ function buildVisualTree(pages: CrawlPage[]): {
           statusCode: page.statusCode,
           indexability: page.indexability,
           responseTimeMs: page.responseTimeMs,
-          realCrawled: true,
         });
       }
     }
   }
 
-  // If fewer than 3 multi-segment pages exist, fill from other discovered pages
-  if (deepPages.length < 3 && pages.length > 1) {
+  // If fewer than 3 multi-segment pages exist, use any remaining discovered pages beyond the top 4 sections
+  const sections = Array.from(sectionMap.values()).slice(0, 4);
+  if (deepPages.length < 3 && pages.length > sections.length + 1) {
     for (const extra of pages) {
       if (deepPages.length >= 3) break;
       const pathname = getPathname(extra.url).replace(/\/+$/, "") || "/";
       if (
         pathname !== "/" &&
-        !Array.from(sectionMap.keys()).slice(0, 4).includes(pathname) &&
+        !sections.some((s) => s.path === pathname) &&
         !deepPages.some((d) => d.path === pathname)
       ) {
         deepPages.push({
@@ -143,43 +136,31 @@ function buildVisualTree(pages: CrawlPage[]): {
           statusCode: extra.statusCode,
           indexability: extra.indexability,
           responseTimeMs: extra.responseTimeMs,
-          realCrawled: true,
         });
       }
     }
   }
 
-  const sections: TreeNodeData[] = Array.from(sectionMap.values()).slice(0, 4);
-  for (const fallback of DEFAULT_SECTIONS) {
-    if (sections.length >= 4) break;
-    if (!sections.some((s) => s.path === fallback)) {
-      sections.push({
-        path: fallback,
-        realCrawled: false,
-      });
-    }
-  }
-
-  const primaryPrefix = sections[0]?.path || "/products";
-  const children: TreeNodeData[] = deepPages.slice(0, 3);
-  for (const fallback of DEFAULT_CHILDREN) {
-    if (children.length >= 3) break;
-    const adjusted =
-      primaryPrefix !== "/products"
-        ? fallback.replace(/^\/products/, primaryPrefix)
-        : fallback;
-    if (!children.some((c) => c.path === adjusted)) {
-      children.push({
-        path: adjusted,
-        realCrawled: false,
-      });
-    }
-  }
-
-  return { rootHome, sections, children };
+  return {
+    rootHome,
+    sections,
+    children: deepPages.slice(0, 3),
+  };
 }
 
-type NodeStatus = "queued" | "scanning" | "done";
+/**
+ * Generates a smooth SVG rounded orthogonal elbow path from (x1, 0) to (x2, height).
+ */
+function buildElbowPath(x1: number, x2: number, height = 52): string {
+  const dx = x2 - x1;
+  if (Math.abs(dx) < 2) {
+    return `M ${x1} 0 L ${x2} ${height}`;
+  }
+  const dir = dx > 0 ? 1 : -1;
+  const r = Math.min(14, Math.abs(dx) / 2);
+  const midY = Math.round(height * 0.48);
+  return `M ${x1} 0 L ${x1} ${midY - r} Q ${x1} ${midY} ${x1 + dir * r} ${midY} L ${x2 - dir * r} ${midY} Q ${x2} ${midY} ${x2} ${midY + r} L ${x2} ${height}`;
+}
 
 function AnalyzeOnboardingInner() {
   const router = useRouter();
@@ -213,8 +194,13 @@ function AnalyzeOnboardingInner() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sequential step counter: 0 = Home (/), 1..4 = Level 2 folders, 5..7 = Level 3 files
-  const [crawlStep, setCrawlStep] = useState<number>(0);
+  /**
+   * Step-by-step progressive reveal counter:
+   * 0 = ONLY [ 🌐 domain.com ] is shown on screen (no / Home or child nodes yet!)
+   * 1 = [ 🏠 / (Home) ] appears and scans
+   * 2..N = Each discovered section & child file appears one by one!
+   */
+  const [revealStep, setRevealStep] = useState<number>(0);
   const [elapsedSec, setElapsedSec] = useState<number>(0);
 
   useEffect(() => {
@@ -240,7 +226,7 @@ function AnalyzeOnboardingInner() {
       if (status === "COMPLETED" || status === "FAILED" || status === "CANCELLED") {
         return false;
       }
-      return 1800;
+      return 1500;
     },
   });
 
@@ -255,7 +241,7 @@ function AnalyzeOnboardingInner() {
     queryKey: ["onboarding-crawl-pages", crawlId],
     queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 24 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 1800,
+    refetchInterval: isCompleted || isFailed ? false : 1500,
   });
 
   // Poll live detected issues from the active crawl job
@@ -263,7 +249,7 @@ function AnalyzeOnboardingInner() {
     queryKey: ["onboarding-crawl-issues", crawlId],
     queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 10 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 2200,
+    refetchInterval: isCompleted || isFailed ? false : 2000,
   });
 
   const autopilotQuery = useQuery({
@@ -289,27 +275,35 @@ function AnalyzeOnboardingInner() {
   );
   const autopilotLogs = autopilotQuery.data?.log ?? initialRun?.log ?? [];
 
-  // Advance sequential one-by-one file traversal starting from Home (step 0 -> 1 -> 2 ... -> 8)
+  const { rootHome, sections, children } = useMemo(
+    () => buildRealTree(crawledPages),
+    [crawledPages],
+  );
+
+  // Total available nodes based on real data discovered so far:
+  // Node 1 is / (Home), then each discovered section, then each discovered child page
+  const maxAvailableStep = 1 + sections.length + children.length;
+
+  // Step-by-step timer: starts at 0 (only domain pill), then reveals 1 node at a time as pages arrive
   useEffect(() => {
     if (phase !== "crawling") return;
-    if (isCompleted) {
-      setCrawlStep(9);
-      return;
-    }
     const timer = setInterval(() => {
       setElapsedSec((s) => s + 1);
-      setCrawlStep((prev) => {
-        // Advance one node at a time; once all 8 tree nodes are reached, keep cycling leaf inspection until backend finishes
-        if (prev < 8) return prev + 1;
-        return 5 + ((prev - 4) % 3);
+      setRevealStep((prev) => {
+        if (isCompleted) return maxAvailableStep + 1;
+        // Always allow advancing to step 1 (/ Home), then advance one by one up to maxAvailableStep
+        if (prev < 1) return 1;
+        if (prev < maxAvailableStep) return prev + 1;
+        return prev;
       });
-    }, 1400);
+    }, 1100);
     return () => clearInterval(timer);
-  }, [phase, isCompleted]);
+  }, [phase, isCompleted, maxAvailableStep]);
 
-  // Automatically redirect to Website Audit (/website) when the crawl finishes
+  // Automatically redirect to Website Audit (/website) only after the crawl finishes AND the tree steps have revealed
   useEffect(() => {
     if (phase !== "crawling" || !isCompleted) return;
+    if (revealStep < maxAvailableStep) return;
     const timer = setTimeout(() => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -319,7 +313,7 @@ function AnalyzeOnboardingInner() {
       router.replace("/website");
     }, 1200);
     return () => clearTimeout(timer);
-  }, [phase, isCompleted, queryClient, router]);
+  }, [phase, isCompleted, revealStep, maxAvailableStep, queryClient, router]);
 
   async function handleStartAudit(e: React.FormEvent) {
     e.preventDefault();
@@ -365,8 +359,8 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
 
-      // Start at step 0 (Home `/`) so user watches it finish one by one!
-      setCrawlStep(0);
+      // Start at step 0: ONLY the website domain pill is visible at first!
+      setRevealStep(0);
       setElapsedSec(0);
       setActiveDomain(run.domain || cleaned);
       setPhase("crawling");
@@ -377,43 +371,148 @@ function AnalyzeOnboardingInner() {
     }
   }
 
-  const { rootHome, sections, children } = useMemo(
-    () => buildVisualTree(crawledPages),
-    [crawledPages],
-  );
-
-  // Ordered list of all 8 tree nodes so we can determine each node's status (queued -> scanning -> done)
-  const orderedNodes: TreeNodeData[] = useMemo(
-    () => [rootHome, ...sections, ...children],
-    [rootHome, sections, children],
-  );
-
   if (signedIn !== true) return null;
 
-  const displayDomain =
-    activeDomain || cleanDomainInput(domainInput) || "yourwebsite.com";
+  // ===========================================================================
+  // SCREEN 1: INPUT PHASE — NO BACKGROUND TREE OR PANELS, ONLY THE WEBSITE BAR
+  // ===========================================================================
+  if (phase === "input") {
+    return (
+      <div
+        className="dash-dark dark relative flex h-screen w-full flex-col justify-between overflow-hidden select-none"
+        style={{ background: "var(--color-canvas)" }}
+      >
+        {/* Minimal Top Logo */}
+        <header className="relative z-20 flex h-16 shrink-0 items-center justify-between px-6 sm:px-10">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink">
+              R
+            </span>
+            <span className="text-lg font-extrabold tracking-tight text-brand-950">
+              Reigel
+            </span>
+          </Link>
 
-  // Helper: get sequential status for node index (0 = Home, 1..4 = Sections, 5..7 = Children)
-  function getNodeStatus(nodeIndex: number): NodeStatus {
-    if (phase === "input") return "queued";
-    if (isCompleted) return "done";
-    if (crawlStep > nodeIndex) return "done";
-    if (crawlStep === nodeIndex) return "scanning";
-    return "queued";
+          {projects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => router.push("/website")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+            >
+              <span>Website Audit</span>
+              <ArrowRight size={13} />
+            </button>
+          )}
+        </header>
+
+        {/* Centered Website Input Bar Only (No Background Clutter) */}
+        <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 pb-16">
+          <form onSubmit={handleStartAudit} noValidate className="w-full">
+            {error && (
+              <div
+                role="alert"
+                className="mb-3 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-4 py-2.5 text-xs font-semibold text-error-700"
+              >
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-1 px-4 py-3.5 focus-within:border-signal-400 transition-colors shadow-card">
+                <Globe size={18} className="shrink-0 text-signal-400" />
+                <span className="select-none font-mono text-sm font-bold text-brand-400">
+                  https://
+                </span>
+                <input
+                  id="onboarding-domain"
+                  type="text"
+                  required
+                  autoFocus
+                  value={domainInput}
+                  onChange={(e) => setDomainInput(e.target.value)}
+                  placeholder="yourwebsite.com"
+                  className="w-full min-w-0 border-0 bg-transparent font-mono text-base font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  style={{ outline: "none", boxShadow: "none" }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 px-7 py-4 text-sm font-extrabold text-signal-ink shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Starting…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Start Website Audit</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </main>
+
+        <div className="h-12 shrink-0" />
+      </div>
+    );
   }
 
-  const homeStatus = getNodeStatus(0);
+  // ===========================================================================
+  // SCREEN 2: CRAWLING PHASE — STARTS FROM DOMAIN ONLY, REVEALS STEP BY STEP
+  // ===========================================================================
+  const displayDomain = activeDomain || cleanDomainInput(domainInput);
 
-  // Currently scanning node (for live runtime inspection panel)
-  const activeNodeIndex =
-    phase === "crawling" ? Math.min(crawlStep, orderedNodes.length - 1) : 0;
-  const activeNode = orderedNodes[activeNodeIndex] || rootHome;
+  // Determine which nodes have appeared so far based on revealStep:
+  // Step 0: Only [ 🌐 domain ] is visible
+  // Step 1: [ 🏠 / (Home) ] appears
+  // Step 2..(1 + sections.length): sections appear one by one
+  // Step (2 + sections.length)..(1 + sections.length + children.length): children appear one by one
+  const showHome = revealStep >= 1;
+  const homeDone = revealStep > 1 || isCompleted;
 
-  // List of nodes finished so far (for the one-by-one finished files feed)
-  const finishedNodes =
-    phase === "crawling"
-      ? orderedNodes.filter((_, idx) => getNodeStatus(idx) === "done")
-      : [];
+  const visibleSectionsCount = Math.max(
+    0,
+    Math.min(sections.length, revealStep - 1),
+  );
+  const visibleSections = sections.slice(0, visibleSectionsCount);
+
+  const childStartStep = 1 + sections.length + 1;
+  const visibleChildrenCount = Math.max(
+    0,
+    Math.min(children.length, revealStep - (1 + sections.length)),
+  );
+  const visibleChildren = children.slice(0, visibleChildrenCount);
+
+  // List of all revealed nodes in order for the Active Scanner & Finished Files list
+  const revealedNodes: { node: TreeNodeData; done: boolean }[] = [];
+  if (showHome) {
+    revealedNodes.push({ node: rootHome, done: homeDone });
+  }
+  visibleSections.forEach((sec, idx) => {
+    const stepForThisSection = 2 + idx;
+    const isDone = revealStep > stepForThisSection || isCompleted;
+    revealedNodes.push({ node: sec, done: isDone });
+  });
+  visibleChildren.forEach((child, idx) => {
+    const stepForThisChild = childStartStep + idx;
+    const isDone = revealStep > stepForThisChild || isCompleted;
+    revealedNodes.push({ node: child, done: isDone });
+  });
+
+  const currentScanningNode =
+    revealedNodes.find((item) => !item.done)?.node ||
+    revealedNodes[revealedNodes.length - 1]?.node ||
+    rootHome;
+
+  const finishedNodesList = revealedNodes
+    .filter((item) => item.done)
+    .map((item) => item.node);
 
   // Average response speed from real crawled pages
   const avgSpeedMs =
@@ -424,74 +523,68 @@ function AnalyzeOnboardingInner() {
         )
       : null;
 
-  // Smooth runtime progress percentage
-  const finishedCount = finishedNodes.length;
+  const filesFinishedCount = Math.max(
+    finishedNodesList.length,
+    isCompleted ? totalPagesRecorded : 0,
+  );
+
   const progressPct = isCompleted
     ? 100
-    : phase === "crawling"
-      ? Math.min(
-          95,
-          Math.max(
-            8,
-            Math.round((finishedCount / 8) * 75) +
-              Math.min(20, totalPagesRecorded * 2),
+    : Math.min(
+        95,
+        Math.max(
+          6,
+          Math.round(
+            (revealStep / Math.max(4, maxAvailableStep + 1)) * 88,
           ),
-        )
-      : 0;
+        ),
+      );
 
-  // Runtime engine modules status
+  // Runtime tasks that activate step by step
   const runtimeEngines = [
     {
       name: "Root DNS, SSL & Home (/) Handshake",
-      detail: homeStatus === "done" ? "Home (/) verified" : "Starting from /",
-      status:
-        phase === "input"
-          ? "queued"
-          : homeStatus === "done"
-            ? "done"
-            : "scanning",
+      detail: homeDone
+        ? "Home (/) verified"
+        : showHome
+          ? "Scanning / (Home)…"
+          : `Connecting to ${displayDomain}…`,
+      status: homeDone ? "done" : "scanning",
     },
-    {
-      name: "Sitemap & Internal Folder Spider",
-      detail:
-        finishedCount > 1
-          ? `${Math.max(finishedCount, totalPagesRecorded)} routes mapped`
-          : "Waiting for Home (/)",
-      status:
-        phase === "input" || crawlStep < 1
-          ? "queued"
-          : crawlStep >= 5 || isCompleted
-            ? "done"
-            : "scanning",
-    },
-    {
-      name: "Deep File DOM & Metadata Parser",
-      detail:
-        crawlStep >= 5
-          ? `Inspecting ${activeNode.path}`
-          : "Queued after folders",
-      status:
-        phase === "input" || crawlStep < 5
-          ? "queued"
-          : isCompleted
-            ? "done"
-            : "scanning",
-    },
-    {
-      name: "SEO Defect & Speed Rule Engine",
-      detail:
-        totalIssuesRecorded > 0
-          ? `${totalIssuesRecorded} issues flagged`
-          : phase === "crawling"
-            ? "Evaluating 128 rules"
-            : "Standby",
-      status:
-        phase === "input" || crawlStep < 2
-          ? "queued"
-          : isCompleted
-            ? "done"
-            : "scanning",
-    },
+    ...(showHome
+      ? [
+          {
+            name: "Sitemap & Internal Folder Spider",
+            detail:
+              visibleSections.length > 0
+                ? `${Math.max(visibleSections.length, totalPagesRecorded)} routes discovered`
+                : "Discovering top-level links from /…",
+            status:
+              visibleChildren.length > 0 || isCompleted ? "done" : "scanning",
+          },
+        ]
+      : []),
+    ...(visibleSections.length > 0
+      ? [
+          {
+            name: "Deep File DOM & Metadata Parser",
+            detail: `Inspecting ${currentScanningNode.path}`,
+            status: isCompleted ? "done" : "scanning",
+          },
+        ]
+      : []),
+    ...(visibleSections.length > 1 || totalIssuesRecorded > 0
+      ? [
+          {
+            name: "SEO Defect & Speed Rule Engine",
+            detail:
+              totalIssuesRecorded > 0
+                ? `${totalIssuesRecorded} issues flagged`
+                : "Checking titles, headings & speed…",
+            status: isCompleted ? "done" : "scanning",
+          },
+        ]
+      : []),
   ];
 
   const formatElapsed = (sec: number) => {
@@ -499,6 +592,11 @@ function AnalyzeOnboardingInner() {
     const rem = sec % 60;
     return `${String(mins).padStart(2, "0")}:${String(rem).padStart(2, "0")}`;
   };
+
+  // Calculate SVG column positions for currently visible sections & children
+  const secTotalCols = Math.max(1, visibleSections.length);
+  const firstSectionX = ((0 + 0.5) / secTotalCols) * 800;
+  const childTotalCols = Math.max(1, visibleChildren.length);
 
   return (
     <div
@@ -572,14 +670,14 @@ function AnalyzeOnboardingInner() {
               size={12}
               className={cn(
                 "text-signal-400",
-                phase === "crawling" && !isCompleted && "animate-spin",
+                !isCompleted && "animate-spin",
               )}
             />
-            {phase === "crawling"
-              ? isCompleted
-                ? "Crawl Complete"
-                : `Scanning: ${activeNode.path}`
-              : "Step 1 · Enter Website Below"}
+            {isCompleted
+              ? "Crawl Complete"
+              : showHome
+                ? `Scanning: ${currentScanningNode.path}`
+                : `Connecting: ${displayDomain}`}
           </span>
         </div>
 
@@ -589,9 +687,7 @@ function AnalyzeOnboardingInner() {
             <CheckCircle2 size={12} className="text-signal-400" />
             <span className="text-brand-500">Files Finished:</span>
             <strong className="font-mono text-brand-950">
-              {phase === "crawling"
-                ? Math.max(finishedCount, totalPagesRecorded)
-                : 0}
+              {filesFinishedCount}
             </strong>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
@@ -617,24 +713,22 @@ function AnalyzeOnboardingInner() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {(projects.length > 0 || phase === "crawling") && (
-            <button
-              type="button"
-              onClick={() => router.push("/website")}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
-            >
-              <span>Website Audit</span>
-              <ArrowRight size={13} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => router.push("/website")}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+          >
+            <span>Website Audit</span>
+            <ArrowRight size={13} />
+          </button>
         </div>
       </header>
 
-      {/* ── MAIN WORKSPACE: LEFT RUNTIME PANEL + CENTER TREE + RIGHT FINISHED LOG ── */}
+      {/* ── MAIN WORKSPACE: LEFT RUNTIME PANEL + CENTER PROGRESSIVE TREE + RIGHT FINISHED LOG ── */}
       <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-4 pt-3 pb-24 sm:px-6">
         <div className="grid grid-cols-1 items-center gap-5 lg:grid-cols-12">
           {/* =================================================================
-              LEFT COLUMN (3 COLS): ACTIVE FILE INSPECTOR & RUNTIME ENGINES
+              LEFT COLUMN (3 COLS): ACTIVE FILE INSPECTOR & RUNTIME TASKS
              ================================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-3.5">
             {/* Card 1: Currently Scanning File Inspector */}
@@ -644,38 +738,32 @@ function AnalyzeOnboardingInner() {
                   <Activity size={13} className="text-signal-400" />
                   Active File Scanner
                 </span>
-                <span
-                  className={cn(
-                    "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold",
-                    phase === "crawling"
-                      ? "bg-primary-50 text-signal-400"
-                      : "bg-surface-2 text-brand-400",
-                  )}
-                >
-                  {phase === "crawling"
-                    ? isCompleted
-                      ? "DONE"
-                      : "LIVE"
-                    : "STANDBY"}
+                <span className="rounded-md bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                  {isCompleted ? "DONE" : "LIVE"}
                 </span>
               </div>
 
               <div className="mt-3 rounded-xl border border-brand-200 bg-surface-2/70 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">
-                  {phase === "crawling" ? "Currently Crawling File" : "Start Point"}
+                  Currently Crawling File
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="truncate font-mono text-xs font-extrabold text-signal-400">
-                    {phase === "crawling" ? activeNode.path : "/ (Home)"}
+                    {showHome
+                      ? currentScanningNode.path === "/"
+                        ? "/ (Home)"
+                        : currentScanningNode.path
+                      : `https://${displayDomain}`}
                   </span>
-                  {phase === "crawling" && !isCompleted && (
+                  {!isCompleted && (
                     <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                   )}
                 </div>
                 <p className="mt-1.5 truncate text-xs font-medium text-brand-700">
-                  {phase === "crawling"
-                    ? activeNode.title || `Scanning HTML & links on ${activeNode.path}…`
-                    : "Enter your website below to start from Home (/)"}
+                  {showHome
+                    ? currentScanningNode.title ||
+                      `Reading HTML & internal links on ${currentScanningNode.path}…`
+                    : `Establishing connection to ${displayDomain}…`}
                 </p>
               </div>
 
@@ -684,29 +772,27 @@ function AnalyzeOnboardingInner() {
                 <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
                   <p className="text-[10px] text-brand-400">HTTP Status</p>
                   <p className="mt-0.5 font-mono font-bold text-brand-950">
-                    {phase === "crawling"
-                      ? activeNode.statusCode
-                        ? `${activeNode.statusCode} OK`
+                    {showHome
+                      ? currentScanningNode.statusCode
+                        ? `${currentScanningNode.statusCode} OK`
                         : "Verified"
-                      : "—"}
+                      : "Connecting…"}
                   </p>
                 </div>
                 <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
                   <p className="text-[10px] text-brand-400">Response Speed</p>
                   <p className="mt-0.5 font-mono font-bold text-brand-950">
-                    {phase === "crawling"
-                      ? activeNode.responseTimeMs
-                        ? `${activeNode.responseTimeMs}ms`
-                        : avgSpeedMs
-                          ? `${avgSpeedMs}ms`
-                          : "Checking…"
-                      : "—"}
+                    {currentScanningNode.responseTimeMs
+                      ? `${currentScanningNode.responseTimeMs}ms`
+                      : avgSpeedMs
+                        ? `${avgSpeedMs}ms`
+                        : "Measuring…"}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Runtime Crawler Functions */}
+            {/* Card 2: Step-by-Step Runtime Crawler Tasks */}
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
@@ -714,7 +800,7 @@ function AnalyzeOnboardingInner() {
                   Runtime Crawler Tasks
                 </span>
                 <span className="text-[10px] font-semibold text-brand-400">
-                  Real-time
+                  Step-by-step
                 </span>
               </div>
 
@@ -726,18 +812,14 @@ function AnalyzeOnboardingInner() {
                       "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-all",
                       eng.status === "done"
                         ? "border-signal-400/50 bg-primary-50/50 text-brand-950"
-                        : eng.status === "scanning"
-                          ? "border-signal-400 bg-surface-2 text-brand-950"
-                          : "border-brand-200/70 bg-surface-2/30 text-brand-500",
+                        : "border-signal-400 bg-surface-2 text-brand-950",
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       {eng.status === "done" ? (
                         <Check size={13} className="shrink-0 text-signal-400" strokeWidth={3} />
-                      ) : eng.status === "scanning" ? (
-                        <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                       ) : (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                        <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-[11px] font-bold text-brand-900">
@@ -755,359 +837,250 @@ function AnalyzeOnboardingInner() {
           </div>
 
           {/* =================================================================
-              CENTER COLUMN (6 COLS): ONE-BY-ONE HIERARCHICAL WEBSITE TREE
+              CENTER COLUMN (6 COLS): PROGRESSIVE TREE (STARTS FROM DOMAIN ONLY!)
              ================================================================= */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-center">
+          <div className="lg:col-span-6 flex flex-col items-center justify-center min-h-[380px]">
             <div className="w-full">
-              {/* LEVEL 0: TOP DOMAIN PILL */}
+              {/* LEVEL 0: TOP DOMAIN PILL (Always visible first!) */}
               <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "relative flex items-center gap-3 rounded-full border px-6 py-2.5 shadow-card transition-all duration-300",
-                    phase === "crawling"
-                      ? "border-signal-400 bg-surface-1 shadow-[0_0_28px_rgba(200,245,58,0.16)]"
-                      : "border-brand-300 bg-surface-1",
-                  )}
-                >
-                  <Globe
-                    size={18}
-                    className={cn(
-                      "shrink-0",
-                      phase === "crawling" ? "text-signal-400" : "text-brand-400",
-                    )}
-                  />
+                <div className="relative flex items-center gap-3 rounded-full border border-signal-400 bg-surface-1 px-6 py-3 shadow-[0_0_28px_rgba(200,245,58,0.18)] transition-all duration-300">
+                  <Globe size={18} className="shrink-0 text-signal-400" />
                   <span className="font-sans text-base font-extrabold tracking-tight text-brand-950 sm:text-lg">
                     {displayDomain}
                   </span>
-                  {phase === "crawling" && (
-                    <span className="rounded-full bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
-                      LIVE
-                    </span>
-                  )}
-                  <span
-                    className={cn(
-                      "absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-surface-1",
-                      phase === "crawling" ? "bg-signal-400" : "bg-brand-300",
-                    )}
-                  />
-                </div>
-
-                {/* Vertical Connector from Domain to Home (/) */}
-                <div
-                  className={cn(
-                    "h-8 w-0.5 transition-colors duration-500",
-                    phase === "crawling" ? "bg-signal-400" : "bg-brand-300/60",
-                  )}
-                />
-              </div>
-
-              {/* LEVEL 1: HOME ROOT NODE (🏠 / — Starts here first!) */}
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "relative flex min-w-[165px] items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 shadow-card transition-all duration-300",
-                    homeStatus === "done"
-                      ? "border-signal-400 bg-primary-50/90 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.15)]"
-                      : homeStatus === "scanning"
-                        ? "border-signal-400 bg-surface-1 text-brand-950 shadow-[0_0_28px_rgba(200,245,58,0.25)]"
-                        : "border-brand-300 bg-surface-1/80 text-brand-600",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute -top-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full",
-                      phase === "crawling" ? "bg-signal-400" : "bg-brand-300",
-                    )}
-                  />
-
-                  {homeStatus === "scanning" ? (
-                    <Loader2 size={15} className="shrink-0 animate-spin text-signal-400" />
-                  ) : homeStatus === "done" ? (
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
-                      <Check size={11} strokeWidth={3.5} />
-                    </span>
-                  ) : (
-                    <Home size={15} className="shrink-0 text-brand-400" />
-                  )}
-
-                  <span className="font-mono text-sm font-extrabold text-brand-950">
-                    / (Home)
+                  <span className="rounded-full bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                    LIVE
                   </span>
 
-                  {homeStatus === "scanning" && (
-                    <span className="rounded bg-primary-50 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
-                      Scanning…
-                    </span>
-                  )}
-                  {homeStatus === "done" && (
-                    <span className="rounded bg-surface-1 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
-                      {rootHome.responseTimeMs ? `${rootHome.responseTimeMs}ms` : "Done"}
-                    </span>
-                  )}
-
-                  {/* Sonar pulse when Home is actively scanning */}
-                  {homeStatus === "scanning" && (
-                    <span className="absolute -bottom-2 right-4 flex h-4 w-4 items-center justify-center">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-400" />
-                    </span>
+                  {showHome && (
+                    <span className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-surface-1 bg-signal-400" />
                   )}
                 </div>
+
+                {/* Vertical Connector to Home (/) — ONLY appears when step >= 1 */}
+                {showHome && (
+                  <div className="h-9 w-0.5 bg-signal-400 transition-all duration-500" />
+                )}
               </div>
 
-              {/* SVG BRANCHING CONNECTORS: HOME (/) -> 4 SECTION FOLDERS (Nodes 1..4) */}
-              <div className="w-full">
-                <svg
-                  viewBox="0 0 800 52"
-                  className="h-11 w-full overflow-visible sm:h-12"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  {[
-                    {
-                      nodeIdx: 1,
-                      x: 100,
-                      path: "M 400 0 L 400 15 Q 400 25 384 25 L 116 25 Q 100 25 100 38 L 100 52",
-                    },
-                    {
-                      nodeIdx: 2,
-                      x: 300,
-                      path: "M 400 0 L 400 15 Q 400 25 388 25 L 312 25 Q 300 25 300 38 L 300 52",
-                    },
-                    {
-                      nodeIdx: 3,
-                      x: 500,
-                      path: "M 400 0 L 400 15 Q 400 25 412 25 L 488 25 Q 500 25 500 38 L 500 52",
-                    },
-                    {
-                      nodeIdx: 4,
-                      x: 700,
-                      path: "M 400 0 L 400 15 Q 400 25 416 25 L 684 25 Q 700 25 700 38 L 700 52",
-                    },
-                  ].map((branch) => {
-                    const st = getNodeStatus(branch.nodeIdx);
-                    const activeOrDone = st === "scanning" || st === "done";
-                    return (
-                      <g key={branch.x}>
-                        <path
-                          d={branch.path}
-                          stroke={
-                            activeOrDone
-                              ? "var(--color-signal-400)"
-                              : "var(--color-brand-300)"
-                          }
-                          strokeWidth={activeOrDone ? "2.2" : "1.4"}
-                          strokeDasharray={st === "queued" ? "4 4" : undefined}
-                          strokeLinecap="round"
-                        />
-                        <circle
-                          cx={branch.x}
-                          cy={52}
-                          r="3.2"
-                          fill={
-                            activeOrDone
-                              ? "var(--color-signal-400)"
-                              : "var(--color-brand-300)"
-                          }
-                        />
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
+              {/* LEVEL 1: HOME NODE (/ (Home)) — ONLY appears when step >= 1 */}
+              {showHome && (
+                <div className="flex flex-col items-center">
+                  <div
+                    className={cn(
+                      "relative flex min-w-[170px] items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 shadow-card transition-all duration-300",
+                      homeDone
+                        ? "border-signal-400 bg-primary-50/90 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.15)]"
+                        : "border-signal-400 bg-surface-1 text-brand-950 shadow-[0_0_28px_rgba(200,245,58,0.25)]",
+                    )}
+                  >
+                    <span className="absolute -top-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-signal-400" />
 
-              {/* LEVEL 2: 4 SECTION FOLDER NODES (Nodes 1..4 — Finished one by one!) */}
-              <div className="grid grid-cols-4 gap-0">
-                {sections.map((sec, idx) => {
-                  const nodeIdx = idx + 1;
-                  const st = getNodeStatus(nodeIdx);
-                  return (
-                    <div key={sec.path} className="px-1 sm:px-2">
-                      <div
-                        className={cn(
-                          "relative flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 shadow-card transition-all duration-300",
-                          st === "done"
-                            ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.08)]"
-                            : st === "scanning"
-                              ? "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]"
-                              : "border-brand-200/70 bg-surface-1/60 text-brand-500 opacity-65",
-                        )}
-                      >
-                        <div className="flex w-full items-center justify-center gap-1.5">
-                          {st === "scanning" ? (
-                            <Loader2
-                              size={13}
-                              className="shrink-0 animate-spin text-signal-400"
+                    {homeDone ? (
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                        <Check size={11} strokeWidth={3.5} />
+                      </span>
+                    ) : (
+                      <Loader2 size={15} className="shrink-0 animate-spin text-signal-400" />
+                    )}
+
+                    <Home size={14} className="shrink-0 text-signal-400" />
+                    <span className="font-mono text-sm font-extrabold text-brand-950">
+                      / (Home)
+                    </span>
+
+                    <span className="rounded bg-surface-1 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                      {homeDone
+                        ? rootHome.responseTimeMs
+                          ? `${rootHome.responseTimeMs}ms`
+                          : "Done"
+                        : "Scanning…"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* LEVEL 2: DISCOVERED SECTION FOLDERS — Appear one by one as revealStep advances! */}
+              {visibleSections.length > 0 && (
+                <>
+                  <div className="w-full">
+                    <svg
+                      viewBox="0 0 800 52"
+                      className="h-11 w-full overflow-visible sm:h-12"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      {visibleSections.map((sec, idx) => {
+                        const targetX = ((idx + 0.5) / secTotalCols) * 800;
+                        const pathD = buildElbowPath(400, targetX, 52);
+                        return (
+                          <g key={sec.path}>
+                            <path
+                              d={pathD}
+                              stroke="var(--color-signal-400)"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
                             />
-                          ) : st === "done" ? (
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
-                              <Check size={10} strokeWidth={3.5} />
-                            </span>
-                          ) : (
-                            <Folder size={13} className="shrink-0 text-brand-400" />
-                          )}
-                          <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
-                            {sec.path}
-                          </span>
-                        </div>
-
-                        <span
-                          className={cn(
-                            "mt-1 text-[9.5px] font-semibold",
-                            st === "done"
-                              ? "text-signal-400"
-                              : st === "scanning"
-                                ? "text-signal-400"
-                                : "text-brand-400",
-                          )}
-                        >
-                          {st === "done"
-                            ? sec.responseTimeMs
-                              ? `✓ ${sec.responseTimeMs}ms`
-                              : "✓ Finished"
-                            : st === "scanning"
-                              ? "Scanning file…"
-                              : "Queued"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* SVG BRANCHING CONNECTORS: LEVEL 2 (x=100) -> LEVEL 3 (Nodes 5..7) */}
-              <div className="w-full">
-                <svg
-                  viewBox="0 0 800 52"
-                  className="h-11 w-full overflow-visible sm:h-12"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle
-                    cx="100"
-                    cy="0"
-                    r="3.2"
-                    fill={
-                      crawlStep >= 5 || isCompleted
-                        ? "var(--color-signal-400)"
-                        : "var(--color-brand-300)"
-                    }
-                  />
-
-                  {[
-                    {
-                      nodeIdx: 5,
-                      x: 100,
-                      path: "M 100 0 L 100 52",
-                    },
-                    {
-                      nodeIdx: 6,
-                      x: 300,
-                      path: "M 100 0 L 100 15 Q 100 25 116 25 L 284 25 Q 300 25 300 38 L 300 52",
-                    },
-                    {
-                      nodeIdx: 7,
-                      x: 500,
-                      path: "M 100 0 L 100 15 Q 100 25 116 25 L 484 25 Q 500 25 500 38 L 500 52",
-                    },
-                  ].map((branch) => {
-                    const st = getNodeStatus(branch.nodeIdx);
-                    const activeOrDone = st === "scanning" || st === "done";
-                    return (
-                      <g key={branch.x}>
-                        <path
-                          d={branch.path}
-                          stroke={
-                            activeOrDone
-                              ? "var(--color-signal-400)"
-                              : "var(--color-brand-300)"
-                          }
-                          strokeWidth={activeOrDone ? "2.2" : "1.4"}
-                          strokeDasharray={st === "queued" ? "4 4" : undefined}
-                          strokeLinecap="round"
-                        />
-                        <circle
-                          cx={branch.x}
-                          cy={52}
-                          r="3.2"
-                          fill={
-                            activeOrDone
-                              ? "var(--color-signal-400)"
-                              : "var(--color-brand-300)"
-                          }
-                        />
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-
-              {/* LEVEL 3: 3 CHILD PAGE FILES (Nodes 5..7 — Finished one by one!) */}
-              <div className="grid grid-cols-4 gap-0">
-                {children.map((child, idx) => {
-                  const nodeIdx = idx + 5;
-                  const st = getNodeStatus(nodeIdx);
-                  return (
-                    <div key={child.path} className="px-1 sm:px-2">
-                      <div
-                        className={cn(
-                          "flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 shadow-card transition-all duration-300",
-                          st === "done"
-                            ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.08)]"
-                            : st === "scanning"
-                              ? "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]"
-                              : "border-brand-200/70 bg-surface-1/60 text-brand-500 opacity-65",
-                        )}
-                      >
-                        <div className="flex w-full items-center justify-center gap-1.5">
-                          {st === "scanning" ? (
-                            <Loader2
-                              size={13}
-                              className="shrink-0 animate-spin text-signal-400"
+                            <circle
+                              cx={targetX}
+                              cy={52}
+                              r="3.2"
+                              fill="var(--color-signal-400)"
                             />
-                          ) : st === "done" ? (
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
-                              <Check size={10} strokeWidth={3.5} />
-                            </span>
-                          ) : (
-                            <FileText size={13} className="shrink-0 text-brand-400" />
-                          )}
-                          <span className="truncate font-mono text-[10.5px] font-bold text-brand-950 sm:text-[11px]">
-                            {child.path}
-                          </span>
-                        </div>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
 
-                        <span
-                          className={cn(
-                            "mt-1 text-[9.5px] font-semibold",
-                            st === "done"
-                              ? "text-signal-400"
-                              : st === "scanning"
-                                ? "text-signal-400"
-                                : "text-brand-400",
-                          )}
-                        >
-                          {st === "done"
-                            ? child.responseTimeMs
-                              ? `✓ ${child.responseTimeMs}ms`
-                              : "✓ Finished"
-                            : st === "scanning"
-                              ? "Scanning file…"
-                              : "Queued"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                  <div
+                    className="grid gap-0"
+                    style={{
+                      gridTemplateColumns: `repeat(${secTotalCols}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {visibleSections.map((sec, idx) => {
+                      const stepForThis = 2 + idx;
+                      const isDone = revealStep > stepForThis || isCompleted;
+                      return (
+                        <div key={sec.path} className="px-1.5 sm:px-2">
+                          <div
+                            className={cn(
+                              "relative flex flex-col items-center justify-center rounded-2xl border px-3 py-2.5 shadow-card transition-all duration-300",
+                              isDone
+                                ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.10)]"
+                                : "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]",
+                            )}
+                          >
+                            <div className="flex w-full items-center justify-center gap-1.5">
+                              {isDone ? (
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                                  <Check size={10} strokeWidth={3.5} />
+                                </span>
+                              ) : (
+                                <Loader2
+                                  size={13}
+                                  className="shrink-0 animate-spin text-signal-400"
+                                />
+                              )}
+                              <Folder size={13} className="shrink-0 text-signal-400" />
+                              <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
+                                {sec.path}
+                              </span>
+                            </div>
+
+                            <span className="mt-1 font-mono text-[9.5px] font-semibold text-signal-400">
+                              {isDone
+                                ? sec.responseTimeMs
+                                  ? `✓ ${sec.responseTimeMs}ms`
+                                  : "✓ Done"
+                                : "Scanning…"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* LEVEL 3: DISCOVERED CHILD FILES — Appear one by one after sections! */}
+              {visibleChildren.length > 0 && (
+                <>
+                  <div className="w-full">
+                    <svg
+                      viewBox="0 0 800 52"
+                      className="h-11 w-full overflow-visible sm:h-12"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle
+                        cx={firstSectionX}
+                        cy="0"
+                        r="3.2"
+                        fill="var(--color-signal-400)"
+                      />
+                      {visibleChildren.map((child, idx) => {
+                        const targetX = ((idx + 0.5) / childTotalCols) * 800;
+                        const pathD = buildElbowPath(firstSectionX, targetX, 52);
+                        return (
+                          <g key={child.path}>
+                            <path
+                              d={pathD}
+                              stroke="var(--color-signal-400)"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                            />
+                            <circle
+                              cx={targetX}
+                              cy={52}
+                              r="3.2"
+                              fill="var(--color-signal-400)"
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+
+                  <div
+                    className="grid gap-0"
+                    style={{
+                      gridTemplateColumns: `repeat(${childTotalCols}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {visibleChildren.map((child, idx) => {
+                      const stepForThis = childStartStep + idx;
+                      const isDone = revealStep > stepForThis || isCompleted;
+                      return (
+                        <div key={child.path} className="px-1.5 sm:px-2">
+                          <div
+                            className={cn(
+                              "flex flex-col items-center justify-center rounded-2xl border px-3 py-2.5 shadow-card transition-all duration-300",
+                              isDone
+                                ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.10)]"
+                                : "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]",
+                            )}
+                          >
+                            <div className="flex w-full items-center justify-center gap-1.5">
+                              {isDone ? (
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                                  <Check size={10} strokeWidth={3.5} />
+                                </span>
+                              ) : (
+                                <Loader2
+                                  size={13}
+                                  className="shrink-0 animate-spin text-signal-400"
+                                />
+                              )}
+                              <FileText size={13} className="shrink-0 text-signal-400" />
+                              <span className="truncate font-mono text-[10.5px] font-bold text-brand-950 sm:text-[11px]">
+                                {child.path}
+                              </span>
+                            </div>
+
+                            <span className="mt-1 font-mono text-[9.5px] font-semibold text-signal-400">
+                              {isDone
+                                ? child.responseTimeMs
+                                  ? `✓ ${child.responseTimeMs}ms`
+                                  : "✓ Done"
+                                : "Scanning…"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* =================================================================
-              RIGHT COLUMN (3 COLS): ONE-BY-ONE FINISHED FILES & LIVE ISSUES
+              RIGHT COLUMN (3 COLS): STEP-BY-STEP FINISHED FILES & LIVE ISSUES
              ================================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-3.5">
-            {/* Card 1: Files Finished One-by-One */}
+            {/* Card 1: Files Finished Step by Step (No pre-rendered queued items!) */}
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
@@ -1115,73 +1088,58 @@ function AnalyzeOnboardingInner() {
                   Finished Files
                 </span>
                 <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
-                  {phase === "crawling"
-                    ? `${Math.max(finishedCount, totalPagesRecorded)} done`
-                    : "0 done"}
+                  {filesFinishedCount} done
                 </span>
               </div>
 
-              {phase === "crawling" ? (
+              {revealedNodes.length > 0 ? (
                 <div className="mt-3 space-y-1.5">
-                  {orderedNodes.slice(0, 6).map((node, idx) => {
-                    const st = getNodeStatus(idx);
-                    return (
-                      <div
-                        key={node.path}
-                        className={cn(
-                          "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 font-mono text-[11px] transition-all",
-                          st === "done"
-                            ? "border-brand-200 bg-surface-2/80 text-brand-950"
-                            : st === "scanning"
-                              ? "border-signal-400 bg-primary-50/70 text-brand-950"
-                              : "border-brand-200/50 bg-surface-2/20 text-brand-400 opacity-60",
+                  {revealedNodes.slice(0, 6).map(({ node, done }) => (
+                    <div
+                      key={node.path}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 font-mono text-[11px] transition-all",
+                        done
+                          ? "border-brand-200 bg-surface-2/80 text-brand-950"
+                          : "border-signal-400 bg-primary-50/70 text-brand-950",
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        {done ? (
+                          <Check
+                            size={12}
+                            className="shrink-0 text-signal-400"
+                            strokeWidth={3}
+                          />
+                        ) : (
+                          <Loader2
+                            size={12}
+                            className="shrink-0 animate-spin text-signal-400"
+                          />
                         )}
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          {st === "done" ? (
-                            <Check
-                              size={12}
-                              className="shrink-0 text-signal-400"
-                              strokeWidth={3}
-                            />
-                          ) : st === "scanning" ? (
-                            <Loader2
-                              size={12}
-                              className="shrink-0 animate-spin text-signal-400"
-                            />
-                          ) : (
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
-                          )}
-                          <span className="truncate font-semibold">
-                            {node.path === "/" ? "/ (Home)" : node.path}
-                          </span>
-                        </div>
-                        <span
-                          className={cn(
-                            "shrink-0 text-[10px] font-bold",
-                            st === "done"
-                              ? "text-signal-400"
-                              : st === "scanning"
-                                ? "text-warning-700"
-                                : "text-brand-400",
-                          )}
-                        >
-                          {st === "done"
-                            ? node.responseTimeMs
-                              ? `${node.responseTimeMs}ms`
-                              : "Done"
-                            : st === "scanning"
-                              ? "Scanning"
-                              : "Wait"}
+                        <span className="truncate font-semibold">
+                          {node.path === "/" ? "/ (Home)" : node.path}
                         </span>
                       </div>
-                    );
-                  })}
+                      <span
+                        className={cn(
+                          "shrink-0 text-[10px] font-bold",
+                          done ? "text-signal-400" : "text-warning-700",
+                        )}
+                      >
+                        {done
+                          ? node.responseTimeMs
+                            ? `${node.responseTimeMs}ms`
+                            : "Done"
+                          : "Scanning"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="mt-3 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs leading-relaxed text-brand-500">
-                  Once you submit your website below, we start from{" "}
-                  <strong className="text-brand-800">/ (Home)</strong> and check off each page file one by one here.
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs text-brand-500">
+                  <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                  <span>Starting from {displayDomain}…</span>
                 </div>
               )}
             </div>
@@ -1196,9 +1154,7 @@ function AnalyzeOnboardingInner() {
                 <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-warning-700">
                   {totalIssuesRecorded > 0
                     ? `${totalIssuesRecorded} issues`
-                    : phase === "crawling"
-                      ? "Scanning…"
-                      : "Standby"}
+                    : "Scanning…"}
                 </span>
               </div>
 
@@ -1218,7 +1174,7 @@ function AnalyzeOnboardingInner() {
                     </div>
                   ))}
                 </div>
-              ) : phase === "crawling" ? (
+              ) : (
                 <div className="mt-3 space-y-1.5 text-[11px] text-brand-600">
                   {autopilotLogs.length > 0 ? (
                     autopilotLogs.slice(-3).map((l, i) => (
@@ -1229,111 +1185,57 @@ function AnalyzeOnboardingInner() {
                   ) : (
                     <>
                       <p className="truncate">
-                        <span className="font-bold text-signal-400">›</span> Started at / (Home page)
+                        <span className="font-bold text-signal-400">›</span> Connected to {displayDomain}
                       </p>
                       <p className="truncate">
-                        <span className="font-bold text-signal-400">›</span> Inspecting titles, speed & broken links…
+                        <span className="font-bold text-signal-400">›</span> Mapping pages step by step…
                       </p>
                     </>
                   )}
                 </div>
-              ) : (
-                <p className="mt-3 text-xs leading-relaxed text-brand-500">
-                  Real-time SEO issues, broken links, and speed bottlenecks appear here as each file finishes.
-                </p>
               )}
             </div>
           </div>
         </div>
       </main>
 
-      {/* ── BOTTOM COMMAND & PROGRESS BAR ── */}
+      {/* ── BOTTOM CRAWLER PROGRESS BAR ── */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200/80 bg-surface-1/95 px-4 py-3.5 shadow-2xl backdrop-blur-xl sm:px-6">
         <div className="mx-auto max-w-2xl">
-          {phase === "input" ? (
-            <form onSubmit={handleStartAudit} noValidate>
-              {error && (
-                <div
-                  role="alert"
-                  className="mb-2.5 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-3.5 py-2 text-xs font-semibold text-error-700"
-                >
-                  <AlertTriangle size={14} className="shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                <div className="flex flex-1 items-center gap-2.5 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3 focus-within:border-signal-400 transition-colors">
-                  <Globe size={17} className="shrink-0 text-signal-400" />
-                  <span className="select-none font-mono text-xs font-bold text-brand-400">
-                    https://
-                  </span>
-                  <input
-                    id="onboarding-domain"
-                    type="text"
-                    required
-                    autoFocus
-                    value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                    placeholder="yourwebsite.com"
-                    className="w-full min-w-0 border-0 bg-transparent font-mono text-sm font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                    style={{ outline: "none", boxShadow: "none" }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 px-6 py-3.5 text-sm font-extrabold text-signal-ink shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Starting Crawl…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Start Website Audit</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-col items-center">
-              <div className="flex w-full items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  {isCompleted ? (
-                    <Check size={17} className="text-signal-400" strokeWidth={3} />
-                  ) : (
-                    <Loader2 size={16} className="animate-spin text-signal-400" />
-                  )}
-                  <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
-                    {isCompleted
-                      ? "Audit Complete — Opening Website Audit..."
-                      : `Crawling Website... (${activeNode.path === "/" ? "/ Home" : activeNode.path})`}
-                  </p>
-                </div>
-
-                <span className="font-mono text-xs font-bold text-brand-500">
-                  {Math.max(finishedCount, totalPagesRecorded)} files finished
-                </span>
+          <div className="flex flex-col items-center">
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {isCompleted ? (
+                  <Check size={17} className="text-signal-400" strokeWidth={3} />
+                ) : (
+                  <Loader2 size={16} className="animate-spin text-signal-400" />
+                )}
+                <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
+                  {isCompleted
+                    ? "Audit Complete — Opening Website Audit..."
+                    : showHome
+                      ? `Crawling Website... (${currentScanningNode.path === "/" ? "/ Home" : currentScanningNode.path})`
+                      : `Connecting to ${displayDomain}...`}
+                </p>
               </div>
 
-              <div className="mt-2 flex w-full items-center gap-3.5">
-                <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
-                  <div
-                    className="h-full rounded-full bg-signal-400 shadow-[0_0_16px_rgba(200,245,58,0.6)] transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <span className="w-11 shrink-0 text-right font-mono text-sm font-extrabold text-signal-400">
-                  {progressPct}%
-                </span>
-              </div>
+              <span className="font-mono text-xs font-bold text-brand-500">
+                {filesFinishedCount} files finished
+              </span>
             </div>
-          )}
+
+            <div className="mt-2 flex w-full items-center gap-3.5">
+              <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
+                <div
+                  className="h-full rounded-full bg-signal-400 shadow-[0_0_16px_rgba(200,245,58,0.6)] transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <span className="w-11 shrink-0 text-right font-mono text-sm font-extrabold text-signal-400">
+                {progressPct}%
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
