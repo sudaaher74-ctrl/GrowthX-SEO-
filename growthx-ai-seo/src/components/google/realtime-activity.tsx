@@ -22,19 +22,42 @@ export function RealtimeActivity({ projectId, compact = false }: { projectId: st
   if (compact && !expanded) {
     const unavailable = report.isError || report.data?.state !== "READY" || !live || !Number.isFinite(live.activeUsers);
     return (
-      <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card" aria-live="polite">
-        <p className="text-xs font-medium text-brand-400">Realtime activity</p>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950" aria-label="Active users in last 30 minutes">
-            {report.isPending ? "—" : unavailable ? "—" : count(live!.activeUsers)}
-          </span>
-          <span className="text-xs text-brand-400">active in 30 min</span>
+      <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card" aria-live="polite">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">Realtime activity</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-success-500/30 bg-success-50 px-2 py-0.5 font-mono text-[10px] font-bold text-success-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+              Live 30m
+            </span>
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-baseline gap-2">
+            <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950" aria-label="Active users in last 30 minutes">
+              {report.isPending ? "—" : unavailable ? "—" : count(live!.activeUsers)}
+            </span>
+            <span className="text-xs font-medium text-brand-400">active now</span>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-brand-400">
-          {report.isPending ? "Loading activity…" : report.isError ? "Realtime activity is unavailable" : unavailable ? (report.data?.message ?? "Connect Google Analytics to see activity") : `Last 30 minutes · updated ${new Date(report.data.data?.fetchedAt ?? "").toLocaleTimeString()}`}
-        </p>
-        <p className="mt-1 text-[11px] text-brand-400">Refreshes every 5 minutes</p>
-        <button type="button" className="mt-2 text-xs text-primary-700 underline" onClick={() => setExpanded(true)}>View realtime details</button>
+        <div className="mt-3 border-t border-brand-200/50 pt-2.5">
+          <div className="flex items-center justify-between gap-2 text-[11px] text-brand-400">
+            <span className="truncate">
+              {report.isPending
+                ? "Loading activity…"
+                : report.isError
+                  ? "Realtime unavailable"
+                  : unavailable
+                    ? (report.data?.message ?? "Connect GA4")
+                    : `Updated ${new Date(report.data.data?.fetchedAt ?? "").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 font-semibold text-primary-700 hover:underline"
+              onClick={() => setExpanded(true)}
+            >
+              Details →
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

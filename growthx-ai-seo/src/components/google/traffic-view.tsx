@@ -12,9 +12,12 @@ import {
   FileText,
   Globe,
   MapPin,
+  MousePointerClick,
   Search,
   Share2,
   Sparkles,
+  Target,
+  Users,
 } from "lucide-react";
 import { Panel, Tabs } from "@/components/ui/console";
 import { ImprovementReportView } from "@/components/google/improvement-report-view";
@@ -229,10 +232,19 @@ function TrafficViewClient() {
   const sessionsPerVisitor = visitorsCount != null && visitorsCount > 0 && sessionsCount != null ? (sessionsCount / visitorsCount).toFixed(1) : "—";
 
   const searchClicks = gscSummary.query.data?.clicks?.current ?? null;
+  const searchClicksChangePct = gscSummary.query.data?.clicks?.changePct;
+  const roundedClicksChangePct =
+    searchClicksChangePct !== null && searchClicksChangePct !== undefined && Number.isFinite(searchClicksChangePct)
+      ? Math.round(searchClicksChangePct * 10) / 10
+      : null;
   const searchImpressions = gscSummary.query.data?.impressions?.current ?? null;
   const searchCtr = gscSummary.query.data?.ctr?.current ?? null;
   const searchPosition = gscSummary.query.data?.position?.current ?? null;
   const positionChangePct = gscSummary.query.data?.position?.changePct;
+  const roundedPositionChangePct =
+    positionChangePct !== null && positionChangePct !== undefined && Number.isFinite(positionChangePct)
+      ? Math.round(positionChangePct * 10) / 10
+      : null;
 
   // Build daily timeline combining GA4 visitors and GSC clicks
   const dailyChartData = useMemo(() => {
@@ -444,14 +456,21 @@ function TrafficViewClient() {
       {/* ── 4 KPI METRIC CARDS ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Visitors */}
-        <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
-          <p className="text-xs font-medium text-brand-400">Visitors</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              {count(visitorsCount)}
-            </span>
+        <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">Visitors</p>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-brand-500">
+                <Users size={14} />
+              </span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-baseline gap-2">
+              <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
+                {count(visitorsCount)}
+              </span>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-brand-400">
+          <p className="mt-3 border-t border-brand-200/50 pt-2.5 text-[11px] text-brand-400">
             {count(sessionsCount)} sessions · {sessionsPerVisitor} per visitor
           </p>
         </div>
@@ -460,30 +479,75 @@ function TrafficViewClient() {
         <RealtimeActivity projectId={projectId} compact />
 
         {/* Search clicks */}
-        <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
-          <p className="text-xs font-medium text-brand-400">Search clicks</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              {count(searchClicks)}
-            </span>
+        <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">Search clicks</p>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-success-50 text-success-700">
+                <MousePointerClick size={14} />
+              </span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
+                {count(searchClicks)}
+              </span>
+              {roundedClicksChangePct !== null && (
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-0.5 rounded-md border px-2 py-0.5 font-mono text-[11px] font-bold",
+                    roundedClicksChangePct >= 0
+                      ? "border-success-500/30 bg-success-50 text-success-700"
+                      : "border-error-500/30 bg-error-50 text-error-700",
+                  )}
+                >
+                  {roundedClicksChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {roundedClicksChangePct > 0 ? `+${roundedClicksChangePct}%` : `${roundedClicksChangePct}%`}
+                </span>
+              )}
+            </div>
           </div>
-          <p className="mt-2 text-xs text-brand-400">
+          <p className="mt-3 border-t border-brand-200/50 pt-2.5 text-[11px] text-brand-400">
             {count(searchImpressions)} impressions · {percent(searchCtr)} CTR
           </p>
         </div>
 
         {/* Avg. search position */}
-        <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
-          <p className="text-xs font-medium text-brand-400">Avg. search position</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-              {searchPosition !== null && searchPosition > 0 ? `#${searchPosition.toFixed(1)}` : "—"}
-            </span>
-            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-error-500">
-              {positionChangePct !== null && positionChangePct !== undefined ? `${positionChangePct}% change` : "Change not measured"}
-            </span>
+        <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/60 bg-brand-50/70 p-5 shadow-card">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">Avg. search position</p>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-700">
+                <Target size={14} />
+              </span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-mono text-3xl font-extrabold tracking-tight text-brand-950">
+                {searchPosition !== null && searchPosition > 0 ? `#${searchPosition.toFixed(1)}` : "—"}
+              </span>
+              {roundedPositionChangePct !== null && (
+                <span
+                  title="Negative percentage means position moved closer to #1"
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-0.5 rounded-md border px-2 py-0.5 font-mono text-[11px] font-bold",
+                    roundedPositionChangePct <= 0
+                      ? "border-success-500/30 bg-success-50 text-success-700"
+                      : "border-error-500/30 bg-error-50 text-error-700",
+                  )}
+                >
+                  {roundedPositionChangePct <= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {roundedPositionChangePct > 0 ? `+${roundedPositionChangePct}%` : `${roundedPositionChangePct}%`}
+                </span>
+              )}
+            </div>
           </div>
-          <p className="mt-2 text-xs text-brand-400">Lower is better</p>
+          <p className="mt-3 border-t border-brand-200/50 pt-2.5 text-[11px] text-brand-400">
+            Lower is better
+            {roundedPositionChangePct !== null
+              ? roundedPositionChangePct <= 0
+                ? " · Ranked higher vs prior window"
+                : " · Ranked lower vs prior window"
+              : " · Change not measured"}
+          </p>
         </div>
       </div>
 

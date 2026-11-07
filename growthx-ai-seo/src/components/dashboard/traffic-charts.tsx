@@ -17,9 +17,9 @@ export function BigMeasure({ label, hint, measure }: { label: string; hint: stri
       {measured ? (
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[24px] sm:text-[28px] font-bold leading-none tracking-tight text-brand-950">
           {measured.value.toLocaleString()}
-          {change != null && (
+          {change != null && Number.isFinite(change) && (
             <span className={cn("text-[11px] font-bold tracking-normal", change >= 0 ? "text-success-700" : "text-error-700")}>
-              {change >= 0 ? "▲" : "▼"} {Math.abs(change)}%
+              {change >= 0 ? "▲" : "▼"} {Math.round(Math.abs(change) * 10) / 10}%
             </span>
           )}
         </p>
