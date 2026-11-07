@@ -21,7 +21,6 @@ import {
   Radar,
   Search,
   ShieldCheck,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { api, auth, subscribeToAuthChange, type AutopilotRun } from "@/lib/api-client";
@@ -48,8 +47,17 @@ function getPathname(rawUrl: string): string {
   }
 }
 
+function formatShortChildLabel(path: string, parentSectionPath?: string): string {
+  if (parentSectionPath && path.startsWith(`${parentSectionPath}/`)) {
+    const sub = path.slice(parentSectionPath.length);
+    return sub || path;
+  }
+  return path;
+}
+
 interface TreeNodeData {
   path: string;
+  shortLabel: string;
   title?: string | null;
   metaDescription?: string | null;
   h1?: string[];
@@ -60,7 +68,7 @@ interface TreeNodeData {
 }
 
 /**
- * Builds the tree strictly from real discovered pages (no hardcoded fake routes).
+ * Builds the tree strictly from real discovered pages (up to 4 top sections + up to 12 child pages in multi-row grid).
  */
 function buildRealTree(pages: CrawlPage[]): {
   rootHome: TreeNodeData;
@@ -70,6 +78,7 @@ function buildRealTree(pages: CrawlPage[]): {
   const homePage = pages.find((p) => getPathname(p.url) === "/");
   const rootHome: TreeNodeData = {
     path: "/",
+    shortLabel: "/ (Home)",
     title: homePage?.title ?? null,
     metaDescription: homePage?.metaDescription ?? null,
     h1: homePage?.h1,
@@ -92,6 +101,7 @@ function buildRealTree(pages: CrawlPage[]): {
     if (!sectionMap.has(topPath)) {
       sectionMap.set(topPath, {
         path: topPath,
+        shortLabel: topPath,
         title: page.title,
         metaDescription: page.metaDescription,
         h1: page.h1,
@@ -106,6 +116,7 @@ function buildRealTree(pages: CrawlPage[]): {
       if (!deepPages.some((d) => d.path === pathname)) {
         deepPages.push({
           path: pathname,
+          shortLabel: `/${segments.slice(1).join("/")}`,
           title: page.title,
           metaDescription: page.metaDescription,
           h1: page.h1,
@@ -118,48 +129,49 @@ function buildRealTree(pages: CrawlPage[]): {
     }
   }
 
-  // If fewer than 3 multi-segment pages exist, use any remaining discovered pages beyond the top 4 sections
   const sections = Array.from(sectionMap.values()).slice(0, 4);
-  if (deepPages.length < 3 && pages.length > sections.length + 1) {
-    for (const extra of pages) {
-      if (deepPages.length >= 3) break;
-      const pathname = getPathname(extra.url).replace(/\/+$/, "") || "/";
-      if (
-        pathname !== "/" &&
-        !sections.some((s) => s.path === pathname) &&
-        !deepPages.some((d) => d.path === pathname)
-      ) {
-        deepPages.push({
-          path: pathname,
-          title: extra.title,
-          metaDescription: extra.metaDescription,
-          h1: extra.h1,
-          wordCount: extra.wordCount,
-          statusCode: extra.statusCode,
-          indexability: extra.indexability,
-          responseTimeMs: extra.responseTimeMs,
-        });
-      }
+  const primarySectionPath = sections[0]?.path;
+
+  // Also include any additional top-level pages beyond the first 4 sections so all discovered pages appear
+  for (const extra of pages) {
+    if (deepPages.length >= 12) break;
+    const pathname = getPathname(extra.url).replace(/\/+$/, "") || "/";
+    if (
+      pathname !== "/" &&
+      !sections.some((s) => s.path === pathname) &&
+      !deepPages.some((d) => d.path === pathname)
+    ) {
+      deepPages.push({
+        path: pathname,
+        shortLabel: formatShortChildLabel(pathname, primarySectionPath),
+        title: extra.title,
+        metaDescription: extra.metaDescription,
+        h1: extra.h1,
+        wordCount: extra.wordCount,
+        statusCode: extra.statusCode,
+        indexability: extra.indexability,
+        responseTimeMs: extra.responseTimeMs,
+      });
     }
   }
 
   return {
     rootHome,
     sections,
-    children: deepPages.slice(0, 3),
+    children: deepPages.slice(0, 12),
   };
 }
 
 /**
  * Generates a smooth SVG rounded orthogonal elbow path from (x1, 0) to (x2, height).
  */
-function buildElbowPath(x1: number, x2: number, height = 52): string {
+function buildElbowPath(x1: number, x2: number, height = 44): string {
   const dx = x2 - x1;
   if (Math.abs(dx) < 2) {
     return `M ${x1} 0 L ${x2} ${height}`;
   }
   const dir = dx > 0 ? 1 : -1;
-  const r = Math.min(14, Math.abs(dx) / 2);
+  const r = Math.min(12, Math.abs(dx) / 2);
   const midY = Math.round(height * 0.48);
   return `M ${x1} 0 L ${x1} ${midY - r} Q ${x1} ${midY} ${x1 + dir * r} ${midY} L ${x2 - dir * r} ${midY} Q ${x2} ${midY} ${x2} ${midY + r} L ${x2} ${height}`;
 }
@@ -198,9 +210,9 @@ function AnalyzeOnboardingInner() {
 
   /**
    * Step-by-step progressive reveal counter:
-   * 0 = ONLY [ 🌐 domain.com ] is shown on screen (no / Home or child nodes yet!)
-   * 1 = [ 🏠 / (Home) ] appears and scans
-   * 2..N = Each discovered section & child file appears one by one!
+   * 0 = ONLY [ 🌐 domain.com ] is shown on screen
+   * 1 = [ 🏠 / (Home) ] appears
+   * 2..N = Every discovered section & child page appears one by one!
    */
   const [revealStep, setRevealStep] = useState<number>(0);
   const [elapsedSec, setElapsedSec] = useState<number>(0);
@@ -241,20 +253,20 @@ function AnalyzeOnboardingInner() {
   // Poll live discovered pages from the active crawl job
   const pagesQuery = useQuery({
     queryKey: ["onboarding-crawl-pages", crawlId],
-    queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 24 }),
+    queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 40 }),
     enabled: phase === "crawling" && Boolean(crawlId),
     refetchInterval: isCompleted || isFailed ? false : 1500,
   });
 
-  // Poll live detected issues from the active crawl job
+  // Poll live detected issues count from the active crawl job
   const issuesQuery = useQuery({
     queryKey: ["onboarding-crawl-issues", crawlId],
-    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 10 }),
+    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 6 }),
     enabled: phase === "crawling" && Boolean(crawlId),
     refetchInterval: isCompleted || isFailed ? false : 2000,
   });
 
-  const autopilotQuery = useQuery({
+  useQuery({
     queryKey: ["onboarding-autopilot", activeProjectId],
     queryFn: () => api.autopilot.latest(activeProjectId!),
     enabled: phase === "crawling" && Boolean(activeProjectId),
@@ -275,7 +287,6 @@ function AnalyzeOnboardingInner() {
     issuesQuery.data?.meta?.total ?? 0,
     crawledIssues.length,
   );
-  const autopilotLogs = autopilotQuery.data?.log ?? initialRun?.log ?? [];
 
   const { rootHome, sections, children } = useMemo(
     () => buildRealTree(crawledPages),
@@ -283,26 +294,25 @@ function AnalyzeOnboardingInner() {
   );
 
   // Total available nodes based on real data discovered so far:
-  // Node 1 is / (Home), then each discovered section, then each discovered child page
+  // Node 1 is / (Home), then each discovered section, then each discovered child page (up to 12)
   const maxAvailableStep = 1 + sections.length + children.length;
 
-  // Step-by-step timer: starts at 0 (only domain pill), then reveals 1 node at a time as pages arrive
+  // Step-by-step timer: starts at 0 (only domain pill), then reveals 1 node at a time
   useEffect(() => {
     if (phase !== "crawling") return;
     const timer = setInterval(() => {
       setElapsedSec((s) => s + 1);
       setRevealStep((prev) => {
-        if (isCompleted) return maxAvailableStep + 1;
-        // Always allow advancing to step 1 (/ Home), then advance one by one up to maxAvailableStep
+        if (isCompleted && prev >= maxAvailableStep) return maxAvailableStep + 1;
         if (prev < 1) return 1;
         if (prev < maxAvailableStep) return prev + 1;
         return prev;
       });
-    }, 1100);
+    }, 850);
     return () => clearInterval(timer);
   }, [phase, isCompleted, maxAvailableStep]);
 
-  // Automatically redirect to Website Audit (/website) only after the crawl finishes AND the tree steps have revealed
+  // Automatically redirect to Website Audit (/website) after crawl finishes AND all nodes have revealed
   useEffect(() => {
     if (phase !== "crawling" || !isCompleted) return;
     if (revealStep < maxAvailableStep) return;
@@ -313,7 +323,7 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["issue-counts"] });
       queryClient.invalidateQueries({ queryKey: ["issue-groups"] });
       router.replace("/website");
-    }, 1200);
+    }, 1100);
     return () => clearTimeout(timer);
   }, [phase, isCompleted, revealStep, maxAvailableStep, queryClient, router]);
 
@@ -361,7 +371,6 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
 
-      // Start at step 0: ONLY the website domain pill is visible at first!
       setRevealStep(0);
       setElapsedSec(0);
       setActiveDomain(run.domain || cleaned);
@@ -376,7 +385,7 @@ function AnalyzeOnboardingInner() {
   if (signedIn !== true) return null;
 
   // ===========================================================================
-  // SCREEN 1: PREMIUM ONBOARDING LAUNCH SCREEN (NO PRE-RENDERED CRAWL TREE)
+  // SCREEN 1: PURE BLACK PREMIUM ONBOARDING LAUNCH SCREEN (ZERO YELLOW TINT)
   // ===========================================================================
   if (phase === "input") {
     return (
@@ -384,22 +393,17 @@ function AnalyzeOnboardingInner() {
         className="dash-dark dark relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none"
         style={{ background: "var(--color-canvas)" }}
       >
-        {/* Architectural Technical Grid + Ambient Lime Spotlight + Radar Rings */}
+        {/* Subtle Neutral Technical Grid + Soft Violet Spotlight (No Yellow!) */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div
-            className="absolute left-1/2 top-1/3 h-[560px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"
+            className="absolute left-1/2 top-1/3 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-3xl"
             style={{
               background:
-                "radial-gradient(circle, rgba(200, 245, 58, 0.22) 0%, rgba(9, 10, 13, 0) 70%)",
+                "radial-gradient(circle, rgba(139, 92, 246, 0.22) 0%, rgba(9, 10, 13, 0) 70%)",
             }}
           />
-
-          {/* Concentric Radar Rings behind the hero card */}
-          <div className="absolute left-1/2 top-1/2 h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-200/30" />
-          <div className="absolute left-1/2 top-1/2 h-[440px] w-[440px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-brand-200/40" />
-
           <svg
-            className="absolute inset-0 h-full w-full opacity-[0.11]"
+            className="absolute inset-0 h-full w-full opacity-[0.08]"
             xmlns="http://www.w3.org/2000/svg"
           >
             <defs>
@@ -429,7 +433,6 @@ function AnalyzeOnboardingInner() {
                   stroke="var(--color-brand-400)"
                   strokeWidth="1"
                 />
-                <circle cx="0" cy="0" r="1.5" fill="var(--color-signal-400)" />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#onboard-grid)" />
@@ -443,7 +446,7 @@ function AnalyzeOnboardingInner() {
         >
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-series-6 font-mono text-xs font-black text-white shadow-xs">
                 R
               </span>
               <span className="text-lg font-extrabold tracking-tight text-brand-950">
@@ -452,14 +455,14 @@ function AnalyzeOnboardingInner() {
             </Link>
             <span className="hidden sm:inline text-brand-300">/</span>
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700">
-              <span className="h-2 w-2 rounded-full bg-signal-400 animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-series-6" />
               Step 1 · Add Your Website
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-[11px] font-semibold text-brand-500">
-              <Lock size={11} className="text-signal-400" />
+              <Lock size={11} className="text-series-6" />
               Safe Read-Only Crawler
             </span>
             {projects.length > 0 && (
@@ -477,23 +480,20 @@ function AnalyzeOnboardingInner() {
 
         {/* Centerpiece Onboarding Command Card */}
         <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-4 py-8">
-          {/* Eyebrow Pill */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-signal-400/40 bg-primary-50 px-4 py-1.5 text-xs font-bold tracking-wide text-signal-400 shadow-xs">
-            <Sparkles size={13} />
-            <span>AUTONOMOUS TECHNICAL SEO &amp; AI SEARCH CRAWLER</span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-surface-1 px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-600 shadow-xs">
+            <Radar size={13} className="text-series-6" />
+            <span>Autonomous Website Structure &amp; SEO Crawler</span>
           </div>
 
-          {/* Headline */}
           <h1 className="mt-5 text-center text-3xl font-extrabold tracking-tight text-brand-950 sm:text-5xl sm:leading-[1.12]">
-            Enter your website to launch{" "}
-            <span className="text-signal-400">a live structure audit.</span>
+            Enter your website to start{" "}
+            <span className="text-series-6">a live technical audit.</span>
           </h1>
 
-          {/* Subtitle */}
           <p className="mt-3.5 max-w-xl text-center text-sm leading-relaxed text-brand-500 sm:text-base">
-            Add your domain below. Our live crawler will connect to your website,
-            map your pages step by step, inspect speed and SEO issues, and open
-            your full <strong className="font-semibold text-brand-800">Website Audit</strong> report automatically.
+            Add your domain below. Our crawler connects to your root domain, maps
+            every discovered page step by step, checks speed and SEO health, and
+            opens your <strong className="font-semibold text-brand-800">Website Audit</strong> report automatically.
           </p>
 
           {/* Elevated Command Bar Card */}
@@ -510,8 +510,8 @@ function AnalyzeOnboardingInner() {
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-signal-400 transition-colors">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-signal-400">
+                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-series-6 transition-colors">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-series-6">
                     <Globe size={17} />
                   </span>
                   <span className="select-none font-mono text-sm font-bold text-brand-400">
@@ -533,7 +533,7 @@ function AnalyzeOnboardingInner() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 px-7 py-4 text-sm font-extrabold text-signal-ink shadow-[0_0_24px_rgba(200,245,58,0.3)] transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-series-6 px-7 py-4 text-sm font-extrabold text-white shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
                 >
                   {submitting ? (
                     <>
@@ -549,18 +549,17 @@ function AnalyzeOnboardingInner() {
                 </button>
               </div>
 
-              {/* Trust & Capability Strip inside Card */}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-brand-200/80 pt-3.5 text-xs text-brand-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 size={13} className="text-signal-400" />
+                  <CheckCircle2 size={13} className="text-success-500" />
                   Starts from your root domain &amp; maps pages step by step
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Zap size={13} className="text-signal-400" />
+                  <Zap size={13} className="text-series-6" />
                   128+ SEO, speed &amp; AI visibility checks
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck size={13} className="text-signal-400" />
+                  <ShieldCheck size={13} className="text-success-500" />
                   Opens Website Audit automatically
                 </span>
               </div>
@@ -571,7 +570,7 @@ function AnalyzeOnboardingInner() {
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
                   <Radar size={13} />
                 </span>
                 <span>01 · Live Sitemap Spider</span>
@@ -583,7 +582,7 @@ function AnalyzeOnboardingInner() {
 
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
                   <Search size={13} />
                 </span>
                 <span>02 · Technical &amp; Speed Audit</span>
@@ -595,8 +594,8 @@ function AnalyzeOnboardingInner() {
 
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
-                  <Sparkles size={13} />
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
+                  <ShieldCheck size={13} />
                 </span>
                 <span>03 · Instant Audit Dashboard</span>
               </div>
@@ -607,7 +606,6 @@ function AnalyzeOnboardingInner() {
           </div>
         </main>
 
-        {/* Subtle Footer */}
         <footer className="relative z-10 pb-4 text-center font-mono text-[11px] text-brand-400">
           Reigel Autonomous SEO &amp; AI Search Engine
         </footer>
@@ -616,15 +614,14 @@ function AnalyzeOnboardingInner() {
   }
 
   // ===========================================================================
-  // SCREEN 2: CRAWLING PHASE — STARTS FROM DOMAIN ONLY, REVEALS STEP BY STEP
+  // SCREEN 2: CRAWLING PHASE — PURE BLACK THEME, MULTI-ROW STEP-BY-STEP TREE
   // ===========================================================================
   const displayDomain = activeDomain || cleanDomainInput(domainInput);
 
-  // Determine which nodes have appeared so far based on revealStep:
   // Step 0: Only [ 🌐 domain ] is visible
   // Step 1: [ 🏠 / (Home) ] appears
   // Step 2..(1 + sections.length): sections appear one by one
-  // Step (2 + sections.length)..(1 + sections.length + children.length): children appear one by one
+  // Step (2 + sections.length)..(1 + sections.length + children.length): ALL child pages appear one by one!
   const showHome = revealStep >= 1;
   const homeDone = revealStep > 1 || isCompleted;
 
@@ -640,6 +637,12 @@ function AnalyzeOnboardingInner() {
     Math.min(children.length, revealStep - (1 + sections.length)),
   );
   const visibleChildren = children.slice(0, visibleChildrenCount);
+
+  // Chunk visibleChildren into rows of 3 so we can display up to 12 sub-pages cleanly!
+  const childRows: TreeNodeData[][] = [];
+  for (let i = 0; i < visibleChildren.length; i += 3) {
+    childRows.push(visibleChildren.slice(i, i + 3));
+  }
 
   // List of all revealed nodes in order for the Active Scanner & Finished Files list
   const revealedNodes: { node: TreeNodeData; done: boolean }[] = [];
@@ -687,7 +690,7 @@ function AnalyzeOnboardingInner() {
         Math.max(
           6,
           Math.round(
-            (revealStep / Math.max(4, maxAvailableStep + 1)) * 88,
+            (revealStep / Math.max(4, maxAvailableStep + 1)) * 90,
           ),
         ),
       );
@@ -709,7 +712,7 @@ function AnalyzeOnboardingInner() {
             name: "Sitemap & Internal Folder Spider",
             detail:
               visibleSections.length > 0
-                ? `${Math.max(visibleSections.length, totalPagesRecorded)} routes discovered`
+                ? `${Math.max(revealedNodes.length, totalPagesRecorded)} routes discovered`
                 : "Discovering top-level links from /…",
             status:
               visibleChildren.length > 0 || isCompleted ? "done" : "scanning",
@@ -728,10 +731,10 @@ function AnalyzeOnboardingInner() {
     ...(visibleSections.length > 1 || totalIssuesRecorded > 0
       ? [
           {
-            name: "SEO Defect & Speed Rule Engine",
+            name: "SEO & Page Speed Rule Engine",
             detail:
               totalIssuesRecorded > 0
-                ? `${totalIssuesRecorded} issues flagged`
+                ? `${totalIssuesRecorded} checks flagged`
                 : "Checking titles, headings & speed…",
             status: isCompleted ? "done" : "scanning",
           },
@@ -745,27 +748,25 @@ function AnalyzeOnboardingInner() {
     return `${String(mins).padStart(2, "0")}:${String(rem).padStart(2, "0")}`;
   };
 
-  // Calculate SVG column positions for currently visible sections & children
   const secTotalCols = Math.max(1, visibleSections.length);
   const firstSectionX = ((0 + 0.5) / secTotalCols) * 800;
-  const childTotalCols = Math.max(1, visibleChildren.length);
 
   return (
     <div
       className="dash-dark dark relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none"
       style={{ background: "var(--color-canvas)" }}
     >
-      {/* ── MATTE-BLACK TECHNICAL BLUEPRINT GRID & RADIAL GLOW ── */}
+      {/* ── PURE MATTE-BLACK TECHNICAL GRID (NO YELLOW GLOW) ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className="absolute left-1/2 top-1/2 h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-3xl"
+          className="absolute left-1/2 top-1/2 h-[500px] w-[740px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-15 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, rgba(200, 245, 58, 0.14) 0%, rgba(9, 10, 13, 0) 70%)",
+              "radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(9, 10, 13, 0) 70%)",
           }}
         />
         <svg
-          className="absolute inset-0 h-full w-full opacity-[0.10]"
+          className="absolute inset-0 h-full w-full opacity-[0.08]"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
@@ -795,7 +796,6 @@ function AnalyzeOnboardingInner() {
                 stroke="var(--color-brand-400)"
                 strokeWidth="1"
               />
-              <circle cx="0" cy="0" r="1.5" fill="var(--color-signal-400)" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#tree-grid)" />
@@ -809,7 +809,7 @@ function AnalyzeOnboardingInner() {
       >
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-series-6 font-mono text-xs font-black text-white">
               R
             </span>
             <span className="text-sm font-extrabold tracking-tight text-brand-950">
@@ -821,7 +821,7 @@ function AnalyzeOnboardingInner() {
             <Radar
               size={12}
               className={cn(
-                "text-signal-400",
+                "text-series-6",
                 !isCompleted && "animate-spin",
               )}
             />
@@ -836,24 +836,17 @@ function AnalyzeOnboardingInner() {
         {/* Center Live Runtime Counters */}
         <div className="hidden xl:flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
-            <CheckCircle2 size={12} className="text-signal-400" />
-            <span className="text-brand-500">Files Finished:</span>
+            <CheckCircle2 size={12} className="text-success-500" />
+            <span className="text-brand-500">Pages Mapped:</span>
             <strong className="font-mono text-brand-950">
               {filesFinishedCount}
             </strong>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
-            <Zap size={12} className="text-signal-400" />
+            <Zap size={12} className="text-series-6" />
             <span className="text-brand-500">Avg Speed:</span>
             <strong className="font-mono text-brand-950">
               {avgSpeedMs ? `${avgSpeedMs}ms` : "—"}
-            </strong>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
-            <AlertTriangle size={12} className="text-warning-700" />
-            <span className="text-brand-500">Issues Spotted:</span>
-            <strong className="font-mono text-warning-700">
-              {totalIssuesRecorded}
             </strong>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
@@ -876,7 +869,7 @@ function AnalyzeOnboardingInner() {
         </div>
       </header>
 
-      {/* ── MAIN WORKSPACE: LEFT RUNTIME PANEL + CENTER PROGRESSIVE TREE + RIGHT FINISHED LOG ── */}
+      {/* ── MAIN WORKSPACE: LEFT INSPECTOR + CENTER MULTI-ROW TREE + RIGHT PAGES LOG ── */}
       <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-4 pt-3 pb-24 sm:px-6">
         <div className="grid grid-cols-1 items-center gap-5 lg:grid-cols-12">
           {/* =================================================================
@@ -887,10 +880,10 @@ function AnalyzeOnboardingInner() {
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <Activity size={13} className="text-signal-400" />
+                  <Activity size={13} className="text-series-6" />
                   Active File Scanner
                 </span>
-                <span className="rounded-md bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                <span className="rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-series-6">
                   {isCompleted ? "DONE" : "LIVE"}
                 </span>
               </div>
@@ -900,7 +893,7 @@ function AnalyzeOnboardingInner() {
                   Currently Crawling File
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-2">
-                  <span className="truncate font-mono text-xs font-extrabold text-signal-400">
+                  <span className="truncate font-mono text-xs font-extrabold text-brand-950">
                     {showHome
                       ? currentScanningNode.path === "/"
                         ? "/ (Home)"
@@ -908,10 +901,10 @@ function AnalyzeOnboardingInner() {
                       : `https://${displayDomain}`}
                   </span>
                   {!isCompleted && (
-                    <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                    <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
                   )}
                 </div>
-                <p className="mt-1.5 truncate text-xs font-medium text-brand-700">
+                <p className="mt-1.5 truncate text-xs font-medium text-brand-600">
                   {showHome
                     ? currentScanningNode.title ||
                       `Reading HTML & internal links on ${currentScanningNode.path}…`
@@ -920,25 +913,31 @@ function AnalyzeOnboardingInner() {
               </div>
 
               {/* Live File Telemetry Metrics */}
-              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs">
+              <div className="mt-2.5 grid grid-cols-3 gap-2 text-xs">
                 <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
-                  <p className="text-[10px] text-brand-400">HTTP Status</p>
-                  <p className="mt-0.5 font-mono font-bold text-brand-950">
+                  <p className="text-[10px] text-brand-400">Status</p>
+                  <p className="mt-0.5 font-mono font-bold text-success-500">
                     {showHome
                       ? currentScanningNode.statusCode
                         ? `${currentScanningNode.statusCode} OK`
                         : "Verified"
-                      : "Connecting…"}
+                      : "…"}
                   </p>
                 </div>
                 <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
-                  <p className="text-[10px] text-brand-400">Response Speed</p>
+                  <p className="text-[10px] text-brand-400">Speed</p>
                   <p className="mt-0.5 font-mono font-bold text-brand-950">
                     {currentScanningNode.responseTimeMs
                       ? `${currentScanningNode.responseTimeMs}ms`
                       : avgSpeedMs
                         ? `${avgSpeedMs}ms`
-                        : "Measuring…"}
+                        : "…"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
+                  <p className="text-[10px] text-brand-400">Words</p>
+                  <p className="mt-0.5 font-mono font-bold text-brand-950">
+                    {currentScanningNode.wordCount ?? "—"}
                   </p>
                 </div>
               </div>
@@ -948,7 +947,7 @@ function AnalyzeOnboardingInner() {
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <Layers size={13} className="text-signal-400" />
+                  <Layers size={13} className="text-series-6" />
                   Runtime Crawler Tasks
                 </span>
                 <span className="text-[10px] font-semibold text-brand-400">
@@ -963,15 +962,17 @@ function AnalyzeOnboardingInner() {
                     className={cn(
                       "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-all",
                       eng.status === "done"
-                        ? "border-signal-400/50 bg-primary-50/50 text-brand-950"
-                        : "border-signal-400 bg-surface-2 text-brand-950",
+                        ? "border-brand-200 bg-surface-2/60 text-brand-950"
+                        : "border-series-6/60 bg-surface-2 text-brand-950",
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       {eng.status === "done" ? (
-                        <Check size={13} className="shrink-0 text-signal-400" strokeWidth={3} />
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
+                          <Check size={10} strokeWidth={3.5} />
+                        </span>
                       ) : (
-                        <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                        <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-[11px] font-bold text-brand-900">
@@ -989,59 +990,59 @@ function AnalyzeOnboardingInner() {
           </div>
 
           {/* =================================================================
-              CENTER COLUMN (6 COLS): PROGRESSIVE TREE (STARTS FROM DOMAIN ONLY!)
+              CENTER COLUMN (6 COLS): MULTI-ROW PROGRESSIVE WEBSITE TREE
              ================================================================= */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-center min-h-[380px]">
+          <div className="lg:col-span-6 flex flex-col items-center justify-center min-h-[420px]">
             <div className="w-full">
-              {/* LEVEL 0: TOP DOMAIN PILL (Always visible first!) */}
+              {/* LEVEL 0: TOP DOMAIN PILL (Starts from your website only!) */}
               <div className="flex flex-col items-center">
-                <div className="relative flex items-center gap-3 rounded-full border border-signal-400 bg-surface-1 px-6 py-3 shadow-[0_0_28px_rgba(200,245,58,0.18)] transition-all duration-300">
-                  <Globe size={18} className="shrink-0 text-signal-400" />
+                <div className="relative flex items-center gap-3 rounded-full border border-brand-300 bg-surface-1 px-6 py-2.5 shadow-card transition-all duration-300">
+                  <Globe size={17} className="shrink-0 text-series-6" />
                   <span className="font-sans text-base font-extrabold tracking-tight text-brand-950 sm:text-lg">
                     {displayDomain}
                   </span>
-                  <span className="rounded-full bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                  <span className="rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-success-500">
                     LIVE
                   </span>
 
                   {showHome && (
-                    <span className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-surface-1 bg-signal-400" />
+                    <span className="absolute -bottom-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-series-6" />
                   )}
                 </div>
 
-                {/* Vertical Connector to Home (/) — ONLY appears when step >= 1 */}
+                {/* Vertical Connector to Home (/) — Appears at step 1 */}
                 {showHome && (
-                  <div className="h-9 w-0.5 bg-signal-400 transition-all duration-500" />
+                  <div className="h-7 w-0.5 bg-brand-300 transition-all duration-500" />
                 )}
               </div>
 
-              {/* LEVEL 1: HOME NODE (/ (Home)) — ONLY appears when step >= 1 */}
+              {/* LEVEL 1: HOME NODE (/ (Home)) — Appears at step 1 */}
               {showHome && (
                 <div className="flex flex-col items-center">
                   <div
                     className={cn(
-                      "relative flex min-w-[170px] items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 shadow-card transition-all duration-300",
+                      "relative flex min-w-[165px] items-center justify-center gap-2 rounded-2xl border px-5 py-2 shadow-card transition-all duration-300",
                       homeDone
-                        ? "border-signal-400 bg-primary-50/90 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.15)]"
-                        : "border-signal-400 bg-surface-1 text-brand-950 shadow-[0_0_28px_rgba(200,245,58,0.25)]",
+                        ? "border-brand-200 bg-surface-1 text-brand-950"
+                        : "border-series-6 bg-surface-1 text-brand-950",
                     )}
                   >
-                    <span className="absolute -top-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-signal-400" />
+                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-series-6" />
 
                     {homeDone ? (
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
-                        <Check size={11} strokeWidth={3.5} />
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
+                        <Check size={10} strokeWidth={3.5} />
                       </span>
                     ) : (
-                      <Loader2 size={15} className="shrink-0 animate-spin text-signal-400" />
+                      <Loader2 size={14} className="shrink-0 animate-spin text-series-6" />
                     )}
 
-                    <Home size={14} className="shrink-0 text-signal-400" />
-                    <span className="font-mono text-sm font-extrabold text-brand-950">
+                    <Home size={14} className="shrink-0 text-series-6" />
+                    <span className="font-mono text-xs font-extrabold text-brand-950 sm:text-sm">
                       / (Home)
                     </span>
 
-                    <span className="rounded bg-surface-1 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-brand-500">
                       {homeDone
                         ? rootHome.responseTimeMs
                           ? `${rootHome.responseTimeMs}ms`
@@ -1052,32 +1053,42 @@ function AnalyzeOnboardingInner() {
                 </div>
               )}
 
-              {/* LEVEL 2: DISCOVERED SECTION FOLDERS — Appear one by one as revealStep advances! */}
+              {/* LEVEL 2: DISCOVERED SECTION FOLDERS — Appear one by one! */}
               {visibleSections.length > 0 && (
                 <>
                   <div className="w-full">
                     <svg
-                      viewBox="0 0 800 52"
-                      className="h-11 w-full overflow-visible sm:h-12"
+                      viewBox="0 0 800 44"
+                      className="h-9 w-full overflow-visible sm:h-10"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       {visibleSections.map((sec, idx) => {
                         const targetX = ((idx + 0.5) / secTotalCols) * 800;
-                        const pathD = buildElbowPath(400, targetX, 52);
+                        const pathD = buildElbowPath(400, targetX, 44);
+                        const stepForThis = 2 + idx;
+                        const isCurrent = revealStep === stepForThis && !isCompleted;
                         return (
                           <g key={sec.path}>
                             <path
                               d={pathD}
-                              stroke="var(--color-signal-400)"
-                              strokeWidth="2.2"
+                              stroke={
+                                isCurrent
+                                  ? "var(--color-series-6)"
+                                  : "var(--color-brand-300)"
+                              }
+                              strokeWidth={isCurrent ? "2.2" : "1.6"}
                               strokeLinecap="round"
                             />
                             <circle
                               cx={targetX}
-                              cy={52}
-                              r="3.2"
-                              fill="var(--color-signal-400)"
+                              cy={44}
+                              r="3"
+                              fill={
+                                isCurrent
+                                  ? "var(--color-series-6)"
+                                  : "var(--color-brand-400)"
+                              }
                             />
                           </g>
                         );
@@ -1095,37 +1106,37 @@ function AnalyzeOnboardingInner() {
                       const stepForThis = 2 + idx;
                       const isDone = revealStep > stepForThis || isCompleted;
                       return (
-                        <div key={sec.path} className="px-1.5 sm:px-2">
+                        <div key={sec.path} className="px-1.5">
                           <div
                             className={cn(
-                              "relative flex flex-col items-center justify-center rounded-2xl border px-3 py-2.5 shadow-card transition-all duration-300",
+                              "relative flex flex-col items-center justify-center rounded-2xl border px-3 py-2 shadow-card transition-all duration-300",
                               isDone
-                                ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.10)]"
-                                : "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]",
+                                ? "border-brand-200 bg-surface-1 text-brand-950"
+                                : "border-series-6 bg-surface-1 text-brand-950",
                             )}
                           >
                             <div className="flex w-full items-center justify-center gap-1.5">
                               {isDone ? (
-                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
                                   <Check size={10} strokeWidth={3.5} />
                                 </span>
                               ) : (
                                 <Loader2
                                   size={13}
-                                  className="shrink-0 animate-spin text-signal-400"
+                                  className="shrink-0 animate-spin text-series-6"
                                 />
                               )}
-                              <Folder size={13} className="shrink-0 text-signal-400" />
+                              <Folder size={13} className="shrink-0 text-series-6" />
                               <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
                                 {sec.path}
                               </span>
                             </div>
 
-                            <span className="mt-1 font-mono text-[9.5px] font-semibold text-signal-400">
+                            <span className="mt-0.5 font-mono text-[9.5px] font-semibold text-brand-500">
                               {isDone
                                 ? sec.responseTimeMs
-                                  ? `✓ ${sec.responseTimeMs}ms`
-                                  : "✓ Done"
+                                  ? `${sec.responseTimeMs}ms`
+                                  : "Done"
                                 : "Scanning…"}
                             </span>
                           </div>
@@ -1136,137 +1147,192 @@ function AnalyzeOnboardingInner() {
                 </>
               )}
 
-              {/* LEVEL 3: DISCOVERED CHILD FILES — Appear one by one after sections! */}
-              {visibleChildren.length > 0 && (
-                <>
-                  <div className="w-full">
-                    <svg
-                      viewBox="0 0 800 52"
-                      className="h-11 w-full overflow-visible sm:h-12"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <circle
-                        cx={firstSectionX}
-                        cy="0"
-                        r="3.2"
-                        fill="var(--color-signal-400)"
-                      />
-                      {visibleChildren.map((child, idx) => {
-                        const targetX = ((idx + 0.5) / childTotalCols) * 800;
-                        const pathD = buildElbowPath(firstSectionX, targetX, 52);
-                        return (
-                          <g key={child.path}>
-                            <path
-                              d={pathD}
-                              stroke="var(--color-signal-400)"
-                              strokeWidth="2.2"
-                              strokeLinecap="round"
-                            />
+              {/* LEVEL 3+: MULTI-ROW DISCOVERED CHILD FILES — Expands across rows as more files arrive! */}
+              {childRows.map((rowNodes, rowIdx) => {
+                const rowCols = Math.max(1, rowNodes.length);
+                return (
+                  <div key={rowIdx} className="w-full">
+                    <div className="w-full">
+                      <svg
+                        viewBox="0 0 800 38"
+                        className="h-8 w-full overflow-visible sm:h-9"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        {rowIdx === 0 ? (
+                          <>
                             <circle
-                              cx={targetX}
-                              cy={52}
-                              r="3.2"
-                              fill="var(--color-signal-400)"
+                              cx={firstSectionX}
+                              cy="0"
+                              r="3"
+                              fill="var(--color-brand-400)"
                             />
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  </div>
-
-                  <div
-                    className="grid gap-0"
-                    style={{
-                      gridTemplateColumns: `repeat(${childTotalCols}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {visibleChildren.map((child, idx) => {
-                      const stepForThis = childStartStep + idx;
-                      const isDone = revealStep > stepForThis || isCompleted;
-                      return (
-                        <div key={child.path} className="px-1.5 sm:px-2">
-                          <div
-                            className={cn(
-                              "flex flex-col items-center justify-center rounded-2xl border px-3 py-2.5 shadow-card transition-all duration-300",
-                              isDone
-                                ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.10)]"
-                                : "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]",
-                            )}
-                          >
-                            <div className="flex w-full items-center justify-center gap-1.5">
-                              {isDone ? (
-                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
-                                  <Check size={10} strokeWidth={3.5} />
-                                </span>
-                              ) : (
-                                <Loader2
-                                  size={13}
-                                  className="shrink-0 animate-spin text-signal-400"
+                            {rowNodes.map((child, colIdx) => {
+                              const targetX = ((colIdx + 0.5) / rowCols) * 800;
+                              const pathD = buildElbowPath(firstSectionX, targetX, 38);
+                              const globalChildIdx = rowIdx * 3 + colIdx;
+                              const stepForThis = childStartStep + globalChildIdx;
+                              const isCurrent =
+                                revealStep === stepForThis && !isCompleted;
+                              return (
+                                <g key={child.path}>
+                                  <path
+                                    d={pathD}
+                                    stroke={
+                                      isCurrent
+                                        ? "var(--color-series-6)"
+                                        : "var(--color-brand-300)"
+                                    }
+                                    strokeWidth={isCurrent ? "2.2" : "1.5"}
+                                    strokeLinecap="round"
+                                  />
+                                  <circle
+                                    cx={targetX}
+                                    cy={38}
+                                    r="2.8"
+                                    fill={
+                                      isCurrent
+                                        ? "var(--color-series-6)"
+                                        : "var(--color-brand-400)"
+                                    }
+                                  />
+                                </g>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          // Subsequent child rows connect vertically from the row above
+                          rowNodes.map((child, colIdx) => {
+                            const parentX = ((colIdx + 0.5) / 3) * 800;
+                            const targetX = ((colIdx + 0.5) / rowCols) * 800;
+                            const pathD = buildElbowPath(parentX, targetX, 38);
+                            const globalChildIdx = rowIdx * 3 + colIdx;
+                            const stepForThis = childStartStep + globalChildIdx;
+                            const isCurrent =
+                              revealStep === stepForThis && !isCompleted;
+                            return (
+                              <g key={child.path}>
+                                <path
+                                  d={pathD}
+                                  stroke={
+                                    isCurrent
+                                      ? "var(--color-series-6)"
+                                      : "var(--color-brand-300)"
+                                  }
+                                  strokeWidth={isCurrent ? "2.2" : "1.5"}
+                                  strokeLinecap="round"
                                 />
+                                <circle
+                                  cx={targetX}
+                                  cy={38}
+                                  r="2.8"
+                                  fill={
+                                    isCurrent
+                                      ? "var(--color-series-6)"
+                                      : "var(--color-brand-400)"
+                                  }
+                                />
+                              </g>
+                            );
+                          })
+                        )}
+                      </svg>
+                    </div>
+
+                    <div
+                      className="grid gap-0"
+                      style={{
+                        gridTemplateColumns: `repeat(${rowCols}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {rowNodes.map((child, colIdx) => {
+                        const globalChildIdx = rowIdx * 3 + colIdx;
+                        const stepForThis = childStartStep + globalChildIdx;
+                        const isDone = revealStep > stepForThis || isCompleted;
+                        return (
+                          <div key={child.path} className="px-1.5">
+                            <div
+                              className={cn(
+                                "flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2 shadow-card transition-all duration-300",
+                                isDone
+                                  ? "border-brand-200 bg-surface-1 text-brand-950"
+                                  : "border-series-6 bg-surface-1 text-brand-950",
                               )}
-                              <FileText size={13} className="shrink-0 text-signal-400" />
-                              <span className="truncate font-mono text-[10.5px] font-bold text-brand-950 sm:text-[11px]">
-                                {child.path}
+                            >
+                              <div className="flex w-full items-center justify-center gap-1.5">
+                                {isDone ? (
+                                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
+                                    <Check size={9} strokeWidth={3.5} />
+                                  </span>
+                                ) : (
+                                  <Loader2
+                                    size={12}
+                                    className="shrink-0 animate-spin text-series-6"
+                                  />
+                                )}
+                                <FileText size={12} className="shrink-0 text-brand-400" />
+                                <span
+                                  title={child.path}
+                                  className="truncate font-mono text-[10.5px] font-bold text-brand-950 sm:text-[11px]"
+                                >
+                                  {child.shortLabel}
+                                </span>
+                              </div>
+
+                              <span className="mt-0.5 font-mono text-[9px] font-semibold text-brand-500">
+                                {isDone
+                                  ? child.responseTimeMs
+                                    ? `${child.responseTimeMs}ms`
+                                    : "Done"
+                                  : "Scanning…"}
                               </span>
                             </div>
-
-                            <span className="mt-1 font-mono text-[9.5px] font-semibold text-signal-400">
-                              {isDone
-                                ? child.responseTimeMs
-                                  ? `✓ ${child.responseTimeMs}ms`
-                                  : "✓ Done"
-                                : "Scanning…"}
-                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </>
-              )}
+                );
+              })}
             </div>
           </div>
 
           {/* =================================================================
-              RIGHT COLUMN (3 COLS): STEP-BY-STEP FINISHED FILES & LIVE ISSUES
+              RIGHT COLUMN (3 COLS): FULL STEP-BY-STEP FINISHED FILES LOG
              ================================================================= */}
-          <div className="lg:col-span-3 flex flex-col gap-3.5">
-            {/* Card 1: Files Finished Step by Step (No pre-rendered queued items!) */}
+          <div className="lg:col-span-3 flex flex-col">
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <ShieldCheck size={13} className="text-signal-400" />
-                  Finished Files
+                  <ShieldCheck size={13} className="text-success-500" />
+                  Crawled Website Files
                 </span>
-                <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                <span className="rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-success-500">
                   {filesFinishedCount} done
                 </span>
               </div>
 
               {revealedNodes.length > 0 ? (
-                <div className="mt-3 space-y-1.5">
-                  {revealedNodes.slice(0, 6).map(({ node, done }) => (
+                <div className="mt-3 max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
+                  {revealedNodes.map(({ node, done }) => (
                     <div
                       key={node.path}
                       className={cn(
-                        "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 font-mono text-[11px] transition-all",
+                        "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 font-mono text-[11px] transition-all",
                         done
-                          ? "border-brand-200 bg-surface-2/80 text-brand-950"
-                          : "border-signal-400 bg-primary-50/70 text-brand-950",
+                          ? "border-brand-200 bg-surface-2/60 text-brand-950"
+                          : "border-series-6 bg-surface-2 text-brand-950",
                       )}
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         {done ? (
-                          <Check
-                            size={12}
-                            className="shrink-0 text-signal-400"
-                            strokeWidth={3}
-                          />
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
+                            <Check size={10} strokeWidth={3.5} />
+                          </span>
                         ) : (
                           <Loader2
                             size={12}
-                            className="shrink-0 animate-spin text-signal-400"
+                            className="shrink-0 animate-spin text-series-6"
                           />
                         )}
                         <span className="truncate font-semibold">
@@ -1276,7 +1342,7 @@ function AnalyzeOnboardingInner() {
                       <span
                         className={cn(
                           "shrink-0 text-[10px] font-bold",
-                          done ? "text-signal-400" : "text-warning-700",
+                          done ? "text-brand-500" : "text-series-6",
                         )}
                       >
                         {done
@@ -1290,60 +1356,8 @@ function AnalyzeOnboardingInner() {
                 </div>
               ) : (
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs text-brand-500">
-                  <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                  <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
                   <span>Starting from {displayDomain}…</span>
-                </div>
-              )}
-            </div>
-
-            {/* Card 2: Live SEO Issues & Runtime Stream */}
-            <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
-              <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <Sparkles size={13} className="text-signal-400" />
-                  Live Findings
-                </span>
-                <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-warning-700">
-                  {totalIssuesRecorded > 0
-                    ? `${totalIssuesRecorded} issues`
-                    : "Scanning…"}
-                </span>
-              </div>
-
-              {crawledIssues.length > 0 ? (
-                <div className="mt-3 space-y-2">
-                  {crawledIssues.slice(0, 3).map((iss) => (
-                    <div
-                      key={iss.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-surface-2/60 px-2.5 py-2 text-xs"
-                    >
-                      <span className="truncate font-medium text-brand-800">
-                        {iss.description}
-                      </span>
-                      <span className="shrink-0 rounded bg-error-50 px-1.5 py-0.5 text-[9.5px] font-bold text-error-700">
-                        {iss.severity}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-3 space-y-1.5 text-[11px] text-brand-600">
-                  {autopilotLogs.length > 0 ? (
-                    autopilotLogs.slice(-3).map((l, i) => (
-                      <p key={i} className="truncate">
-                        <span className="font-bold text-signal-400">›</span> {l.message}
-                      </p>
-                    ))
-                  ) : (
-                    <>
-                      <p className="truncate">
-                        <span className="font-bold text-signal-400">›</span> Connected to {displayDomain}
-                      </p>
-                      <p className="truncate">
-                        <span className="font-bold text-signal-400">›</span> Mapping pages step by step…
-                      </p>
-                    </>
-                  )}
                 </div>
               )}
             </div>
@@ -1358,9 +1372,9 @@ function AnalyzeOnboardingInner() {
             <div className="flex w-full items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 {isCompleted ? (
-                  <Check size={17} className="text-signal-400" strokeWidth={3} />
+                  <Check size={17} className="text-success-500" strokeWidth={3} />
                 ) : (
-                  <Loader2 size={16} className="animate-spin text-signal-400" />
+                  <Loader2 size={16} className="animate-spin text-series-6" />
                 )}
                 <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
                   {isCompleted
@@ -1379,11 +1393,11 @@ function AnalyzeOnboardingInner() {
             <div className="mt-2 flex w-full items-center gap-3.5">
               <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
                 <div
-                  className="h-full rounded-full bg-signal-400 shadow-[0_0_16px_rgba(200,245,58,0.6)] transition-all duration-500"
+                  className="h-full rounded-full bg-series-6 transition-all duration-500"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <span className="w-11 shrink-0 text-right font-mono text-sm font-extrabold text-signal-400">
+              <span className="w-11 shrink-0 text-right font-mono text-sm font-extrabold text-brand-950">
                 {progressPct}%
               </span>
             </div>
@@ -1402,7 +1416,7 @@ export default function AnalyzePage() {
           className="dash-dark dark flex min-h-screen items-center justify-center"
           style={{ background: "var(--color-canvas)" }}
         >
-          <Loader2 size={24} className="animate-spin text-signal-400" />
+          <Loader2 size={24} className="animate-spin text-series-6" />
         </div>
       }
     >
