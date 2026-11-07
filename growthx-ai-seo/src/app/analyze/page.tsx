@@ -8,21 +8,16 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  Bot,
   Check,
   Code2,
   Cpu,
-  FileSearch,
-  Gauge,
+  FileCode2,
   Globe,
+  Layers,
   Link2,
   Loader2,
-  Lock,
   Radar,
-  ShieldCheck,
-  Sparkles,
   Terminal,
-  Zap,
 } from "lucide-react";
 import { api, auth, subscribeToAuthChange, type AutopilotRun } from "@/lib/api-client";
 import { setActiveProject, useWorkspace } from "@/hooks/use-growthx";
@@ -40,49 +35,19 @@ function cleanDomainInput(raw: string): string {
 function pathFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    return parsed.pathname + (parsed.search || "");
+    return (parsed.pathname || "/") + (parsed.search || "");
   } catch {
-    return url;
+    return url || "/";
   }
 }
 
-const INSPECTION_MODULES = [
-  {
-    icon: Globe,
-    title: "Indexability & Canonicals",
-    detail: "robots.txt, XML sitemaps, HTTP status codes & canonical tags",
-    tone: "text-series-6 bg-series-6/15 border-series-6/30",
-  },
-  {
-    icon: Gauge,
-    title: "Core Web Vitals & Speed",
-    detail: "LCP, INP, CLS, server response time (TTFB) & render blockers",
-    tone: "text-success-400 bg-success-500/15 border-success-500/30",
-  },
-  {
-    icon: FileSearch,
-    title: "On-Page SEO & Metadata",
-    detail: "Titles, meta descriptions, word count & H1–H6 heading hierarchy",
-    tone: "text-accent-400 bg-accent-500/15 border-accent-500/30",
-  },
-  {
-    icon: Code2,
-    title: "Schema & Structured Data",
-    detail: "JSON-LD entity validation for Google rich results & AI engines",
-    tone: "text-warning-400 bg-warning-500/15 border-warning-500/30",
-  },
-  {
-    icon: Link2,
-    title: "Internal Link Architecture",
-    detail: "Crawl depth, orphan pages, broken links & redirect chains",
-    tone: "text-series-4 bg-series-4/15 border-series-4/30",
-  },
-  {
-    icon: Bot,
-    title: "AI Search Readiness",
-    detail: "Citation structure for ChatGPT, Perplexity, Gemini & Claude",
-    tone: "text-series-6 bg-series-6/15 border-series-6/30",
-  },
+const BLUEPRINT_NODES = [
+  { path: "/", label: "Root Document", type: "HTML · Entry" },
+  { path: "/sitemap.xml", label: "XML Sitemap", type: "Index Graph" },
+  { path: "/robots.txt", label: "Robots Directives", type: "Crawl Rules" },
+  { path: "/products", label: "Primary Category", type: "Internal Link" },
+  { path: "/about", label: "Brand Entity", type: "Schema Node" },
+  { path: "/contact", label: "Local / NAP Node", type: "Conversion" },
 ];
 
 function AnalyzeOnboardingInner() {
@@ -117,6 +82,7 @@ function AnalyzeOnboardingInner() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [activeNodeIdx, setActiveNodeIdx] = useState(0);
 
   useEffect(() => {
     if (urlParam) {
@@ -154,17 +120,17 @@ function AnalyzeOnboardingInner() {
   // Poll live discovered pages from the active crawl job
   const pagesQuery = useQuery({
     queryKey: ["onboarding-crawl-pages", crawlId],
-    queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 12 }),
+    queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 16 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 2500,
+    refetchInterval: isCompleted || isFailed ? false : 2000,
   });
 
   // Poll live detected issues from the active crawl job
   const issuesQuery = useQuery({
     queryKey: ["onboarding-crawl-issues", crawlId],
-    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 6 }),
+    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 8 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 3000,
+    refetchInterval: isCompleted || isFailed ? false : 2500,
   });
 
   // Poll autopilot run log for additional live status lines
@@ -192,11 +158,12 @@ function AnalyzeOnboardingInner() {
   const healthScore = crawlData?.healthScore ?? issuesQuery.data?.meta?.healthScore ?? null;
   const autopilotLogs = autopilotQuery.data?.log ?? initialRun?.log ?? [];
 
-  // Elapsed timer while crawling
+  // Cycle the highlighted node in the raw website structure view while crawling
   useEffect(() => {
     if (phase !== "crawling" || isCompleted || isFailed) return;
     const interval = setInterval(() => {
       setElapsedSec((s) => s + 1);
+      setActiveNodeIdx((idx) => idx + 1);
     }, 1000);
     return () => clearInterval(interval);
   }, [phase, isCompleted, isFailed]);
@@ -211,7 +178,7 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["issue-counts"] });
       queryClient.invalidateQueries({ queryKey: ["issue-groups"] });
       router.replace("/website");
-    }, 1200);
+    }, 1100);
     return () => clearTimeout(timer);
   }, [phase, isCompleted, queryClient, router]);
 
@@ -271,42 +238,11 @@ function AnalyzeOnboardingInner() {
 
   if (signedIn !== true) return null;
 
-  const previewDomain = cleanDomainInput(domainInput) || "yourwebsite.com";
-
-  const crawlSteps = [
-    {
-      label: "Origin Handshake & robots.txt",
-      detail: `Connected to https://${activeDomain} · SSL & crawl directives verified`,
-      done: true,
-      active: false,
-    },
-    {
-      label: "Sitemap & Internal Link Spider",
-      detail:
-        totalPagesRecorded > 0
-          ? `${totalPagesRecorded} ${totalPagesRecorded === 1 ? "page" : "pages"} fetched and parsed`
-          : "Following XML sitemaps and internal <a href> graph…",
-      done: isCompleted,
-      active: !isCompleted && !isFailed,
-    },
-    {
-      label: "DOM, Metadata & Core Web Vitals Audit",
-      detail:
-        totalIssuesRecorded > 0
-          ? `${totalIssuesRecorded} technical & SEO findings recorded across scanned pages`
-          : "Inspecting titles, canonicals, headings, schema & response speed",
-      done: isCompleted,
-      active: !isCompleted && !isFailed && totalPagesRecorded > 0,
-    },
-    {
-      label: "Website Audit Report Compilation",
-      detail: isCompleted
-        ? "Complete! Opening your Website Audit command center…"
-        : "Scoring technical health and prioritizing fixes",
-      done: isCompleted,
-      active: isCompleted,
-    },
-  ];
+  const displayDomain = activeDomain || cleanDomainInput(domainInput) || "yourwebsite.com";
+  const inspectedPage =
+    crawledPages.length > 0
+      ? crawledPages[activeNodeIdx % crawledPages.length]
+      : null;
 
   const formatElapsed = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -315,660 +251,619 @@ function AnalyzeOnboardingInner() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-between bg-brand-950 text-brand-50 overflow-hidden selection:bg-series-6 selection:text-white">
-      {/* ── ARCHITECTURAL BACKGROUND GRID & AMBIENT STUDIO GLOWS ── */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {/* Ambient radial studio lights */}
-        <div className="absolute -top-48 left-1/4 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-series-6/15 blur-[140px]" />
-        <div className="absolute top-1/3 -right-32 h-[500px] w-[500px] rounded-full bg-accent-600/12 blur-[140px]" />
-        <div className="absolute -bottom-48 left-1/2 h-[480px] w-[640px] -translate-x-1/2 rounded-full bg-success-500/10 blur-[140px]" />
+    <div
+      className="dash-dark dark relative min-h-screen w-full overflow-hidden flex flex-col justify-between select-none"
+      style={{ background: "var(--color-canvas)" }}
+    >
+      {/* ── KEYFRAME ANIMATIONS FOR LASER SCANLINE ── */}
+      <style>{`
+        @keyframes reigel-scanline {
+          0% { top: 0%; opacity: 0.2; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { top: 100%; opacity: 0.2; }
+        }
+        .reigel-laser-sweep {
+          animation: reigel-scanline 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+      `}</style>
 
-        {/* Subtle technical grid pattern */}
-        <svg
-          className="absolute inset-0 h-full w-full opacity-[0.07]"
-          xmlns="http://www.w3.org/2000/svg"
-        >
+      {/* ── PURE MATTE-BLACK TECHNICAL CAD BLUEPRINT GRID ── */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <svg className="absolute inset-0 h-full w-full opacity-[0.12]" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern
-              id="reigel-crawler-grid"
-              width="44"
-              height="44"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 44 0 L 0 0 0 44"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-              />
-              <circle cx="44" cy="44" r="1" fill="currentColor" />
+            <pattern id="tech-subgrid" width="24" height="24" patternUnits="userSpaceOnUse">
+              <path d="M 24 0 L 0 0 0 24" fill="none" stroke="var(--color-brand-300)" strokeWidth="0.5" />
+            </pattern>
+            <pattern id="tech-grid" width="120" height="120" patternUnits="userSpaceOnUse">
+              <rect width="120" height="120" fill="url(#tech-subgrid)" />
+              <path d="M 120 0 L 0 0 0 120" fill="none" stroke="var(--color-brand-400)" strokeWidth="1" />
+              <circle cx="0" cy="0" r="1.5" fill="var(--color-signal-400)" />
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#reigel-crawler-grid)" />
+          <rect width="100%" height="100%" fill="url(#tech-grid)" />
         </svg>
+
+        {/* Subtle technical corner crosshairs */}
+        <div className="absolute left-6 top-16 h-6 w-6 border-l border-t border-brand-300/40" />
+        <div className="absolute right-6 top-16 h-6 w-6 border-r border-t border-brand-300/40" />
+        <div className="absolute bottom-6 left-6 h-6 w-6 border-b border-l border-brand-300/40" />
+        <div className="absolute bottom-6 right-6 h-6 w-6 border-b border-r border-brand-300/40" />
       </div>
 
-      {/* ── EXECUTIVE COMMAND HEADER ── */}
-      <header className="relative z-20 border-b border-brand-800/80 bg-brand-950/70 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Brand Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-sm font-black text-signal-ink shadow-sm">
+      {/* ── TOP MINIMAL TECHNICAL HUD HEADER ── */}
+      <header
+        className="relative z-20 flex h-[52px] shrink-0 items-center justify-between border-b bg-surface-1/90 px-4 sm:px-6 backdrop-blur-md"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink">
               R
             </span>
-            <span className="text-base font-black tracking-tight text-white">
+            <span className="text-sm font-extrabold tracking-tight text-brand-950">
               Reigel
             </span>
-            <span className="hidden sm:inline-block rounded-md border border-brand-800 bg-brand-900 px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-widest text-brand-300">
-              Crawler Studio
-            </span>
           </Link>
+          <span className="text-brand-300">/</span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-brand-600">
+            <Radar size={11} className={phase === "crawling" ? "text-signal-400 animate-spin" : "text-signal-400"} />
+            {phase === "crawling" ? "LIVE DOM & SITEMAP CRAWLER" : "RAW WEBSITE STRUCTURE SCANNER"}
+          </span>
+        </div>
 
-          {/* 3-Step Mission Stepper */}
-          <div className="hidden md:flex items-center gap-2 rounded-full border border-brand-800/90 bg-brand-900/80 px-3 py-1.5 text-xs">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold transition",
-                phase === "input"
-                  ? "bg-series-6 text-white shadow-xs"
-                  : "text-success-400",
-              )}
+        {/* Center Live Telemetry Pills */}
+        <div className="hidden lg:flex items-center gap-4 font-mono text-[11px] text-brand-500">
+          <span>
+            TARGET: <strong className="text-brand-950">https://{displayDomain}</strong>
+          </span>
+          <span className="text-brand-300">·</span>
+          <span>
+            STATE:{" "}
+            <strong className={phase === "crawling" ? "text-signal-400" : "text-brand-600"}>
+              {phase === "crawling" ? (isCompleted ? "COMPLETED" : "CRAWLING_LIVE") : "STANDBY"}
+            </strong>
+          </span>
+          {phase === "crawling" && (
+            <>
+              <span className="text-brand-300">·</span>
+              <span>
+                ELAPSED: <strong className="text-brand-950">{formatElapsed(elapsedSec)}</strong>
+              </span>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {phase === "crawling" && (
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-brand-950">
+                <strong className="text-signal-400">{totalPagesRecorded}</strong> pages
+              </span>
+              <span className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-brand-950">
+                <strong className="text-warning-700">{totalIssuesRecorded}</strong> findings
+              </span>
+            </div>
+          )}
+
+          {(projects.length > 0 || phase === "crawling") && (
+            <button
+              type="button"
+              onClick={() => router.replace("/website")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-bold text-brand-950 transition hover:border-brand-300 hover:bg-surface-3 cursor-pointer"
             >
-              {phase === "crawling" ? <Check size={12} strokeWidth={3} /> : <span className="font-mono text-[10px]">01</span>}
-              <span>Connect Domain</span>
-            </span>
-            <span className="text-brand-600">→</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold transition",
-                phase === "crawling" && !isCompleted
-                  ? "bg-series-6 text-white shadow-xs"
-                  : isCompleted
-                    ? "text-success-400"
-                    : "text-brand-400",
-              )}
-            >
-              {isCompleted ? (
-                <Check size={12} strokeWidth={3} />
-              ) : phase === "crawling" ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <span className="font-mono text-[10px]">02</span>
-              )}
-              <span>Deep Technical Crawl</span>
-            </span>
-            <span className="text-brand-600">→</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold transition",
-                isCompleted ? "bg-success-500 text-white" : "text-brand-500",
-              )}
-            >
-              <span className="font-mono text-[10px]">03</span>
               <span>Website Audit</span>
-            </span>
-          </div>
-
-          {/* Right Status / Skip */}
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-800 bg-brand-900/90 px-3 py-1 text-[11px] font-medium text-brand-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-success-400 animate-pulse" />
-              Crawler Engine Online
-            </span>
-            {projects.length > 0 && phase === "input" && (
-              <Link
-                href="/website"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-700 bg-brand-900 hover:bg-brand-800 px-3.5 py-1.5 text-xs font-bold text-white transition"
-              >
-                <span>Open Website Audit</span>
-                <ArrowRight size={13} />
-              </Link>
-            )}
-          </div>
+              <ArrowRight size={12} />
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ── MAIN WORKSPACE ── */}
-      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 items-center px-4 py-8 sm:px-6 lg:px-8">
-        {phase === "input" ? (
-          /* =================================================================
-             PHASE 1: SPLIT-SCREEN WEBSITE AUDIT LAUNCHPAD
-             ================================================================= */
-          <div className="grid w-full grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-12">
-            {/* LEFT COLUMN: Launch Form & 6-Module Matrix */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-series-6/40 bg-series-6/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-200">
-                <Sparkles size={12} className="text-series-6" />
-                <span>Autonomous Technical SEO & AI Crawler</span>
-              </div>
-
-              <div>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-[1.1]">
-                  Launch your deep <br />
-                  <span className="bg-gradient-to-r from-series-6 via-accent-300 to-success-400 bg-clip-text text-transparent">
-                    website audit.
-                  </span>
-                </h1>
-                <p className="mt-3 max-w-xl text-sm sm:text-base text-brand-300 leading-relaxed">
-                  Enter your website domain below. Reigel&apos;s crawler will map your internal pages, inspect technical health, Core Web Vitals, schema markup, and open your full{" "}
-                  <strong className="font-semibold text-white">Website Audit</strong> command center automatically.
-                </p>
-              </div>
-
-              {/* Command Input Bar */}
-              <form onSubmit={handleStartAudit} className="space-y-3" noValidate>
-                <div className="rounded-2xl border border-brand-700/90 bg-brand-900/90 p-2 shadow-2xl backdrop-blur-xl transition-all focus-within:border-series-6 focus-within:ring-4 focus-within:ring-series-6/15">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="flex flex-1 items-center gap-2.5 px-3 py-2">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-800 border border-brand-700 text-series-6">
-                        <Globe size={18} />
-                      </div>
-                      <span className="select-none font-mono text-xs sm:text-sm font-semibold text-brand-400">
-                        https://
-                      </span>
-                      <input
-                        id="onboarding-domain"
-                        type="text"
-                        required
-                        autoFocus
-                        value={domainInput}
-                        onChange={(e) => setDomainInput(e.target.value)}
-                        placeholder="yourwebsite.com"
-                        className="w-full min-w-0 bg-transparent font-mono text-sm sm:text-base font-bold text-white placeholder:text-brand-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-series-6 hover:bg-series-6/90 active:scale-[0.99] px-6 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-series-6/25 transition-all cursor-pointer disabled:opacity-60"
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          <span>Launching Crawler…</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Start Website Audit</span>
-                          <ArrowRight size={16} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {error && (
-                  <div
-                    role="alert"
-                    className="flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-950/50 px-4 py-2.5 text-xs font-semibold text-error-300"
-                  >
-                    <AlertTriangle size={14} className="shrink-0 text-error-400" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-1 text-xs text-brand-400">
-                  <span className="inline-flex items-center gap-1.5">
-                    <ShieldCheck size={13} className="text-success-400" />
-                    Safe, read-only bot crawl
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Zap size={13} className="text-series-6" />
-                    Real-time page & issue telemetry
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Lock size={13} className="text-accent-400" />
-                    Opens Website Audit automatically
+      {/* ── FULL-SCREEN RAW WEBSITE STRUCTURE & CRAWLER TELEMETRY CANVAS ── */}
+      <main className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-4 pb-36 pt-4 sm:px-6 lg:px-8">
+        <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
+          {/* =================================================================
+              LEFT PANEL (4 COLS): SITEMAP NODE GRAPH & LIVE URL TREE
+             ================================================================= */}
+          <div className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-brand-200 bg-surface-1/90 p-4 shadow-card backdrop-blur-md">
+            <div>
+              <div className="flex items-center justify-between border-b border-brand-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <Link2 size={14} className="text-signal-400" />
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-brand-950">
+                    01 · Sitemap & Link Graph Tree
                   </span>
                 </div>
-              </form>
+                <span className="rounded border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-brand-500">
+                  {phase === "crawling" ? `${totalPagesRecorded} nodes` : "Blueprint"}
+                </span>
+              </div>
 
-              {/* 6-Module Inspection Matrix */}
-              <div className="pt-2">
-                <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-widest text-brand-400">
-                  What our crawler inspects on every page
-                </p>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {INSPECTION_MODULES.map((mod) => {
-                    const Icon = mod.icon;
-                    return (
-                      <div
-                        key={mod.title}
-                        className="rounded-2xl border border-brand-800/80 bg-brand-900/50 p-3.5 backdrop-blur-sm transition hover:border-brand-700 hover:bg-brand-900/80"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span
+              {/* Root Domain Node */}
+              <div className="mt-3.5">
+                <div
+                  className={cn(
+                    "flex items-center justify-between rounded-xl border px-3 py-2.5 font-mono text-xs transition-all",
+                    phase === "crawling"
+                      ? "border-signal-400/60 bg-surface-2 text-brand-950 shadow-xs"
+                      : "border-brand-200 bg-surface-2/70 text-brand-700",
+                  )}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-signal-400" />
+                    <span className="truncate font-bold text-brand-950">
+                      https://{displayDomain}
+                    </span>
+                  </div>
+                  <span className="shrink-0 rounded bg-surface-1 px-1.5 py-0.5 text-[9.5px] font-bold text-signal-400 border border-brand-200">
+                    ROOT
+                  </span>
+                </div>
+
+                {/* Branching Child Page Nodes (Real Crawled Pages or Blueprint Nodes) */}
+                <div className="relative ml-4 mt-2 space-y-1.5 border-l border-dashed border-brand-300 pl-4">
+                  {phase === "crawling" && crawledPages.length > 0
+                    ? crawledPages.slice(0, 8).map((p, idx) => {
+                        const isCurrent = idx === activeNodeIdx % Math.min(crawledPages.length, 8);
+                        const ok = p.statusCode >= 200 && p.statusCode < 300;
+                        return (
+                          <div
+                            key={p.id}
                             className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-                              mod.tone,
+                              "relative flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 font-mono text-[11px] transition-all",
+                              isCurrent
+                                ? "border-signal-400 bg-surface-2 text-brand-950"
+                                : "border-brand-200/80 bg-surface-2/40 text-brand-600",
                             )}
                           >
-                            <Icon size={14} />
-                          </span>
-                          <h3 className="text-xs font-bold text-white leading-tight">
-                            {mod.title}
-                          </h3>
-                        </div>
-                        <p className="mt-2 text-[11px] leading-relaxed text-brand-400">
-                          {mod.detail}
-                        </p>
-                      </div>
-                    );
-                  })}
+                            {/* Horizontal branch connector line */}
+                            <span className="absolute -left-4 top-1/2 h-px w-4 border-t border-dashed border-brand-300" />
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded px-1 py-px text-[9.5px] font-bold",
+                                  ok
+                                    ? "bg-success-50 text-success-700"
+                                    : "bg-warning-50 text-warning-700",
+                                )}
+                              >
+                                {p.statusCode || "—"}
+                              </span>
+                              <span className="truncate font-semibold text-brand-950">
+                                {pathFromUrl(p.url)}
+                              </span>
+                            </div>
+                            <span className="shrink-0 text-[10px] text-brand-400">
+                              {p.responseTimeMs > 0 ? `${p.responseTimeMs}ms` : "parsed"}
+                            </span>
+                          </div>
+                        );
+                      })
+                    : BLUEPRINT_NODES.map((node, idx) => {
+                        const scanningThis = phase === "crawling" && idx === activeNodeIdx % BLUEPRINT_NODES.length;
+                        return (
+                          <div
+                            key={node.path}
+                            className={cn(
+                              "relative flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 font-mono text-[11px] transition-all",
+                              scanningThis
+                                ? "border-signal-400 bg-surface-2 text-brand-950"
+                                : "border-brand-200/70 bg-surface-2/30 text-brand-500",
+                            )}
+                          >
+                            <span className="absolute -left-4 top-1/2 h-px w-4 border-t border-dashed border-brand-300" />
+                            <div className="flex min-w-0 items-center gap-2">
+                              {scanningThis ? (
+                                <Loader2 size={11} className="shrink-0 animate-spin text-signal-400" />
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                              )}
+                              <span className="truncate font-semibold text-brand-800">
+                                {node.path}
+                              </span>
+                            </div>
+                            <span className="shrink-0 text-[9.5px] text-brand-400">
+                              {node.type}
+                            </span>
+                          </div>
+                        );
+                      })}
                 </div>
               </div>
             </div>
 
-            {/* RIGHT COLUMN: Interactive Technical Crawler Scanner Preview */}
-            <div className="lg:col-span-5">
-              <div className="relative rounded-3xl border border-brand-800 bg-brand-900/75 p-6 shadow-2xl backdrop-blur-xl overflow-hidden">
-                {/* Top Terminal Chrome */}
-                <div className="flex items-center justify-between border-b border-brand-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-error-500/80" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-warning-500/80" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-success-500/80" />
-                    <span className="ml-2 font-mono text-[11px] font-semibold text-brand-300">
-                      crawler-engine://target-scanner
-                    </span>
-                  </div>
-                  <span className="rounded-md border border-brand-700 bg-brand-800 px-2 py-0.5 font-mono text-[10px] font-bold text-series-6">
-                    READY
+            {/* Bottom Spider Telemetry Log inside Left Panel */}
+            <div className="mt-4 rounded-xl border border-brand-200 bg-surface-2/70 p-3 font-mono text-[10.5px]">
+              <div className="mb-1.5 flex items-center justify-between text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
+                <span className="flex items-center gap-1.5">
+                  <Terminal size={11} className="text-signal-400" />
+                  Spider Stream
+                </span>
+                <span>{phase === "crawling" ? "LIVE" : "IDLE"}</span>
+              </div>
+              {phase === "crawling" ? (
+                <div className="space-y-1 text-brand-600">
+                  {autopilotLogs.length > 0 ? (
+                    autopilotLogs.slice(-3).map((l, i) => (
+                      <p key={i} className="truncate">
+                        <span className="text-signal-400">›</span> {l.message}
+                      </p>
+                    ))
+                  ) : (
+                    <>
+                      <p className="truncate">
+                        <span className="text-signal-400">›</span> GET https://{displayDomain}/robots.txt
+                      </p>
+                      <p className="truncate">
+                        <span className="text-signal-400">›</span> Parsing XML sitemaps & internal hrefs…
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-brand-500">
+                  <span className="text-signal-400">›</span> Enter your domain in the bottom bar to start crawling your live website structure.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* =================================================================
+              CENTER/RIGHT PANEL (8 COLS): RAW WEBSITE WIREFRAME & DOM X-RAY
+             ================================================================= */}
+          <div className="lg:col-span-8 relative flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200 bg-surface-1/95 p-4 sm:p-5 shadow-card backdrop-blur-md">
+            {/* Animated Laser Scan Beam (Active while crawling) */}
+            {phase === "crawling" && !isCompleted && (
+              <div
+                aria-hidden="true"
+                className="reigel-laser-sweep pointer-events-none absolute inset-x-0 z-20 h-0.5 bg-signal-400 shadow-[0_0_24px_4px_rgba(200,245,58,0.55)]"
+              />
+            )}
+
+            {/* Wireframe Browser Top Chrome */}
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-brand-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-brand-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-signal-400" />
+                  <span className="ml-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-950">
+                    02 · Raw Website DOM & Structure X-Ray
                   </span>
                 </div>
 
-                {/* Orbital Radar Graphic */}
-                <div className="relative my-6 flex flex-col items-center justify-center py-6">
-                  <div className="relative flex h-44 w-44 items-center justify-center">
-                    {/* Outer pulsing rings */}
-                    <div className="absolute inset-0 rounded-full border border-brand-700/60" />
-                    <div className="absolute inset-4 rounded-full border border-dashed border-series-6/40 animate-[spin_24s_linear_infinite]" />
-                    <div className="absolute inset-9 rounded-full border border-brand-700/80" />
-                    <div className="absolute inset-14 rounded-full border border-accent-500/30 bg-series-6/10 animate-pulse" />
+                {/* Live URL Bar inside Wireframe */}
+                <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-[11px]">
+                  <span className="text-signal-400 font-bold">GET</span>
+                  <span className="max-w-[260px] sm:max-w-[380px] truncate text-brand-950">
+                    https://{displayDomain}
+                    {inspectedPage ? pathFromUrl(inspectedPage.url) : "/"}
+                  </span>
+                  {inspectedPage && (
+                    <span className="rounded bg-success-50 px-1.5 py-0.5 text-[9.5px] font-bold text-success-700">
+                      {inspectedPage.statusCode || "—"}
+                    </span>
+                  )}
+                </div>
+              </div>
 
-                    {/* Crosshairs */}
-                    <div className="absolute inset-x-0 top-1/2 h-px bg-brand-800/80" />
-                    <div className="absolute inset-y-0 left-1/2 w-px bg-brand-800/80" />
-
-                    {/* Center Core */}
-                    <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-series-6/50 bg-brand-950 shadow-lg shadow-series-6/20">
-                      <Radar size={24} className="text-series-6" />
-                    </div>
+              {/* RAW HTML STRUCTURE SKELETON GRID */}
+              <div className="mt-4 space-y-3 font-mono">
+                {/* 1. <head> Metadata & Indexability Wireframe Block */}
+                <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-signal-400">
+                      <Code2 size={13} />
+                      &lt;head&gt; · DOCUMENT METADATA &amp; DIRECTIVES
+                    </span>
+                    <span className="rounded border border-brand-200 bg-surface-1 px-2 py-0.5 text-[9.5px] text-brand-500">
+                      {inspectedPage?.indexability ?? (phase === "crawling" ? "INSPECTING_HEADERS" : "AWAITING_DOM")}
+                    </span>
                   </div>
 
-                  {/* Target Domain Lock Pill */}
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-brand-700 bg-brand-950/90 px-4 py-1.5 font-mono text-xs font-bold text-white shadow-md">
-                    <span className="h-2 w-2 rounded-full bg-success-400 animate-pulse" />
-                    <span>https://{previewDomain}</span>
+                  <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[9.5px] text-brand-400">&lt;title&gt;</p>
+                      <p className="mt-1 truncate font-sans text-xs font-semibold text-brand-950">
+                        {inspectedPage?.title ||
+                          (phase === "crawling"
+                            ? `Scanning title tag on ${displayDomain}…`
+                            : `${displayDomain} — Primary Page Title`)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[9.5px] text-brand-400">&lt;link rel=&quot;canonical&quot;&gt;</p>
+                      <p className="mt-1 truncate text-xs text-brand-700">
+                        {inspectedPage?.canonicalUrl || `https://${displayDomain}/`}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[9.5px] text-brand-400">&lt;meta name=&quot;description&quot;&gt;</p>
+                      <p className="mt-1 truncate font-sans text-xs text-brand-600">
+                        {inspectedPage?.metaDescription ||
+                          (phase === "crawling"
+                            ? "Extracting meta description length & keywords…"
+                            : "Meta description snippet & SERP preview block")}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Crawler Pipeline Stages Preview */}
-                <div className="space-y-2 border-t border-brand-800 pt-4 font-mono text-[11px]">
-                  {[
-                    { step: "01", name: "DNS, TLS & robots.txt handshake", tag: "20 threads" },
-                    { step: "02", name: "XML Sitemap & internal link spider", tag: "Depth 20" },
-                    { step: "03", name: "DOM, Schema & Core Web Vitals parser", tag: "128 rules" },
-                    { step: "04", name: "AI Fix Engine & Website Audit sync", tag: "Auto-route" },
-                  ].map((row) => (
-                    <div
-                      key={row.step}
-                      className="flex items-center justify-between rounded-xl border border-brand-800/80 bg-brand-950/60 px-3 py-2 text-brand-300"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <span className="text-series-6 font-bold">{row.step}</span>
-                        <span className="truncate">{row.name}</span>
-                      </div>
-                      <span className="shrink-0 rounded bg-brand-900 px-1.5 py-0.5 text-[9.5px] text-brand-400 border border-brand-800">
-                        {row.tag}
+                {/* 2. <body> Visual Wireframe Skeleton (Header / Hero H1 / Content Grid) */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+                  {/* Left 7 Cols: Raw Page Layout Skeleton */}
+                  <div className="md:col-span-7 space-y-2.5 rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-brand-500">
+                      <span className="flex items-center gap-1.5 text-brand-950">
+                        <Layers size={13} className="text-signal-400" />
+                        &lt;body&gt; · PAGE WIREFRAME STRUCTURE
+                      </span>
+                      <span>
+                        {inspectedPage?.wordCount
+                          ? `${inspectedPage.wordCount} words`
+                          : "DOM Tree"}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* =================================================================
-             PHASE 2: LIVE TECHNICAL CRAWLING MISSION CONTROL
-             ================================================================= */
-          <div className="w-full space-y-6">
-            {/* Top Live Telemetry Banner */}
-            <div className="rounded-3xl border border-brand-800 bg-brand-900/80 p-5 sm:p-6 shadow-2xl backdrop-blur-xl">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-wider",
-                        isCompleted
-                          ? "border border-success-500/40 bg-success-500/15 text-success-400"
-                          : "border border-series-6/40 bg-series-6/15 text-series-6",
-                      )}
-                    >
-                      {isCompleted ? (
-                        <>
-                          <Check size={12} strokeWidth={3} />
-                          Audit Complete
-                        </>
-                      ) : (
-                        <>
-                          <Loader2 size={12} className="animate-spin" />
-                          Live Technical Crawl Running
-                        </>
-                      )}
-                    </span>
 
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-700 bg-brand-950 px-3 py-1 font-mono text-xs font-bold text-white">
-                      <Globe size={12} className="text-series-6" />
-                      https://{activeDomain}
-                    </span>
-
-                    <span className="rounded-full border border-brand-800 bg-brand-950/80 px-2.5 py-1 font-mono text-xs text-brand-300">
-                      Elapsed: <strong className="text-white">{formatElapsed(elapsedSec)}</strong>
-                    </span>
-                  </div>
-
-                  <h1 className="pt-1 text-2xl sm:text-3xl font-black tracking-tight text-white">
-                    {isCompleted
-                      ? `Finished auditing ${activeDomain} — opening Website Audit…`
-                      : `Crawling and analyzing ${activeDomain} in real time…`}
-                  </h1>
-                </div>
-
-                {/* Live 3-Metric Telemetry Strip */}
-                <div className="grid grid-cols-3 gap-3 shrink-0">
-                  <div className="rounded-2xl border border-brand-800 bg-brand-950/90 px-4 py-2.5 text-center">
-                    <p className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
-                      Pages Scanned
-                    </p>
-                    <p className="mt-0.5 font-mono text-2xl font-black text-white">
-                      {totalPagesRecorded}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-brand-800 bg-brand-950/90 px-4 py-2.5 text-center">
-                    <p className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
-                      Findings Flagged
-                    </p>
-                    <p className="mt-0.5 font-mono text-2xl font-black text-warning-400">
-                      {totalIssuesRecorded}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-brand-800 bg-brand-950/90 px-4 py-2.5 text-center">
-                    <p className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
-                      Health Score
-                    </p>
-                    <p className="mt-0.5 font-mono text-2xl font-black text-success-400">
-                      {healthScore != null ? `${healthScore}` : "…"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2-Column Mission Control Body */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              {/* LEFT COLUMN: Active Radar + 4-Stage Pipeline */}
-              <div className="lg:col-span-5 space-y-6">
-                <div className="rounded-3xl border border-brand-800 bg-brand-900/80 p-6 shadow-2xl backdrop-blur-xl">
-                  <div className="flex items-center justify-between border-b border-brand-800 pb-3.5">
-                    <div className="flex items-center gap-2">
-                      <Cpu size={16} className="text-series-6" />
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-white">
-                        Crawler Execution Pipeline
-                      </h2>
-                    </div>
-                    <span className="font-mono text-[10px] text-brand-400">
-                      {isCompleted ? "4/4 Stages Complete" : "Active Spider"}
-                    </span>
-                  </div>
-
-                  {/* Compact Live Radar Header */}
-                  <div className="my-4 flex items-center gap-4 rounded-2xl border border-brand-800 bg-brand-950/80 p-4">
-                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
-                      <div
-                        className={cn(
-                          "absolute inset-0 rounded-full border border-dashed",
-                          isCompleted
-                            ? "border-success-500/60"
-                            : "border-series-6/60 animate-[spin_8s_linear_infinite]",
-                        )}
-                      />
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-series-6/15 text-series-6">
-                        {isCompleted ? (
-                          <Check size={20} className="text-success-400" strokeWidth={3} />
-                        ) : (
-                          <Radar size={20} className="animate-pulse" />
-                        )}
+                    {/* Simulated <nav> wireframe bar */}
+                    <div className="flex items-center justify-between rounded-lg border border-dashed border-brand-300 bg-surface-1/80 px-3 py-1.5 text-[10px] text-brand-400">
+                      <span>&lt;header&gt; / &lt;nav&gt;</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-8 rounded bg-brand-200" />
+                        <span className="h-2 w-8 rounded bg-brand-200" />
+                        <span className="h-2 w-8 rounded bg-brand-200" />
                       </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-xs font-bold text-white">
-                        {activeDomain}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-brand-400">
-                        {isCompleted
-                          ? "All discovered pages indexed & scored"
-                          : totalPagesRecorded > 0
-                            ? `Parsing DOM & links (${totalPagesRecorded} pages)…`
-                            : "Connecting to origin & reading sitemaps…"}
-                      </p>
-                    </div>
-                  </div>
 
-                  {/* 4 Pipeline Steps */}
-                  <div className="space-y-2.5">
-                    {crawlSteps.map((s, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "flex items-start gap-3 rounded-2xl border p-3.5 transition-all",
-                          s.done
-                            ? "border-success-500/30 bg-success-500/10"
-                            : s.active
-                              ? "border-series-6/50 bg-brand-950/90 shadow-md"
-                              : "border-brand-800/60 bg-brand-950/40 opacity-60",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold",
-                            s.done
-                              ? "bg-success-500 text-white"
-                              : s.active
-                                ? "bg-series-6 text-white"
-                                : "border border-brand-700 text-brand-400",
-                          )}
+                    {/* Simulated <main> Hero & <h1> Block */}
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-3">
+                      <div className="flex items-center justify-between text-[9.5px] text-brand-400">
+                        <span className="text-signal-400 font-bold">&lt;h1&gt; PRIMARY HEADING</span>
+                        <span>{inspectedPage?.h1?.length ? `${inspectedPage.h1.length} tag found` : "Heading hierarchy"}</span>
+                      </div>
+                      <p className="mt-1 truncate font-sans text-sm font-bold text-brand-950">
+                        {inspectedPage?.h1?.[0] ||
+                          (phase === "crawling"
+                            ? `Parsing <h1> and content blocks on ${pathFromUrl(inspectedPage?.url || "/")}…`
+                            : `Primary <h1> headline structure for ${displayDomain}`)}
+                      </p>
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="h-2 w-full rounded bg-brand-200/80" />
+                        <div className="h-2 w-4/5 rounded bg-brand-200/60" />
+                      </div>
+                    </div>
+
+                    {/* Simulated 3-Column Section Blocks */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[0, 1, 2].map((col) => (
+                        <div
+                          key={col}
+                          className="rounded-lg border border-dashed border-brand-300 bg-surface-1/70 p-2.5"
                         >
-                          {s.done ? (
-                            <Check size={13} strokeWidth={3} />
-                          ) : s.active ? (
-                            <Loader2 size={13} className="animate-spin" />
-                          ) : (
-                            idx + 1
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-white">{s.label}</p>
-                          <p className="mt-0.5 text-[11px] text-brand-300">{s.detail}</p>
+                          <p className="text-[9px] text-brand-400">&lt;section&gt;</p>
+                          <p className="mt-1 truncate font-sans text-[10.5px] font-semibold text-brand-700">
+                            {inspectedPage?.h2?.[col] || `<h2> Block 0${col + 1}`}
+                          </p>
+                          <div className="mt-2 h-1.5 w-3/4 rounded bg-brand-200" />
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* RIGHT COLUMN: Live Technical Crawler Stream & Discovered Pages */}
-              <div className="lg:col-span-7 flex flex-col">
-                <div className="flex flex-1 flex-col justify-between rounded-3xl border border-brand-800 bg-brand-900/80 p-6 shadow-2xl backdrop-blur-xl">
-                  <div>
-                    {/* Terminal Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-800 pb-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-error-500/80" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-warning-500/80" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-success-500/80" />
-                        <Terminal size={14} className="ml-1.5 text-series-6" />
-                        <span className="font-mono text-xs font-bold text-white">
-                          LIVE CRAWLER TELEMETRY · {activeDomain}
+                  {/* Right 5 Cols: Real-Time Audit Checks & Findings Stream */}
+                  <div className="md:col-span-5 flex flex-col justify-between rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] font-bold text-brand-950">
+                        <span className="flex items-center gap-1.5">
+                          <FileCode2 size={13} className="text-signal-400" />
+                          LIVE AUDIT TELEMETRY
+                        </span>
+                        <span className="text-[9.5px] text-brand-400">
+                          {healthScore != null ? `Score ${healthScore}/100` : "128 checks"}
                         </span>
                       </div>
-                      <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-brand-400">
-                        <Activity size={12} className="text-success-400" />
-                        Real-time feed
-                      </span>
-                    </div>
 
-                    {/* Autopilot / Engine Status Log Strip */}
-                    {autopilotLogs.length > 0 && (
-                      <div className="mt-4 rounded-2xl border border-brand-800 bg-brand-950/90 p-3 font-mono text-[11px] space-y-1">
-                        {autopilotLogs.slice(-3).map((entry, i) => (
-                          <div key={i} className="flex items-center gap-2 text-brand-300">
-                            <span className="text-success-400">▸</span>
-                            <span className="truncate">{entry.message}</span>
+                      {/* Real-Time Pipeline Checklist */}
+                      <div className="mt-3 space-y-2 text-[11px]">
+                        {[
+                          {
+                            name: "HTTPS, SSL & Robots.txt",
+                            status: phase === "crawling" ? "VERIFIED" : "READY",
+                            done: phase === "crawling",
+                          },
+                          {
+                            name: "Internal Page & Sitemap Crawl",
+                            status:
+                              phase === "crawling"
+                                ? `${totalPagesRecorded} pages`
+                                : "STANDBY",
+                            done: isCompleted,
+                            active: phase === "crawling" && !isCompleted,
+                          },
+                          {
+                            name: "Technical SEO & CWV Rules",
+                            status:
+                              phase === "crawling"
+                                ? `${totalIssuesRecorded} findings`
+                                : "STANDBY",
+                            done: isCompleted,
+                            active: phase === "crawling" && totalPagesRecorded > 0 && !isCompleted,
+                          },
+                          {
+                            name: "Website Audit Report Sync",
+                            status: isCompleted ? "COMPLETE" : "AUTO-OPEN",
+                            done: isCompleted,
+                          },
+                        ].map((chk) => (
+                          <div
+                            key={chk.name}
+                            className="flex items-center justify-between rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {chk.done ? (
+                                <Check size={12} className="shrink-0 text-signal-400" strokeWidth={3} />
+                              ) : chk.active ? (
+                                <Loader2 size={12} className="shrink-0 animate-spin text-signal-400" />
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                              )}
+                              <span className="truncate font-sans text-[11px] font-medium text-brand-800">
+                                {chk.name}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold",
+                                chk.done
+                                  ? "bg-primary-50 text-signal-400"
+                                  : chk.active
+                                    ? "bg-warning-50 text-warning-700"
+                                    : "text-brand-400",
+                              )}
+                            >
+                              {chk.status}
+                            </span>
                           </div>
                         ))}
                       </div>
-                    )}
-
-                    {/* Discovered Pages Live Stream */}
-                    <div className="mt-4">
-                      <div className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-brand-400">
-                        <span>Discovered Pages Stream</span>
-                        <span className="font-mono text-brand-300">
-                          {crawledPages.length > 0
-                            ? `Showing latest ${crawledPages.length} of ${totalPagesRecorded} pages`
-                            : "Awaiting first page response…"}
-                        </span>
-                      </div>
-
-                      <div className="max-h-[260px] overflow-y-auto rounded-2xl border border-brand-800 bg-brand-950/90 divide-y divide-brand-800/70 font-mono text-xs">
-                        {crawledPages.length > 0 ? (
-                          crawledPages.map((p) => {
-                            const ok = p.statusCode >= 200 && p.statusCode < 300;
-                            const redirect = p.statusCode >= 300 && p.statusCode < 400;
-                            return (
-                              <div
-                                key={p.id}
-                                className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-brand-900/60 transition"
-                              >
-                                <div className="flex min-w-0 items-center gap-2.5">
-                                  <span
-                                    className={cn(
-                                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold",
-                                      ok
-                                        ? "bg-success-500/15 text-success-400 border border-success-500/30"
-                                        : redirect
-                                          ? "bg-warning-500/15 text-warning-400 border border-warning-500/30"
-                                          : "bg-error-500/15 text-error-400 border border-error-500/30",
-                                    )}
-                                  >
-                                    {p.statusCode || "—"}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <p className="truncate font-semibold text-white">
-                                      {pathFromUrl(p.url)}
-                                    </p>
-                                    {p.title && (
-                                      <p className="truncate font-sans text-[10.5px] text-brand-400">
-                                        {p.title}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2 text-[10.5px] text-brand-400">
-                                  {p.responseTimeMs > 0 && <span>{p.responseTimeMs}ms</span>}
-                                  {p.wordCount > 0 && (
-                                    <span className="hidden sm:inline rounded bg-brand-900 px-1.5 py-0.5 text-[10px] text-brand-300">
-                                      {p.wordCount}w
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                            <Loader2 size={22} className="animate-spin text-series-6 mb-2.5" />
-                            <p className="font-sans text-xs font-semibold text-white">
-                              Connecting to https://{activeDomain} and discovering URLs…
-                            </p>
-                            <p className="mt-1 font-sans text-[11px] text-brand-400">
-                              Crawled pages, HTTP status codes, and response times will stream here live as they arrive.
-                            </p>
-                          </div>
-                        )}
-                      </div>
                     </div>
 
-                    {/* Live Findings Stream (once issues start arriving) */}
-                    {crawledIssues.length > 0 && (
-                      <div className="mt-4">
-                        <div className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-brand-400">
-                          <span>Live Technical Findings</span>
-                          <span className="font-mono text-warning-400">
-                            {totalIssuesRecorded} detected
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {crawledIssues.slice(0, 4).map((iss) => (
+                    {/* Live Detected Findings Box */}
+                    <div className="mt-3 rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
+                        {crawledIssues.length > 0
+                          ? `Latest Detected Findings (${totalIssuesRecorded})`
+                          : "Real-Time Defect Scanner"}
+                      </p>
+                      {crawledIssues.length > 0 ? (
+                        <div className="mt-1.5 space-y-1.5">
+                          {crawledIssues.slice(0, 2).map((iss) => (
                             <div
                               key={iss.id}
-                              className="rounded-xl border border-brand-800 bg-brand-950/80 px-3 py-2 text-xs"
+                              className="flex items-center justify-between gap-2 text-[10.5px]"
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <span
-                                  className={cn(
-                                    "rounded px-1.5 py-0.5 font-mono text-[9.5px] font-bold",
-                                    iss.severity === "CRITICAL" || iss.severity === "HIGH"
-                                      ? "bg-error-500/15 text-error-400"
-                                      : "bg-warning-500/15 text-warning-400",
-                                  )}
-                                >
-                                  {iss.severity}
-                                </span>
-                                <span className="truncate font-mono text-[10px] text-brand-400">
-                                  {pathFromUrl(iss.affectedUrl)}
-                                </span>
-                              </div>
-                              <p className="mt-1 truncate font-medium text-brand-200">
+                              <span className="truncate font-sans text-brand-700">
                                 {iss.description}
-                              </p>
+                              </span>
+                              <span className="shrink-0 rounded bg-error-50 px-1.5 py-px text-[9px] font-bold text-error-700">
+                                {iss.severity}
+                              </span>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom Action Bar */}
-                  <div className="mt-6 flex flex-col gap-3 border-t border-brand-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-brand-400">
-                      {isCompleted
-                        ? "Crawl finished! Opening your Website Audit report automatically…"
-                        : "You will be redirected to Website Audit automatically when the scan completes."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => router.replace("/website")}
-                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-series-6 hover:bg-series-6/90 px-5 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-series-6/25 transition cursor-pointer"
-                    >
-                      <span>Open Website Audit Now</span>
-                      <ArrowRight size={14} />
-                    </button>
+                      ) : (
+                        <p className="mt-1 font-sans text-[11px] text-brand-500">
+                          {phase === "crawling"
+                            ? "Inspecting crawled DOM nodes for missing titles, slow LCP, broken links, and canonical errors…"
+                            : "Once started, technical SEO defects and page speed bottlenecks appear here live."}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </main>
 
-      {/* ── FOOTER ── */}
-      <footer className="relative z-10 border-t border-brand-900/80 py-4 text-center text-xs text-brand-500">
-        Reigel AI SEO · Autonomous Technical Crawler & Fix Engine
-      </footer>
+      {/* ── BOTTOM-DOCKED COMMAND & CRAWLER PROGRESS BAR ── */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200 bg-surface-1/95 px-4 py-3.5 shadow-2xl backdrop-blur-xl sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          {phase === "input" ? (
+            <form onSubmit={handleStartAudit} noValidate>
+              {error && (
+                <div
+                  role="alert"
+                  className="mb-2.5 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-3.5 py-2 text-xs font-semibold text-error-700"
+                >
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                <div className="flex flex-1 items-center gap-2.5 rounded-xl border border-brand-300 bg-surface-2 px-3.5 py-2.5 focus-within:border-signal-400 transition-colors">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
+                    <Globe size={15} />
+                  </span>
+                  <span className="select-none font-mono text-xs font-bold text-brand-400">
+                    https://
+                  </span>
+                  <input
+                    id="onboarding-domain"
+                    type="text"
+                    required
+                    autoFocus
+                    value={domainInput}
+                    onChange={(e) => setDomainInput(e.target.value)}
+                    placeholder="Enter your website domain (e.g. yourwebsite.com)"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm font-bold text-brand-950 placeholder:text-brand-400 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-signal-400 px-6 py-3 text-sm font-extrabold text-signal-ink shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Initializing Crawler…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Start Website Crawl</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink">
+                  {isCompleted ? (
+                    <Check size={18} strokeWidth={3} />
+                  ) : (
+                    <Loader2 size={18} className="animate-spin" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-mono text-xs font-bold text-brand-950">
+                      {isCompleted
+                        ? `Audit complete for ${activeDomain} — opening Website Audit…`
+                        : `Crawling https://${activeDomain} (${totalPagesRecorded} pages scanned)`}
+                    </p>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-brand-200">
+                    <div
+                      className="h-full rounded-full bg-signal-400 transition-all duration-500"
+                      style={{
+                        width: isCompleted
+                          ? "100%"
+                          : `${Math.min(92, Math.max(18, totalPagesRecorded * 4))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => router.replace("/website")}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-signal-400 px-5 py-2.5 text-xs font-extrabold text-signal-ink shadow-xs transition hover:opacity-95 cursor-pointer"
+              >
+                <span>Open Website Audit</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -977,8 +872,11 @@ export default function AnalyzePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-brand-950 text-brand-50">
-          <Loader2 size={24} className="animate-spin text-series-6" />
+        <div
+          className="dash-dark dark flex min-h-screen items-center justify-center"
+          style={{ background: "var(--color-canvas)" }}
+        >
+          <Loader2 size={24} className="animate-spin text-signal-400" />
         </div>
       }
     >
