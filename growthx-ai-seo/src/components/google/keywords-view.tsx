@@ -5,12 +5,14 @@ import { Panel } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
 import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable } from "@/components/google/view-kit";
 import { Table, Td, Th, Tr } from "@/components/ui/console";
+import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { count, pathOf, percent, position } from "@/lib/google-format";
 
-type Tab = "top" | "new" | "rising" | "page2" | "ctr" | "declining" | "cannibalization";
+type Tab = "ideas" | "top" | "new" | "rising" | "page2" | "ctr" | "declining" | "cannibalization";
 const TABS: { id: Tab; label: string; about: string }[] = [
+  { id: "ideas", label: "Keyword ideas", about: "Searches your customers are likely to make, written from your site. Track the ones that matter." },
   { id: "top", label: "Top keywords", about: "Your queries with the most clicks in the period." },
   { id: "new", label: "New", about: "Queries that brought impressions this period and had none in the period before." },
   { id: "rising", label: "Rising", about: "Queries that gained clicks or moved up the page against the previous period." },
@@ -23,7 +25,7 @@ const TABS: { id: Tab; label: string; about: string }[] = [
 /** The queries that bring people from Google, and the ones worth working on. */
 export function KeywordsView() {
   const { projectId } = useWorkspace();
-  const [tab, setTab] = useState<Tab>("top");
+  const [tab, setTab] = useState<Tab>("ideas");
   const [search, setSearch] = useState("");
   const top = useGscQueries(projectId, 100);
   const striking = useGscStriking(projectId);
@@ -126,6 +128,7 @@ export function KeywordsView() {
       </div>
 
       <Panel title={current.label} subtitle={current.about}>
+        {tab === "ideas" && <KeywordIdeasView />}
         {tab === "top" && (
           <Gate query={top.query} what="keywords">
             {() => (filteredTopRows.length === 0 ? empty : <SearchRowsTable rows={filteredTopRows} label="Query" />)}

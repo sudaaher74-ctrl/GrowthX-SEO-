@@ -7,7 +7,9 @@ import { ChangeRiskService } from './change-risk.service';
 import { DataForSeoService } from './dataforseo.service';
 import { IndexStatusService } from './index-status.service';
 import { KeywordDiagnosisService } from './keyword-diagnosis.service';
+import { GooglePresenceService } from './google-presence.service';
 import { KeywordGapService } from './keyword-gap.service';
+import { KeywordIdeasService } from './keyword-ideas.service';
 import { RankTrackingService } from './rank-tracking.service';
 import { analyticsConnected, searchConsoleConnected } from './search-console-facts';
 import {
@@ -15,6 +17,8 @@ import {
   ChangeRiskDto,
   DiagnoseKeywordDto,
   InspectUrlsDto,
+  KeywordIdeasQueryDto,
+  PresenceCheckDto,
   RefreshGapsDto,
   SearchMarketDto,
   SearchRankingsQueryDto,
@@ -41,6 +45,8 @@ export class SearchIntelligenceController {
     private readonly ranks: RankTrackingService,
     private readonly searchRankings: SearchRankingsService,
     private readonly gaps: KeywordGapService,
+    private readonly ideas: KeywordIdeasService,
+    private readonly presence: GooglePresenceService,
     private readonly impact: ChangeImpactService,
     private readonly risk: ChangeRiskService,
   ) {}
@@ -152,6 +158,22 @@ export class SearchIntelligenceController {
   @ApiParam({ name: 'projectId' })
   checkRankings(@Param('projectId') projectId: string) {
     return this.ranks.checkAll(projectId);
+  }
+
+  // ── Keyword ideas and presence (Gemini, no paid keyword tool) ─────────
+
+  @Get('keyword-ideas')
+  @ApiOperation({ summary: 'Searches this business\'s customers are likely to make, written from the site' })
+  @ApiParam({ name: 'projectId' })
+  keywordIdeas(@Param('projectId') projectId: string, @Query() query: KeywordIdeasQueryDto) {
+    return this.ideas.suggest(projectId, { city: query.city, force: query.force === 'true' });
+  }
+
+  @Post('presence-check')
+  @ApiOperation({ summary: 'Whether the site appears in Google for each phrase, checked with Gemini Google Search grounding' })
+  @ApiParam({ name: 'projectId' })
+  presenceCheck(@Param('projectId') projectId: string, @Body() body: PresenceCheckDto) {
+    return this.presence.check(projectId, { keywords: body.keywords, city: body.city });
   }
 
   // ── Competitor keyword gaps ────────────────────────────────────────────

@@ -24,6 +24,8 @@ import type {
   SearchIntelligenceStatus,
   SearchMarket,
   SearchRankingsReport,
+  KeywordIdeasReport,
+  PresenceReport,
 } from "./search-intelligence";
 
 /**
@@ -1284,7 +1286,16 @@ export const api = {
     searchRankings: (projectId: string, days: number) =>
       get<SearchRankingsReport>(`/api/projects/${projectId}/search-intelligence/search-rankings?days=${days}`),
     rankings: (projectId: string) => get<RankingsReport>(`/api/projects/${projectId}/search-intelligence/rankings`),
-    track: (projectId: string, keywords: string[], source: "USER" | "COMPETITOR_GAP" = "USER") =>
+    keywordIdeas: (projectId: string, options: { city?: string; force?: boolean } = {}) => {
+      const qs = new URLSearchParams({
+        ...(options.city ? { city: options.city } : {}),
+        ...(options.force ? { force: "true" } : {}),
+      });
+      return get<KeywordIdeasReport>(`/api/projects/${projectId}/search-intelligence/keyword-ideas${qs.size ? `?${qs.toString()}` : ""}`);
+    },
+    presenceCheck: (projectId: string, body: { keywords: string[]; city?: string }) =>
+      post<PresenceReport>(`/api/projects/${projectId}/search-intelligence/presence-check`, body),
+    track: (projectId: string, keywords: string[], source: "USER" | "COMPETITOR_GAP" | "SUGGESTED" = "USER") =>
       post<{ added: number; skipped: number }>(`/api/projects/${projectId}/search-intelligence/rankings/keywords`, { keywords, source }),
     untrack: (projectId: string, id: string) =>
       del<{ removed: boolean }>(`/api/projects/${projectId}/search-intelligence/rankings/keywords/${encodeURIComponent(id)}`),

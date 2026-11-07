@@ -159,3 +159,26 @@ export function useChangeLedger(projectId: string | null | undefined) {
     staleTime: 60_000,
   });
 }
+
+/** Writes keyword ideas for the workspace's business. A button press, not an automatic read, because it calls an AI model. */
+export function useKeywordIdeas(projectId: string | null | undefined) {
+  return useMutation({
+    mutationFn: (options: { city?: string; force?: boolean }) => api.searchIntelligence.keywordIdeas(projectId!, options),
+  });
+}
+
+/** Whether the site shows up in Google for the chosen phrases, checked with Gemini's Google Search grounding. */
+export function usePresenceCheck(projectId: string | null | undefined) {
+  return useMutation({
+    mutationFn: (body: { keywords: string[]; city?: string }) => api.searchIntelligence.presenceCheck(projectId!, body),
+  });
+}
+
+/** Adds suggested keywords to the tracked list. */
+export function useTrackSuggested(projectId: string | null | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (keywords: string[]) => api.searchIntelligence.track(projectId!, keywords, "SUGGESTED"),
+    onSettled: () => client.invalidateQueries({ queryKey: ["rankings", projectId] }),
+  });
+}

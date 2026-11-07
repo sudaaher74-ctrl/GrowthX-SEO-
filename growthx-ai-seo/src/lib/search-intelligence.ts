@@ -362,3 +362,46 @@ export interface ChangeRiskReport {
   };
 }
 
+
+export type IdeaKind = "near_me" | "city" | "product" | "question" | "comparison";
+export type IdeaIntent = "local" | "transactional" | "commercial" | "informational";
+
+/** A search this business's customers are likely to make. A suggestion, not a measurement: it carries no search volume. */
+export interface KeywordIdea {
+  keyword: string;
+  kind: IdeaKind;
+  intent: IdeaIntent;
+  reason: string | null;
+  source: "TEMPLATE" | "GEMINI";
+  tracked: boolean;
+  /** Where Search Console has this exact search, when the site has been shown for it. */
+  searchConsole: { position: number; clicks: number; impressions: number } | null;
+}
+
+export interface KeywordIdeasReport {
+  city: string | null;
+  business: { industry: string | null; offerings: string[] };
+  ideas: KeywordIdea[];
+  generatedBy: "GEMINI" | "TEMPLATES_ONLY";
+  notice: string | null;
+  volumeNote: string;
+  generatedAt: string;
+}
+
+export interface PresenceResult {
+  keyword: string;
+  /** The site is among the pages Google returned. This is not a position. */
+  appears: boolean;
+  sites: string[];
+  competitorsSeen: string[];
+  searchQueries: string[];
+  error: string | null;
+}
+
+export interface PresenceReport {
+  city: string | null;
+  country: string;
+  checkedAt: string;
+  results: PresenceResult[];
+  method: string;
+}

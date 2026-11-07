@@ -23,6 +23,7 @@ import {
   AiRequest,
   AiUsage,
   AiCompletion,
+  GroundedSearchResult,
   Rate,
   ANTHROPIC_RATES,
   TASK_PREFERENCE,
@@ -267,6 +268,108 @@ export class MultiAiRouterService {
         });
     }
     return completion;
+  }
+
+  /**
+   * One Gemini answer grounded in live Google Search.
+   *
+   * Separate from `generate` because grounding is a Gemini-only tool and the
+   * caller needs the sources Gemini read, not just the text. Budget, token
+   * charging and the spend ledger apply exactly as they do for `generate`.
+   *
+   * `sources[].title` is the site's domain (Gemini reports the domain there and
+   * hands back a Google redirect URL), which is what callers should match on.
+   */
+  async searchGrounded(request: {
+    prompt: string;
+    organizationId?: string;
+    projectId?: string;
+    timeoutMs?: number;
+  }): Promise<GroundedSearchResult> {
+    if (!this.gemini || !this.configuredProviders().includes(AiProvider.GEMINI)) {
+      throw new ServiceUnavailableException('GEMINI_API_KEY is not configured.');
+    }
+    const task = AiTask.SEO_RESEARCH;
+    const scoped = await this.attributed({
+      prompt: redactSecretsForAi(request.prompt),
+      organizationId: request.organizationId,
+      projectId: request.projectId,
+    });
+    await this.usageLedger?.assertWithinBudget(scoped.organizationId);
+    await this.tokens?.assertCanStart(scoped.organizationId);
+
+    const model = this.geminiModel;
+    const startedAt = Date.now();
+    try {
+      const response = await this.gemini.models.generateContent({
+        model,
+        contents: scoped.prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          temperature: 0.1,
+          ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
+        },
+      });
+      const metadata: any = (response as any).usageMetadata ?? {};
+      const grounding: any = (response as any).candidates?.[0]?.groundingMetadata ?? {};
+      const sources = (Array.isArray(grounding.groundingChunks) ? grounding.groundingChunks : [])
+        .map((chunk: any) => chunk?.web)
+        .filter((web: any) => web && (web.title || web.uri))
+        .map((web: any) => ({ title: (web.title as string) ?? null, url: (web.uri as string) ?? null }));
+      const searchQueries: string[] = Array.isArray(grounding.webSearchQueries) ? grounding.webSearchQueries : [];
+      const usage = this.usage(
+        metadata.promptTokenCount ?? 0,
+        metadata.candidatesTokenCount ?? 0,
+        this.envRate('GEMINI'),
+      );
+      const text = response.text || '';
+
+      this.usageLedger?.record({
+        organizationId: scoped.organizationId,
+        projectId: scoped.projectId,
+        taskType: task,
+        provider: AiProvider.GEMINI,
+        model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        estimatedCostUsd: usage.estimatedCostUsd,
+        latencyMs: Date.now() - startedAt,
+        status: 'OK',
+      });
+      if (this.tokens) {
+        await this.tokens
+          .settleAiUsage({
+            organizationId: scoped.organizationId,
+            projectId: scoped.projectId,
+            taskType: task,
+            provider: AiProvider.GEMINI,
+            model,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            promptChars: scoped.prompt.length,
+            responseChars: text.length,
+          })
+          .catch((error: unknown) => {
+            this.logger.error(`Could not charge tokens for a grounded search: ${(error as Error)?.message}`);
+          });
+      }
+      return { model, text, sources, searchQueries, usage };
+    } catch (error) {
+      this.usageLedger?.record({
+        organizationId: scoped.organizationId,
+        projectId: scoped.projectId,
+        taskType: task,
+        provider: AiProvider.GEMINI,
+        model,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: null,
+        latencyMs: Date.now() - startedAt,
+        status: 'ERROR',
+        error: (error as Error)?.message ?? 'unknown',
+      });
+      throw error;
+    }
   }
 
   /**

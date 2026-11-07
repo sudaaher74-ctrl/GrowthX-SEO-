@@ -26,6 +26,8 @@ describe('SearchIntelligenceController', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
+      {} as any,
     );
     return { controller, searchRankings };
   }

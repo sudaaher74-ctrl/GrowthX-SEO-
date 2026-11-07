@@ -54,7 +54,7 @@ export class TrackKeywordsDto {
   keywords!: string[];
 
   @IsOptional()
-  @IsIn(['USER', 'SEARCH_CONSOLE', 'COMPETITOR_GAP'])
+  @IsIn(['USER', 'SEARCH_CONSOLE', 'COMPETITOR_GAP', 'SUGGESTED'])
   source?: string;
 }
 
@@ -112,4 +112,27 @@ export class ChangeImpactQueryDto {
   @Min(7)
   @Max(90)
   days?: number;
+}
+
+export class KeywordIdeasQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  city?: string;
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  force?: string;
+}
+
+export class PresenceCheckDto {
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  keywords!: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  city?: string;
 }

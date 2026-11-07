@@ -127,6 +127,17 @@ export interface AiUsage {
   estimatedCostUsd: number | null;
 }
 
+/** A Gemini answer grounded in live Google Search, with the sources it read. */
+export interface GroundedSearchResult {
+  model: string;
+  text: string;
+  /** `title` is the site's domain; `url` is a Google redirect to the page. */
+  sources: Array<{ title: string | null; url: string | null }>;
+  /** The Google searches Gemini actually ran to answer. */
+  searchQueries: string[];
+  usage: AiUsage;
+}
+
 export interface AiCompletion {
   provider: AiProvider;
   model: string;

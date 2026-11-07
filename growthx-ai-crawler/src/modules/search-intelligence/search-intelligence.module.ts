@@ -14,7 +14,9 @@ import { GoogleOverviewService } from './google-overview.service';
 import { GoogleReportService } from './google-report.service';
 import { IndexStatusService } from './index-status.service';
 import { KeywordDiagnosisService } from './keyword-diagnosis.service';
+import { GooglePresenceService } from './google-presence.service';
 import { KeywordGapService } from './keyword-gap.service';
+import { KeywordIdeasService } from './keyword-ideas.service';
 import { RankTrackingService } from './rank-tracking.service';
 import { SearchIntelligenceController } from './search-intelligence.controller';
 import { SearchIntelligenceScheduler } from './search-intelligence.scheduler';
@@ -43,6 +45,8 @@ import { SearchRankingsService } from './search-rankings.service';
     SearchRankingsService,
     KeywordDiagnosisService,
     KeywordGapService,
+    KeywordIdeasService,
+    GooglePresenceService,
     ChangeImpactService,
     ChangeRiskService,
     SearchIntelligenceScheduler,
