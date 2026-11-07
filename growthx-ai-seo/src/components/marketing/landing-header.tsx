@@ -77,7 +77,7 @@ export function LandingHeader() {
           </nav>
 
           {/* Right */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {signedIn ? (
               <Link
                 href="/dashboard"
@@ -90,13 +90,13 @@ export function LandingHeader() {
               <>
                 <Link
                   href="/login"
-                  className="hidden md:block text-[13.5px] font-medium text-brand-300 hover:text-white transition-colors px-3 py-2"
+                  className="inline-flex items-center justify-center rounded-xl border border-brand-700 bg-brand-900/90 hover:bg-brand-800 text-white text-[13.5px] font-semibold px-3.5 py-2 transition-all cursor-pointer"
                 >
                   Log in
                 </Link>
                 <Link
-                  href="/register"
-                  className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
+                  href="/login"
+                  className="hidden sm:flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
                 >
                   Start free audit
                   <ArrowRight size={14} />
@@ -141,13 +141,15 @@ export function LandingHeader() {
             {!signedIn && (
               <Link
                 href="/login"
-                className="block px-3 py-2.5 text-sm font-medium text-brand-300 hover:text-white hover:bg-brand-900/60 rounded-lg transition-colors"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center justify-center rounded-xl border border-brand-700 bg-brand-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-800 transition-colors"
               >
                 Log in
               </Link>
             )}
             <Link
-              href={signedIn ? "/dashboard" : "/register"}
+              href={signedIn ? "/dashboard" : "/login"}
+              onClick={() => setMobileOpen(false)}
               className="flex items-center justify-center gap-2 bg-series-6 hover:bg-series-6/90 text-white text-sm font-semibold px-4 py-3 rounded-xl"
             >
               {signedIn ? "Go to Dashboard" : "Start free audit"} <ArrowRight size={14} />

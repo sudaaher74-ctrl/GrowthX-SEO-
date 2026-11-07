@@ -54,10 +54,32 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "recharts", "framer-motion"],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        source: "/login",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+      },
+      {
+        source: "/auth/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+      },
+    ];
   },
   async redirects() {
     return [
+      {
+        source: "/login",
+        has: [
+          {
+            type: "header",
+            key: "referer",
+            value: ".*(google\\.|bing\\.|duckduckgo\\.|yahoo\\.|ecosia\\.|search\\.brave\\.).*",
+          },
+        ],
+        destination: "/",
+        permanent: false,
+      },
       {
         source: "/register",
         destination: "/",

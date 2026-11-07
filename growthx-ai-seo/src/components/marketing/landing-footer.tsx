@@ -39,19 +39,19 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Product",
     links: [
-      { label: "Website Audit", href: "/register" },
-      { label: "Competitor Intelligence", href: "/register" },
-      { label: "AI Search Visibility", href: "/register" },
-      { label: "Google Business Profile", href: "/register" },
-      { label: "Fix Engine", href: "/register" },
+      { label: "Website Audit", href: "/#features" },
+      { label: "Competitor Intelligence", href: "/#features" },
+      { label: "AI Search Visibility", href: "/#features" },
+      { label: "Google Business Profile", href: "/#features" },
+      { label: "Fix Engine", href: "/#features" },
     ],
     subSection: {
       title: "Connects to",
       links: [
-        { label: "Google Search Console", href: "/register" },
-        { label: "Google Analytics (GA4)", href: "/register" },
-        { label: "Google Business Profile", href: "/register" },
-        { label: "GitHub", href: "/register" },
+        { label: "Google Search Console", href: "/#how-it-works" },
+        { label: "Google Analytics (GA4)", href: "/#how-it-works" },
+        { label: "Google Business Profile", href: "/#how-it-works" },
+        { label: "GitHub", href: "/#how-it-works" },
       ],
     },
   },
@@ -61,7 +61,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Pricing", href: "/pricing" },
       { label: "Help", href: "/help" },
       { label: "Log in", href: "/login" },
-      { label: "Start free audit", href: "/register" },
+      { label: "Start free audit", href: "/login" },
     ],
   },
 ];

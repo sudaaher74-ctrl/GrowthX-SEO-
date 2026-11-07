@@ -84,7 +84,7 @@ export function FeatureCards() {
 
             <div className="pt-4">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-1 text-[13px] font-semibold text-series-6 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Audit my site</span>
@@ -144,7 +144,7 @@ export function FeatureCards() {
 
             <div className="pt-4">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-1 text-[13px] font-semibold text-success-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>See how fixes work</span>
@@ -209,7 +209,7 @@ export function FeatureCards() {
 
             <div className="pt-3">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-warning-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Track my competitors</span>
@@ -264,7 +264,7 @@ export function FeatureCards() {
 
             <div className="pt-3">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-series-6 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Check my AI visibility</span>
@@ -327,7 +327,7 @@ export function FeatureCards() {
 
             <div className="pt-3">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Audit my Google profile</span>

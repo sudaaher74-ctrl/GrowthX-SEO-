@@ -21,8 +21,17 @@ const STRUCTURED_DATA = {
       "@type": "Organization",
       "@id": `${SITE_URL}/#org`,
       name: "Reigel",
+      alternateName: ["Rigel", "Reigel AI SEO"],
       url: SITE_URL,
-      email: "sudarshan@growthx.in",
+      email: "sudarshan@reigel.in",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: "Reigel",
+      alternateName: ["Rigel", "Reigel AI SEO"],
+      url: SITE_URL,
+      publisher: { "@id": `${SITE_URL}/#org` },
     },
     {
       "@type": "SoftwareApplication",

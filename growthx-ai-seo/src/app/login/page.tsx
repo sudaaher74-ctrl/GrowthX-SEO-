@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  ArrowLeft,
   ArrowRight,
   ShieldCheck,
   Loader2,
@@ -199,6 +200,15 @@ const PARTNER_LOGOS = [
 ];
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const referrer = typeof document !== "undefined" ? document.referrer : "";
+    if (/(^|\.)(google\.|bing\.|duckduckgo\.|yahoo\.|ecosia\.|search\.brave\.)/i.test(referrer)) {
+      router.replace("/");
+    }
+  }, [router]);
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-brand-950 text-brand-50">
       {/* LEFT SIDE: Brand & Value Showcase */}
@@ -322,16 +332,25 @@ export default function LoginPage() {
 
       {/* RIGHT SIDE: Authentication Form */}
       <div className="flex-1 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-brand-950">
-        {/* Top bar with Create account link */}
-        <div className="flex items-center justify-end gap-2 text-xs text-brand-400">
-          <span>New to Reigel?</span>
+        {/* Top bar with Back to website link */}
+        <div className="flex items-center justify-between gap-2 text-xs text-brand-400">
           <Link
-            href="/register"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-brand-800 text-white font-bold hover:bg-brand-900 transition-all cursor-pointer"
+            href="/"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-brand-800 text-brand-300 font-semibold hover:text-white hover:bg-brand-900 transition-all cursor-pointer"
           >
-            <span>Create an account</span>
-            <ArrowRight size={13} />
+            <ArrowLeft size={13} />
+            <span>Back to website</span>
           </Link>
+          <div className="flex items-center gap-2">
+            <span>New to Reigel?</span>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-brand-800 text-white font-bold hover:bg-brand-900 transition-all cursor-pointer"
+            >
+              <span>View plans</span>
+              <ArrowRight size={13} />
+            </Link>
+          </div>
         </div>
 
         {/* Form Container */}

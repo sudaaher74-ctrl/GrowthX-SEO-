@@ -146,7 +146,7 @@ export function ValueSection() {
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link
-                href="/register"
+                href="/login"
                 className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
               >
                 <span>Start free audit</span>

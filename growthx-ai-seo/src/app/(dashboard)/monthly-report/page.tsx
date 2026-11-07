@@ -327,7 +327,7 @@ export default function MonthlyReport() {
           1. EXECUTIVE HEADER & CONTROLS
          ===================================================================== */}
       <div className="flex flex-col gap-4 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
               <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
@@ -341,49 +341,47 @@ export default function MonthlyReport() {
           <h1 className="text-2xl font-bold tracking-tight text-brand-950 sm:text-3xl">
             {title}
           </h1>
-          <p className="max-w-2xl text-xs text-brand-600">
+          <p className="text-xs text-brand-600">
             Recorded work and results for {project?.name ?? "your website"} in {title}. Recorded data only · gaps mean no measurement · changes do not prove cause.
           </p>
         </div>
 
-        <div className="no-print flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center rounded-xl border border-brand-200 bg-surface-2 p-1 text-xs">
+        <div className="no-print flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="inline-flex shrink-0 items-center rounded-xl border border-brand-200 bg-surface-2 p-1 text-xs">
             <button
               type="button"
               onClick={() => setSelectedMonth(prior)}
               title="Previous month"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-600 transition hover:bg-surface-1 hover:text-brand-950"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-600 transition hover:bg-surface-1 hover:text-brand-950"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={15} />
             </button>
 
-            <div className="relative px-2">
-              <select
-                aria-label="Report month"
-                value={month}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="cursor-pointer appearance-none bg-transparent pr-4 text-xs font-semibold text-brand-950 outline-none"
-              >
-                {availableMonths.map((m) => (
-                  <option key={m.key} value={m.key} className="bg-surface-1 text-brand-950">
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              aria-label="Report month"
+              value={month}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="cursor-pointer appearance-none bg-transparent px-2 text-center text-xs font-semibold text-brand-950 outline-none"
+            >
+              {availableMonths.map((m) => (
+                <option key={m.key} value={m.key} className="bg-surface-1 text-brand-950">
+                  {m.label}
+                </option>
+              ))}
+            </select>
 
             <button
               type="button"
               disabled={isCurrentMonth}
               onClick={() => setSelectedMonth(next)}
               title="Next month"
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
                 isCurrentMonth
-                  ? "cursor-not-allowed text-brand-300 opacity-40"
+                  ? "cursor-not-allowed text-brand-400 opacity-50"
                   : "text-brand-600 hover:bg-surface-1 hover:text-brand-950"
               }`}
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={15} />
             </button>
           </div>
 
@@ -391,18 +389,20 @@ export default function MonthlyReport() {
             type="button"
             onClick={refreshAll}
             title="Refresh report data"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 text-brand-700 transition hover:bg-surface-1 hover:text-brand-950"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 text-brand-700 transition hover:bg-surface-1 hover:text-brand-950"
           >
             <RefreshCw size={14} />
           </button>
 
-          <ActionButton
-            variant="primary"
-            icon={<Printer size={13} />}
-            onClick={() => window.print()}
-          >
-            Print or save PDF
-          </ActionButton>
+          <div className="shrink-0 whitespace-nowrap">
+            <ActionButton
+              variant="primary"
+              icon={<Printer size={13} />}
+              onClick={() => window.print()}
+            >
+              Print or save PDF
+            </ActionButton>
+          </div>
         </div>
       </div>
 
@@ -438,7 +438,7 @@ export default function MonthlyReport() {
               2. EXECUTIVE SUMMARY KPIS (6 HIGH-IMPACT CARDS)
              ===================================================================== */}
           <section
-            className="report-section grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            className="report-section grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
             aria-label="Monthly results"
           >
             {/* KPI 1: Search Clicks */}

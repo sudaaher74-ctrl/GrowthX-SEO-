@@ -220,7 +220,7 @@ export default function PricingPage() {
 
                   {/* CTA Button */}
                   <Link
-                    href={`/register?plan=${tier.id}&cycle=${billingCycle}`}
+                    href={`/login?plan=${tier.id}&cycle=${billingCycle}`}
                     className={`w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all mb-6 cursor-pointer ${
                       tier.popular
                         ? "bg-series-6 hover:bg-series-6/90 text-white shadow-md shadow-series-6/20 hover:shadow-lg hover:scale-[1.01]"
