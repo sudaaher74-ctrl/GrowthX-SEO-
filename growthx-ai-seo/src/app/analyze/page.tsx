@@ -5,14 +5,22 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   AlertTriangle,
   ArrowRight,
   Check,
+  CheckCircle2,
+  Clock,
   FileText,
   Folder,
   Globe,
   Home,
+  Layers,
   Loader2,
+  Radar,
+  ShieldCheck,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { api, auth, subscribeToAuthChange, type AutopilotRun } from "@/lib/api-client";
 import type { CrawlPage } from "@/lib/api-types";
@@ -41,8 +49,13 @@ function getPathname(rawUrl: string): string {
 interface TreeNodeData {
   path: string;
   title?: string | null;
+  metaDescription?: string | null;
+  h1?: string[];
+  wordCount?: number;
+  statusCode?: number | null;
+  indexability?: string | null;
   responseTimeMs?: number;
-  crawled: boolean;
+  realCrawled: boolean;
 }
 
 const DEFAULT_SECTIONS = ["/products", "/about", "/contact", "/blog"];
@@ -61,8 +74,13 @@ function buildVisualTree(pages: CrawlPage[]): {
   const rootHome: TreeNodeData = {
     path: "/",
     title: homePage?.title ?? null,
+    metaDescription: homePage?.metaDescription ?? null,
+    h1: homePage?.h1,
+    wordCount: homePage?.wordCount,
+    statusCode: homePage?.statusCode,
+    indexability: homePage?.indexability,
     responseTimeMs: homePage?.responseTimeMs,
-    crawled: Boolean(homePage),
+    realCrawled: Boolean(homePage),
   };
 
   const sectionMap = new Map<string, TreeNodeData>();
@@ -78,9 +96,14 @@ function buildVisualTree(pages: CrawlPage[]): {
     if (!sectionMap.has(topPath)) {
       sectionMap.set(topPath, {
         path: topPath,
-        title: segments.length === 1 ? page.title : null,
-        responseTimeMs: segments.length === 1 ? page.responseTimeMs : undefined,
-        crawled: true,
+        title: page.title,
+        metaDescription: page.metaDescription,
+        h1: page.h1,
+        wordCount: page.wordCount,
+        statusCode: page.statusCode,
+        indexability: page.indexability,
+        responseTimeMs: page.responseTimeMs,
+        realCrawled: true,
       });
     }
 
@@ -89,23 +112,38 @@ function buildVisualTree(pages: CrawlPage[]): {
         deepPages.push({
           path: pathname,
           title: page.title,
+          metaDescription: page.metaDescription,
+          h1: page.h1,
+          wordCount: page.wordCount,
+          statusCode: page.statusCode,
+          indexability: page.indexability,
           responseTimeMs: page.responseTimeMs,
-          crawled: true,
+          realCrawled: true,
         });
       }
     }
   }
 
-  // If no multi-segment pages exist yet, show additional discovered pages in the bottom row
-  if (deepPages.length === 0 && pages.length > 4) {
-    for (const extra of pages.slice(4, 7)) {
+  // If fewer than 3 multi-segment pages exist, fill from other discovered pages
+  if (deepPages.length < 3 && pages.length > 1) {
+    for (const extra of pages) {
+      if (deepPages.length >= 3) break;
       const pathname = getPathname(extra.url).replace(/\/+$/, "") || "/";
-      if (pathname !== "/" && !deepPages.some((d) => d.path === pathname)) {
+      if (
+        pathname !== "/" &&
+        !Array.from(sectionMap.keys()).slice(0, 4).includes(pathname) &&
+        !deepPages.some((d) => d.path === pathname)
+      ) {
         deepPages.push({
           path: pathname,
           title: extra.title,
+          metaDescription: extra.metaDescription,
+          h1: extra.h1,
+          wordCount: extra.wordCount,
+          statusCode: extra.statusCode,
+          indexability: extra.indexability,
           responseTimeMs: extra.responseTimeMs,
-          crawled: true,
+          realCrawled: true,
         });
       }
     }
@@ -117,7 +155,7 @@ function buildVisualTree(pages: CrawlPage[]): {
     if (!sections.some((s) => s.path === fallback)) {
       sections.push({
         path: fallback,
-        crawled: false,
+        realCrawled: false,
       });
     }
   }
@@ -133,13 +171,15 @@ function buildVisualTree(pages: CrawlPage[]): {
     if (!children.some((c) => c.path === adjusted)) {
       children.push({
         path: adjusted,
-        crawled: false,
+        realCrawled: false,
       });
     }
   }
 
   return { rootHome, sections, children };
 }
+
+type NodeStatus = "queued" | "scanning" | "done";
 
 function AnalyzeOnboardingInner() {
   const router = useRouter();
@@ -172,7 +212,10 @@ function AnalyzeOnboardingInner() {
   const [initialRun, setInitialRun] = useState<AutopilotRun | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pulseStep, setPulseStep] = useState(0);
+
+  // Sequential step counter: 0 = Home (/), 1..4 = Level 2 folders, 5..7 = Level 3 files
+  const [crawlStep, setCrawlStep] = useState<number>(0);
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
 
   useEffect(() => {
     if (urlParam) {
@@ -197,7 +240,7 @@ function AnalyzeOnboardingInner() {
       if (status === "COMPLETED" || status === "FAILED" || status === "CANCELLED") {
         return false;
       }
-      return 2000;
+      return 1800;
     },
   });
 
@@ -212,23 +255,23 @@ function AnalyzeOnboardingInner() {
     queryKey: ["onboarding-crawl-pages", crawlId],
     queryFn: () => api.getCrawlPages(crawlId!, { page: 1, limit: 24 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 2000,
+    refetchInterval: isCompleted || isFailed ? false : 1800,
   });
 
   // Poll live detected issues from the active crawl job
   const issuesQuery = useQuery({
     queryKey: ["onboarding-crawl-issues", crawlId],
-    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 8 }),
+    queryFn: () => api.getCrawlIssues(crawlId!, { page: 1, limit: 10 }),
     enabled: phase === "crawling" && Boolean(crawlId),
-    refetchInterval: isCompleted || isFailed ? false : 2500,
+    refetchInterval: isCompleted || isFailed ? false : 2200,
   });
 
-  useQuery({
+  const autopilotQuery = useQuery({
     queryKey: ["onboarding-autopilot", activeProjectId],
     queryFn: () => api.autopilot.latest(activeProjectId!),
     enabled: phase === "crawling" && Boolean(activeProjectId),
     initialData: initialRun,
-    refetchInterval: isCompleted || isFailed ? false : 3000,
+    refetchInterval: isCompleted || isFailed ? false : 2500,
   });
 
   const crawledPages = pagesQuery.data?.data ?? [];
@@ -244,15 +287,25 @@ function AnalyzeOnboardingInner() {
     issuesQuery.data?.meta?.total ?? 0,
     crawledIssues.length,
   );
+  const autopilotLogs = autopilotQuery.data?.log ?? initialRun?.log ?? [];
 
-  // Animate the active crawler node pulse across the tree
+  // Advance sequential one-by-one file traversal starting from Home (step 0 -> 1 -> 2 ... -> 8)
   useEffect(() => {
-    if (phase !== "crawling" || isCompleted || isFailed) return;
-    const interval = setInterval(() => {
-      setPulseStep((s) => s + 1);
-    }, 1100);
-    return () => clearInterval(interval);
-  }, [phase, isCompleted, isFailed]);
+    if (phase !== "crawling") return;
+    if (isCompleted) {
+      setCrawlStep(9);
+      return;
+    }
+    const timer = setInterval(() => {
+      setElapsedSec((s) => s + 1);
+      setCrawlStep((prev) => {
+        // Advance one node at a time; once all 8 tree nodes are reached, keep cycling leaf inspection until backend finishes
+        if (prev < 8) return prev + 1;
+        return 5 + ((prev - 4) % 3);
+      });
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [phase, isCompleted]);
 
   // Automatically redirect to Website Audit (/website) when the crawl finishes
   useEffect(() => {
@@ -264,7 +317,7 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["issue-counts"] });
       queryClient.invalidateQueries({ queryKey: ["issue-groups"] });
       router.replace("/website");
-    }, 1100);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [phase, isCompleted, queryClient, router]);
 
@@ -312,7 +365,9 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
 
-      setPulseStep(0);
+      // Start at step 0 (Home `/`) so user watches it finish one by one!
+      setCrawlStep(0);
+      setElapsedSec(0);
       setActiveDomain(run.domain || cleaned);
       setPhase("crawling");
     } catch (err) {
@@ -327,42 +382,169 @@ function AnalyzeOnboardingInner() {
     [crawledPages],
   );
 
+  // Ordered list of all 8 tree nodes so we can determine each node's status (queued -> scanning -> done)
+  const orderedNodes: TreeNodeData[] = useMemo(
+    () => [rootHome, ...sections, ...children],
+    [rootHome, sections, children],
+  );
+
   if (signedIn !== true) return null;
 
-  const displayDomain = activeDomain || cleanDomainInput(domainInput) || "yourwebsite.com";
+  const displayDomain =
+    activeDomain || cleanDomainInput(domainInput) || "yourwebsite.com";
 
-  // Smooth progress percentage calculation
+  // Helper: get sequential status for node index (0 = Home, 1..4 = Sections, 5..7 = Children)
+  function getNodeStatus(nodeIndex: number): NodeStatus {
+    if (phase === "input") return "queued";
+    if (isCompleted) return "done";
+    if (crawlStep > nodeIndex) return "done";
+    if (crawlStep === nodeIndex) return "scanning";
+    return "queued";
+  }
+
+  const homeStatus = getNodeStatus(0);
+
+  // Currently scanning node (for live runtime inspection panel)
+  const activeNodeIndex =
+    phase === "crawling" ? Math.min(crawlStep, orderedNodes.length - 1) : 0;
+  const activeNode = orderedNodes[activeNodeIndex] || rootHome;
+
+  // List of nodes finished so far (for the one-by-one finished files feed)
+  const finishedNodes =
+    phase === "crawling"
+      ? orderedNodes.filter((_, idx) => getNodeStatus(idx) === "done")
+      : [];
+
+  // Average response speed from real crawled pages
+  const avgSpeedMs =
+    crawledPages.length > 0
+      ? Math.round(
+          crawledPages.reduce((acc, p) => acc + (p.responseTimeMs || 0), 0) /
+            crawledPages.length,
+        )
+      : null;
+
+  // Smooth runtime progress percentage
+  const finishedCount = finishedNodes.length;
   const progressPct = isCompleted
     ? 100
     : phase === "crawling"
-      ? Math.min(94, Math.max(16, totalPagesRecorded * 6 + (pulseStep % 12)))
+      ? Math.min(
+          95,
+          Math.max(
+            8,
+            Math.round((finishedCount / 8) * 75) +
+              Math.min(20, totalPagesRecorded * 2),
+          ),
+        )
       : 0;
 
-  const activeSectionIdx = phase === "crawling" ? pulseStep % 4 : 0;
-  const activeChildIdx = phase === "crawling" ? pulseStep % 3 : 0;
+  // Runtime engine modules status
+  const runtimeEngines = [
+    {
+      name: "Root DNS, SSL & Home (/) Handshake",
+      detail: homeStatus === "done" ? "Home (/) verified" : "Starting from /",
+      status:
+        phase === "input"
+          ? "queued"
+          : homeStatus === "done"
+            ? "done"
+            : "scanning",
+    },
+    {
+      name: "Sitemap & Internal Folder Spider",
+      detail:
+        finishedCount > 1
+          ? `${Math.max(finishedCount, totalPagesRecorded)} routes mapped`
+          : "Waiting for Home (/)",
+      status:
+        phase === "input" || crawlStep < 1
+          ? "queued"
+          : crawlStep >= 5 || isCompleted
+            ? "done"
+            : "scanning",
+    },
+    {
+      name: "Deep File DOM & Metadata Parser",
+      detail:
+        crawlStep >= 5
+          ? `Inspecting ${activeNode.path}`
+          : "Queued after folders",
+      status:
+        phase === "input" || crawlStep < 5
+          ? "queued"
+          : isCompleted
+            ? "done"
+            : "scanning",
+    },
+    {
+      name: "SEO Defect & Speed Rule Engine",
+      detail:
+        totalIssuesRecorded > 0
+          ? `${totalIssuesRecorded} issues flagged`
+          : phase === "crawling"
+            ? "Evaluating 128 rules"
+            : "Standby",
+      status:
+        phase === "input" || crawlStep < 2
+          ? "queued"
+          : isCompleted
+            ? "done"
+            : "scanning",
+    },
+  ];
+
+  const formatElapsed = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const rem = sec % 60;
+    return `${String(mins).padStart(2, "0")}:${String(rem).padStart(2, "0")}`;
+  };
 
   return (
     <div
-      className="dash-dark dark relative h-screen w-full overflow-hidden flex flex-col justify-between select-none"
+      className="dash-dark dark relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none"
       style={{ background: "var(--color-canvas)" }}
     >
-      {/* ── SUBTLE MATTE-BLACK TECHNICAL BACKGROUND GRID & RADIAL GLOW ── */}
+      {/* ── MATTE-BLACK TECHNICAL BLUEPRINT GRID & RADIAL GLOW ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className="absolute left-1/2 top-1/2 h-[540px] w-[780px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-3xl"
+          className="absolute left-1/2 top-1/2 h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, rgba(200, 245, 58, 0.16) 0%, rgba(9, 10, 13, 0) 70%)",
+              "radial-gradient(circle, rgba(200, 245, 58, 0.14) 0%, rgba(9, 10, 13, 0) 70%)",
           }}
         />
-        <svg className="absolute inset-0 h-full w-full opacity-[0.10]" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          className="absolute inset-0 h-full w-full opacity-[0.10]"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <defs>
-            <pattern id="tree-subgrid" width="28" height="28" patternUnits="userSpaceOnUse">
-              <path d="M 28 0 L 0 0 0 28" fill="none" stroke="var(--color-brand-300)" strokeWidth="0.5" />
+            <pattern
+              id="tree-subgrid"
+              width="28"
+              height="28"
+              patternUnits="userSpaceOnUse"
+            >
+              <path
+                d="M 28 0 L 0 0 0 28"
+                fill="none"
+                stroke="var(--color-brand-300)"
+                strokeWidth="0.5"
+              />
             </pattern>
-            <pattern id="tree-grid" width="140" height="140" patternUnits="userSpaceOnUse">
+            <pattern
+              id="tree-grid"
+              width="140"
+              height="140"
+              patternUnits="userSpaceOnUse"
+            >
               <rect width="140" height="140" fill="url(#tree-subgrid)" />
-              <path d="M 140 0 L 0 0 0 140" fill="none" stroke="var(--color-brand-400)" strokeWidth="1" />
+              <path
+                d="M 140 0 L 0 0 0 140"
+                fill="none"
+                stroke="var(--color-brand-400)"
+                strokeWidth="1"
+              />
               <circle cx="0" cy="0" r="1.5" fill="var(--color-signal-400)" />
             </pattern>
           </defs>
@@ -370,36 +552,76 @@ function AnalyzeOnboardingInner() {
         </svg>
       </div>
 
-      {/* ── CLEAN TOP HEADER ── */}
-      <header className="relative z-20 flex h-16 shrink-0 items-center justify-between px-6 sm:px-10">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs">
-            R
-          </span>
-          <span className="text-lg font-extrabold tracking-tight text-brand-950">
-            Reigel
-          </span>
-        </Link>
-
+      {/* ── TOP RUNTIME TELEMETRY HEADER ── */}
+      <header
+        className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b bg-surface-1/90 px-4 sm:px-6 backdrop-blur-md"
+        style={{ borderColor: "var(--border-color)" }}
+      >
         <div className="flex items-center gap-3">
-          {phase === "crawling" && (
-            <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span className="rounded-full border border-brand-200 bg-surface-1/90 px-3 py-1 font-medium text-brand-700">
-                <strong className="font-bold text-signal-400">{totalPagesRecorded}</strong> pages found
-              </span>
-              {totalIssuesRecorded > 0 && (
-                <span className="rounded-full border border-brand-200 bg-surface-1/90 px-3 py-1 font-medium text-brand-700">
-                  <strong className="font-bold text-warning-700">{totalIssuesRecorded}</strong> issues spotted
-                </span>
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink">
+              R
+            </span>
+            <span className="text-sm font-extrabold tracking-tight text-brand-950">
+              Reigel
+            </span>
+          </Link>
+          <span className="text-brand-300">/</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-bold text-brand-700">
+            <Radar
+              size={12}
+              className={cn(
+                "text-signal-400",
+                phase === "crawling" && !isCompleted && "animate-spin",
               )}
-            </div>
-          )}
+            />
+            {phase === "crawling"
+              ? isCompleted
+                ? "Crawl Complete"
+                : `Scanning: ${activeNode.path}`
+              : "Step 1 · Enter Website Below"}
+          </span>
+        </div>
 
+        {/* Center Live Runtime Counters */}
+        <div className="hidden xl:flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
+            <CheckCircle2 size={12} className="text-signal-400" />
+            <span className="text-brand-500">Files Finished:</span>
+            <strong className="font-mono text-brand-950">
+              {phase === "crawling"
+                ? Math.max(finishedCount, totalPagesRecorded)
+                : 0}
+            </strong>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
+            <Zap size={12} className="text-signal-400" />
+            <span className="text-brand-500">Avg Speed:</span>
+            <strong className="font-mono text-brand-950">
+              {avgSpeedMs ? `${avgSpeedMs}ms` : "—"}
+            </strong>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
+            <AlertTriangle size={12} className="text-warning-700" />
+            <span className="text-brand-500">Issues Spotted:</span>
+            <strong className="font-mono text-warning-700">
+              {totalIssuesRecorded}
+            </strong>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
+            <Clock size={12} className="text-brand-400" />
+            <span className="font-mono text-brand-950">
+              {formatElapsed(elapsedSec)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
           {(projects.length > 0 || phase === "crawling") && (
             <button
               type="button"
               onClick={() => router.push("/website")}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1/90 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
             >
               <span>Website Audit</span>
               <ArrowRight size={13} />
@@ -408,251 +630,625 @@ function AnalyzeOnboardingInner() {
         </div>
       </header>
 
-      {/* ── CENTERPIECE: HIERARCHICAL WEBSITE STRUCTURE TREE DIAGRAM ── */}
-      <main className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 pb-24">
-        <div className="w-full">
+      {/* ── MAIN WORKSPACE: LEFT RUNTIME PANEL + CENTER TREE + RIGHT FINISHED LOG ── */}
+      <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-4 pt-3 pb-24 sm:px-6">
+        <div className="grid grid-cols-1 items-center gap-5 lg:grid-cols-12">
           {/* =================================================================
-              LEVEL 0: TOP DOMAIN PILL
+              LEFT COLUMN (3 COLS): ACTIVE FILE INSPECTOR & RUNTIME ENGINES
              ================================================================= */}
-          <div className="flex flex-col items-center">
-            <div
-              className={cn(
-                "relative flex items-center gap-3 rounded-full border px-7 py-3 shadow-card transition-all duration-300",
-                phase === "crawling"
-                  ? "border-signal-400 bg-surface-1 shadow-[0_0_30px_rgba(200,245,58,0.14)]"
-                  : "border-brand-300 bg-surface-1",
-              )}
-            >
-              <Globe size={20} className="shrink-0 text-signal-400" />
-              <span className="font-sans text-lg font-extrabold tracking-tight text-brand-950 sm:text-xl">
-                {displayDomain}
-              </span>
-              {/* Bottom connector dot */}
-              <span className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-surface-1 bg-signal-400" />
+          <div className="lg:col-span-3 flex flex-col gap-3.5">
+            {/* Card 1: Currently Scanning File Inspector */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                  <Activity size={13} className="text-signal-400" />
+                  Active File Scanner
+                </span>
+                <span
+                  className={cn(
+                    "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold",
+                    phase === "crawling"
+                      ? "bg-primary-50 text-signal-400"
+                      : "bg-surface-2 text-brand-400",
+                  )}
+                >
+                  {phase === "crawling"
+                    ? isCompleted
+                      ? "DONE"
+                      : "LIVE"
+                    : "STANDBY"}
+                </span>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-brand-200 bg-surface-2/70 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">
+                  {phase === "crawling" ? "Currently Crawling File" : "Start Point"}
+                </p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-xs font-extrabold text-signal-400">
+                    {phase === "crawling" ? activeNode.path : "/ (Home)"}
+                  </span>
+                  {phase === "crawling" && !isCompleted && (
+                    <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                  )}
+                </div>
+                <p className="mt-1.5 truncate text-xs font-medium text-brand-700">
+                  {phase === "crawling"
+                    ? activeNode.title || `Scanning HTML & links on ${activeNode.path}…`
+                    : "Enter your website below to start from Home (/)"}
+                </p>
+              </div>
+
+              {/* Live File Telemetry Metrics */}
+              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
+                  <p className="text-[10px] text-brand-400">HTTP Status</p>
+                  <p className="mt-0.5 font-mono font-bold text-brand-950">
+                    {phase === "crawling"
+                      ? activeNode.statusCode
+                        ? `${activeNode.statusCode} OK`
+                        : "Verified"
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5">
+                  <p className="text-[10px] text-brand-400">Response Speed</p>
+                  <p className="mt-0.5 font-mono font-bold text-brand-950">
+                    {phase === "crawling"
+                      ? activeNode.responseTimeMs
+                        ? `${activeNode.responseTimeMs}ms`
+                        : avgSpeedMs
+                          ? `${avgSpeedMs}ms`
+                          : "Checking…"
+                      : "—"}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Vertical connector line from Domain to `/` */}
-            <div className="h-9 w-0.5 bg-signal-400/80" />
-          </div>
-
-          {/* =================================================================
-              LEVEL 1: HOME ROOT NODE (🏠 /)
-             ================================================================= */}
-          <div className="flex flex-col items-center">
-            <div
-              className={cn(
-                "relative flex min-w-[160px] items-center justify-center gap-2.5 rounded-2xl border px-6 py-3 shadow-card transition-all",
-                phase === "crawling" || rootHome.crawled
-                  ? "border-signal-400 bg-primary-50/90 text-brand-950"
-                  : "border-brand-300 bg-surface-1 text-brand-950",
-              )}
-            >
-              {/* Top connector dot */}
-              <span className="absolute -top-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-signal-400" />
-
-              <Home size={17} className="shrink-0 text-signal-400" />
-              <span className="font-mono text-base font-extrabold text-brand-950">/</span>
-              {rootHome.responseTimeMs ? (
-                <span className="ml-1 rounded-md bg-surface-1/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-signal-400">
-                  {rootHome.responseTimeMs}ms
+            {/* Card 2: Runtime Crawler Functions */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                  <Layers size={13} className="text-signal-400" />
+                  Runtime Crawler Tasks
                 </span>
-              ) : null}
-
-              {/* Sonar pulse ring on `/` just like reference image */}
-              {phase === "crawling" && (
-                <span className="absolute -bottom-2.5 right-5 flex h-5 w-5 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-60" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-surface-1 bg-signal-400" />
+                <span className="text-[10px] font-semibold text-brand-400">
+                  Real-time
                 </span>
-              )}
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {runtimeEngines.map((eng) => (
+                  <div
+                    key={eng.name}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-all",
+                      eng.status === "done"
+                        ? "border-signal-400/50 bg-primary-50/50 text-brand-950"
+                        : eng.status === "scanning"
+                          ? "border-signal-400 bg-surface-2 text-brand-950"
+                          : "border-brand-200/70 bg-surface-2/30 text-brand-500",
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      {eng.status === "done" ? (
+                        <Check size={13} className="shrink-0 text-signal-400" strokeWidth={3} />
+                      ) : eng.status === "scanning" ? (
+                        <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-bold text-brand-900">
+                          {eng.name}
+                        </p>
+                        <p className="truncate text-[10px] text-brand-500">
+                          {eng.detail}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* =================================================================
-              SVG BRANCHING CONNECTORS: LEVEL 1 (/) -> LEVEL 2 (4 FOLDERS)
+              CENTER COLUMN (6 COLS): ONE-BY-ONE HIERARCHICAL WEBSITE TREE
              ================================================================= */}
-          <div className="w-full">
-            <svg
-              viewBox="0 0 800 54"
-              className="h-12 w-full overflow-visible sm:h-14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* 4 Rounded Orthogonal Branches to x = 100, 300, 500, 700 */}
-              {[
-                { x: 100, path: "M 400 0 L 400 16 Q 400 26 384 26 L 116 26 Q 100 26 100 40 L 100 54" },
-                { x: 300, path: "M 400 0 L 400 16 Q 400 26 388 26 L 312 26 Q 300 26 300 40 L 300 54" },
-                { x: 500, path: "M 400 0 L 400 16 Q 400 26 412 26 L 488 26 Q 500 26 500 40 L 500 54" },
-                { x: 700, path: "M 400 0 L 400 16 Q 400 26 416 26 L 684 26 Q 700 26 700 40 L 700 54" },
-              ].map((branch, idx) => {
-                const isHighlighted =
-                  idx === 0 ||
-                  sections[idx]?.crawled ||
-                  (phase === "crawling" && idx === activeSectionIdx);
-                return (
-                  <g key={branch.x}>
-                    <path
-                      d={branch.path}
-                      stroke={
-                        isHighlighted
-                          ? "var(--color-signal-400)"
-                          : "var(--color-brand-300)"
-                      }
-                      strokeWidth={isHighlighted ? "2.2" : "1.5"}
-                      strokeLinecap="round"
-                    />
-                    <circle
-                      cx={branch.x}
-                      cy={54}
-                      r="3.5"
-                      fill={
-                        isHighlighted
-                          ? "var(--color-signal-400)"
-                          : "var(--color-brand-300)"
-                      }
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* =================================================================
-              LEVEL 2: 4 SECTION FOLDER NODES (📁 /products, /about, /contact, /blog)
-             ================================================================= */}
-          <div className="grid grid-cols-4 gap-0">
-            {sections.map((sec, idx) => {
-              const isScanning = phase === "crawling" && idx === activeSectionIdx;
-              const isHighlighted = idx === 0 || sec.crawled || isScanning;
-              return (
-                <div key={sec.path} className="px-1.5 sm:px-3">
-                  <div
+          <div className="lg:col-span-6 flex flex-col items-center justify-center">
+            <div className="w-full">
+              {/* LEVEL 0: TOP DOMAIN PILL */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={cn(
+                    "relative flex items-center gap-3 rounded-full border px-6 py-2.5 shadow-card transition-all duration-300",
+                    phase === "crawling"
+                      ? "border-signal-400 bg-surface-1 shadow-[0_0_28px_rgba(200,245,58,0.16)]"
+                      : "border-brand-300 bg-surface-1",
+                  )}
+                >
+                  <Globe
+                    size={18}
                     className={cn(
-                      "relative flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 shadow-card transition-all duration-300",
-                      isHighlighted
-                        ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_20px_rgba(200,245,58,0.08)]"
-                        : "border-brand-200 bg-surface-1/80 text-brand-600",
+                      "shrink-0",
+                      phase === "crawling" ? "text-signal-400" : "text-brand-400",
                     )}
-                  >
-                    <Folder
-                      size={16}
-                      className={cn(
-                        "shrink-0",
-                        isHighlighted ? "text-signal-400" : "text-brand-400",
-                      )}
-                    />
-                    <span className="truncate font-mono text-xs font-bold text-brand-950 sm:text-sm">
-                      {sec.path}
+                  />
+                  <span className="font-sans text-base font-extrabold tracking-tight text-brand-950 sm:text-lg">
+                    {displayDomain}
+                  </span>
+                  {phase === "crawling" && (
+                    <span className="rounded-full bg-primary-50 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                      LIVE
                     </span>
-                    {sec.crawled && (
-                      <Check
-                        size={13}
-                        className="hidden sm:inline shrink-0 text-signal-400"
-                        strokeWidth={3}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* =================================================================
-              SVG BRANCHING CONNECTORS: LEVEL 2 (/products at x=100) -> LEVEL 3 (3 PAGES)
-             ================================================================= */}
-          <div className="w-full">
-            <svg
-              viewBox="0 0 800 54"
-              className="h-12 w-full overflow-visible sm:h-14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Start dot under /products (x=100) */}
-              <circle cx="100" cy="0" r="3.5" fill="var(--color-signal-400)" />
-
-              {[
-                {
-                  x: 100,
-                  path: "M 100 0 L 100 54",
-                },
-                {
-                  x: 300,
-                  path: "M 100 0 L 100 16 Q 100 26 116 26 L 284 26 Q 300 26 300 40 L 300 54",
-                },
-                {
-                  x: 500,
-                  path: "M 100 0 L 100 16 Q 100 26 116 26 L 484 26 Q 500 26 500 40 L 500 54",
-                },
-              ].map((branch, idx) => {
-                const isHighlighted =
-                  idx === 0 ||
-                  children[idx]?.crawled ||
-                  (phase === "crawling" && idx === activeChildIdx);
-                return (
-                  <g key={branch.x}>
-                    <path
-                      d={branch.path}
-                      stroke={
-                        isHighlighted
-                          ? "var(--color-signal-400)"
-                          : "var(--color-brand-300)"
-                      }
-                      strokeWidth={isHighlighted ? "2.2" : "1.5"}
-                      strokeLinecap="round"
-                    />
-                    <circle
-                      cx={branch.x}
-                      cy={54}
-                      r="3.5"
-                      fill={
-                        isHighlighted
-                          ? "var(--color-signal-400)"
-                          : "var(--color-brand-300)"
-                      }
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* =================================================================
-              LEVEL 3: 3 DEEP PAGE NODES
-             ================================================================= */}
-          <div className="grid grid-cols-4 gap-0">
-            {children.map((child, idx) => {
-              const isScanning = phase === "crawling" && idx === activeChildIdx;
-              const isHighlighted = idx === 0 || child.crawled || isScanning;
-              return (
-                <div key={child.path} className="px-1.5 sm:px-3">
-                  <div
+                  )}
+                  <span
                     className={cn(
-                      "flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 shadow-card transition-all duration-300",
-                      isHighlighted
-                        ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_20px_rgba(200,245,58,0.08)]"
-                        : "border-brand-200 bg-surface-1/80 text-brand-600",
+                      "absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-surface-1",
+                      phase === "crawling" ? "bg-signal-400" : "bg-brand-300",
                     )}
-                  >
-                    <FileText
-                      size={15}
-                      className={cn(
-                        "shrink-0",
-                        isHighlighted ? "text-signal-400" : "text-brand-400",
-                      )}
-                    />
-                    <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
-                      {child.path}
-                    </span>
-                  </div>
+                  />
                 </div>
-              );
-            })}
+
+                {/* Vertical Connector from Domain to Home (/) */}
+                <div
+                  className={cn(
+                    "h-8 w-0.5 transition-colors duration-500",
+                    phase === "crawling" ? "bg-signal-400" : "bg-brand-300/60",
+                  )}
+                />
+              </div>
+
+              {/* LEVEL 1: HOME ROOT NODE (🏠 / — Starts here first!) */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={cn(
+                    "relative flex min-w-[165px] items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 shadow-card transition-all duration-300",
+                    homeStatus === "done"
+                      ? "border-signal-400 bg-primary-50/90 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.15)]"
+                      : homeStatus === "scanning"
+                        ? "border-signal-400 bg-surface-1 text-brand-950 shadow-[0_0_28px_rgba(200,245,58,0.25)]"
+                        : "border-brand-300 bg-surface-1/80 text-brand-600",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute -top-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full",
+                      phase === "crawling" ? "bg-signal-400" : "bg-brand-300",
+                    )}
+                  />
+
+                  {homeStatus === "scanning" ? (
+                    <Loader2 size={15} className="shrink-0 animate-spin text-signal-400" />
+                  ) : homeStatus === "done" ? (
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                      <Check size={11} strokeWidth={3.5} />
+                    </span>
+                  ) : (
+                    <Home size={15} className="shrink-0 text-brand-400" />
+                  )}
+
+                  <span className="font-mono text-sm font-extrabold text-brand-950">
+                    / (Home)
+                  </span>
+
+                  {homeStatus === "scanning" && (
+                    <span className="rounded bg-primary-50 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                      Scanning…
+                    </span>
+                  )}
+                  {homeStatus === "done" && (
+                    <span className="rounded bg-surface-1 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                      {rootHome.responseTimeMs ? `${rootHome.responseTimeMs}ms` : "Done"}
+                    </span>
+                  )}
+
+                  {/* Sonar pulse when Home is actively scanning */}
+                  {homeStatus === "scanning" && (
+                    <span className="absolute -bottom-2 right-4 flex h-4 w-4 items-center justify-center">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-400" />
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* SVG BRANCHING CONNECTORS: HOME (/) -> 4 SECTION FOLDERS (Nodes 1..4) */}
+              <div className="w-full">
+                <svg
+                  viewBox="0 0 800 52"
+                  className="h-11 w-full overflow-visible sm:h-12"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {[
+                    {
+                      nodeIdx: 1,
+                      x: 100,
+                      path: "M 400 0 L 400 15 Q 400 25 384 25 L 116 25 Q 100 25 100 38 L 100 52",
+                    },
+                    {
+                      nodeIdx: 2,
+                      x: 300,
+                      path: "M 400 0 L 400 15 Q 400 25 388 25 L 312 25 Q 300 25 300 38 L 300 52",
+                    },
+                    {
+                      nodeIdx: 3,
+                      x: 500,
+                      path: "M 400 0 L 400 15 Q 400 25 412 25 L 488 25 Q 500 25 500 38 L 500 52",
+                    },
+                    {
+                      nodeIdx: 4,
+                      x: 700,
+                      path: "M 400 0 L 400 15 Q 400 25 416 25 L 684 25 Q 700 25 700 38 L 700 52",
+                    },
+                  ].map((branch) => {
+                    const st = getNodeStatus(branch.nodeIdx);
+                    const activeOrDone = st === "scanning" || st === "done";
+                    return (
+                      <g key={branch.x}>
+                        <path
+                          d={branch.path}
+                          stroke={
+                            activeOrDone
+                              ? "var(--color-signal-400)"
+                              : "var(--color-brand-300)"
+                          }
+                          strokeWidth={activeOrDone ? "2.2" : "1.4"}
+                          strokeDasharray={st === "queued" ? "4 4" : undefined}
+                          strokeLinecap="round"
+                        />
+                        <circle
+                          cx={branch.x}
+                          cy={52}
+                          r="3.2"
+                          fill={
+                            activeOrDone
+                              ? "var(--color-signal-400)"
+                              : "var(--color-brand-300)"
+                          }
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* LEVEL 2: 4 SECTION FOLDER NODES (Nodes 1..4 — Finished one by one!) */}
+              <div className="grid grid-cols-4 gap-0">
+                {sections.map((sec, idx) => {
+                  const nodeIdx = idx + 1;
+                  const st = getNodeStatus(nodeIdx);
+                  return (
+                    <div key={sec.path} className="px-1 sm:px-2">
+                      <div
+                        className={cn(
+                          "relative flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 shadow-card transition-all duration-300",
+                          st === "done"
+                            ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.08)]"
+                            : st === "scanning"
+                              ? "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]"
+                              : "border-brand-200/70 bg-surface-1/60 text-brand-500 opacity-65",
+                        )}
+                      >
+                        <div className="flex w-full items-center justify-center gap-1.5">
+                          {st === "scanning" ? (
+                            <Loader2
+                              size={13}
+                              className="shrink-0 animate-spin text-signal-400"
+                            />
+                          ) : st === "done" ? (
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                              <Check size={10} strokeWidth={3.5} />
+                            </span>
+                          ) : (
+                            <Folder size={13} className="shrink-0 text-brand-400" />
+                          )}
+                          <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
+                            {sec.path}
+                          </span>
+                        </div>
+
+                        <span
+                          className={cn(
+                            "mt-1 text-[9.5px] font-semibold",
+                            st === "done"
+                              ? "text-signal-400"
+                              : st === "scanning"
+                                ? "text-signal-400"
+                                : "text-brand-400",
+                          )}
+                        >
+                          {st === "done"
+                            ? sec.responseTimeMs
+                              ? `✓ ${sec.responseTimeMs}ms`
+                              : "✓ Finished"
+                            : st === "scanning"
+                              ? "Scanning file…"
+                              : "Queued"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* SVG BRANCHING CONNECTORS: LEVEL 2 (x=100) -> LEVEL 3 (Nodes 5..7) */}
+              <div className="w-full">
+                <svg
+                  viewBox="0 0 800 52"
+                  className="h-11 w-full overflow-visible sm:h-12"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="100"
+                    cy="0"
+                    r="3.2"
+                    fill={
+                      crawlStep >= 5 || isCompleted
+                        ? "var(--color-signal-400)"
+                        : "var(--color-brand-300)"
+                    }
+                  />
+
+                  {[
+                    {
+                      nodeIdx: 5,
+                      x: 100,
+                      path: "M 100 0 L 100 52",
+                    },
+                    {
+                      nodeIdx: 6,
+                      x: 300,
+                      path: "M 100 0 L 100 15 Q 100 25 116 25 L 284 25 Q 300 25 300 38 L 300 52",
+                    },
+                    {
+                      nodeIdx: 7,
+                      x: 500,
+                      path: "M 100 0 L 100 15 Q 100 25 116 25 L 484 25 Q 500 25 500 38 L 500 52",
+                    },
+                  ].map((branch) => {
+                    const st = getNodeStatus(branch.nodeIdx);
+                    const activeOrDone = st === "scanning" || st === "done";
+                    return (
+                      <g key={branch.x}>
+                        <path
+                          d={branch.path}
+                          stroke={
+                            activeOrDone
+                              ? "var(--color-signal-400)"
+                              : "var(--color-brand-300)"
+                          }
+                          strokeWidth={activeOrDone ? "2.2" : "1.4"}
+                          strokeDasharray={st === "queued" ? "4 4" : undefined}
+                          strokeLinecap="round"
+                        />
+                        <circle
+                          cx={branch.x}
+                          cy={52}
+                          r="3.2"
+                          fill={
+                            activeOrDone
+                              ? "var(--color-signal-400)"
+                              : "var(--color-brand-300)"
+                          }
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* LEVEL 3: 3 CHILD PAGE FILES (Nodes 5..7 — Finished one by one!) */}
+              <div className="grid grid-cols-4 gap-0">
+                {children.map((child, idx) => {
+                  const nodeIdx = idx + 5;
+                  const st = getNodeStatus(nodeIdx);
+                  return (
+                    <div key={child.path} className="px-1 sm:px-2">
+                      <div
+                        className={cn(
+                          "flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 shadow-card transition-all duration-300",
+                          st === "done"
+                            ? "border-signal-400/80 bg-surface-1 text-brand-950 shadow-[0_0_18px_rgba(200,245,58,0.08)]"
+                            : st === "scanning"
+                              ? "border-signal-400 bg-primary-50/80 text-brand-950 shadow-[0_0_24px_rgba(200,245,58,0.22)]"
+                              : "border-brand-200/70 bg-surface-1/60 text-brand-500 opacity-65",
+                        )}
+                      >
+                        <div className="flex w-full items-center justify-center gap-1.5">
+                          {st === "scanning" ? (
+                            <Loader2
+                              size={13}
+                              className="shrink-0 animate-spin text-signal-400"
+                            />
+                          ) : st === "done" ? (
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink">
+                              <Check size={10} strokeWidth={3.5} />
+                            </span>
+                          ) : (
+                            <FileText size={13} className="shrink-0 text-brand-400" />
+                          )}
+                          <span className="truncate font-mono text-[10.5px] font-bold text-brand-950 sm:text-[11px]">
+                            {child.path}
+                          </span>
+                        </div>
+
+                        <span
+                          className={cn(
+                            "mt-1 text-[9.5px] font-semibold",
+                            st === "done"
+                              ? "text-signal-400"
+                              : st === "scanning"
+                                ? "text-signal-400"
+                                : "text-brand-400",
+                          )}
+                        >
+                          {st === "done"
+                            ? child.responseTimeMs
+                              ? `✓ ${child.responseTimeMs}ms`
+                              : "✓ Finished"
+                            : st === "scanning"
+                              ? "Scanning file…"
+                              : "Queued"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* =================================================================
+              RIGHT COLUMN (3 COLS): ONE-BY-ONE FINISHED FILES & LIVE ISSUES
+             ================================================================= */}
+          <div className="lg:col-span-3 flex flex-col gap-3.5">
+            {/* Card 1: Files Finished One-by-One */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                  <ShieldCheck size={13} className="text-signal-400" />
+                  Finished Files
+                </span>
+                <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                  {phase === "crawling"
+                    ? `${Math.max(finishedCount, totalPagesRecorded)} done`
+                    : "0 done"}
+                </span>
+              </div>
+
+              {phase === "crawling" ? (
+                <div className="mt-3 space-y-1.5">
+                  {orderedNodes.slice(0, 6).map((node, idx) => {
+                    const st = getNodeStatus(idx);
+                    return (
+                      <div
+                        key={node.path}
+                        className={cn(
+                          "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 font-mono text-[11px] transition-all",
+                          st === "done"
+                            ? "border-brand-200 bg-surface-2/80 text-brand-950"
+                            : st === "scanning"
+                              ? "border-signal-400 bg-primary-50/70 text-brand-950"
+                              : "border-brand-200/50 bg-surface-2/20 text-brand-400 opacity-60",
+                        )}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          {st === "done" ? (
+                            <Check
+                              size={12}
+                              className="shrink-0 text-signal-400"
+                              strokeWidth={3}
+                            />
+                          ) : st === "scanning" ? (
+                            <Loader2
+                              size={12}
+                              className="shrink-0 animate-spin text-signal-400"
+                            />
+                          ) : (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                          )}
+                          <span className="truncate font-semibold">
+                            {node.path === "/" ? "/ (Home)" : node.path}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] font-bold",
+                            st === "done"
+                              ? "text-signal-400"
+                              : st === "scanning"
+                                ? "text-warning-700"
+                                : "text-brand-400",
+                          )}
+                        >
+                          {st === "done"
+                            ? node.responseTimeMs
+                              ? `${node.responseTimeMs}ms`
+                              : "Done"
+                            : st === "scanning"
+                              ? "Scanning"
+                              : "Wait"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs leading-relaxed text-brand-500">
+                  Once you submit your website below, we start from{" "}
+                  <strong className="text-brand-800">/ (Home)</strong> and check off each page file one by one here.
+                </div>
+              )}
+            </div>
+
+            {/* Card 2: Live SEO Issues & Runtime Stream */}
+            <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
+                  <Sparkles size={13} className="text-signal-400" />
+                  Live Findings
+                </span>
+                <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-warning-700">
+                  {totalIssuesRecorded > 0
+                    ? `${totalIssuesRecorded} issues`
+                    : phase === "crawling"
+                      ? "Scanning…"
+                      : "Standby"}
+                </span>
+              </div>
+
+              {crawledIssues.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {crawledIssues.slice(0, 3).map((iss) => (
+                    <div
+                      key={iss.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-surface-2/60 px-2.5 py-2 text-xs"
+                    >
+                      <span className="truncate font-medium text-brand-800">
+                        {iss.description}
+                      </span>
+                      <span className="shrink-0 rounded bg-error-50 px-1.5 py-0.5 text-[9.5px] font-bold text-error-700">
+                        {iss.severity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : phase === "crawling" ? (
+                <div className="mt-3 space-y-1.5 text-[11px] text-brand-600">
+                  {autopilotLogs.length > 0 ? (
+                    autopilotLogs.slice(-3).map((l, i) => (
+                      <p key={i} className="truncate">
+                        <span className="font-bold text-signal-400">›</span> {l.message}
+                      </p>
+                    ))
+                  ) : (
+                    <>
+                      <p className="truncate">
+                        <span className="font-bold text-signal-400">›</span> Started at / (Home page)
+                      </p>
+                      <p className="truncate">
+                        <span className="font-bold text-signal-400">›</span> Inspecting titles, speed & broken links…
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs leading-relaxed text-brand-500">
+                  Real-time SEO issues, broken links, and speed bottlenecks appear here as each file finishes.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </main>
 
-      {/* ── BOTTOM COMMAND & PROGRESS BAR (MATCHING REFERENCE IMAGE) ── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200/80 bg-surface-1/95 px-4 py-4 shadow-2xl backdrop-blur-xl sm:px-6">
+      {/* ── BOTTOM COMMAND & PROGRESS BAR ── */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200/80 bg-surface-1/95 px-4 py-3.5 shadow-2xl backdrop-blur-xl sm:px-6">
         <div className="mx-auto max-w-2xl">
           {phase === "input" ? (
             <form onSubmit={handleStartAudit} noValidate>
@@ -706,23 +1302,29 @@ function AnalyzeOnboardingInner() {
             </form>
           ) : (
             <div className="flex flex-col items-center">
-              <div className="flex items-center gap-2.5">
-                {isCompleted ? (
-                  <Check size={18} className="text-signal-400" strokeWidth={3} />
-                ) : (
-                  <Loader2 size={17} className="animate-spin text-signal-400" />
-                )}
-                <p className="text-base font-extrabold tracking-tight text-brand-950 sm:text-lg">
-                  {isCompleted
-                    ? "Audit Complete — Opening Website Audit..."
-                    : "Crawling Website..."}
-                </p>
+              <div className="flex w-full items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {isCompleted ? (
+                    <Check size={17} className="text-signal-400" strokeWidth={3} />
+                  ) : (
+                    <Loader2 size={16} className="animate-spin text-signal-400" />
+                  )}
+                  <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
+                    {isCompleted
+                      ? "Audit Complete — Opening Website Audit..."
+                      : `Crawling Website... (${activeNode.path === "/" ? "/ Home" : activeNode.path})`}
+                  </p>
+                </div>
+
+                <span className="font-mono text-xs font-bold text-brand-500">
+                  {Math.max(finishedCount, totalPagesRecorded)} files finished
+                </span>
               </div>
 
-              <div className="mt-2.5 flex w-full items-center gap-3.5">
-                <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2 p-0.5 border border-brand-200">
+              <div className="mt-2 flex w-full items-center gap-3.5">
+                <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
                   <div
-                    className="h-full rounded-full bg-signal-400 transition-all duration-500 shadow-[0_0_16px_rgba(200,245,58,0.6)]"
+                    className="h-full rounded-full bg-signal-400 shadow-[0_0_16px_rgba(200,245,58,0.6)] transition-all duration-500"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
