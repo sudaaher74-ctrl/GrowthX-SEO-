@@ -204,7 +204,7 @@ function DashboardMockup() {
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9px] font-mono font-bold text-brand-950">
                   <Coins size={10} className="text-signal-400 shrink-0" />
-                  <span>3.87M</span>
+                  <span>3.87M Credits</span>
                 </span>
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-brand-200 bg-surface-2 text-brand-500">
                   <Sun size={10} />

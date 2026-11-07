@@ -68,8 +68,8 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
       <Link
         href="/tokens"
         onClick={onNavigate}
-        title={`${formatTokensExact(data.available)} tokens available · ${caption}`}
-        className="flex h-8 shrink-0 items-center gap-2 rounded-lg border px-2.5 text-xs text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600"
+        title={`${formatTokensExact(data.available)} credits available · ${caption}`}
+        className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600"
         style={{ borderColor: "var(--border-color)" }}
       >
         <Coins
@@ -83,9 +83,6 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
                 : "text-signal-400",
           )}
         />
-        <span className="hidden sm:inline text-[11px] font-semibold text-brand-600">
-          AI Compute
-        </span>
         <span
           className={cn(
             "font-mono text-[11.5px] font-bold leading-none",
@@ -98,10 +95,10 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
         >
           {formatTokens(data.available)}
         </span>
-        <span className="hidden xl:inline text-[10.5px] text-brand-400">
-          · {caption}
+        <span className="text-[11px] font-semibold text-brand-600">
+          Credits
         </span>
-        <span className="sr-only xl:hidden">
+        <span className="sr-only">
           · {caption}
         </span>
       </Link>
@@ -112,14 +109,14 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
     <Link
       href="/tokens"
       onClick={onNavigate}
-      title={`${formatTokensExact(data.available)} tokens available`}
+      title={`${formatTokensExact(data.available)} credits available`}
       className="mx-2.5 mb-2.5 block rounded-xl border border-brand-200 bg-surface-2/80 p-3 shadow-2xs transition-all hover:border-brand-300 hover:bg-surface-2"
     >
       <div className="flex items-center gap-2">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
           <Coins size={12} className={standing === "out" ? "text-error-600" : standing === "low" ? "text-warning-600" : "text-brand-600"} />
         </span>
-        <span className="text-[11px] font-semibold text-brand-700">AI Compute</span>
+        <span className="text-[11px] font-semibold text-brand-700">Credits</span>
         <span
           className={cn(
             "ml-auto rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] font-bold border border-brand-200/70",

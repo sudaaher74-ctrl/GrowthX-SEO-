@@ -144,7 +144,7 @@ export function TopNav({
           ))}
         </div>
 
-        {/* AI Compute / Tokens Chip */}
+        {/* Credits Chip */}
         <TokensChip variant="bar" />
 
         {/* Theme Toggle */}
