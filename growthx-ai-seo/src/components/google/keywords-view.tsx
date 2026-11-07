@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BarChart2, Hash, MousePointerClick, Search, TrendingUp } from "lucide-react";
 import { Panel } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
@@ -25,7 +26,17 @@ const TABS: { id: Tab; label: string; about: string }[] = [
 /** The queries that bring people from Google, and the ones worth working on. */
 export function KeywordsView() {
   const { projectId } = useWorkspace();
-  const [tab, setTab] = useState<Tab>("ideas");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const tab: Tab = tabParam && TABS.some((t) => t.id === tabParam) ? tabParam : "ideas";
+
+  function handleTabChange(nextTab: Tab) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
   const [search, setSearch] = useState("");
   const top = useGscQueries(projectId, 100);
   const striking = useGscStriking(projectId);
@@ -109,7 +120,7 @@ export function KeywordsView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Keyword lists">
           {TABS.map((t) => (
-            <Chip key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>
+            <Chip key={t.id} active={tab === t.id} onClick={() => handleTabChange(t.id)}>
               {t.label}
             </Chip>
           ))}

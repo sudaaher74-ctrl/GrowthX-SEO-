@@ -8,9 +8,12 @@ import {
   ArrowUpRight,
   Bot,
   Check,
+  Coins,
   Globe,
   LayoutGrid,
   RefreshCw,
+  Search,
+  Sun,
   Target,
   TrendingUp,
   Wrench,
@@ -86,6 +89,12 @@ function DashboardMockup() {
                     ready: true,
                   },
                   {
+                    icon: Search,
+                    label: "Organic Search",
+                    tab: "visitors" as const,
+                    ready: true,
+                  },
+                  {
                     icon: TrendingUp,
                     label: "Traffic",
                     tab: "visitors" as const,
@@ -139,21 +148,6 @@ function DashboardMockup() {
                 })}
               </div>
             </div>
-
-            {/* Bottom AI Compute Meter */}
-            <div className="hidden sm:block mt-4 rounded-xl border border-brand-200 bg-surface-2 p-2.5">
-              <div className="flex items-center justify-between text-[9px] font-bold text-brand-900">
-                <span>AI Compute</span>
-                <span className="font-mono text-brand-700">Sample</span>
-              </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-                <div className="h-full w-3/4 rounded-full bg-signal-400" />
-              </div>
-              <div className="mt-1 flex items-center justify-between text-[8px] text-brand-500">
-                <span>Monthly balance</span>
-                <span className="font-mono">77%</span>
-              </div>
-            </div>
           </div>
 
           {/* Right Main Workspace */}
@@ -203,9 +197,19 @@ function DashboardMockup() {
                 </button>
               </div>
 
-              <span className="rounded-full border border-brand-200 bg-surface-2 px-2.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-brand-500">
-                Example data
-              </span>
+              {/* Right Tools matching Dashboard TopNav */}
+              <div className="flex items-center gap-1.5">
+                <span className="hidden sm:inline-flex items-center rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] font-bold text-signal-ink bg-signal-400">
+                  28d
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9px] font-mono font-bold text-brand-950">
+                  <Coins size={10} className="text-signal-400 shrink-0" />
+                  <span>3.87M</span>
+                </span>
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-brand-200 bg-surface-2 text-brand-500">
+                  <Sun size={10} />
+                </span>
+              </div>
             </div>
 
             {/* Dashboard Inner Content */}

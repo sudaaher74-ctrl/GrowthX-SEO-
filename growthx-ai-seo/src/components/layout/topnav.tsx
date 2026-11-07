@@ -25,6 +25,8 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/backlinks": { scope: "Workspace", title: "Backlink Intelligence" },
   "/ai-visibility": { scope: "Workspace", title: "AI Visibility" },
   "/fix-engine": { scope: "Workspace", title: "Fix Engine" },
+  "/organic-search": { scope: "Workspace", title: "Organic Search & Keywords" },
+  "/google/keywords": { scope: "Workspace", title: "Organic Search & Keywords" },
   "/google": { scope: "Workspace", title: "Traffic" },
   "/traffic": { scope: "Workspace", title: "Traffic" },
   "/reports": { scope: "Workspace", title: "Reports" },

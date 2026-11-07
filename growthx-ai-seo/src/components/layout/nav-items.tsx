@@ -9,6 +9,7 @@ import {
   Bot,
   Link2,
   CalendarDays,
+  Search,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
@@ -101,6 +102,18 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "content", label: "Content", href: "/website?tab=content", tab: "content" },
         { id: "issues", label: "Problems to fix", href: "/website?tab=issues", tab: "issues" },
         { id: "report", label: "Full Report", href: "/website?tab=report", tab: "report" },
+      ],
+    },
+    {
+      label: "Organic Search",
+      href: "/organic-search",
+      icon: Search,
+      group: "overview",
+      aliases: ["/organic-search", "/google/keywords"],
+      children: [
+        { id: "ideas", label: "Keyword Ideas (Gemini)", href: "/organic-search?tab=ideas", isDefault: true },
+        { id: "top", label: "Ranked Keywords", href: "/organic-search?tab=top" },
+        { id: "rising", label: "Rising & Page 2", href: "/organic-search?tab=rising" },
       ],
     },
     {
