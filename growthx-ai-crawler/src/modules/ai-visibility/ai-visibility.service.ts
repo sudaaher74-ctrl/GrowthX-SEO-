@@ -407,7 +407,7 @@ export class AiVisibilityService {
 
       return {
         assistant: r.provider,
-        model: r.model,
+        model: r.model || valid[0]?.model || runResponses[0]?.model || null,
         checked,
         cited,
         citationSharePct,

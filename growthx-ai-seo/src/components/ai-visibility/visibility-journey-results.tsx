@@ -149,7 +149,7 @@ export function EvidenceLinks({
                 {fact
                   ? context?.sources.find((s) => s.id === fact.source)?.label ||
                     "Business profile"
-                  : `${providerName(answer!.provider)} answer`}
+                  : `${providerName(answer!.provider, answer!.model)} answer`}
               </p>
               {url && (
                 <a
@@ -230,7 +230,10 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
       >
         <label className="mb-4 flex flex-wrap items-center gap-3 text-xs text-brand-600">Assistant
           <select aria-label="Filter answers by assistant" value={filter} onChange={(e) => {setFilter(e.target.value); setShowAll(false);}} className="rounded-lg border bg-white px-3 py-2 text-sm text-brand-950">
-            {["ALL", ...assistants].map((p) => <option key={p} value={p}>{p === "ALL" ? "All assistants" : providerName(p)}</option>)}
+            {["ALL", ...assistants].map((p) => {
+              const sampleModel = data.answers.find((a) => a.provider === p)?.model || data.providers.find((pr) => pr.provider === p)?.model;
+              return <option key={p} value={p}>{p === "ALL" ? "All assistants" : providerName(p, sampleModel)}</option>;
+            })}
           </select><span>{visible.length} saved answer{visible.length === 1 ? "" : "s"}</span>
         </label>
         <QueryState
@@ -242,7 +245,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
             {(showAll ? visible : visible.slice(0, 5)).map((a) => (
               <article key={a.id} className="space-y-3 py-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Pill>{providerName(a.provider)}</Pill>
+                  <Pill>{providerName(a.provider, a.model)}</Pill>
                   <span className="text-xs text-brand-400">
                     {a.model} · {new Date(a.createdAt).toLocaleString()}
                   </span>
@@ -292,7 +295,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                     <summary className="cursor-pointer rounded-sm py-1 text-sm font-semibold text-primary-700 focus-visible:outline-2 focus-visible:outline-offset-4">
                       Read complete answer
                     </summary>
-                    <AnswerDocument text={a.rawResponse} assistant={providerName(a.provider)} />
+                    <AnswerDocument text={a.rawResponse} assistant={providerName(a.provider, a.model)} />
                   </details>
                 )}
                 {!!a.citations.length && (
@@ -379,7 +382,7 @@ export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
                     <h3 className="text-sm font-semibold text-brand-950">
                       {g.competitor}
                     </h3>
-                    <Pill>{providerName(a.provider)} assessment</Pill>
+                    <Pill>{providerName(a.provider, a.model)} assessment</Pill>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-brand-600">
                     <strong className="text-brand-950">Observation: </strong>

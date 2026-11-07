@@ -104,7 +104,7 @@ export interface VisibilityReport {
     deltaPt: number | null;
     failedChecks: number;
   };
-  byAssistant: { assistant: string; checked: number; cited: number; citationSharePct: number }[];
+  byAssistant: { assistant: string; model?: string | null; checked: number; cited: number; citationSharePct: number }[];
   shareOfVoice: { domain: string | null; label: string; mentions: number; sharePct: number }[];
   trend: { weekStart: string; checked: number; citationSharePct: number }[];
   measurableAssistants: string[];

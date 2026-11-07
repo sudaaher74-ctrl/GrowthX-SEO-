@@ -58,7 +58,7 @@ function Journey({ projectId }: { projectId: string }) {
     onSuccess: () => { void refresh(); }, onError: () => { void refresh(); } });
   const busy = journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
-  const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider)));
+  const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider, p.model)));
   const error = prepare.error || check.error;
 
   return <div className="space-y-5 pb-12">
@@ -233,17 +233,43 @@ function PerplexityIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 
 type PromptCategory = "best-of" | "jobs-to-be-done" | "competitor" | "branded";
 
-function categorizePrompt(q: BuyerQuestion, businessName: string): PromptCategory {
-  const intent = (q.intent || "").toLowerCase().trim();
-  if (intent === "branded" || intent === "brand") return "branded";
-  if (intent === "competitor" || intent === "comparison") return "competitor";
-  if (intent === "problem" || intent === "action" || intent === "jobs-to-be-done" || intent === "job") return "jobs-to-be-done";
-  if (intent === "best-of" || intent === "best of" || intent === "recommendation") return "best-of";
+const ALL_PROMPT_CATEGORIES: PromptCategory[] = [
+  "best-of",
+  "jobs-to-be-done",
+  "competitor",
+  "branded",
+];
 
-  const text = (q.text || "").toLowerCase();
+function explicitPromptCategory(intentRaw: string): PromptCategory | null {
+  const intent = intentRaw.toLowerCase().trim();
+  if (intent === "branded" || intent === "brand") return "branded";
+  if (intent === "competitor") return "competitor";
+  if (intent === "problem" || intent === "jobs-to-be-done") return "jobs-to-be-done";
+  if (intent === "best-of" || intent === "best of") return "best-of";
+  return null;
+}
+
+function scorePromptCategory(q: BuyerQuestion, businessName: string): PromptCategory {
+  const explicit = explicitPromptCategory(q.intent || "");
+  if (explicit) return explicit;
+
+  const intent = (q.intent || "").toLowerCase().trim();
+  const text = `${q.text || ""} ${q.rationale || ""}`.toLowerCase();
   const bName = (businessName || "").toLowerCase().trim();
 
-  if (intent.includes("brand") || (bName.length > 2 && text.includes(bName))) {
+  if (
+    intent.includes("brand") ||
+    intent.includes("trust") ||
+    intent.includes("quality") ||
+    (bName.length > 2 && text.includes(bName)) ||
+    text.includes("subscription") ||
+    text.includes("trial") ||
+    text.includes("pure") ||
+    text.includes("fresh") ||
+    text.includes("farm") ||
+    text.includes("glass bottle") ||
+    text.includes("a2")
+  ) {
     return "branded";
   }
   if (
@@ -253,8 +279,13 @@ function categorizePrompt(q: BuyerQuestion, businessName: string): PromptCategor
     text.includes("versus") ||
     text.includes("alternative") ||
     text.includes("better than") ||
-    text.includes(" or are there ") ||
-    text.includes("worth it")
+    text.includes("compare") ||
+    text.includes("which suppliers") ||
+    text.includes("what suppliers") ||
+    text.includes("who supplies") ||
+    text.includes("what options") ||
+    text.includes("suppliers") ||
+    text.includes("providers")
   ) {
     return "competitor";
   }
@@ -276,17 +307,54 @@ function categorizePrompt(q: BuyerQuestion, businessName: string): PromptCategor
     intent.includes("job") ||
     intent.includes("task") ||
     intent.includes("service") ||
+    intent.includes("deliver") ||
     text.includes("how ") ||
     text.includes("where ") ||
-    text.includes("delivery") ||
-    text.includes("subscription") ||
+    text.includes("deliver") ||
     text.includes("buy ") ||
-    text.includes("order") ||
-    text.includes("glass bottle")
+    text.includes("order")
   ) {
     return "jobs-to-be-done";
   }
   return "best-of";
+}
+
+function categorizeQuestions(questions: BuyerQuestion[], businessName: string): PromptCategory[] {
+  const assigned = questions.map((q) => scorePromptCategory(q, businessName));
+  if (questions.length < 4) return assigned;
+
+  // Ensure every category card has coverage when prompts do not have explicit manual overrides
+  const counts: Record<PromptCategory, number> = {
+    "best-of": 0,
+    "jobs-to-be-done": 0,
+    competitor: 0,
+    branded: 0,
+  };
+  assigned.forEach((cat) => {
+    counts[cat] += 1;
+  });
+
+  for (const targetCat of ALL_PROMPT_CATEGORIES) {
+    if (counts[targetCat] > 0) continue;
+    // Find a donor category with the highest count (> 1) whose question wasn't explicitly locked
+    let donorIdx = -1;
+    let maxDonorCount = 1;
+    for (let i = questions.length - 1; i >= 0; i--) {
+      if (explicitPromptCategory(questions[i].intent || "")) continue;
+      const c = assigned[i];
+      if (counts[c] > maxDonorCount) {
+        maxDonorCount = counts[c];
+        donorIdx = i;
+      }
+    }
+    if (donorIdx !== -1) {
+      counts[assigned[donorIdx]] -= 1;
+      assigned[donorIdx] = targetCat;
+      counts[targetCat] += 1;
+    }
+  }
+
+  return assigned;
 }
 
 function matchPrompt(textA: string, textB: string): boolean {
@@ -484,9 +552,11 @@ function PromptsSection({
     { key: "branded", label: "Branded", cardTone: "success" },
   ];
 
+  const questionCategories = categorizeQuestions(draft.questions, draft.businessName);
+
   const categoryStats = categories.map((cat) => {
     const promptsInCat = draft.questions.filter(
-      (q) => categorizePrompt(q, draft.businessName) === cat.key,
+      (_, idx) => questionCategories[idx] === cat.key,
     );
     const answersForCat = answers.filter((a) =>
       !a.errorMessage && !!a.rawResponse?.trim() && !!a.analysis && promptsInCat.some((q) => matchPrompt(q.text, a.promptText)),
@@ -501,7 +571,9 @@ function PromptsSection({
     const subtext =
       total > 0
         ? `mentioned in ${cited} of ${total} measured answers`
-        : "Not measured — no successfully classified answers";
+        : promptsInCat.length > 0
+          ? `${promptsInCat.length} tracked prompt${promptsInCat.length === 1 ? "" : "s"} ready to check`
+          : "0 prompts in this category";
 
     return {
       ...cat,
@@ -515,7 +587,7 @@ function PromptsSection({
   const buildPromptItem = (q: BuyerQuestion, originalIndex: number) => ({
     q,
     originalIndex,
-    category: categorizePrompt(q, draft.businessName),
+    category: questionCategories[originalIndex] ?? "best-of",
     citations: {
       chatGpt: getEngineCitation(q.text, "ChatGPT", answers, draft.businessName),
       googleAi: getEngineCitation(q.text, "Google AI", answers, draft.businessName),
@@ -576,7 +648,7 @@ function PromptsSection({
         : topCompetitors[0]?.domain || topCompetitors[0]?.name || "";
 
       const priority =
-        categorizePrompt(q, draft.businessName) === "best-of" || (topCompetitors[0]?.count ?? 0) >= 2
+        scorePromptCategory(q, draft.businessName) === "best-of" || (topCompetitors[0]?.count ?? 0) >= 2
           ? "High"
           : "Medium";
 
@@ -713,7 +785,7 @@ function PromptsSection({
                 </div>
               </div>
               <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950">
-                {cat.pct == null ? "—" : `${cat.pct}%`}
+                {cat.pct != null ? `${cat.pct}%` : `${cat.count}`}
               </div>
               <div className="mt-1 text-xs text-brand-500">{cat.subtext}</div>
             </button>
@@ -825,6 +897,32 @@ function PromptsSection({
 
             {/* Prompts list */}
             <div className="divide-y divide-line">
+              {promptsToDisplay.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+                  <p className="text-sm font-semibold text-brand-950">
+                    No prompts in the {categories.find((c) => c.key === filterCategory)?.label || "selected"} category
+                  </p>
+                  <p className="max-w-md text-xs text-brand-500">
+                    Switch back to all categories to view your tracked buyer prompts, or click Edit to assign a prompt to this category.
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFilterCategory("ALL")}
+                      className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-950 hover:bg-surface-3"
+                    >
+                      Show all categories
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-semibold text-signal-ink hover:bg-signal-500"
+                    >
+                      Edit prompts
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {promptsToDisplay.map(({ q, originalIndex, category, citations }) => {
                 if (isEditing) {
                   return (

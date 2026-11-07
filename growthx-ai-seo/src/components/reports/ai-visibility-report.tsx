@@ -20,7 +20,11 @@ export function AiVisibilityReport() {
   if (!projectId || visibility.isLoading) return <ReportLoading what="the AI Visibility report" />;
   const v = visibility.data;
   const ins = insights.data;
-  const asked = assistantList(v?.measurableAssistants);
+  const asked = assistantList(
+    v?.byAssistant?.length
+      ? v.byAssistant.map((a) => assistantLabel(a.assistant, a.model))
+      : v?.measurableAssistants,
+  );
   const pct = (n: number | null | undefined) => (n == null ? DASH : `${Math.round(n * 10) / 10}%`);
 
   return (
@@ -47,8 +51,8 @@ export function AiVisibilityReport() {
 
           <ReportSection title="By assistant">
             <ReportTable
-              columns={[{ label: "Assistant" }, { label: "Answers checked", right: true }, { label: "Named you", right: true }, { label: "Share", right: true }]}
-              rows={v.byAssistant.map((a) => [assistantLabel(a.assistant), count(a.checked), count(a.cited), pct(a.citationSharePct)])}
+              columns={[{ label: "Assistant / Model" }, { label: "Answers checked", right: true }, { label: "Named you", right: true }, { label: "Share", right: true }]}
+              rows={v.byAssistant.map((a) => [assistantLabel(a.assistant, a.model), count(a.checked), count(a.cited), pct(a.citationSharePct)])}
               empty="No assistant has been asked."
             />
           </ReportSection>

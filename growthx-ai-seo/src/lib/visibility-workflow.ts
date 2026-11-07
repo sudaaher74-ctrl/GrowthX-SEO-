@@ -96,5 +96,28 @@ export interface VisibilityJourneyResponse {
 }
 export const journeyRunning = (status?: string) =>
   !!status && ["QUEUED", "PREPARING", "CHECKING", "PLANNING"].includes(status);
-export const providerName = (provider: string) =>
-  ({ GEMINI: "Gemini", OPENAI: "OpenAI", ANTHROPIC: "Claude", PERPLEXITY: "Perplexity", GROK: "Grok", SARVAM: "Sarvam", OPENROUTER: "OpenRouter" } as Record<string, string>)[provider] ?? provider;
+export const providerName = (provider: string, model?: string | null) => {
+  const m = (model || provider || "").toLowerCase();
+  if (m.includes("gpt") || m.includes("openai") || /\bo[134]\b/.test(m)) return "ChatGPT";
+  if (m.includes("claude") || m.includes("anthropic")) return "Claude";
+  if (m.includes("gemini") || m.includes("google")) return "Gemini";
+  if (m.includes("perplexity") || m.includes("sonar")) return "Perplexity";
+  if (m.includes("grok") || m.includes("x-ai")) return "Grok";
+  if (m.includes("sarvam")) return "Sarvam";
+  if (m.includes("llama")) return "Llama";
+  if (m.includes("deepseek")) return "DeepSeek";
+  if (provider === "OPENROUTER") {
+    const shortModel = model?.trim().split("/").pop();
+    return shortModel || "ChatGPT";
+  }
+  return (
+    ({
+      GEMINI: "Gemini",
+      OPENAI: "ChatGPT",
+      ANTHROPIC: "Claude",
+      PERPLEXITY: "Perplexity",
+      GROK: "Grok",
+      SARVAM: "Sarvam",
+    } as Record<string, string>)[provider] ?? provider
+  );
+};

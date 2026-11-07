@@ -10,6 +10,23 @@ export class AiVisibilityAdapter implements FindingAdapter {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  private formatEngine(provider: string, model?: string | null): string {
+    const m = (model || '').trim();
+    const lower = `${provider} ${m}`.toLowerCase();
+    const shortModel = m.includes('/') ? m.split('/').pop()! : m;
+    let family = provider;
+    if (lower.includes('gpt') || lower.includes('openai')) family = 'ChatGPT';
+    else if (lower.includes('claude') || lower.includes('anthropic')) family = 'Claude';
+    else if (lower.includes('gemini') || lower.includes('google')) family = 'Gemini';
+    else if (lower.includes('perplexity') || lower.includes('sonar')) family = 'Perplexity';
+    else if (lower.includes('grok') || lower.includes('x-ai')) family = 'Grok';
+    else if (lower.includes('sarvam')) family = 'Sarvam';
+    else if (provider === 'OPENROUTER') family = shortModel || 'ChatGPT';
+    return shortModel && shortModel.toLowerCase() !== family.toLowerCase()
+      ? `${family} (${shortModel})`
+      : family;
+  }
+
   async collect(projectId: string): Promise<NormalisedFinding[]> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -150,13 +167,13 @@ export class AiVisibilityAdapter implements FindingAdapter {
         source: this.source,
         category: 'COMPETITOR',
         title: `AI models cite ${competitorName} instead of your business`,
-        summary: `Across ${uniquePrompts.length} buyer ${uniquePrompts.length === 1 ? 'query' : 'queries'}, AI assistants (including ${sample.model || sample.provider}) suggested ${competitorName} but did not recommend your brand.`,
+        summary: `Across ${uniquePrompts.length} buyer ${uniquePrompts.length === 1 ? 'query' : 'queries'}, AI assistants (including ${this.formatEngine(sample.provider, sample.model)}) suggested ${competitorName} but did not recommend your brand.`,
         recommendedAction: `Publish dedicated comparison and solution pages targeting these buyer queries, update local citations, and add structured entity schemas to earn recommendation share over ${competitorName}.`,
         evidence: [
           { label: 'Competitor', value: competitorName, source: 'AI Visibility Scan' },
           { label: 'Lost Queries', value: uniquePrompts.length.toString(), source: 'AI Mentions' },
           { label: 'Example Query', value: sample.promptText, source: 'AI Prompts' },
-          { label: 'AI Engine', value: `${sample.provider} (${sample.model})`, source: 'AI Responses' },
+          { label: 'AI Engine', value: this.formatEngine(sample.provider, sample.model), source: 'AI Responses' },
         ],
         potential: 'HIGH',
         effort: 'MEDIUM',
@@ -189,12 +206,12 @@ export class AiVisibilityAdapter implements FindingAdapter {
           source: this.source,
           category: 'CONTENT',
           title: `Zero AI brand visibility across ${uniqueUnmentioned.length} commercial buyer queries`,
-          summary: `Major AI search engines (including ${sample.provider}) answered ${uniqueUnmentioned.length} commercial buyer prompts without citing or mentioning ${businessName}.`,
+          summary: `Major AI search engines (including ${this.formatEngine(sample.provider, sample.model)}) answered ${uniqueUnmentioned.length} commercial buyer prompts without citing or mentioning ${businessName}.`,
           recommendedAction: `Create content targeting these commercial prompts, embed LocalBusiness structured data, and build entity authority to appear in AI search results.`,
           evidence: [
             { label: 'Omitted Queries', value: uniqueUnmentioned.length.toString(), source: 'AI Visibility Scan' },
             { label: 'Example Query', value: sample.promptText, source: 'Buyer Prompts' },
-            { label: 'AI Assistant', value: `${sample.provider} (${sample.model})`, source: 'AI Engine' },
+            { label: 'AI Assistant', value: this.formatEngine(sample.provider, sample.model), source: 'AI Engine' },
           ],
           potential: 'HIGH',
           effort: 'MEDIUM',

@@ -34,6 +34,7 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { assistantLabel } from "@/lib/ai-assistants";
 import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 import { ActionButton, Panel } from "@/components/ui/console";
 import type { Ga4Point, GscPoint } from "@/lib/api-types";
@@ -1137,9 +1138,9 @@ export default function MonthlyReport() {
                           {(visibility.data?.byAssistant ?? [])
                             .filter((model) => model.checked > 0)
                             .map((model) => (
-                              <div key={model.assistant} className="text-xs">
+                              <div key={`${model.assistant}-${model.model ?? ""}`} className="text-xs">
                                 <div className="flex justify-between gap-2 font-medium text-brand-950">
-                                  <span>{model.assistant}</span>
+                                  <span>{assistantLabel(model.assistant, model.model)}</span>
                                   <span className="font-mono text-brand-600">
                                     {model.cited}/{model.checked} ({model.citationSharePct}%)
                                   </span>
