@@ -9,18 +9,16 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  Bell,
-  ChevronDown,
   Calendar,
   Zap,
-  RotateCcw,
+  Globe,
   Target,
   Wrench,
   FileSpreadsheet,
   Settings,
-  Home,
+  LayoutGrid,
   Boxes,
-  Sparkles,
+  Bot,
 } from "lucide-react";
 
 const PIPELINE_STEPS = [
@@ -29,7 +27,7 @@ const PIPELINE_STEPS = [
     title: "Paste your website",
     description: "Add your URL and up to 5 rivals, or let us suggest them. That's the whole setup.",
     icon: Link2,
-    iconBg: "bg-brand-900 border border-brand-800 text-series-6",
+    iconBg: "bg-surface-2 border border-brand-200 text-signal-400",
   },
   {
     num: "02",
@@ -37,7 +35,7 @@ const PIPELINE_STEPS = [
     description:
       "Every page is read the way Google reads it. Then we compare you with your rivals and ask AI assistants about you.",
     icon: Search,
-    iconBg: "bg-brand-900 border border-brand-800 text-accent-400",
+    iconBg: "bg-surface-2 border border-brand-200 text-brand-900",
   },
   {
     num: "03",
@@ -45,7 +43,7 @@ const PIPELINE_STEPS = [
     description:
       "Each issue and gap shows the evidence, the effort involved and a priority. You see what to do first.",
     icon: ListChecks,
-    iconBg: "bg-brand-900 border border-brand-800 text-success-400",
+    iconBg: "bg-surface-2 border border-brand-200 text-success-500",
   },
   {
     num: "04",
@@ -53,48 +51,34 @@ const PIPELINE_STEPS = [
     description:
       "Approve a fix and Reigel opens a pull request on your repository. You merge it. Then we re-crawl to check it worked.",
     icon: TrendingUp,
-    iconBg: "bg-brand-900 border border-brand-800 text-warning-400",
+    iconBg: "bg-surface-2 border border-brand-200 text-warning-500",
   },
 ];
 
 function WorkflowAppPreview() {
   return (
     <div className="relative select-none w-full max-w-xl mx-auto lg:mx-0">
-      {/* Top right cursive annotation with curved arrow */}
-      <div className="absolute -top-10 right-8 z-20 hidden sm:flex flex-col items-end text-series-6">
-        <p
-          className="font-bold text-xs sm:text-sm leading-tight text-right text-series-6"
-          style={{ fontFamily: "cursive", transform: "rotate(-4deg)" }}
-        >
-          From insights<br />to execution
-        </p>
-        <svg
-          className="w-6 h-6 text-series-6 transform -rotate-12 translate-x-2 -translate-y-1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-
       {/* Main card */}
-      <div className="bg-brand-900 rounded-3xl shadow-2xl border border-brand-800 overflow-hidden">
+      <div className="bg-surface-1 rounded-3xl shadow-card border border-brand-200 overflow-hidden">
         <div className="flex">
           {/* Sidebar */}
-          <div className="w-12 sm:w-36 bg-brand-950 p-2 sm:p-3.5 shrink-0 flex flex-col justify-between border-r border-brand-900">
+          <div className="w-12 sm:w-40 bg-surface-1 p-2.5 sm:p-3.5 shrink-0 flex flex-col justify-between border-r border-brand-200">
             <div>
-              <div className="mb-4 pl-1">
-                <span className="text-sm font-black tracking-tight text-white"><span className="sm:hidden">R</span><span className="hidden sm:inline">Reigel</span></span>
+              <div className="mb-4 flex items-center gap-2 pl-1">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-[11px] font-extrabold text-signal-ink">
+                  R
+                </span>
+                <span className="hidden sm:inline text-sm font-extrabold tracking-tight text-brand-950">
+                  Reigel
+                </span>
               </div>
 
               <div className="space-y-1">
                 {[
-                  { icon: Home, label: "Dashboard" },
-                  { icon: RotateCcw, label: "Website Audit", active: true },
+                  { icon: LayoutGrid, label: "Dashboard" },
+                  { icon: Globe, label: "Website Audit", active: true },
                   { icon: Target, label: "Competitor Intel" },
-                  { icon: Sparkles, label: "AI Visibility" },
+                  { icon: Bot, label: "AI Visibility" },
                   { icon: Wrench, label: "Fix Engine" },
                   { icon: FileSpreadsheet, label: "Reports" },
                   { icon: Settings, label: "Settings" },
@@ -103,13 +87,13 @@ function WorkflowAppPreview() {
                   return (
                     <div
                       key={item.label}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full text-[10px] font-semibold transition-colors ${
                         item.active
-                          ? "bg-series-6/30 text-white border border-series-6/40 shadow-xs"
-                          : "text-brand-400 hover:text-white"
+                          ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                          : "text-brand-600 hover:text-brand-950"
                       }`}
                     >
-                      <ItemIcon size={12} className={item.active ? "text-series-6" : "text-brand-400"} />
+                      <ItemIcon size={12} className={item.active ? "text-signal-ink" : "text-brand-500"} />
                       <span className="hidden sm:inline truncate">{item.label}</span>
                     </div>
                   );
@@ -119,105 +103,94 @@ function WorkflowAppPreview() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 min-w-0 flex flex-col bg-brand-950">
-            {/* Top Bar with Input & Profile */}
-            <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-brand-900 bg-brand-900/40">
-              <div className="flex items-center gap-1.5 flex-1 max-w-xs bg-brand-900 rounded-lg border border-brand-800 px-2.5 py-1">
-                <Search size={11} className="text-brand-400 shrink-0" />
-                <span className="text-[10px] text-brand-300 font-mono truncate">
+          <div className="flex-1 min-w-0 flex flex-col" style={{ background: "var(--color-canvas)" }}>
+            {/* Top Bar */}
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-brand-200 bg-surface-1">
+              <div className="flex items-center gap-1.5 flex-1 max-w-xs bg-surface-2 rounded-full border border-brand-200 px-3 py-1">
+                <Search size={11} className="text-brand-500 shrink-0" />
+                <span className="text-[10px] text-brand-800 font-mono truncate">
                   yourwebsite.com
                 </span>
               </div>
-              <span className="shrink-0 px-2 py-0.5 rounded-full bg-warning-500/10 border border-warning-500/30 text-[9px] font-bold uppercase tracking-wide text-warning-400">
+              <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-surface-2 border border-brand-200 font-mono text-[9px] font-bold uppercase tracking-wide text-brand-500">
                 Example data
               </span>
-
-              <div className="flex items-center gap-2 pl-2 border-l border-brand-850">
-                <div className="relative">
-                  <Bell size={13} className="text-brand-400" />
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-warning-500" />
-                </div>
-                <div className="w-5 h-5 rounded-full bg-series-6 text-white font-extrabold text-[9px] flex items-center justify-center">
-                  S
-                </div>
-                <ChevronDown size={10} className="text-brand-400" />
-              </div>
             </div>
 
             {/* Content Body */}
             <div className="p-4 space-y-3">
               {/* Status Banner */}
-              <div className="flex items-center justify-between gap-2 bg-success-500/10 border border-success-500/20 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <CheckCircle2 size={14} className="text-success-400 shrink-0" />
+              <div className="flex items-center justify-between gap-2 bg-surface-1 border border-brand-200 rounded-xl px-3.5 py-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <CheckCircle2 size={15} className="text-success-500 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-extrabold text-white leading-tight">
+                    <p className="text-[11px] font-extrabold text-brand-950 leading-tight">
                       Website Analysis Complete
                     </p>
-                    <p className="text-[9px] text-brand-400 leading-tight truncate">
-                      Sample result: 38 opportunities found.
+                    <p className="text-[9.5px] text-brand-500 leading-tight truncate">
+                      Sample result: 38 opportunities ranked by impact.
                     </p>
                   </div>
                 </div>
-                <button className="text-[10px] font-bold text-brand-200 hover:text-white shrink-0">
-                  View Full Report
-                </button>
+                <span className="text-[10px] font-bold text-brand-800 shrink-0">
+                  Full Report →
+                </span>
               </div>
 
               {/* 4 KPIs Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {/* 1: SEO Health */}
-                <div className="bg-brand-900/60 rounded-xl p-2.5 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-semibold text-brand-400">SEO Health</p>
+                <div className="bg-surface-1 rounded-xl p-2.5 border border-brand-200 flex flex-col justify-between">
+                  <p className="text-[8.5px] font-semibold text-brand-500">SEO Health</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-base font-black text-white leading-none">78</p>
+                      <p className="text-base font-black text-brand-950 leading-none">94</p>
                       <p className="text-[8px] font-bold text-brand-400 mt-0.5">Example</p>
                     </div>
-                    <svg className="w-9 h-4 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-9 h-4 text-success-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 16 Q 14 6, 26 12 T 48 3" />
                     </svg>
                   </div>
                 </div>
 
                 {/* 2: AI Visibility */}
-                <div className="bg-brand-900/60 rounded-xl p-2.5 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-semibold text-brand-400">AI Visibility</p>
+                <div className="bg-surface-1 rounded-xl p-2.5 border border-brand-200 flex flex-col justify-between">
+                  <p className="text-[8.5px] font-semibold text-brand-500">AI Visibility</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-base font-black text-white leading-none">52</p>
+                      <p className="text-base font-black text-brand-950 leading-none">52</p>
                       <p className="text-[8px] font-bold text-brand-400 mt-0.5">Example</p>
                     </div>
-                    <svg className="w-9 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-9 h-4 text-signal-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 17 Q 14 10, 26 13 T 48 4" />
                     </svg>
                   </div>
                 </div>
 
                 {/* 3: Competitors Found */}
-                <div className="bg-brand-900/60 rounded-xl p-2.5 border border-brand-800/80 shadow-xs">
-                  <p className="text-[8px] font-semibold text-brand-400">Competitors Found</p>
+                <div className="bg-surface-1 rounded-xl p-2.5 border border-brand-200">
+                  <p className="text-[8.5px] font-semibold text-brand-500">Competitors</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <div className="w-5 h-5 rounded-md bg-accent-500/20 text-accent-400 flex items-center justify-center shrink-0">
+                    <div className="w-5 h-5 rounded-md bg-surface-2 border border-brand-200 text-brand-700 flex items-center justify-center shrink-0">
                       <Boxes size={11} />
                     </div>
                     <div>
-                      <p className="text-base font-black text-white leading-none">5</p>
-                      <p className="text-[8px] text-brand-400 leading-tight">In your industry</p>
+                      <p className="text-base font-black text-brand-950 leading-none">5</p>
+                      <p className="text-[8px] text-brand-500 leading-tight">In your market</p>
                     </div>
                   </div>
                 </div>
 
                 {/* 4: Opportunities */}
-                <div className="bg-brand-900/60 rounded-xl p-2.5 border border-brand-800/80 shadow-xs">
-                  <p className="text-[8px] font-semibold text-brand-400">Opportunities</p>
+                <div className="bg-surface-1 rounded-xl p-2.5 border border-brand-200">
+                  <p className="text-[8.5px] font-semibold text-brand-500">Opportunities</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <div className="w-5 h-5 rounded-md bg-warning-500/20 text-warning-400 flex items-center justify-center shrink-0">
+                    <div className="w-5 h-5 rounded-md bg-surface-2 border border-brand-200 text-warning-500 flex items-center justify-center shrink-0">
                       <Zap size={11} />
                     </div>
                     <div>
-                      <p className="text-base font-black text-white leading-none">38</p>
-                      <p className="text-[8px] text-brand-400 leading-tight">High-value actions</p>
+                      <p className="text-base font-black text-brand-950 leading-none">38</p>
+                      <p className="text-[8px] text-brand-500 leading-tight">Ranked actions</p>
                     </div>
                   </div>
                 </div>
@@ -226,107 +199,50 @@ function WorkflowAppPreview() {
               {/* Bottom 2 Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Current Plan */}
-                <div className="bg-brand-900/60 rounded-xl p-3 border border-brand-800/80 shadow-xs">
+                <div className="bg-surface-1 rounded-xl p-3 border border-brand-200">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-6 h-6 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
+                    <div className="w-6 h-6 rounded-lg bg-surface-2 border border-brand-200 text-brand-800 flex items-center justify-center shrink-0">
                       <Calendar size={12} />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-white leading-tight">
+                      <p className="text-[10px] font-extrabold text-brand-950 leading-tight">
                         Your 30-Day Plan
                       </p>
-                      <p className="text-[8px] text-brand-400">12 of 38 actions completed</p>
+                      <p className="text-[8.5px] text-brand-500">12 of 38 actions completed</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 bg-brand-950 rounded-full h-1.5 overflow-hidden border border-brand-850">
-                      <div className="bg-series-6 h-1.5 rounded-full" style={{ width: "32%" }} />
+                    <div className="flex-1 bg-surface-3 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-signal-400 h-1.5 rounded-full" style={{ width: "32%" }} />
                     </div>
-                    <span className="text-[9px] font-bold text-brand-300">32%</span>
+                    <span className="text-[9px] font-bold text-brand-700">32%</span>
                   </div>
                 </div>
 
                 {/* Let Reigel Do the Work */}
-                <div className="bg-brand-900/40 rounded-xl p-3 border border-brand-800 shadow-xs flex flex-col justify-between">
+                <div className="bg-surface-1 rounded-xl p-3 border border-brand-200 flex flex-col justify-between">
                   <div className="flex items-start gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
-                      <Zap size={12} />
+                    <div className="w-6 h-6 rounded-lg bg-surface-2 border border-brand-200 text-brand-800 flex items-center justify-center shrink-0">
+                      <Wrench size={12} />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-white leading-tight">
+                      <p className="text-[10px] font-extrabold text-brand-950 leading-tight">
                         We prepare the fix
                       </p>
-                      <p className="text-[8px] text-brand-400 leading-tight mt-0.5">
+                      <p className="text-[8.5px] text-brand-500 leading-tight mt-0.5">
                         Approve a fix and we open the pull request.
                       </p>
                     </div>
                   </div>
-                  <button className="bg-series-6 hover:bg-series-6/90 text-white text-[9px] font-bold py-1 px-2.5 rounded-md flex items-center justify-center gap-1 w-fit shadow-xs">
+                  <span className="bg-signal-400 text-signal-ink text-[9px] font-bold py-1 px-2.5 rounded-full flex items-center justify-center gap-1 w-fit">
                     <span>View Plan</span>
                     <ArrowRight size={9} />
-                  </button>
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Top Floating Badge: SEO Health Score */}
-      <div className="absolute bottom-[calc(100%+10px)] left-6 z-20 bg-brand-900 rounded-2xl shadow-2xl border border-brand-800 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
-          <div className="w-5 h-5 rounded-lg bg-success-500/20 text-success-400 flex items-center justify-center">
-            <Sparkles size={11} />
-          </div>
-          <p className="text-[10px] font-bold text-white">SEO Health Score</p>
-        </div>
-        <div className="flex items-end justify-between mt-0.5">
-          <div>
-            <p className="text-xl font-black text-white leading-none">78</p>
-            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
-          </div>
-          <svg className="w-10 h-5 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 16 Q 14 6, 26 12 T 48 3" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Bottom Floating Badge: AI Visibility Score */}
-      <div className="absolute top-[calc(100%+10px)] left-6 z-20 bg-brand-900 rounded-2xl shadow-2xl border border-brand-800 p-2.5 sm:p-3 w-44 animate-float hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
-          <div className="w-5 h-5 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center">
-            <Sparkles size={11} />
-          </div>
-          <p className="text-[10px] font-bold text-white">AI Visibility Score</p>
-        </div>
-        <div className="flex items-end justify-between mt-0.5">
-          <div>
-            <p className="text-xl font-black text-white leading-none">52</p>
-            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
-          </div>
-          <svg className="w-12 h-5 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 17 Q 14 10, 26 13 T 48 4" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Bottom cursive annotation with curved arrow */}
-      <div className="absolute -bottom-10 right-8 z-20 flex flex-col items-center text-series-6">
-        <svg
-          className="w-6 h-6 text-series-6 transform rotate-45 -translate-x-3 translate-y-1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-        </svg>
-        <p
-          className="font-bold text-xs sm:text-sm whitespace-nowrap text-series-6"
-          style={{ fontFamily: "cursive", transform: "rotate(-3deg)" }}
-        >
-          A clear plan. Measurable growth.
-        </p>
       </div>
     </div>
   );
@@ -334,7 +250,7 @@ function WorkflowAppPreview() {
 
 export function WorkflowSteps() {
   return (
-    <section id="how-it-works" className="py-16 sm:py-20 bg-brand-950 border-t border-brand-900 scroll-mt-16 overflow-x-clip">
+    <section id="how-it-works" className="py-16 sm:py-20 border-t border-brand-200 scroll-mt-16 overflow-x-clip">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* 2-Column Main Section */}
         <div className="grid lg:grid-cols-[48%_52%] gap-8 lg:gap-12 items-center mb-10">
@@ -342,14 +258,14 @@ export function WorkflowSteps() {
           <div className="space-y-6">
             {/* Header */}
             <div>
-              <div className="inline-flex items-center gap-1.5 bg-brand-900/80 border border-brand-800 text-brand-300 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full mb-2.5">
+              <div className="inline-flex items-center gap-1.5 bg-surface-1 border border-brand-200 text-brand-600 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full mb-2.5">
                 How It Works
               </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-white leading-[1.12] tracking-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-brand-950 leading-[1.12] tracking-tight">
                 From URL to proof<br />
                 in four steps.
               </h2>
-              <p className="mt-2 text-sm sm:text-base text-brand-400 leading-relaxed">
+              <p className="mt-2 text-sm sm:text-base text-brand-500 leading-relaxed">
                 Add your URL and up to 5 rivals. Reigel does the crawling and comparing, ranks the work, prepares the fixes, and checks the results.
               </p>
             </div>
@@ -357,27 +273,27 @@ export function WorkflowSteps() {
             {/* 4 Step Cards with Vertical Dotted Line */}
             <div className="relative pl-7 space-y-2.5">
               {/* Dotted Vertical Connector Line */}
-              <div className="absolute left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-brand-800 pointer-events-none" />
+              <div className="absolute left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-brand-200 pointer-events-none" />
 
               {PIPELINE_STEPS.map((step) => {
                 const StepIcon = step.icon;
                 return (
                   <div key={step.num} className="relative flex items-center">
                     {/* Number Badge on the Line */}
-                    <div className="absolute -left-7 font-black text-xs text-series-6 w-5 text-center">
+                    <div className="absolute -left-7 font-mono font-black text-xs text-brand-500 w-5 text-center">
                       {step.num}
                     </div>
 
                     {/* Step Card */}
-                    <div className="w-full bg-brand-900/40 rounded-2xl p-3 sm:p-3.5 border border-brand-800 hover:border-brand-750 hover:bg-brand-900/70 transition-all flex items-center gap-3 shadow-sm">
-                      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${step.iconBg}`}>
+                    <div className="w-full bg-surface-1 rounded-2xl p-3 sm:p-3.5 border border-brand-200 hover:border-brand-300 transition-all flex items-center gap-3 shadow-2xs">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${step.iconBg}`}>
                         <StepIcon size={16} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xs sm:text-sm font-extrabold text-white leading-tight">
+                        <h3 className="text-xs sm:text-sm font-extrabold text-brand-950 leading-tight">
                           {step.title}
                         </h3>
-                        <p className="text-[11px] sm:text-xs text-brand-400 leading-snug mt-0.5">
+                        <p className="text-[11px] sm:text-xs text-brand-500 leading-snug mt-0.5">
                           {step.description}
                         </p>
                       </div>
@@ -392,17 +308,17 @@ export function WorkflowSteps() {
               <div className="flex flex-wrap items-center gap-3">
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
+                  className="inline-flex items-center gap-1.5 bg-signal-400 hover:bg-signal-500 active:scale-[0.98] text-signal-ink font-extrabold text-xs sm:text-sm px-6 py-3 rounded-full transition-all shadow-xs cursor-pointer"
                 >
                   <span>Start free audit →</span>
                 </Link>
               </div>
 
               {/* Trust Checkmarks */}
-              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-brand-400 pt-1">
+              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-brand-500 pt-1">
                 {["Free account", "No card needed", "Audit ready in minutes"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5">
-                    <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
+                    <Check size={14} className="text-success-500 shrink-0 font-extrabold" />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -410,7 +326,7 @@ export function WorkflowSteps() {
             </div>
           </div>
 
-          {/* Right Column: Vertically Centered Complete Dashboard Preview */}
+          {/* Right Column */}
           <div className="relative flex items-center justify-center py-6">
             <WorkflowAppPreview />
           </div>

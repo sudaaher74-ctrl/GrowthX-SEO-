@@ -17,8 +17,12 @@ import {
   ShieldCheck,
   Loader2,
   Quote,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { api, auth, getApiBase } from "@/lib/api-client";
+import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/lib/utils";
 
 function LoginFormInner() {
   const router = useRouter();
@@ -86,19 +90,19 @@ function LoginFormInner() {
     <div className="w-full max-w-md mx-auto my-auto py-6 sm:py-8">
       {/* Pending Website Audit Pill */}
       {urlParam && (
-        <div className="mb-5 inline-flex items-center gap-2 rounded-xl border border-series-6/40 bg-series-6/10 px-3.5 py-2 text-xs font-semibold text-white">
-          <Globe size={14} className="text-series-6 shrink-0" />
+        <div className="mb-5 inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-semibold text-brand-950 shadow-2xs">
+          <Globe size={14} className="text-brand-700 shrink-0" />
           <span>
-            Auditing <strong className="font-mono text-series-6">{urlParam}</strong> right after sign-in
+            Auditing <strong className="font-mono text-brand-950">{urlParam}</strong> right after sign-in
           </span>
         </div>
       )}
 
       {/* Heading */}
-      <h2 className="text-3xl font-black text-white tracking-tight mb-1">
+      <h2 className="text-3xl font-black text-brand-950 tracking-tight mb-1">
         Welcome back
       </h2>
-      <p className="text-sm text-brand-400 mb-8">
+      <p className="text-sm text-brand-500 mb-8">
         {urlParam ? `Sign in to start crawling ${urlParam}` : "Log in to your Reigel account"}
       </p>
 
@@ -106,11 +110,11 @@ function LoginFormInner() {
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {/* Email */}
         <div>
-          <label className="block text-xs font-bold text-brand-300 mb-1.5">
+          <label className="block text-xs font-bold text-brand-700 mb-1.5">
             Email address
           </label>
           <div className="relative">
-            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 pointer-events-none" />
+            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
             <input
               type="email"
               required
@@ -118,7 +122,7 @@ function LoginFormInner() {
               value={form.email}
               onChange={set("email")}
               placeholder="you@company.com"
-              className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-brand-800 bg-brand-900/90 placeholder:text-brand-500 text-white focus:outline-none focus:ring-2 focus:ring-series-6/30 focus:border-series-6 transition-all"
+              className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-brand-200 bg-surface-1 placeholder:text-brand-400 text-brand-950 focus:outline-none focus:border-brand-400 transition-all"
             />
           </div>
         </div>
@@ -126,12 +130,12 @@ function LoginFormInner() {
         {/* Password */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-bold text-brand-300">
+            <label className="text-xs font-bold text-brand-700">
               Password
             </label>
           </div>
           <div className="relative">
-            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 pointer-events-none" />
+            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
             <input
               type={showPassword ? "text" : "password"}
               required
@@ -139,12 +143,12 @@ function LoginFormInner() {
               value={form.password}
               onChange={set("password")}
               placeholder="Enter your password"
-              className="w-full pl-10 pr-10 py-3 text-sm rounded-xl border border-brand-800 bg-brand-900/90 placeholder:text-brand-500 text-white focus:outline-none focus:ring-2 focus:ring-series-6/30 focus:border-series-6 transition-all"
+              className="w-full pl-10 pr-10 py-3 text-sm rounded-xl border border-brand-200 bg-surface-1 placeholder:text-brand-400 text-brand-950 focus:outline-none focus:border-brand-400 transition-all"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-200 cursor-pointer"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-500 hover:text-brand-950 cursor-pointer"
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -155,7 +159,7 @@ function LoginFormInner() {
         {error && (
           <div
             role="alert"
-            className="rounded-xl border border-error-500/40 bg-error-950/40 px-3.5 py-2.5 text-xs text-error-400 font-medium"
+            className="rounded-xl border border-error-500/40 bg-error-50 px-3.5 py-2.5 text-xs text-error-600 font-medium"
           >
             {error}
           </div>
@@ -165,7 +169,7 @@ function LoginFormInner() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-series-6 hover:bg-series-6/90 active:scale-[0.99] shadow-md shadow-series-6/20 transition-all cursor-pointer disabled:opacity-60"
+          className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-full text-sm font-extrabold text-signal-ink bg-signal-400 hover:bg-signal-500 active:scale-[0.99] shadow-xs transition-all cursor-pointer disabled:opacity-60"
         >
           {busy ? (
             <>
@@ -184,19 +188,20 @@ function LoginFormInner() {
       {/* Divider */}
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-brand-800" />
+          <div className="w-full border-t border-brand-200" />
         </div>
         <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-          <span className="px-3 bg-brand-950 text-brand-500">Or continue with</span>
+          <span className="px-3 text-brand-400" style={{ background: "var(--color-canvas)" }}>
+            Or continue with
+          </span>
         </div>
       </div>
 
       {/* Social Logins */}
       <div className="space-y-2.5">
-        {/* Google */}
         <a
           href={`${getApiBase()}/auth/google`}
-          className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-brand-800 bg-brand-900/90 hover:bg-brand-900 text-xs sm:text-sm font-semibold text-brand-200 shadow-sm transition-all"
+          className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-full border border-brand-200 bg-surface-1 hover:bg-surface-2 text-xs sm:text-sm font-semibold text-brand-900 shadow-2xs transition-all"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -222,7 +227,7 @@ function LoginFormInner() {
 
       {/* Security Note */}
       <div className="mt-8 flex items-center justify-center gap-1.5 text-xs text-brand-500">
-        <ShieldCheck size={14} className="text-success-400" />
+        <ShieldCheck size={14} className="text-success-500" />
         <span>Your data is secure with enterprise-grade encryption.</span>
       </div>
     </div>
@@ -240,6 +245,7 @@ const PARTNER_LOGOS = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const { isDark, setTheme } = useTheme();
 
   useEffect(() => {
     const referrer = typeof document !== "undefined" ? document.referrer : "";
@@ -249,35 +255,41 @@ export default function LoginPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-brand-950 text-brand-50">
+    <div
+      className={cn(
+        isDark ? "dash-dark dark" : "dash-light",
+        "min-h-screen flex flex-col lg:flex-row text-brand-950 transition-colors duration-200",
+      )}
+      style={{ background: "var(--color-canvas)" }}
+    >
       {/* LEFT SIDE: Brand & Value Showcase */}
-      <div className="relative bg-gradient-to-br from-brand-900 via-brand-900/80 to-brand-950 p-8 sm:p-12 lg:p-14 flex flex-col justify-between border-r border-brand-800 w-full lg:w-[48%] xl:w-[45%]">
-        {/* Soft background glow */}
-        <div className="absolute top-0 left-0 w-72 h-72 rounded-full bg-series-6/10 blur-3xl pointer-events-none" />
-
+      <div className="relative bg-surface-1 p-8 sm:p-12 lg:p-14 flex flex-col justify-between border-r border-brand-200 w-full lg:w-[48%] xl:w-[45%]">
         {/* Brand Header */}
         <div className="relative z-10">
-          <Link href="/" className="inline-block">
-            <span className="text-2xl font-black tracking-tight text-white">
+          <Link href="/" className="inline-flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-extrabold text-signal-ink shadow-xs">
+              R
+            </span>
+            <span className="text-2xl font-black tracking-tight text-brand-950">
               Reigel
             </span>
-            <p className="text-xs font-semibold text-brand-400 mt-0.5">
-              SEO. AI Visibility. Real Growth.
-            </p>
+            <span className="rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-brand-500">
+              AI SEO
+            </span>
           </Link>
         </div>
 
         {/* Main Content */}
         <div className="relative z-10 my-8 sm:my-10 space-y-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-black text-brand-950 tracking-tight leading-tight">
               Sign in and <br />
               keep{" "}
-              <span className="text-series-6">
+              <span className="text-signal-400">
                 growing.
               </span>
             </h1>
-            <p className="text-sm text-brand-400 mt-2.5 max-w-md leading-relaxed">
+            <p className="text-sm text-brand-500 mt-2.5 max-w-md leading-relaxed">
               Access your dashboard, track progress and let Reigel do the heavy lifting.
             </p>
           </div>
@@ -286,14 +298,14 @@ export default function LoginPage() {
           <div className="space-y-4 pt-1">
             {/* 1 */}
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-series-6/20 text-series-6 flex items-center justify-center shrink-0 border border-series-6/30">
+              <div className="w-10 h-10 rounded-2xl bg-surface-2 text-brand-900 flex items-center justify-center shrink-0 border border-brand-200">
                 <BarChart3 size={18} />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white leading-snug">
+                <h4 className="text-sm font-bold text-brand-950 leading-snug">
                   Your growth in one place
                 </h4>
-                <p className="text-xs text-brand-400 mt-0.5 leading-relaxed">
+                <p className="text-xs text-brand-500 mt-0.5 leading-relaxed">
                   See SEO, AI visibility and competitor insights at a glance.
                 </p>
               </div>
@@ -301,14 +313,14 @@ export default function LoginPage() {
 
             {/* 2 */}
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-accent-600/20 text-accent-400 flex items-center justify-center shrink-0 border border-accent-600/30">
+              <div className="w-10 h-10 rounded-2xl bg-surface-2 text-signal-400 flex items-center justify-center shrink-0 border border-brand-200">
                 <Zap size={18} />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white leading-snug">
+                <h4 className="text-sm font-bold text-brand-950 leading-snug">
                   Execution that saves time
                 </h4>
-                <p className="text-xs text-brand-400 mt-0.5 leading-relaxed">
+                <p className="text-xs text-brand-500 mt-0.5 leading-relaxed">
                   Approve your plan and let Reigel implement the improvements.
                 </p>
               </div>
@@ -316,14 +328,14 @@ export default function LoginPage() {
 
             {/* 3 */}
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-success-600/20 text-success-400 flex items-center justify-center shrink-0 border border-success-600/30">
+              <div className="w-10 h-10 rounded-2xl bg-surface-2 text-success-500 flex items-center justify-center shrink-0 border border-brand-200">
                 <Users size={18} />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white leading-snug">
+                <h4 className="text-sm font-bold text-brand-950 leading-snug">
                   Built for businesses
                 </h4>
-                <p className="text-xs text-brand-400 mt-0.5 leading-relaxed">
+                <p className="text-xs text-brand-500 mt-0.5 leading-relaxed">
                   Join growing teams that trust Reigel to drive results.
                 </p>
               </div>
@@ -331,22 +343,22 @@ export default function LoginPage() {
           </div>
 
           {/* Founder Testimonial Card */}
-          <div className="bg-brand-900/70 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-brand-800 shadow-xl relative mt-6">
-            <div className="w-7 h-7 rounded-xl bg-brand-800 text-series-6 flex items-center justify-center mb-2.5">
+          <div className="bg-surface-2 rounded-2xl p-4 sm:p-5 border border-brand-200 shadow-2xs relative mt-6">
+            <div className="w-7 h-7 rounded-xl bg-surface-1 border border-brand-200 text-brand-700 flex items-center justify-center mb-2.5">
               <Quote size={15} />
             </div>
-            <p className="text-xs text-brand-300 leading-relaxed italic mb-3">
+            <p className="text-xs text-brand-700 leading-relaxed italic mb-3">
               &ldquo;Reigel completely changed how we approach SEO and AI search. The automated execution saves weeks of engineering time every month.&rdquo;
             </p>
-            <div className="flex items-center gap-2.5 pt-2 border-t border-brand-800">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-series-6 to-accent-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-2.5 pt-2 border-t border-brand-200">
+              <div className="w-8 h-8 rounded-full bg-signal-400 text-signal-ink font-black text-xs flex items-center justify-center shadow-2xs">
                 SA
               </div>
               <div>
-                <h5 className="text-xs font-bold text-white leading-tight">
+                <h5 className="text-xs font-bold text-brand-950 leading-tight">
                   Sudarshan Aher
                 </h5>
-                <p className="text-[10px] text-brand-400 font-medium">
+                <p className="text-[10px] text-brand-500 font-medium">
                   Founder &amp; CEO, Reigel
                 </p>
               </div>
@@ -356,12 +368,12 @@ export default function LoginPage() {
 
         {/* Footer Brand Badges */}
         <div className="relative z-10 pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500 mb-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400 mb-2.5">
             Trusted by growing businesses
           </p>
-          <div className="flex flex-wrap items-center gap-5 text-xs font-bold text-brand-400">
+          <div className="flex flex-wrap items-center gap-5 text-xs font-bold text-brand-500">
             {PARTNER_LOGOS.map((brand) => (
-              <span key={brand} className="hover:text-white transition-colors">
+              <span key={brand} className="hover:text-brand-950 transition-colors">
                 {brand}
               </span>
             ))}
@@ -370,21 +382,57 @@ export default function LoginPage() {
       </div>
 
       {/* RIGHT SIDE: Authentication Form */}
-      <div className="flex-1 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-brand-950">
-        {/* Top bar with Back to website link */}
-        <div className="flex items-center justify-between gap-2 text-xs text-brand-400">
+      <div className="flex-1 flex flex-col justify-between p-6 sm:p-10 lg:p-12">
+        {/* Top bar with Back to website + Day/Night toggle + View plans */}
+        <div className="flex items-center justify-between gap-2 text-xs text-brand-500">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-brand-800 text-brand-300 font-semibold hover:text-white hover:bg-brand-900 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-brand-200 bg-surface-1 text-brand-800 font-semibold hover:text-brand-950 hover:bg-surface-2 transition-all cursor-pointer"
           >
             <ArrowLeft size={13} />
             <span>Back to website</span>
           </Link>
-          <div className="flex items-center gap-2">
-            <span>New to Reigel?</span>
+
+          <div className="flex items-center gap-2.5">
+            {/* Day / Night toggle */}
+            <div
+              role="group"
+              aria-label="Color theme"
+              className="flex items-center rounded-full border border-brand-200 bg-surface-2 p-0.5"
+            >
+              <button
+                type="button"
+                onClick={() => setTheme("light")}
+                aria-pressed={!isDark}
+                className={cn(
+                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
+                  !isDark
+                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
+                    : "text-brand-500 hover:text-brand-900",
+                )}
+              >
+                <Sun size={12} />
+                <span>Day</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme("dark")}
+                aria-pressed={isDark}
+                className={cn(
+                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
+                  isDark
+                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
+                    : "text-brand-500 hover:text-brand-900",
+                )}
+              >
+                <Moon size={12} />
+                <span>Night</span>
+              </button>
+            </div>
+
             <Link
               href="/pricing"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-brand-800 text-white font-bold hover:bg-brand-900 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-brand-200 bg-surface-1 text-brand-950 font-bold hover:bg-surface-2 transition-all cursor-pointer"
             >
               <span>View plans</span>
               <ArrowRight size={13} />
@@ -396,11 +444,11 @@ export default function LoginPage() {
         <Suspense
           fallback={
             <div className="w-full max-w-md mx-auto my-auto py-8 space-y-4 animate-pulse">
-              <div className="h-8 bg-brand-900 rounded-lg w-1/2" />
-              <div className="h-4 bg-brand-900 rounded-lg w-3/4" />
-              <div className="h-12 bg-brand-900 rounded-xl" />
-              <div className="h-12 bg-brand-900 rounded-xl" />
-              <div className="h-12 bg-brand-800 rounded-xl" />
+              <div className="h-8 bg-surface-1 rounded-lg w-1/2" />
+              <div className="h-4 bg-surface-1 rounded-lg w-3/4" />
+              <div className="h-12 bg-surface-1 rounded-xl" />
+              <div className="h-12 bg-surface-1 rounded-xl" />
+              <div className="h-12 bg-surface-2 rounded-xl" />
             </div>
           }
         >

@@ -70,48 +70,38 @@ export function LandingFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="bg-brand-950 text-brand-400 pt-16 sm:pt-20 pb-12 border-t border-brand-900 relative overflow-hidden">
-      {/* Subtle decorative checkered grid on the far right (like Okara) */}
-      <div className="absolute right-0 top-0 bottom-0 w-72 pointer-events-none opacity-[0.03] hidden xl:block">
-        <div className="grid grid-cols-3 gap-2 h-full p-4">
-          {Array.from({ length: 15 }).map((_, i) => (
-            <div
-              key={i}
-              className={`rounded-xl ${i % 2 === 0 ? "bg-white" : "bg-transparent"}`}
-            />
-          ))}
-        </div>
-      </div>
-
+    <footer className="bg-surface-1 text-brand-500 pt-16 sm:pt-20 pb-12 border-t border-brand-200 relative overflow-hidden">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 mb-16">
           {/* Brand Left Column */}
           <div className="lg:col-span-4 flex flex-col justify-between pr-0 lg:pr-8">
             <div>
-              {/* Logo */}
-              <Link href="/" className="inline-flex items-center gap-2 mb-6 group">
-                <div className="w-8 h-8 rounded-xl bg-series-6/20 border border-series-6/30 flex items-center justify-center text-series-6 font-black text-sm shadow-xs group-hover:bg-series-6/30 transition-colors">
+              {/* Logo — Matches Dashboard Brand Identity */}
+              <Link href="/" className="inline-flex items-center gap-2.5 mb-6 group">
+                <div className="w-8 h-8 rounded-xl bg-signal-400 flex items-center justify-center text-signal-ink font-mono font-extrabold text-sm shadow-xs">
                   R
                 </div>
-                <span className="text-2xl font-black text-white tracking-tight">
+                <span className="text-2xl font-black text-brand-950 tracking-tight">
                   Reigel
+                </span>
+                <span className="rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-brand-500">
+                  AI SEO
                 </span>
               </Link>
 
               {/* Bold Headline Tagline */}
-              <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight mb-2 max-w-sm">
+              <h3 className="text-2xl sm:text-3xl font-black text-brand-950 leading-tight tracking-tight mb-2 max-w-sm">
                 Find it. Fix it. Prove it.
               </h3>
-              <p className="text-xs text-brand-400 mb-2 max-w-xs leading-relaxed">
+              <p className="text-xs text-brand-500 mb-2 max-w-xs leading-relaxed">
                 sudarshan@growthx.in &bull; +91 8767067884<br />
                 New Panvel, Navi Mumbai, India
               </p>
-
             </div>
 
             {/* Request AI Summary of Reigel */}
             <div className="pt-2">
-              <p className="text-xs font-semibold text-brand-300 mb-2.5">
+              <p className="text-xs font-semibold text-brand-700 mb-2.5">
                 Request AI summary of Reigel
               </p>
               <div className="flex items-center gap-2.5">
@@ -120,7 +110,7 @@ export function LandingFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Ask ChatGPT about Reigel"
-                  className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
+                  className="w-9 h-9 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center text-brand-700 hover:text-brand-950 hover:border-brand-300 transition-all cursor-pointer shadow-2xs"
                 >
                   <OpenAiSpiralIcon />
                 </a>
@@ -129,7 +119,7 @@ export function LandingFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Ask Claude about Reigel"
-                  className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
+                  className="w-9 h-9 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center text-brand-700 hover:text-brand-950 hover:border-brand-300 transition-all cursor-pointer shadow-2xs"
                 >
                   <ClaudeSparkIcon />
                 </a>
@@ -138,7 +128,7 @@ export function LandingFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Ask Perplexity about Reigel"
-                  className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
+                  className="w-9 h-9 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center text-brand-700 hover:text-brand-950 hover:border-brand-300 transition-all cursor-pointer shadow-2xs"
                 >
                   <PerplexityIcon />
                 </a>
@@ -150,9 +140,8 @@ export function LandingFooter() {
           <div className="lg:col-span-8 grid grid-cols-2 gap-8">
             {FOOTER_COLUMNS.map((col) => (
               <div key={col.title} className="flex flex-col">
-                {/* Primary Section */}
                 <div>
-                  <h4 className="text-sm font-bold text-white mb-4 tracking-tight">
+                  <h4 className="text-sm font-bold text-brand-950 mb-4 tracking-tight">
                     {col.title}
                   </h4>
                   <ul className="space-y-2.5">
@@ -160,7 +149,7 @@ export function LandingFooter() {
                       <li key={link.label}>
                         <Link
                           href={link.href}
-                          className="text-xs text-brand-400 hover:text-white transition-colors"
+                          className="text-xs text-brand-500 hover:text-brand-950 transition-colors"
                         >
                           {link.label}
                         </Link>
@@ -169,10 +158,9 @@ export function LandingFooter() {
                   </ul>
                 </div>
 
-                {/* Sub Section (if present) */}
                 {col.subSection && (
                   <div className="mt-8">
-                    <h4 className="text-sm font-bold text-white mb-4 tracking-tight">
+                    <h4 className="text-sm font-bold text-brand-950 mb-4 tracking-tight">
                       {col.subSection.title}
                     </h4>
                     <ul className="space-y-2.5">
@@ -180,7 +168,7 @@ export function LandingFooter() {
                         <li key={link.label}>
                           <Link
                             href={link.href}
-                            className="text-xs text-brand-400 hover:text-white transition-colors"
+                            className="text-xs text-brand-500 hover:text-brand-950 transition-colors"
                           >
                             {link.label}
                           </Link>
@@ -195,28 +183,27 @@ export function LandingFooter() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-brand-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="border-t border-brand-200 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-brand-500">
             &copy; {currentYear} Reigel AI SEO. All rights reserved.
           </p>
 
-          {/* Legal Links */}
           <div className="flex items-center gap-5 text-xs">
             <Link
               href="/legal/privacy"
-              className="text-brand-500 hover:text-brand-300 transition-colors"
+              className="text-brand-500 hover:text-brand-950 transition-colors"
             >
               Privacy Policy
             </Link>
             <Link
               href="/legal/terms"
-              className="text-brand-500 hover:text-brand-300 transition-colors"
+              className="text-brand-500 hover:text-brand-950 transition-colors"
             >
               Terms of Service
             </Link>
             <Link
               href="/legal/security"
-              className="text-brand-500 hover:text-brand-300 transition-colors"
+              className="text-brand-500 hover:text-brand-950 transition-colors"
             >
               Security
             </Link>

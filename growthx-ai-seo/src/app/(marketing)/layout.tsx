@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
+import { MarketingShell } from "@/components/marketing/marketing-shell";
 
 export const metadata: Metadata = {
   title: SITE_TITLE,
@@ -13,9 +14,5 @@ export default function MarketingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-brand-950 text-brand-50 antialiased selection:bg-series-6 selection:text-white">
-      {children}
-    </div>
-  );
+  return <MarketingShell>{children}</MarketingShell>;
 }
