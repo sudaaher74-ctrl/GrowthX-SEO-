@@ -685,15 +685,15 @@ function PromptsSection({
                 setFilterCategory(filterCategory === cat.key ? "ALL" : cat.key)
               }
               className={cn(
-                "flex flex-col rounded-2xl border p-4 text-left shadow-card transition-all",
-                "bg-surface-2",
+                "flex flex-col rounded-2xl border p-4 text-left shadow-card transition-all focus-visible:outline-none",
+                "bg-surface-1 hover:bg-surface-2",
                 isSelected
-                  ? "border-brand-950 dark:border-brand-100 ring-2 ring-brand-950/10 dark:ring-brand-100/10"
-                  : "border-brand-200/60 dark:border-brand-800/80 hover:border-brand-300 dark:hover:border-brand-700",
+                  ? "border-signal-400 ring-2 ring-signal-400/20"
+                  : "border-brand-200 hover:border-brand-300",
               )}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">{cat.label}</span>
+                <span className="text-xs font-semibold text-brand-600">{cat.label}</span>
                 <div className="flex items-center gap-1.5">
                   <span
                     className={cn(
@@ -706,16 +706,16 @@ function PromptsSection({
                     )}
                   />
                   {isSelected && (
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-brand-950 dark:text-brand-100">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-brand-950">
                       Active
                     </span>
                   )}
                 </div>
               </div>
-              <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950 dark:text-brand-50">
+              <div className="mt-2 font-mono text-3xl font-extrabold tracking-tight text-brand-950">
                 {cat.pct == null ? "—" : `${cat.pct}%`}
               </div>
-              <div className="mt-1 text-xs text-brand-400 dark:text-brand-500">{cat.subtext}</div>
+              <div className="mt-1 text-xs text-brand-500">{cat.subtext}</div>
             </button>
           );
         })}
@@ -760,7 +760,7 @@ function PromptsSection({
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-800 dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
+                className="flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-semibold text-signal-ink transition-colors hover:bg-signal-500"
               >
                 <Check size={14} />
                 Done
@@ -811,9 +811,9 @@ function PromptsSection({
                 const modelSummary = models.length > 1 ? `${models[0]} +${models.length - 1} more` : models[0] || "Model not recorded";
                 return (
                   <div key={engine.name} className="flex w-28 flex-col items-center justify-center gap-0.5 px-1 text-center sm:w-36">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="normal-case font-medium text-brand-700">{engine.name}</span>
+                    <div className="flex items-center justify-center gap-1.5 text-brand-950">
+                      <Icon className="h-4 w-4 shrink-0 text-brand-950" />
+                      <span className="normal-case font-semibold text-brand-950">{engine.name}</span>
                     </div>
                     <span className="max-w-full break-all text-[9px] font-normal normal-case leading-3 text-brand-500" title={models.length ? `Model used: ${models.join(", ")}` : "No model recorded in saved answers"}>
                       {modelSummary}
@@ -925,7 +925,7 @@ function PromptsSection({
                                   <span className="min-w-0 whitespace-normal break-words">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
-                                <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
+                                <span className="font-mono text-xs text-brand-400">—</span>
                               )}
                             </div>
                           );
@@ -1010,7 +1010,7 @@ function PromptsSection({
                                   <span className="min-w-0 whitespace-normal break-words">{c.competitor || "Rival"}</span>
                                 </span>
                               ) : (
-                                <span className="font-mono text-xs text-brand-300 dark:text-brand-600">—</span>
+                                <span className="font-mono text-xs text-brand-400">—</span>
                               )}
                             </div>
                           );
@@ -1034,8 +1034,8 @@ function PromptsSection({
                                 <div className="space-y-2.5">
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
-                                      <Icon className="h-4 w-4 text-brand-700 dark:text-brand-300" />
-                                      <span className="text-xs font-bold text-brand-950 dark:text-brand-100">{engine.name}</span>
+                                      <Icon className="h-4 w-4 shrink-0 text-brand-950" />
+                                      <span className="text-xs font-bold text-brand-950">{engine.name}</span>
                                     </div>
                                     {c.status === "recommended" ? (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-2 py-0.5 text-[11px] font-semibold text-success-600 dark:border-success-400/30 dark:bg-success-400/10 dark:text-success-400">
@@ -1046,11 +1046,11 @@ function PromptsSection({
                                         <ArrowRightLeft size={10} /> Rival reference
                                       </span>
                                     ) : c.status === "pending" ? (
-                                      <span className="rounded-full border border-brand-200/60 bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-500 dark:border-brand-800 dark:bg-brand-800 dark:text-brand-400">
+                                      <span className="rounded-full border border-brand-200 bg-surface-1 px-2 py-0.5 text-[11px] font-medium text-brand-500">
                                         Pending
                                       </span>
                                     ) : (
-                                      <span className="rounded-full border border-brand-200/60 bg-brand-100/70 px-2 py-0.5 text-[11px] font-medium text-brand-400 dark:border-brand-800 dark:bg-brand-800/60 dark:text-brand-400">
+                                      <span className="rounded-full border border-brand-200 bg-surface-1 px-2 py-0.5 text-[11px] font-medium text-brand-500">
                                         {c.label === "Check failed" ? "Check failed" : "Not mentioned"}
                                       </span>
                                     )}
@@ -1062,18 +1062,18 @@ function PromptsSection({
                                         <ArrowRightLeft size={10} />
                                         <span>Other reference</span>
                                       </div>
-                                      <p className="mt-1 text-xs font-bold text-brand-950 dark:text-brand-100 break-words" title={c.competitor}>
+                                      <p className="mt-1 text-xs font-bold text-brand-950 break-words" title={c.competitor}>
                                         {c.competitor}
                                       </p>
                                     </div>
                                   )}
 
                                   {c.quote ? (
-                                    <blockquote className="rounded-lg border-l-2 border-primary-500 bg-brand-100/50 p-2.5 text-xs italic text-brand-700 dark:bg-brand-800/40 dark:text-brand-300">
+                                    <blockquote className="rounded-lg border-l-2 border-primary-500 bg-surface-1 p-2.5 text-xs italic text-brand-700">
                                       &ldquo;{c.quote}&rdquo;
                                     </blockquote>
                                   ) : (
-                                    <p className="text-xs text-brand-400 dark:text-brand-500">
+                                    <p className="text-xs text-brand-500">
                                       {c.status === "pending"
                                         ? `Prompt will be sent to ${engine.name} during the check.`
                                         : c.status === "competitor"

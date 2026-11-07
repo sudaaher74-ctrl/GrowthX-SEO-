@@ -19,7 +19,7 @@ import { GrantTokensForm } from "@/components/tokens/grant-tokens-form";
 import { formatTokens, formatTokensExact } from "@/lib/tokens";
 
 
-const CARD = "rounded-[28px] bg-white dark:bg-brand-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04] dark:border-white/[0.06]";
+const CARD = "rounded-[28px] bg-surface-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)] border border-brand-200";
 
 function Card({
   title,
@@ -39,7 +39,7 @@ function Card({
       {(title || actions) && (
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            {title && <h2 className="text-base font-semibold text-brand-950 dark:text-brand-100">{title}</h2>}
+            {title && <h2 className="text-base font-semibold text-brand-950">{title}</h2>}
             {subtitle && <p className="text-xs text-brand-500 mt-0.5">{subtitle}</p>}
           </div>
           {actions}
@@ -67,8 +67,8 @@ function PillButton({
       onClick={onClick}
       className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold transition-colors ${
         dark
-          ? "bg-brand-950 text-white hover:bg-brand-800 dark:bg-white dark:text-brand-950"
-          : "bg-white text-brand-800 shadow-sm border border-black/[0.05] hover:bg-brand-50 dark:bg-brand-900 dark:text-brand-200 dark:border-white/10"
+          ? "bg-signal-400 text-signal-ink hover:bg-signal-500"
+          : "bg-surface-1 text-brand-800 shadow-sm border border-brand-200 hover:bg-surface-2"
       }`}
     >
       {icon}
@@ -95,14 +95,14 @@ function Stat({
       className={`rounded-[28px] p-5 min-h-[140px] flex flex-col justify-between ${
         featured
           ? "bg-gradient-to-br from-success-400 to-success-600 text-white shadow-lg shadow-success-600/20"
-          : `${CARD} text-brand-950 dark:text-brand-100`
+          : `${CARD} text-brand-950`
       }`}
     >
       <div className="flex items-start justify-between">
         <span className={`text-[13px] font-medium ${featured ? "text-white/85" : "text-brand-500"}`}>{label}</span>
         <span
           className={`h-8 w-8 rounded-full flex items-center justify-center ${
-            featured ? "bg-white/20" : "bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300"
+            featured ? "bg-white/20" : "bg-surface-2 text-brand-600"
           }`}
         >
           {icon}
@@ -112,7 +112,7 @@ function Stat({
         <div className="text-3xl font-bold tracking-tight">{value}</div>
         <span
           className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            featured ? "bg-white/20 text-white" : "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400"
+            featured ? "bg-white/20 text-white" : "bg-success-50 text-success-700"
           }`}
         >
           {sub}
@@ -131,7 +131,7 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-64 max-w-full pl-9 pr-4 text-[13px] rounded-full border border-black/[0.08] dark:border-white/10 bg-white dark:bg-brand-900 text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-2 focus:ring-success-500/40"
+        className="h-10 w-64 max-w-full pl-9 pr-4 text-[13px] rounded-full border border-brand-200 bg-surface-1 text-brand-950 focus:outline-none focus:ring-2 focus:ring-success-500/40"
       />
     </div>
   );
@@ -144,7 +144,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-success-500" : "bg-brand-300 dark:bg-brand-700"}`}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-success-500" : "bg-brand-300"}`}
     >
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? "left-[22px]" : "left-0.5"}`} />
     </button>
@@ -167,16 +167,16 @@ function HealthTile({
   meta?: string;
 }) {
   return (
-    <div className="rounded-3xl bg-brand-50 dark:bg-brand-800/50 p-4 space-y-2">
+    <div className="rounded-3xl bg-surface-2 p-4 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-brand-950 dark:text-brand-100">
-          <span className="h-8 w-8 rounded-full bg-white dark:bg-brand-900 shadow-sm flex items-center justify-center">{icon}</span>
+        <span className="flex items-center gap-2 text-[13px] font-semibold text-brand-950">
+          <span className="h-8 w-8 rounded-full bg-surface-1 shadow-sm flex items-center justify-center">{icon}</span>
           {name}
         </span>
         <Pill tone={tone}>{status}</Pill>
       </div>
       <p className="text-xs text-brand-500 leading-relaxed">{desc}</p>
-      {meta && <span className="text-[11px] font-mono font-semibold text-brand-700 dark:text-brand-300 block">{meta}</span>}
+      {meta && <span className="text-[11px] font-mono font-semibold text-brand-700 block">{meta}</span>}
     </div>
   );
 }
@@ -387,16 +387,16 @@ function AdminConsole() {
   ];
 
   const maxJobs = Math.max(1, ...workerQueues.map((q) => q.completed + q.failed + q.active + q.waiting));
-  const nameCls = "font-semibold text-brand-950 dark:text-brand-100 text-[13px]";
+  const nameCls = "font-semibold text-brand-950 text-[13px]";
   const mutedCls = "text-[13px] text-brand-500";
 
   if (accessDenied) {
     return (
-      <div className="rounded-[36px] bg-canvas dark:bg-brand-950 p-6 sm:p-12 text-center max-w-lg mx-auto my-12 border border-black/[0.04] dark:border-white/[0.06]">
-        <div className="h-12 w-12 rounded-full bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300 mx-auto flex items-center justify-center mb-4">
+      <div className="rounded-[36px] bg-surface-1 p-6 sm:p-12 text-center max-w-lg mx-auto my-12 border border-brand-200">
+        <div className="h-12 w-12 rounded-full bg-surface-2 text-brand-600 mx-auto flex items-center justify-center mb-4">
           <ShieldAlert size={22} />
         </div>
-        <h2 className="text-xl font-bold text-brand-950 dark:text-brand-100">
+        <h2 className="text-xl font-bold text-brand-950">
           Operator Console Restricted
         </h2>
         <p className="mt-2 text-sm text-brand-500 leading-relaxed">
@@ -405,14 +405,14 @@ function AdminConsole() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <Link
             href="/dashboard"
-            className="inline-flex h-10 items-center justify-center rounded-full bg-brand-950 dark:bg-white px-5 text-xs font-semibold text-white dark:text-brand-950 hover:opacity-90 transition-opacity"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-signal-400 px-5 text-xs font-semibold text-signal-ink hover:bg-signal-500 transition-colors"
           >
             Return to Workspace
           </Link>
           <button
             type="button"
             onClick={handleRefresh}
-            className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 dark:border-white/10 px-5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100/50"
+            className="inline-flex h-10 items-center justify-center rounded-full border border-brand-200 px-5 text-xs font-semibold text-brand-700 hover:bg-surface-2"
           >
             Retry Access
           </button>
@@ -422,19 +422,19 @@ function AdminConsole() {
   }
 
   return (
-    <div className="rounded-[36px] bg-canvas dark:bg-brand-950 p-4 sm:p-7 space-y-5 pb-10">
+    <div className="rounded-[36px] bg-canvas p-4 sm:p-7 space-y-5 pb-10">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider dark:bg-brand-800 dark:text-brand-200 dark:border-brand-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 text-brand-800 border border-brand-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
               Platform Admin
             </span>
             <Pill tone={systemHealth?.status === "HEALTHY" ? "good" : "warn"}>
               {systemHealth?.status || "SYSTEMS OPERATIONAL"}
             </Pill>
           </div>
-          <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-brand-950 dark:text-brand-100">
+          <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-brand-950">
             Reigel Administration
           </h1>
           <p className="mt-1.5 text-sm text-brand-500 max-w-xl">
@@ -490,7 +490,7 @@ function AdminConsole() {
 
       {/* Pill tabs */}
       <div className="overflow-x-auto">
-        <div className="inline-flex gap-1 rounded-full bg-white dark:bg-brand-900 p-1.5 shadow-sm border border-black/[0.04] dark:border-white/[0.06]">
+        <div className="inline-flex gap-1 rounded-full bg-surface-1 p-1.5 shadow-sm border border-brand-200">
           {tabs.map((t) => {
             const Icon = t.icon;
             const on = activeTab === t.id;
@@ -501,8 +501,8 @@ function AdminConsole() {
                 onClick={() => setActiveTab(t.id)}
                 className={`inline-flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold whitespace-nowrap transition-colors ${
                   on
-                    ? "bg-brand-950 text-white dark:bg-white dark:text-brand-950"
-                    : "text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-brand-800"
+                    ? "bg-signal-400 text-signal-ink"
+                    : "text-brand-600 hover:bg-surface-2 hover:text-brand-950"
                 }`}
               >
                 <Icon size={14} />
@@ -567,8 +567,8 @@ function AdminConsole() {
                   const failPct = total ? (q.failed / total) * 100 : 0;
                   return (
                     <div key={q.name} className="flex-1 flex flex-col items-center justify-end gap-2 h-full min-w-0">
-                      <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-brand-100" style={{ height: `${h}%` }}>
-                        <div className="bg-brand-950 dark:bg-brand-200" style={{ height: `${100 - failPct}%` }} />
+                      <div className="w-full max-w-[44px] rounded-xl overflow-hidden flex flex-col-reverse bg-surface-2" style={{ height: `${h}%` }}>
+                        <div className="bg-brand-950" style={{ height: `${100 - failPct}%` }} />
                         <div
                           className="bg-[repeating-linear-gradient(135deg,var(--color-success-500)_0_4px,var(--color-success-400)_4px_8px)]"
                           style={{ height: `${failPct}%` }}
@@ -581,7 +581,7 @@ function AdminConsole() {
               </div>
             )}
             <div className="mt-4 flex items-center gap-4 text-[11px] text-brand-500">
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-950 dark:bg-brand-200" />Completed</span>
+              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-950" />Completed</span>
               <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-success-500" />Failed</span>
             </div>
           </Card>
@@ -623,7 +623,7 @@ function AdminConsole() {
                     <Tr key={t.id}>
                       <Td>
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-brand-950 text-white font-bold flex items-center justify-center text-xs dark:bg-white dark:text-brand-950">
+                          <div className="h-9 w-9 rounded-full bg-signal-400 text-signal-ink font-bold flex items-center justify-center text-xs">
                             {t.name.slice(0, 2).toUpperCase()}
                           </div>
                           <span className={nameCls}>{t.name}</span>
@@ -649,13 +649,13 @@ function AdminConsole() {
                           <button
                             type="button"
                             onClick={() => setGrantTo(t)}
-                            className="h-8 rounded-full bg-brand-950 px-3.5 text-xs font-semibold text-white hover:bg-brand-800 dark:bg-white dark:text-brand-950"
+                            className="h-8 rounded-full bg-signal-400 px-3.5 text-xs font-semibold text-signal-ink hover:bg-signal-500"
                           >
                             Add tokens
                           </button>
                           <Link
                             href="/clients"
-                            className="inline-flex h-8 items-center gap-1 rounded-full border border-black/10 dark:border-white/10 px-3.5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-800"
+                            className="inline-flex h-8 items-center gap-1 rounded-full border border-brand-200 px-3.5 text-xs font-semibold text-brand-700 hover:bg-surface-2"
                           >
                             Inspect <ArrowUpRight size={11} />
                           </Link>
@@ -683,14 +683,14 @@ function AdminConsole() {
           subtitle="Real-time login status, active sessions, and AI model usage per user."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-full bg-brand-100 p-0.5 dark:bg-brand-800 text-xs font-medium">
+              <div className="inline-flex rounded-full bg-surface-2 p-0.5 border border-brand-200 text-xs font-medium">
                 <button
                   type="button"
                   onClick={() => setUserLoginFilter("all")}
                   className={`rounded-full px-3 py-1 transition-colors ${
                     userLoginFilter === "all"
-                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
-                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                      ? "bg-signal-400 text-signal-ink font-semibold shadow-xs"
+                      : "text-brand-600 hover:text-brand-950"
                   }`}
                 >
                   All ({users.length})
@@ -700,8 +700,8 @@ function AdminConsole() {
                   onClick={() => setUserLoginFilter("online")}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors ${
                     userLoginFilter === "online"
-                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
-                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                      ? "bg-signal-400 text-signal-ink font-semibold shadow-xs"
+                      : "text-brand-600 hover:text-brand-950"
                   }`}
                 >
                   <span className="h-2 w-2 rounded-full bg-success-500 animate-pulse" />
@@ -712,8 +712,8 @@ function AdminConsole() {
                   onClick={() => setUserLoginFilter("offline")}
                   className={`rounded-full px-3 py-1 transition-colors ${
                     userLoginFilter === "offline"
-                      ? "bg-white text-brand-950 font-semibold shadow-xs dark:bg-brand-900 dark:text-brand-100"
-                      : "text-brand-600 hover:text-brand-950 dark:text-brand-400"
+                      ? "bg-signal-400 text-signal-ink font-semibold shadow-xs"
+                      : "text-brand-600 hover:text-brand-950"
                   }`}
                 >
                   Offline ({Math.max(0, users.length - onlineCount)})
@@ -742,13 +742,13 @@ function AdminConsole() {
                     <Td>
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          <div className="h-9 w-9 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-xs dark:bg-brand-800 dark:text-brand-300">
+                          <div className="h-9 w-9 rounded-full bg-surface-2 text-brand-700 font-bold flex items-center justify-center text-xs">
                             {u.name.slice(0, 2).toUpperCase()}
                           </div>
                           {u.isLoggedIn && (
                             <span
                               title="Currently logged in"
-                              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success-500 ring-2 ring-white dark:ring-brand-900"
+                              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success-500 ring-2 ring-surface-1"
                             />
                           )}
                         </div>
@@ -788,7 +788,7 @@ function AdminConsole() {
                           {u.modelsUsed.map((m) => (
                             <span
                               key={m}
-                              className="inline-flex items-center gap-1 rounded-full bg-brand-100 dark:bg-brand-800/80 px-2 py-0.5 font-mono text-[10.5px] font-semibold text-brand-800 dark:text-brand-200"
+                              className="inline-flex items-center gap-1 rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 font-mono text-[10.5px] font-semibold text-brand-800"
                             >
                               <Zap size={10} className="text-warning-500" />
                               {m}
@@ -938,7 +938,7 @@ function AdminConsole() {
                     <Tr key={`${row.userId}:${row.provider}:${row.model}`}>
                       <Td>
                         <div className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-[10px] dark:bg-brand-800 dark:text-brand-300">
+                          <div className="h-7 w-7 rounded-full bg-surface-2 text-brand-700 font-bold flex items-center justify-center text-[10px]">
                             {row.userName.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -955,7 +955,7 @@ function AdminConsole() {
                           <span className="h-5 w-5 rounded-full bg-warning-50 dark:bg-warning-500/10 flex items-center justify-center">
                             <Zap size={11} className="text-warning-500" />
                           </span>
-                          <span className="font-mono text-xs font-semibold text-brand-900 dark:text-brand-100">
+                          <span className="font-mono text-xs font-semibold text-brand-900">
                             {row.provider} / {row.model}
                           </span>
                         </div>
@@ -964,7 +964,7 @@ function AdminConsole() {
                         <span className={`font-mono ${nameCls}`}>{row.calls.toLocaleString()}</span>
                       </Td>
                       <Td align="right">
-                        <span className="font-mono text-xs text-brand-700 dark:text-brand-300">
+                        <span className="font-mono text-xs text-brand-700">
                           {row.totalTokens.toLocaleString()}
                         </span>
                       </Td>
@@ -1010,7 +1010,7 @@ function AdminConsole() {
             </PillButton>
           }
         >
-          <div className="divide-y divide-brand-100 dark:divide-brand-800">
+          <div className="divide-y divide-brand-200">
             {[
               {
                 key: "localSeoModule" as const,
@@ -1042,7 +1042,7 @@ function AdminConsole() {
               <select
                 value={featureFlags.maxCrawlConcurrency}
                 onChange={(e) => setFeatureFlags({ ...featureFlags, maxCrawlConcurrency: Number(e.target.value) })}
-                className="h-10 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-brand-900 px-4 text-[13px] text-brand-900 dark:text-brand-100"
+                className="h-10 rounded-full border border-brand-200 bg-surface-1 px-4 text-[13px] text-brand-900"
               >
                 {[1, 2, 3, 4, 6, 8, 10].map((c) => (
                   <option key={c} value={c}>{c} Workers</option>

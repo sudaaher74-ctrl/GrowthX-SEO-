@@ -339,7 +339,7 @@ export function PagesTable({
                     {/* Type */}
                     {visibleColumns.type && (
                       <td className="p-3">
-                        <span className="rounded-md bg-slate-100 text-slate-800 dark:bg-surface-2 dark:text-brand-300 border border-slate-200/60 dark:border-brand-200/60 px-2 py-0.5 text-[11px] font-medium">
+                        <span className="rounded-md bg-surface-2 text-brand-700 border border-brand-200/60 px-2 py-0.5 text-[11px] font-medium">
                           {pageType}
                         </span>
                       </td>

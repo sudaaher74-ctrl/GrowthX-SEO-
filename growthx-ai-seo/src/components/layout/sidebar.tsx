@@ -406,7 +406,7 @@ function NavLinkEnabled({
           aria-label={item.label}
           data-nav-active={active}
           className={cn(
-            "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all",
+            "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all focus:outline-none focus-visible:outline-none focus-visible:shadow-none",
             active
               ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
               : "text-brand-500 hover:bg-surface-2 hover:text-brand-950",
@@ -459,7 +459,7 @@ function NavLinkEnabled({
       <Link
         href={item.href}
         onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
       >
         <span
           className={cn(

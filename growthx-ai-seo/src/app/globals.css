@@ -329,8 +329,15 @@ body {
 
 /* ───── Focus ring ───── */
 :focus-visible {
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: 2px;
+}
+
+aside a:focus-visible,
+aside button:focus-visible,
+[data-nav-active] a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--text-primary);
+  box-shadow: none;
 }
 
 /* ───── Typography scale ───── */
