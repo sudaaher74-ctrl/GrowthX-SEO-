@@ -8,14 +8,15 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
-  CheckCircle2,
   FileText,
   Globe,
+  Layers,
+  Link2,
   Loader2,
-  Lock,
+  Radar,
   Search,
-  Sparkles,
-  Zap,
+  ShieldCheck,
+  Terminal,
 } from "lucide-react";
 import { api, auth, subscribeToAuthChange, type AutopilotRun } from "@/lib/api-client";
 import { setActiveProject, useWorkspace } from "@/hooks/use-growthx";
@@ -33,19 +34,18 @@ function cleanDomainInput(raw: string): string {
 function pathFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    const p = (parsed.pathname || "/") + (parsed.search || "");
-    return p === "/" ? "/ (Home page)" : p;
+    return (parsed.pathname || "/") + (parsed.search || "");
   } catch {
-    return url === "/" || !url ? "/ (Home page)" : url;
+    return url || "/";
   }
 }
 
-const SAMPLE_PAGES = [
-  { path: "/ (Home page)", label: "Home page" },
-  { path: "/products", label: "Products" },
-  { path: "/services", label: "Services" },
-  { path: "/about", label: "About Us" },
-  { path: "/contact", label: "Contact" },
+const DEFAULT_PAGE_NODES = [
+  { path: "/", label: "Home Page", type: "Main Entry" },
+  { path: "/products", label: "Products", type: "Core Page" },
+  { path: "/services", label: "Services", type: "Core Page" },
+  { path: "/about", label: "About Us", type: "Company Info" },
+  { path: "/contact", label: "Contact", type: "Contact Page" },
 ];
 
 function AnalyzeOnboardingInner() {
@@ -132,7 +132,7 @@ function AnalyzeOnboardingInner() {
     refetchInterval: isCompleted || isFailed ? false : 2500,
   });
 
-  // Poll autopilot run log for friendly status updates
+  // Poll autopilot run log for additional live status lines
   const autopilotQuery = useQuery({
     queryKey: ["onboarding-autopilot", activeProjectId],
     queryFn: () => api.autopilot.latest(activeProjectId!),
@@ -154,15 +154,16 @@ function AnalyzeOnboardingInner() {
     issuesQuery.data?.meta?.total ?? 0,
     crawledIssues.length,
   );
+  const healthScore = crawlData?.healthScore ?? issuesQuery.data?.meta?.healthScore ?? null;
   const autopilotLogs = autopilotQuery.data?.log ?? initialRun?.log ?? [];
 
-  // Cycle the highlighted page while crawling
+  // Cycle the highlighted node in the website structure view while crawling
   useEffect(() => {
     if (phase !== "crawling" || isCompleted || isFailed) return;
     const interval = setInterval(() => {
       setElapsedSec((s) => s + 1);
       setActiveNodeIdx((idx) => idx + 1);
-    }, 1400);
+    }, 1200);
     return () => clearInterval(interval);
   }, [phase, isCompleted, isFailed]);
 
@@ -184,7 +185,7 @@ function AnalyzeOnboardingInner() {
     e.preventDefault();
     const cleaned = cleanDomainInput(domainInput);
     if (!cleaned || !cleaned.includes(".")) {
-      setError("Please enter a valid website address (for example: yourwebsite.com)");
+      setError("Please enter a valid website domain, e.g. yourwebsite.com");
       return;
     }
 
@@ -229,7 +230,7 @@ function AnalyzeOnboardingInner() {
       setActiveDomain(run.domain || cleaned);
       setPhase("crawling");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start the website check. Please try again.");
+      setError(err instanceof Error ? err.message : "Could not start the website audit. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -245,48 +246,18 @@ function AnalyzeOnboardingInner() {
         : crawledPages[activeNodeIdx % crawledPages.length]
       : null;
 
-  const steps = [
-    {
-      label: "Connect to website",
-      done: phase === "crawling",
-      active: false,
-    },
-    {
-      label:
-        totalPagesRecorded > 0
-          ? `Find pages (${totalPagesRecorded} found)`
-          : "Find website pages",
-      done: totalPagesRecorded > 0,
-      active: phase === "crawling" && totalPagesRecorded === 0,
-    },
-    {
-      label:
-        totalIssuesRecorded > 0
-          ? `Spot SEO issues (${totalIssuesRecorded})`
-          : "Check SEO & speed",
-      done: isCompleted,
-      active: phase === "crawling" && totalPagesRecorded > 0 && !isCompleted,
-    },
-    {
-      label: "Open Website Audit",
-      done: isCompleted,
-      active: isCompleted,
-    },
-  ];
-
-  const latestStatusMessage =
-    autopilotLogs.length > 0
-      ? autopilotLogs[autopilotLogs.length - 1]?.message
-      : phase === "crawling"
-        ? `Reading pages on ${displayDomain}…`
-        : "We safely scan your public pages just like Google Search.";
+  const formatElapsed = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const rem = sec % 60;
+    return `${String(mins).padStart(2, "0")}:${String(rem).padStart(2, "0")}`;
+  };
 
   return (
     <div
-      className="dash-dark dark relative min-h-screen w-full overflow-x-hidden flex flex-col justify-between"
+      className="dash-dark dark relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none"
       style={{ background: "var(--color-canvas)" }}
     >
-      {/* ── LASER SCANLINE KEYFRAMES ── */}
+      {/* ── KEYFRAME ANIMATIONS FOR LASER SCANLINE ── */}
       <style>{`
         @keyframes reigel-scanline {
           0% { top: 0%; opacity: 0.2; }
@@ -299,9 +270,9 @@ function AnalyzeOnboardingInner() {
         }
       `}</style>
 
-      {/* ── SUBTLE MATTE-BLACK BLUEPRINT GRID ── */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <svg className="absolute inset-0 h-full w-full opacity-[0.10]" xmlns="http://www.w3.org/2000/svg">
+      {/* ── PURE MATTE-BLACK TECHNICAL CAD BLUEPRINT GRID ── */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <svg className="absolute inset-0 h-full w-full opacity-[0.12]" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="tech-subgrid" width="24" height="24" patternUnits="userSpaceOnUse">
               <path d="M 24 0 L 0 0 0 24" fill="none" stroke="var(--color-brand-300)" strokeWidth="0.5" />
@@ -314,16 +285,22 @@ function AnalyzeOnboardingInner() {
           </defs>
           <rect width="100%" height="100%" fill="url(#tech-grid)" />
         </svg>
+
+        {/* Subtle technical corner crosshairs */}
+        <div className="absolute left-6 top-16 h-6 w-6 border-l border-t border-brand-300/40" />
+        <div className="absolute right-6 top-16 h-6 w-6 border-r border-t border-brand-300/40" />
+        <div className="absolute bottom-6 left-6 h-6 w-6 border-b border-l border-brand-300/40" />
+        <div className="absolute bottom-6 right-6 h-6 w-6 border-b border-r border-brand-300/40" />
       </div>
 
-      {/* ── CLEAN TOP BAR ── */}
+      {/* ── TOP HEADER BAR ── */}
       <header
-        className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b bg-surface-1/90 px-4 sm:px-6 backdrop-blur-md"
+        className="relative z-20 flex h-[54px] shrink-0 items-center justify-between border-b bg-surface-1/90 px-4 sm:px-6 backdrop-blur-md"
         style={{ borderColor: "var(--border-color)" }}
       >
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 text-xs font-black text-signal-ink">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink">
               R
             </span>
             <span className="text-sm font-extrabold tracking-tight text-brand-950">
@@ -331,25 +308,42 @@ function AnalyzeOnboardingInner() {
             </span>
           </Link>
           <span className="text-brand-300">/</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-medium text-brand-700">
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                phase === "crawling" ? "bg-signal-400 animate-pulse" : "bg-brand-400",
-              )}
-            />
-            {phase === "crawling" ? "Live Website Scanner" : "Step 1 · Add your website"}
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-brand-700">
+            <Radar size={12} className={phase === "crawling" ? "text-signal-400 animate-spin" : "text-signal-400"} />
+            {phase === "crawling" ? "Live Website Scanner" : "Website Health Scanner"}
           </span>
+        </div>
+
+        {/* Center Status Pills */}
+        <div className="hidden lg:flex items-center gap-4 text-xs text-brand-500">
+          <span>
+            Website: <strong className="font-mono text-brand-950">https://{displayDomain}</strong>
+          </span>
+          <span className="text-brand-300">·</span>
+          <span>
+            Status:{" "}
+            <strong className={phase === "crawling" ? "text-signal-400" : "text-brand-600"}>
+              {phase === "crawling" ? (isCompleted ? "Complete" : "Scanning Live") : "Ready to Scan"}
+            </strong>
+          </span>
+          {phase === "crawling" && (
+            <>
+              <span className="text-brand-300">·</span>
+              <span>
+                Time: <strong className="font-mono text-brand-950">{formatElapsed(elapsedSec)}</strong>
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5">
           {phase === "crawling" && (
-            <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 font-medium text-brand-800">
-                <strong className="font-bold text-signal-400">{totalPagesRecorded}</strong> pages checked
+            <div className="flex items-center gap-2 text-xs">
+              <span className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-brand-950">
+                <strong className="text-signal-400">{totalPagesRecorded}</strong> pages
               </span>
-              <span className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 font-medium text-brand-800">
-                <strong className="font-bold text-warning-700">{totalIssuesRecorded}</strong> issues spotted
+              <span className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-brand-950">
+                <strong className="text-warning-700">{totalIssuesRecorded}</strong> issues
               </span>
             </div>
           )}
@@ -358,165 +352,118 @@ function AnalyzeOnboardingInner() {
             <button
               type="button"
               onClick={() => router.push("/website")}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
             >
               <span>Website Audit</span>
-              <ArrowRight size={13} />
+              <ArrowRight size={12} />
             </button>
           )}
         </div>
       </header>
 
-      {/* ── MAIN USER-FRIENDLY WORKSPACE ── */}
-      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 pt-6 pb-28 sm:px-6">
-        {/* Friendly Headline & 4 Simple Step Pills */}
-        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-1 px-3 py-1 text-xs font-semibold text-signal-400">
-              <Sparkles size={12} />
-              <span>
-                {phase === "crawling"
-                  ? isCompleted
-                    ? "Scan complete — opening your report"
-                    : `Scanning ${displayDomain} in real time`
-                  : "Quick Website Setup"}
-              </span>
-            </div>
-            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">
-              {phase === "crawling"
-                ? isCompleted
-                  ? `Your Website Audit for ${displayDomain} is ready!`
-                  : `Checking ${displayDomain} page by page…`
-                : "Add your website for a live health check"}
-            </h1>
-            <p className="mt-1 text-sm text-brand-500">
-              {phase === "crawling"
-                ? "Watch live as we discover your pages, preview how they appear on Google, and spot things to fix."
-                : "Enter your website address in the bar at the bottom. We'll scan your pages and open your Website Audit report automatically."}
-            </p>
-          </div>
-
-          {/* 4 Simple Steps */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {steps.map((step, idx) => (
-              <div
-                key={idx}
-                className={cn(
-                  "flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all",
-                  step.done
-                    ? "border-signal-400/50 bg-primary-50 text-brand-950"
-                    : step.active
-                      ? "border-signal-400 bg-surface-1 text-brand-950"
-                      : "border-brand-200 bg-surface-1/70 text-brand-500",
-                )}
-              >
-                {step.done ? (
-                  <CheckCircle2 size={14} className="shrink-0 text-signal-400" />
-                ) : step.active ? (
-                  <Loader2 size={14} className="shrink-0 animate-spin text-signal-400" />
-                ) : (
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-brand-300 text-[10px] text-brand-400">
-                    {idx + 1}
-                  </span>
-                )}
-                <span className="truncate">{step.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── 2-COLUMN VISUAL PREVIEW ── */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-          {/* LEFT CARD (4 COLS): PAGES FOUND ON YOUR WEBSITE */}
-          <div className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-brand-200 bg-surface-1/95 p-5 shadow-card backdrop-blur-md">
+      {/* ── FULL-SCREEN LIVE WEBSITE STRUCTURE VISUALIZER ── */}
+      <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-4 pt-3 pb-24 sm:px-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
+          {/* =================================================================
+              LEFT PANEL (4 COLS): WEBSITE PAGES & SITEMAP TREE
+             ================================================================= */}
+          <div className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-brand-200 bg-surface-1/95 p-4 sm:p-5 shadow-card backdrop-blur-md">
             <div>
-              <div className="flex items-center justify-between border-b border-brand-200 pb-3.5">
-                <div>
-                  <h2 className="text-sm font-bold text-brand-950">
-                    Pages on your website
-                  </h2>
-                  <p className="mt-0.5 text-xs text-brand-500">
-                    {crawledPages.length > 0
-                      ? "Click any page to preview it"
-                      : "Pages appear here live as we scan"}
-                  </p>
+              <div className="flex items-center justify-between border-b border-brand-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <Link2 size={14} className="text-signal-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-brand-950">
+                    01 · Website Pages Found
+                  </span>
                 </div>
-                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-bold text-signal-400">
-                  {crawledPages.length > 0 ? `${totalPagesRecorded} found` : "Ready"}
+                <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
+                  {crawledPages.length > 0 ? `${totalPagesRecorded} pages` : "Ready"}
                 </span>
               </div>
 
-              {/* Root Website Pill */}
+              {/* Root Domain Node */}
               <div className="mt-4">
-                <div className="flex items-center justify-between rounded-xl border border-signal-400/60 bg-primary-50 px-3.5 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <Globe size={15} className="shrink-0 text-signal-400" />
-                    <span className="truncate text-xs font-bold text-brand-950">
-                      {displayDomain}
+                <div className="flex items-center justify-between rounded-xl border border-signal-400/60 bg-primary-50 px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-signal-400 animate-pulse" />
+                    <span className="truncate font-mono text-xs font-bold text-brand-950">
+                      https://{displayDomain}
                     </span>
                   </div>
-                  <span className="rounded-md bg-signal-400 px-2 py-0.5 text-[10px] font-extrabold text-signal-ink">
-                    Website
+                  <span className="rounded bg-surface-1 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                    MAIN SITE
                   </span>
                 </div>
 
-                {/* Discovered Pages List */}
-                <div className="ml-4 mt-2.5 space-y-2 border-l-2 border-brand-200 pl-3.5">
+                {/* Branching Child URLs */}
+                <div className="ml-4 mt-2 space-y-2 border-l border-dashed border-brand-300 pl-4">
                   {crawledPages.length > 0
-                    ? crawledPages.slice(0, 5).map((p, idx) => {
-                        const isSelected =
+                    ? crawledPages.slice(0, 6).map((p, idx) => {
+                        const isInspecting =
                           selectedPageIdx !== null
                             ? selectedPageIdx === idx
                             : idx === activeNodeIdx % crawledPages.length;
+                        const ok = !p.statusCode || (p.statusCode >= 200 && p.statusCode < 400);
                         return (
                           <button
                             key={p.id || p.url}
                             type="button"
                             onClick={() => setSelectedPageIdx(idx)}
                             className={cn(
-                              "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-all cursor-pointer",
-                              isSelected
+                              "relative flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left font-mono text-[11px] transition-all cursor-pointer",
+                              isInspecting
                                 ? "border-signal-400 bg-surface-2 text-brand-950 shadow-xs"
-                                : "border-brand-200 bg-surface-2/40 text-brand-700 hover:border-brand-300",
+                                : "border-brand-200 bg-surface-2/40 text-brand-600 hover:border-brand-300",
                             )}
                           >
+                            <span className="absolute -left-4 top-1/2 h-px w-4 border-t border-dashed border-brand-300" />
                             <div className="flex min-w-0 items-center gap-2">
-                              <CheckCircle2 size={14} className="shrink-0 text-signal-400" />
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded px-1.5 py-px text-[9.5px] font-bold",
+                                  ok
+                                    ? "bg-success-50 text-success-700"
+                                    : "bg-warning-50 text-warning-700",
+                                )}
+                              >
+                                {ok ? "OK" : p.statusCode || "—"}
+                              </span>
                               <span className="truncate font-semibold text-brand-950">
                                 {pathFromUrl(p.url)}
                               </span>
                             </div>
-                            <span className="shrink-0 text-[11px] text-brand-400">
+                            <span className="shrink-0 text-[10px] text-brand-400">
                               {p.responseTimeMs > 0 ? `${p.responseTimeMs}ms` : "Checked"}
                             </span>
                           </button>
                         );
                       })
-                    : SAMPLE_PAGES.map((node, idx) => {
+                    : DEFAULT_PAGE_NODES.map((node, idx) => {
                         const scanningThis =
-                          phase === "crawling" && idx === activeNodeIdx % SAMPLE_PAGES.length;
+                          phase === "crawling" && idx === activeNodeIdx % DEFAULT_PAGE_NODES.length;
                         return (
                           <div
                             key={node.path}
                             className={cn(
-                              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-all",
+                              "relative flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 font-mono text-[11px] transition-all",
                               scanningThis
                                 ? "border-signal-400 bg-surface-2 text-brand-950"
                                 : "border-brand-200/70 bg-surface-2/30 text-brand-500",
                             )}
                           >
+                            <span className="absolute -left-4 top-1/2 h-px w-4 border-t border-dashed border-brand-300" />
                             <div className="flex min-w-0 items-center gap-2">
                               {scanningThis ? (
-                                <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                                <Loader2 size={11} className="shrink-0 animate-spin text-signal-400" />
                               ) : (
-                                <FileText size={13} className="shrink-0 text-brand-400" />
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
                               )}
-                              <span className="truncate font-medium text-brand-800">
+                              <span className="truncate font-semibold text-brand-800">
                                 {node.path}
                               </span>
                             </div>
-                            <span className="shrink-0 text-[11px] text-brand-400">
-                              {scanningThis ? "Scanning…" : node.label}
+                            <span className="shrink-0 font-sans text-[10px] text-brand-400">
+                              {node.label}
                             </span>
                           </div>
                         );
@@ -525,17 +472,48 @@ function AnalyzeOnboardingInner() {
               </div>
             </div>
 
-            {/* Simple Friendly Activity Line */}
-            <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-surface-2/60 px-3.5 py-2.5 text-xs text-brand-600">
-              <span className="truncate">{latestStatusMessage}</span>
-              {phase === "crawling" && (
-                <span className="shrink-0 font-semibold text-brand-400">{elapsedSec}s</span>
+            {/* Bottom Live Activity Log inside Left Panel */}
+            <div className="mt-4 rounded-xl border border-brand-200 bg-surface-2/70 p-3 text-xs">
+              <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                <span className="flex items-center gap-1.5">
+                  <Terminal size={11} className="text-signal-400" />
+                  Live Scanner Activity
+                </span>
+                <span className={phase === "crawling" ? "text-signal-400" : "text-brand-400"}>
+                  {phase === "crawling" ? "ACTIVE" : "READY"}
+                </span>
+              </div>
+              {phase === "crawling" ? (
+                <div className="space-y-1 text-[11px] text-brand-600">
+                  {autopilotLogs.length > 0 ? (
+                    autopilotLogs.slice(-3).map((l, i) => (
+                      <p key={i} className="truncate">
+                        <span className="font-bold text-signal-400">›</span> {l.message}
+                      </p>
+                    ))
+                  ) : (
+                    <>
+                      <p className="truncate">
+                        <span className="font-bold text-signal-400">›</span> Connected to https://{displayDomain}
+                      </p>
+                      <p className="truncate">
+                        <span className="font-bold text-signal-400">›</span> Discovering pages & checking SEO health…
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-brand-500">
+                  <span className="font-bold text-signal-400">›</span> Enter your website below to start scanning your pages in real time.
+                </p>
               )}
             </div>
           </div>
 
-          {/* RIGHT CARD (8 COLS): LIVE PAGE PREVIEW */}
-          <div className="lg:col-span-8 relative flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200 bg-surface-1/95 p-5 shadow-card backdrop-blur-md">
+          {/* =================================================================
+              RIGHT PANEL (8 COLS): LIVE WEBSITE STRUCTURE & PREVIEW
+             ================================================================= */}
+          <div className="lg:col-span-8 relative flex flex-col justify-between overflow-hidden rounded-2xl border border-brand-200 bg-surface-1/95 p-4 sm:p-5 shadow-card backdrop-blur-md">
             {/* Animated Laser Scan Beam (Active while crawling) */}
             {phase === "crawling" && !isCompleted && (
               <div
@@ -545,151 +523,259 @@ function AnalyzeOnboardingInner() {
             )}
 
             <div>
-              {/* Clean Browser Window Top Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-200 pb-3.5">
+              {/* Browser Window Top Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-brand-300" />
                   <span className="h-2.5 w-2.5 rounded-full bg-brand-300" />
                   <span className="h-2.5 w-2.5 rounded-full bg-signal-400" />
-                  <span className="ml-1.5 text-sm font-bold text-brand-950">
-                    Live Page Preview
+                  <span className="ml-1.5 text-xs font-bold uppercase tracking-wider text-brand-950">
+                    02 · Live Website Structure & SEO Preview
                   </span>
                 </div>
 
-                {/* Browser Address Pill */}
-                <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs">
-                  <Lock size={12} className="text-signal-400" />
-                  <span className="max-w-[240px] sm:max-w-[360px] truncate font-medium text-brand-950">
+                {/* Live URL Bar inside Browser Preview */}
+                <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-[11px]">
+                  <span className="font-bold text-signal-400">PAGE</span>
+                  <span className="max-w-[260px] sm:max-w-[380px] truncate text-brand-950">
                     https://{displayDomain}
-                    {inspectedPage
-                      ? pathFromUrl(inspectedPage.url).replace(" (Home page)", "")
-                      : ""}
+                    {inspectedPage ? pathFromUrl(inspectedPage.url) : "/"}
                   </span>
                   {inspectedPage && (
-                    <span className="rounded-md bg-success-50 px-2 py-0.5 text-[10px] font-bold text-success-700">
-                      Checked
+                    <span className="rounded bg-success-50 px-1.5 py-0.5 text-[9.5px] font-bold text-success-700">
+                      {inspectedPage.statusCode || "—"}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* 1. HOW THIS PAGE APPEARS ON GOOGLE SEARCH */}
-              <div className="mt-4 rounded-xl border border-brand-200 bg-surface-2/60 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-800">
-                    <Search size={13} className="text-signal-400" />
-                    How this page looks on Google Search
-                  </span>
-                  <span className="rounded-full border border-brand-200 bg-surface-1 px-2.5 py-0.5 text-[11px] font-semibold text-brand-600">
-                    {inspectedPage
-                      ? inspectedPage.indexability === "INDEXABLE"
-                        ? "Ready to rank"
-                        : "Needs review"
-                      : "Google Preview"}
-                  </span>
-                </div>
-
-                <div className="mt-3 rounded-xl border border-brand-200 bg-surface-1 p-3.5">
-                  <p className="truncate text-xs text-brand-500">
-                    https://{displayDomain}
-                    {inspectedPage
-                      ? pathFromUrl(inspectedPage.url).replace(" (Home page)", "")
-                      : ""}
-                  </p>
-                  <p className="mt-1 truncate text-base font-bold text-signal-400">
-                    {inspectedPage?.title ||
-                      (phase === "crawling"
-                        ? `Reading page title on ${displayDomain}…`
-                        : `${displayDomain} — Your Website Title`)}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-brand-600">
-                    {inspectedPage?.metaDescription ||
-                      (phase === "crawling"
-                        ? "Checking your page summary description so customers see a clear preview on Google."
-                        : "Your page summary description will appear here as soon as the scan starts.")}
-                  </p>
-                </div>
-              </div>
-
-              {/* 2. PAGE CONTENT & THINGS TO IMPROVE */}
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                {/* Left: Main Headline & Page Sections */}
-                <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-brand-950">
-                      Page Content & Headings
+              {/* WEBSITE STRUCTURE SKELETON GRID */}
+              <div className="mt-4 space-y-3">
+                {/* 1. Google Search & Page Details Block */}
+                <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-signal-400">
+                      <Search size={13} />
+                      Google Search Appearance & Page Info
                     </span>
-                    <span className="text-xs text-brand-500">
-                      {inspectedPage?.wordCount
-                        ? `${inspectedPage.wordCount} words`
-                        : "Content check"}
+                    <span className="rounded border border-brand-200 bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-brand-600">
+                      {inspectedPage
+                        ? inspectedPage.indexability === "INDEXABLE"
+                          ? "Ready for Google"
+                          : inspectedPage.indexability
+                        : phase === "crawling"
+                          ? "Checking Page…"
+                          : "Preview"}
                     </span>
                   </div>
 
-                  <div className="mt-3 rounded-xl border border-brand-200 bg-surface-1 p-3">
-                    <p className="text-[11px] font-semibold text-brand-400">
-                      Main Headline on Page
-                    </p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-brand-950">
-                      {inspectedPage?.h1?.[0] ||
-                        (phase === "crawling"
-                          ? "Reading main headline…"
-                          : `Welcome to ${displayDomain}`)}
-                    </p>
+                  <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[10px] font-semibold text-brand-400">Page Title</p>
+                      <p className="mt-1 truncate text-xs font-bold text-brand-950">
+                        {inspectedPage?.title ||
+                          (phase === "crawling"
+                            ? `Reading title on ${displayDomain}…`
+                            : `${displayDomain} — Main Page Title`)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[10px] font-semibold text-brand-400">Official Page Link</p>
+                      <p className="mt-1 truncate font-mono text-xs text-brand-700">
+                        {inspectedPage?.canonicalUrl || `https://${displayDomain}/`}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[10px] font-semibold text-brand-400">Google Summary Description</p>
+                      <p className="mt-1 truncate text-xs text-brand-600">
+                        {inspectedPage?.metaDescription ||
+                          (phase === "crawling"
+                            ? "Checking page summary description…"
+                            : "Summary shown to customers on Google Search")}
+                      </p>
+                    </div>
                   </div>
+                </div>
 
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {(inspectedPage?.h2?.length
-                      ? inspectedPage.h2.slice(0, 3)
-                      : ["Overview", "Products & Services", "Contact"]
-                    ).map((sec, i) => (
-                      <span
-                        key={i}
-                        className="truncate max-w-[160px] rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1 text-xs font-medium text-brand-700"
-                      >
-                        {sec}
+                {/* 2. Visual Page Wireframe + Live Audit Checklist */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+                  {/* Left 7 Cols: Visual Page Layout Wireframe */}
+                  <div className="md:col-span-7 space-y-2.5 rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-brand-500">
+                      <span className="flex items-center gap-1.5 uppercase tracking-wider text-brand-950">
+                        <Layers size={13} className="text-signal-400" />
+                        Visual Page Layout
                       </span>
-                    ))}
-                  </div>
-                </div>
+                      <span>
+                        {inspectedPage?.wordCount
+                          ? `${inspectedPage.wordCount} words on page`
+                          : "Page Structure"}
+                      </span>
+                    </div>
 
-                {/* Right: Issues & Improvements Found */}
-                <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                      <Zap size={13} className="text-signal-400" />
-                      Things to Improve
-                    </span>
-                    <span className="rounded-full bg-surface-1 px-2.5 py-0.5 text-xs font-bold text-signal-400">
-                      {totalIssuesRecorded > 0
-                        ? `${totalIssuesRecorded} spotted`
-                        : "Checking…"}
-                    </span>
-                  </div>
+                    {/* Visual Top Navigation Bar Wireframe */}
+                    <div className="flex items-center justify-between rounded-lg border border-dashed border-brand-300 bg-surface-1/80 px-3 py-1.5 text-[10.5px] text-brand-400">
+                      <span>Top Menu & Navigation</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-8 rounded bg-brand-200" />
+                        <span className="h-2 w-8 rounded bg-brand-200" />
+                        <span className="h-2 w-8 rounded bg-brand-200" />
+                      </div>
+                    </div>
 
-                  {crawledIssues.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {crawledIssues.slice(0, 3).map((iss) => (
+                    {/* Visual Hero & Main Headline Block */}
+                    <div className="rounded-lg border border-brand-200 bg-surface-1 p-3">
+                      <div className="flex items-center justify-between text-[10px] text-brand-400">
+                        <span className="font-bold uppercase tracking-wider text-signal-400">
+                          Main Page Heading
+                        </span>
+                        <span>
+                          {inspectedPage?.h1?.length
+                            ? `${inspectedPage.h1.length} heading found`
+                            : "Hero Section"}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-bold text-brand-950">
+                        {inspectedPage?.h1?.[0] ||
+                          (phase === "crawling"
+                            ? `Reading main headline on ${pathFromUrl(inspectedPage?.url || "/")}…`
+                            : `Main Headline on ${displayDomain}`)}
+                      </p>
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="h-2 w-full rounded bg-brand-200/80" />
+                        <div className="h-2 w-4/5 rounded bg-brand-200/60" />
+                      </div>
+                    </div>
+
+                    {/* Visual 3-Column Content Sections */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[0, 1, 2].map((col) => (
                         <div
-                          key={iss.id}
-                          className="flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs"
+                          key={col}
+                          className="rounded-lg border border-dashed border-brand-300 bg-surface-1/70 p-2.5"
                         >
-                          <span className="truncate font-medium text-brand-800">
-                            {iss.description}
-                          </span>
-                          <span className="shrink-0 rounded-md bg-warning-50 px-2 py-0.5 text-[10px] font-bold text-warning-700">
-                            To fix
-                          </span>
+                          <p className="text-[9.5px] font-medium text-brand-400">
+                            Page Section {col + 1}
+                          </p>
+                          <p className="mt-1 truncate text-[11px] font-semibold text-brand-800">
+                            {inspectedPage?.h2?.[col] || `Content Block 0${col + 1}`}
+                          </p>
+                          <div className="mt-2 h-1.5 w-3/4 rounded bg-brand-200" />
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="mt-3 rounded-xl border border-brand-200 bg-surface-1 p-3.5 text-xs leading-relaxed text-brand-500">
-                      {phase === "crawling"
-                        ? "Checking your pages for missing titles, slow speed, broken links, and SEO issues…"
-                        : "Once you start the scan below, any problems stopping your website from ranking on Google will appear here."}
+                  </div>
+
+                  {/* Right 5 Cols: Live Audit Progress & Spotted Issues */}
+                  <div className="md:col-span-5 flex flex-col justify-between rounded-xl border border-brand-200 bg-surface-2/60 p-3.5">
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] font-bold text-brand-950">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider">
+                          <ShieldCheck size={14} className="text-signal-400" />
+                          Audit Progress
+                        </span>
+                        <span className="text-[10px] font-semibold text-brand-400">
+                          {healthScore != null ? `Score ${healthScore}/100` : "Live Checks"}
+                        </span>
+                      </div>
+
+                      {/* 4 Clean Progress Rows */}
+                      <div className="mt-3 space-y-2">
+                        {[
+                          {
+                            name: "Website Connection & Security",
+                            status: phase === "crawling" ? "Verified" : "Ready",
+                            done: phase === "crawling",
+                          },
+                          {
+                            name: "Finding Website Pages",
+                            status:
+                              phase === "crawling"
+                                ? `${totalPagesRecorded} pages`
+                                : "Standby",
+                            done: isCompleted,
+                            active: phase === "crawling" && !isCompleted,
+                          },
+                          {
+                            name: "Checking SEO & Page Speed",
+                            status:
+                              phase === "crawling"
+                                ? `${totalIssuesRecorded} issues`
+                                : "Standby",
+                            done: isCompleted,
+                            active: phase === "crawling" && totalPagesRecorded > 0 && !isCompleted,
+                          },
+                          {
+                            name: "Opening Website Audit Report",
+                            status: isCompleted ? "Complete" : "Auto-open",
+                            done: isCompleted,
+                          },
+                        ].map((chk) => (
+                          <div
+                            key={chk.name}
+                            className="flex items-center justify-between rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              {chk.done ? (
+                                <Check size={12} className="shrink-0 text-signal-400" strokeWidth={3} />
+                              ) : chk.active ? (
+                                <Loader2 size={12} className="shrink-0 animate-spin text-signal-400" />
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+                              )}
+                              <span className="truncate text-[11px] font-medium text-brand-800">
+                                {chk.name}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold",
+                                chk.done
+                                  ? "bg-primary-50 text-signal-400"
+                                  : chk.active
+                                    ? "bg-warning-50 text-warning-700"
+                                    : "text-brand-400",
+                              )}
+                            >
+                              {chk.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  )}
+
+                    {/* Live Detected Issues Box */}
+                    <div className="mt-3 rounded-lg border border-brand-200 bg-surface-1 p-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                        {crawledIssues.length > 0
+                          ? `Issues Spotted So Far (${totalIssuesRecorded})`
+                          : "Real-Time Issue Detector"}
+                      </p>
+                      {crawledIssues.length > 0 ? (
+                        <div className="mt-1.5 space-y-1.5">
+                          {crawledIssues.slice(0, 2).map((iss) => (
+                            <div
+                              key={iss.id}
+                              className="flex items-center justify-between gap-2 text-[11px]"
+                            >
+                              <span className="truncate text-brand-700">
+                                {iss.description}
+                              </span>
+                              <span className="shrink-0 rounded bg-error-50 px-1.5 py-px text-[9.5px] font-bold text-error-700">
+                                {iss.severity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[11px] leading-snug text-brand-500">
+                          {phase === "crawling"
+                            ? "Checking pages for missing titles, slow speed, broken links, and SEO issues…"
+                            : "Once started, any SEO or speed issues found on your pages appear here live."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -697,8 +783,8 @@ function AnalyzeOnboardingInner() {
         </div>
       </main>
 
-      {/* ── BOTTOM-DOCKED INPUT & LIVE PROGRESS BAR ── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200 bg-surface-1/95 px-4 py-3.5 shadow-2xl backdrop-blur-xl sm:px-6">
+      {/* ── BOTTOM-DOCKED COMMAND & CRAWLER PROGRESS BAR ── */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200 bg-surface-1/95 px-4 py-3 shadow-2xl backdrop-blur-xl sm:px-6">
         <div className="mx-auto max-w-4xl">
           {phase === "input" ? (
             <form onSubmit={handleStartAudit} noValidate>
@@ -717,7 +803,7 @@ function AnalyzeOnboardingInner() {
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-signal-400">
                     <Globe size={15} />
                   </span>
-                  <span className="select-none text-sm font-semibold text-brand-400">
+                  <span className="select-none font-mono text-xs font-bold text-brand-400">
                     https://
                   </span>
                   <input
@@ -727,8 +813,9 @@ function AnalyzeOnboardingInner() {
                     autoFocus
                     value={domainInput}
                     onChange={(e) => setDomainInput(e.target.value)}
-                    placeholder="Enter your website (e.g. yourwebsite.com)"
-                    className="w-full min-w-0 bg-transparent text-sm font-bold text-brand-950 placeholder:text-brand-400 focus:outline-none"
+                    placeholder="yourwebsite.com"
+                    className="w-full min-w-0 border-0 bg-transparent font-mono text-sm font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                    style={{ outline: "none", boxShadow: "none" }}
                   />
                 </div>
 
@@ -763,24 +850,24 @@ function AnalyzeOnboardingInner() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-bold text-brand-950">
+                    <p className="truncate font-mono text-xs font-bold text-brand-950">
                       {isCompleted
-                        ? `Audit complete for ${activeDomain} — opening your Website Audit…`
-                        : `Scanning ${activeDomain} (${totalPagesRecorded} pages checked)`}
+                        ? `Audit complete for ${activeDomain} — opening Website Audit…`
+                        : `Scanning https://${activeDomain} (${totalPagesRecorded} pages checked)`}
                     </p>
-                    <span className="hidden sm:inline text-xs font-semibold text-brand-500">
+                    <span className="hidden sm:inline font-mono text-[11px] font-bold text-signal-400">
                       {isCompleted
                         ? "100%"
-                        : `${Math.min(92, Math.max(18, totalPagesRecorded * 5))}%`}
+                        : `${Math.min(92, Math.max(18, totalPagesRecorded * 4))}%`}
                     </span>
                   </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-brand-200">
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-brand-200">
                     <div
                       className="h-full rounded-full bg-signal-400 transition-all duration-500"
                       style={{
                         width: isCompleted
                           ? "100%"
-                          : `${Math.min(92, Math.max(18, totalPagesRecorded * 5))}%`,
+                          : `${Math.min(92, Math.max(18, totalPagesRecorded * 4))}%`,
                       }}
                     />
                   </div>
