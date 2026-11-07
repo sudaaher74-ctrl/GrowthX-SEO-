@@ -50,7 +50,7 @@ export function TopNav({
   // Reads the shared window rather than a private copy, so the highlighted
   // pill is the window the queries are actually using.
   const period = usePeriodDays();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   // The palette was built, complete, and imported by nothing, while this bar
   // advertised ⌘K. It binds the shortcut itself once mounted.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -141,44 +141,17 @@ export function TopNav({
           ))}
         </div>
 
-        {/* Day / Night Theme Toggle */}
-        <div
-          role="group"
-          aria-label="Theme mode"
-          className="flex items-center rounded-lg border p-0.5"
+        {/* Theme Toggle */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to Day mode" : "Switch to Night mode"}
+          title={theme === "dark" ? "Switch to Day mode" : "Switch to Night mode"}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600"
           style={{ borderColor: "var(--border-color)" }}
         >
-          <button
-            type="button"
-            onClick={() => setTheme("light")}
-            aria-pressed={theme === "light"}
-            title="Switch to Day mode"
-            className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-primary-600",
-              theme === "light"
-                ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
-                : "text-brand-400 hover:text-brand-950",
-            )}
-          >
-            <Sun size={12} className={theme === "light" ? "text-signal-ink" : "text-brand-400"} />
-            <span className="hidden font-semibold xl:inline">Day</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTheme("dark")}
-            aria-pressed={theme === "dark"}
-            title="Switch to Night mode"
-            className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-primary-600",
-              theme === "dark"
-                ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
-                : "text-brand-400 hover:text-brand-950",
-            )}
-          >
-            <Moon size={12} className={theme === "dark" ? "text-signal-ink fill-signal-ink" : "text-brand-400"} />
-            <span className="hidden font-semibold xl:inline">Night</span>
-          </button>
-        </div>
+          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
 
         <button
           onClick={signOut}

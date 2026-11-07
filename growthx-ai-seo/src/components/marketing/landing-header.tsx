@@ -19,7 +19,7 @@ export function LandingHeader() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isDark, setTheme } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
 
   const signedIn = useSyncExternalStore(
     subscribeToAuthChange,
@@ -86,43 +86,16 @@ export function LandingHeader() {
 
           {/* Right Controls: Day/Night Switcher + Auth CTAs */}
           <div className="flex items-center gap-2.5">
-            {/* Day / Night Theme Toggle (Exact match with Dashboard topnav) */}
-            <div
-              role="group"
-              aria-label="Color theme"
-              className="hidden sm:flex items-center rounded-full border border-brand-200 bg-surface-2 p-0.5"
+            {/* Theme Toggle (Exact match with Dashboard topnav) */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              title={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-brand-200 bg-surface-2 text-brand-600 transition-colors hover:bg-brand-100 hover:text-brand-950 cursor-pointer"
             >
-              <button
-                type="button"
-                onClick={() => setTheme("light")}
-                aria-pressed={!isDark}
-                title="Switch to day mode"
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
-                  !isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
-                    : "text-brand-500 hover:text-brand-900",
-                )}
-              >
-                <Sun size={12} strokeWidth={2.2} />
-                <span>Day</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme("dark")}
-                aria-pressed={isDark}
-                title="Switch to night mode"
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
-                  isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
-                    : "text-brand-500 hover:text-brand-900",
-                )}
-              >
-                <Moon size={12} strokeWidth={2.2} />
-                <span>Night</span>
-              </button>
-            </div>
+              {isDark ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
 
             {signedIn ? (
               <Link
@@ -167,38 +140,15 @@ export function LandingHeader() {
         <div className="md:hidden bg-surface-1 border-t border-brand-200 px-4 pb-4 pt-2 space-y-1 shadow-xl">
           <div className="flex items-center justify-between px-3 py-2 border-b border-brand-200 mb-1">
             <span className="text-xs font-semibold text-brand-500">Appearance</span>
-            <div
-              role="group"
-              aria-label="Color theme"
-              className="flex items-center rounded-full border border-brand-200 bg-surface-2 p-0.5"
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              title={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-brand-200 bg-surface-2 text-brand-600 transition-colors hover:bg-brand-100 hover:text-brand-950"
             >
-              <button
-                type="button"
-                onClick={() => setTheme("light")}
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
-                  !isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink"
-                    : "text-brand-500",
-                )}
-              >
-                <Sun size={12} />
-                <span>Day</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme("dark")}
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
-                  isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink"
-                    : "text-brand-500",
-                )}
-              >
-                <Moon size={12} />
-                <span>Night</span>
-              </button>
-            </div>
+              {isDark ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
           </div>
 
           {NAV_LINKS.map((item) => (

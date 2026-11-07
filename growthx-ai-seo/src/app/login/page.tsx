@@ -245,7 +245,7 @@ const PARTNER_LOGOS = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isDark, setTheme } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     const referrer = typeof document !== "undefined" ? document.referrer : "";
@@ -394,41 +394,16 @@ export default function LoginPage() {
           </Link>
 
           <div className="flex items-center gap-2.5">
-            {/* Day / Night toggle */}
-            <div
-              role="group"
-              aria-label="Color theme"
-              className="flex items-center rounded-full border border-brand-200 bg-surface-2 p-0.5"
+            {/* Theme toggle */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              title={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-brand-200 bg-surface-1 text-brand-600 transition-colors hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
             >
-              <button
-                type="button"
-                onClick={() => setTheme("light")}
-                aria-pressed={!isDark}
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
-                  !isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
-                    : "text-brand-500 hover:text-brand-900",
-                )}
-              >
-                <Sun size={12} />
-                <span>Day</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme("dark")}
-                aria-pressed={isDark}
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition cursor-pointer",
-                  isDark
-                    ? "bg-signal-400 font-semibold text-signal-ink shadow-2xs"
-                    : "text-brand-500 hover:text-brand-900",
-                )}
-              >
-                <Moon size={12} />
-                <span>Night</span>
-              </button>
-            </div>
+              {isDark ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
 
             <Link
               href="/pricing"

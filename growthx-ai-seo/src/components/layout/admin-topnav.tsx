@@ -22,7 +22,7 @@ export function AdminTopNav({
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   const tabParam = searchParams.get("tab");
   const section = ADMIN_SECTIONS.find((s) => s.id === (isAdminSection(tabParam) ? tabParam : "overview"));
@@ -68,31 +68,16 @@ export function AdminTopNav({
           Workspace
         </Link>
 
-        <div
-          role="group"
-          aria-label="Theme mode"
-          className="flex items-center rounded-lg border p-0.5"
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to Day mode" : "Switch to Night mode"}
+          title={theme === "dark" ? "Switch to Day mode" : "Switch to Night mode"}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-950"
           style={{ borderColor: "var(--border-color)" }}
         >
-          {([
-            { id: "light", label: "Day", Icon: Sun },
-            { id: "dark", label: "Night", Icon: Moon },
-          ] as const).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTheme(id)}
-              aria-pressed={theme === id}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors",
-                theme === id ? "bg-signal-400 font-bold text-signal-ink shadow-xs" : "text-brand-400 hover:text-brand-950",
-              )}
-            >
-              <Icon size={12} />
-              <span className="hidden font-semibold sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
+          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
 
         <button
           onClick={signOut}
