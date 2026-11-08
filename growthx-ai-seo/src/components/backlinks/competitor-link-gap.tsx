@@ -286,7 +286,7 @@ export function CompetitorLinkGap({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search referring domain, article URL, or competitor…"
-                className="w-72 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs text-brand-900 outline-none focus:border-primary-600"
+                className="w-72 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs text-brand-900 outline-none focus:border-primary-600"
               />
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-brand-700">
                 <input
@@ -518,7 +518,7 @@ function GapOutreachModal({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-brand-950/50 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-brand-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -583,7 +583,7 @@ function GapOutreachModal({
                 {report.gaps.slice(0, 4).map((g, i) => (
                   <div
                     key={`${g.factor}-${i}`}
-                    className="rounded-lg border border-brand-200 bg-white p-2.5 text-xs"
+                    className="rounded-lg border border-brand-200 bg-surface-2 p-2.5 text-xs"
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-semibold text-brand-900">
@@ -614,7 +614,7 @@ function GapOutreachModal({
                 Outreach Status
               </label>
               <select
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white p-2 text-xs text-brand-900"
+                className="mt-1 w-full rounded-lg border border-brand-300 bg-surface-2 p-2 text-xs text-brand-900"
                 value={status}
                 onChange={(e) =>
                   setStatus(e.target.value as PublisherOutreachState["status"])
@@ -637,7 +637,7 @@ function GapOutreachModal({
                 value={channel}
                 onChange={(e) => setChannel(e.target.value)}
                 placeholder="editor@publisher.com or contact URL"
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white p-2 text-xs text-brand-900"
+                className="mt-1 w-full rounded-lg border border-brand-300 bg-surface-2 p-2 text-xs text-brand-900"
               />
             </div>
           </div>
@@ -650,7 +650,7 @@ function GapOutreachModal({
               rows={6}
               value={pitch}
               onChange={(e) => setPitch(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-brand-300 bg-white p-2.5 font-mono text-xs text-brand-900"
+              className="mt-1 w-full rounded-lg border border-brand-300 bg-surface-2 p-2.5 font-mono text-xs text-brand-900"
             />
           </div>
 

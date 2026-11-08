@@ -126,7 +126,7 @@ export function WordPressConnectModal({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-brand-200 bg-white p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-brand-100 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
@@ -166,7 +166,7 @@ export function WordPressConnectModal({
               className={cn(
                 "rounded-lg py-1.5 px-3 text-[12px] font-semibold transition-colors",
                 platform === item.id
-                  ? "bg-white text-brand-950 shadow-xs"
+                  ? "bg-surface-1 text-brand-950 shadow-xs"
                   : "text-brand-600 hover:text-brand-900",
               )}
             >
@@ -186,7 +186,7 @@ export function WordPressConnectModal({
               <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
                 <li>Open your WordPress Admin Dashboard → <strong>Users → Profile</strong>.</li>
                 <li>Scroll down to the <strong>Application Passwords</strong> section (built into WordPress 5.6+).</li>
-                <li>Enter <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and click <strong>Add New Application Password</strong>.</li>
+                <li>Enter <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and click <strong>Add New Application Password</strong>.</li>
               </ol>
             </div>
 
@@ -199,7 +199,7 @@ export function WordPressConnectModal({
                 value={siteUrl}
                 onChange={(e) => setSiteUrl(e.target.value)}
                 placeholder="https://your-site.com"
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
               />
             </div>
 
@@ -213,7 +213,7 @@ export function WordPressConnectModal({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="admin or editor username"
-                  className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
               </div>
 
@@ -224,7 +224,7 @@ export function WordPressConnectModal({
                 <select
                   value={seoPlugin}
                   onChange={(e) => setSeoPlugin(e.target.value as any)}
-                  className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 >
                   <option value="">Auto-detect from WordPress</option>
                   <option value="rankmath">Rank Math SEO</option>
@@ -245,7 +245,7 @@ export function WordPressConnectModal({
                   value={appPassword}
                   onChange={(e) => setAppPassword(e.target.value)}
                   placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-                  className="w-full rounded-lg border border-brand-300 bg-white px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
                 <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
               </div>
@@ -263,8 +263,8 @@ export function WordPressConnectModal({
               </p>
               <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
                 <li>In Shopify Admin, open <strong>Settings → Apps and sales channels → Develop apps</strong>.</li>
-                <li>Create an app named <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and grant <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">read_products</code>, <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">write_products</code>, <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">read_content</code>, and <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">write_content</code>.</li>
-                <li>Install the app and paste the <strong>Admin API access token</strong> (<code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">shpat_...</code>) below.</li>
+                <li>Create an app named <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and grant <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">read_products</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">write_products</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">read_content</code>, and <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">write_content</code>.</li>
+                <li>Install the app and paste the <strong>Admin API access token</strong> (<code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">shpat_...</code>) below.</li>
               </ol>
             </div>
 
@@ -277,7 +277,7 @@ export function WordPressConnectModal({
                 value={shopDomain}
                 onChange={(e) => setShopDomain(e.target.value)}
                 placeholder="your-store.myshopify.com"
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
               />
             </div>
 
@@ -291,7 +291,7 @@ export function WordPressConnectModal({
                   value={shopifyToken}
                   onChange={(e) => setShopifyToken(e.target.value)}
                   placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-brand-300 bg-white px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
                 <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
               </div>
@@ -309,7 +309,7 @@ export function WordPressConnectModal({
               </p>
               <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
                 <li>Open Webflow <strong>Site Settings → Apps &amp; Integrations → API Access</strong>.</li>
-                <li>Generate a V2 API Token with <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">sites:read</code>, <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">pages:read</code>, and <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">pages:write</code> permissions.</li>
+                <li>Generate a V2 API Token with <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">sites:read</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">pages:read</code>, and <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">pages:write</code> permissions.</li>
                 <li>Copy your <strong>Site ID</strong> from Site Settings → General and paste both below.</li>
               </ol>
             </div>
@@ -324,7 +324,7 @@ export function WordPressConnectModal({
                   value={webflowSiteId}
                   onChange={(e) => setWebflowSiteId(e.target.value)}
                   placeholder="65f1a2b3c4d5e6f7a8b9c0d1"
-                  className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
               </div>
 
@@ -337,7 +337,7 @@ export function WordPressConnectModal({
                   value={webflowSiteUrl}
                   onChange={(e) => setWebflowSiteUrl(e.target.value)}
                   placeholder="https://your-site.com"
-                  className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
               </div>
             </div>
@@ -352,7 +352,7 @@ export function WordPressConnectModal({
                   value={webflowToken}
                   onChange={(e) => setWebflowToken(e.target.value)}
                   placeholder="wf_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-brand-300 bg-white px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
                 />
                 <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
               </div>

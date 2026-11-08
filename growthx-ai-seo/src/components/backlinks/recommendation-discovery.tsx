@@ -406,7 +406,7 @@ export function RecommendationDiscovery({
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
                           {readiness.factors.map((f) => (
-                            <div key={f.label} className="rounded border bg-white p-2.5 text-xs">
+                            <div key={f.label} className="rounded border bg-surface-2 p-2.5 text-xs">
                               <div className="flex justify-between font-medium text-brand-950">
                                 <span>{f.label}</span>
                                 <span>
@@ -487,7 +487,7 @@ export function RecommendationDiscovery({
                       {article.criteria?.length ? (
                         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                           {article.criteria.map((c, index) => (
-                            <div key={`${c.label}:${index}`} className="rounded-lg border bg-white p-3 shadow-xs">
+                            <div key={`${c.label}:${index}`} className="rounded-lg border bg-surface-2 p-3 shadow-xs">
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-xs font-semibold text-brand-900">{c.label}</span>
                                 <Pill tone={evidenceTone(c.evidenceClass)}>
@@ -539,7 +539,7 @@ export function RecommendationDiscovery({
                     {actionPlan.map((step) => (
                       <div
                         key={step.step}
-                        className="flex items-start gap-3 rounded-lg border bg-white p-3 shadow-xs"
+                        className="flex items-start gap-3 rounded-lg border bg-surface-2 p-3 shadow-xs"
                       >
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-800">
                           {step.step}
@@ -640,7 +640,7 @@ function OutreachModal({
       aria-labelledby="outreach-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-2xl rounded-xl border bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h3 id="outreach-modal-title" className="text-base font-semibold text-brand-950">

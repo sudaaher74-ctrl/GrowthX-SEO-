@@ -7,7 +7,7 @@ import { QueryState } from '@/components/ui/query-state';
 import { api } from '@/lib/api-client';
 import type { BacklinkFilters, BacklinkProfile } from '@/lib/backlink-analysis';
 
-const input = 'rounded-lg border bg-white px-2 py-1.5 text-xs text-brand-950 focus:outline-primary-600';
+const input = 'rounded-lg border bg-surface-2 px-2 py-1.5 text-xs text-brand-950 focus:outline-primary-600';
 const when = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not measured';
 
 function Url({ value }: { value: string }) {

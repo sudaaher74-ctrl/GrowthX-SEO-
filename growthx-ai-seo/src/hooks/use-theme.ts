@@ -1,19 +1,36 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 type ThemeMode = "dark" | "light";
 
 const themeListeners = new Set<() => void>();
 let currentTheme: ThemeMode = "dark";
 
+export function applyTheme(theme: ThemeMode) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  if (theme === "dark") {
+    root.classList.add("dark", "dash-dark");
+    root.classList.remove("light", "dash-light");
+    root.style.colorScheme = "dark";
+  } else {
+    root.classList.remove("dark", "dash-dark");
+    root.classList.add("light", "dash-light");
+    root.style.colorScheme = "light";
+  }
+}
+
 if (typeof window !== "undefined") {
   try {
     const saved = localStorage.getItem("growthx_theme");
     if (saved === "light" || saved === "dark") {
       currentTheme = saved;
+    } else {
+      currentTheme = "dark";
     }
   } catch {}
+  applyTheme(currentTheme);
 }
 
 function subscribeToThemeChange(listener: () => void) {
@@ -22,23 +39,17 @@ function subscribeToThemeChange(listener: () => void) {
 }
 
 function setTheme(theme: ThemeMode) {
-  if (theme === currentTheme) return;
   currentTheme = theme;
   try {
     localStorage.setItem("growthx_theme", theme);
-    if (typeof document !== "undefined") {
-      if (theme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    }
+    applyTheme(theme);
   } catch {}
   themeListeners.forEach((fn) => fn());
 }
 
 function toggleTheme() {
-  setTheme(currentTheme === "dark" ? "light" : "dark");
+  const next = currentTheme === "dark" ? "light" : "dark";
+  setTheme(next);
 }
 
 export function useTheme(): {
@@ -52,6 +63,11 @@ export function useTheme(): {
     () => currentTheme,
     () => "dark" as ThemeMode,
   );
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
   return {
     theme,
     isDark: theme === "dark",

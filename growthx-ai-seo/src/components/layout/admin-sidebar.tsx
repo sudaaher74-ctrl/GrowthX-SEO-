@@ -85,7 +85,7 @@ export function AdminSidebar({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen w-[var(--sidebar-w,232px)] flex-col border-r bg-white transition-all duration-300 ease-in-out",
+          "fixed left-0 top-0 z-50 flex h-screen w-[var(--sidebar-w,232px)] flex-col border-r bg-surface-1 transition-all duration-300 ease-in-out",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
@@ -145,7 +145,7 @@ export function AdminSidebar({
             <>
               <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
               <div
-                className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-xl border bg-white p-1.5 shadow-xl"
+                className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-xl border bg-surface-1 p-1.5 shadow-xl"
                 style={{ borderColor: "var(--border-color)" }}
               >
                 <button

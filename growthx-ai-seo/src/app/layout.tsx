@@ -44,14 +44,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/*
-        No Google Fonts <link> here. Inter is already self-hosted by
-        `next/font/google` above — `inter.className` defines the `Inter`
-        family from files this app serves — so the stylesheet that used to sit
-        here fetched the same font a second time while blocking first render on
-        a third party. Removing it took first paint on a cold, fonts-unreachable
-        connection from ~13s to well under a second, with identical rendering.
-      */}
+      <head>
+        <script
+          id="growthx-theme-init"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("growthx_theme")||"dark";if(t==="dark"){document.documentElement.classList.add("dark","dash-dark");document.documentElement.classList.remove("light","dash-light");document.documentElement.style.colorScheme="dark";}else{document.documentElement.classList.remove("dark","dash-dark");document.documentElement.classList.add("light","dash-light");document.documentElement.style.colorScheme="light";}}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         {/* Google Analytics (gtag.js), loaded after the page is interactive. */}
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />

@@ -572,13 +572,14 @@ aside button:focus-visible,
 }
 
 
-/* ───── Dark theme, scoped to the Dashboard tab ─────
-   The dashboard is being trialled in a dark, lime-accent skin. Rather than fork
-   every component, this class re-points the token scales for everything inside
-   it, so the sidebar, top bar and page all follow. `.dash-light` puts the
-   original light scale back for a panel that should stay light. Nothing outside
-   the Dashboard route carries either class. */
-.dash-dark {
+/* ───── Dark theme, global & dashboard ─────
+   Unifies dark theme tokens across the entire platform (.dark, html.dark, .dash-dark).
+   Re-points the token scales for canvas, surfaces, borders and text so pages,
+   drawers, modals and navigation follow consistently. */
+.dash-dark,
+.dark,
+html.dark,
+:root.dark {
   --color-brand-50: #171b22;
   --color-brand-100: #1c2027;
   --color-brand-200: #262b34;
@@ -617,23 +618,46 @@ aside button:focus-visible,
 
   color: var(--color-brand-950);
 }
-.dash-dark .bg-white { background-color: var(--color-surface-1); }
+.dash-dark .bg-white,
+.dark .bg-white,
+html.dark .bg-white,
+:root.dark .bg-white {
+  background-color: var(--color-surface-1) !important;
+}
 /* A lime button carries dark text, not the white the light theme puts on indigo. */
 .dash-dark .bg-primary-600,
 .dash-dark .bg-primary-600 *,
+.dark .bg-primary-600,
+.dark .bg-primary-600 *,
+html.dark .bg-primary-600,
+html.dark .bg-primary-600 *,
 .dash-dark .bg-primary-700,
-.dash-dark .bg-primary-700 * {
+.dash-dark .bg-primary-700 *,
+.dark .bg-primary-700,
+.dark .bg-primary-700 *,
+html.dark .bg-primary-700,
+html.dark .bg-primary-700 * {
   color: var(--color-signal-ink) !important;
 }
 .dash-dark .bg-primary-600 svg,
-.dash-dark .bg-primary-700 svg {
+.dark .bg-primary-600 svg,
+html.dark .bg-primary-600 svg,
+.dash-dark .bg-primary-700 svg,
+.dark .bg-primary-700 svg,
+html.dark .bg-primary-700 svg {
   stroke: var(--color-signal-ink) !important;
 }
-.dash-dark [data-nav-active="true"] {
+.dash-dark [data-nav-active="true"],
+.dark [data-nav-active="true"],
+html.dark [data-nav-active="true"] {
   background-color: var(--color-signal-400);
   color: var(--color-signal-ink);
 }
-.dash-dark [data-nav-active="true"] * { color: inherit; }
+.dash-dark [data-nav-active="true"] *,
+.dark [data-nav-active="true"] *,
+html.dark [data-nav-active="true"] * {
+  color: inherit;
+}
 
 /* Matte Black Night Theme for tables, panels, cards and dropdowns */
 .dash-dark .dark\:bg-slate-900,

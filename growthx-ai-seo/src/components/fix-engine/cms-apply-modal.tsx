@@ -230,7 +230,7 @@ export function CmsApplyModal({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-brand-100 pb-4">
           <div>
@@ -266,7 +266,7 @@ export function CmsApplyModal({
             className={cn(
               "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-[12px] font-semibold transition-colors",
               mode === "DIRECT_CMS_API"
-                ? "bg-white text-brand-950 shadow-xs"
+                ? "bg-surface-1 text-brand-950 shadow-xs"
                 : "text-brand-600 hover:text-brand-900",
             )}
           >
@@ -279,7 +279,7 @@ export function CmsApplyModal({
             className={cn(
               "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-[12px] font-semibold transition-colors",
               mode === "GUIDED_COPY"
-                ? "bg-white text-brand-950 shadow-xs"
+                ? "bg-surface-1 text-brand-950 shadow-xs"
                 : "text-brand-600 hover:text-brand-900",
             )}
           >
@@ -300,7 +300,7 @@ export function CmsApplyModal({
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
                 placeholder="https://your-site.com/page-slug"
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-3 py-1.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
+                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
               />
             </div>
 
@@ -311,7 +311,7 @@ export function CmsApplyModal({
               <select
                 value={field}
                 onChange={(e) => setField(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-brand-300 bg-white px-2.5 py-1.5 text-[12px] text-brand-900 outline-none focus:border-accent-600"
+                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1.5 text-[12px] text-brand-900 outline-none focus:border-accent-600"
               >
                 <option value="META_TITLE">SEO Page Title</option>
                 <option value="META_DESCRIPTION">Meta Description</option>
@@ -339,7 +339,7 @@ export function CmsApplyModal({
               rows={4}
               value={afterValue}
               onChange={(e) => setAfterValue(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-brand-300 bg-white p-2.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
+              className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 p-2.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
             />
           </div>
         </div>
@@ -417,7 +417,7 @@ export function CmsApplyModal({
                           "flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-[12px]",
                           publishMode === "draft"
                             ? "border-accent-600 bg-accent-50/30"
-                            : "border-brand-200 bg-white",
+                            : "border-brand-200 bg-surface-1",
                         )}
                       >
                         <input
@@ -442,7 +442,7 @@ export function CmsApplyModal({
                           "flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-[12px]",
                           publishMode === "publish"
                             ? "border-accent-600 bg-accent-50/30"
-                            : "border-brand-200 bg-white",
+                            : "border-brand-200 bg-surface-1",
                         )}
                       >
                         <input

@@ -394,7 +394,10 @@ function AnalyzeOnboardingInner() {
   if (phase === "input") {
     return (
       <div
-        className="relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none transition-colors duration-200"
+        className={cn(
+          "relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none transition-colors duration-200",
+          isDark ? "dash-dark dark" : "dash-light"
+        )}
         style={{ background: "var(--color-canvas)" }}
       >
         {/* Subtle Ambient Glow matching Landing Hero & Dashboard */}
@@ -769,7 +772,10 @@ function AnalyzeOnboardingInner() {
 
   return (
     <div
-      className="relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none transition-colors duration-200"
+      className={cn(
+        "relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none transition-colors duration-200",
+        isDark ? "dash-dark dark" : "dash-light"
+      )}
       style={{ background: "var(--color-canvas)" }}
     >
       {/* ── AMBIENT GLOW & TECHNICAL GRID (MATCHES DASHBOARD THEME) ── */}

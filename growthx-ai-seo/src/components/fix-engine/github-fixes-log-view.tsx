@@ -1024,7 +1024,7 @@ export function GitHubFixesLogView({
       </div>
 
       {/* 3. Section View Switcher + Search Bar */}
-      <div className="flex flex-col justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs sm:flex-row sm:items-center">
+      <div className="flex flex-col justify-between gap-3 rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-2xs sm:flex-row sm:items-center">
         <div className="flex flex-wrap items-center gap-1.5">
           {(
             [
@@ -1069,7 +1069,7 @@ export function GitHubFixesLogView({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search fixes, URLs, files, before/after…"
             aria-label="Search fixes, URLs, files, and improvement log"
-            className="h-8 w-full rounded-lg border bg-white pl-8 pr-3 text-[12px] text-brand-950 outline-none focus:border-primary-500"
+            className="h-8 w-full rounded-lg border border-brand-200 bg-surface-2 pl-8 pr-3 text-[12px] text-brand-950 outline-none focus:border-brand-400"
           />
         </div>
       </div>
@@ -1475,7 +1475,7 @@ export function GitHubFixesLogView({
                 No open findings match this filter. Try switching to <strong>All Tabs</strong> or click <strong>Refresh data</strong>.
               </div>
             ) : (
-              <div className="divide-y rounded-xl border bg-white">
+              <div className="divide-y rounded-xl border border-brand-200 bg-surface-1">
                 {filteredFindings.slice(0, 12).map((f) => {
                   const group = groupOf(f.source);
                   const checked = selectedFindingIds.includes(f.id);
@@ -1652,7 +1652,7 @@ export function GitHubFixesLogView({
                   onChange={(e) => setEngineerPrompt(e.target.value)}
                   placeholder="Describe any fix from Website Audit, Traffic, Competitor Intelligence, or AI Visibility…"
                   aria-label="Custom instruction for the GitHub Engineer"
-                  className="h-9 flex-1 rounded-lg border bg-white px-3 text-[12px] text-brand-950 outline-none focus:border-primary-500"
+                  className="h-9 flex-1 rounded-lg border border-brand-200 bg-surface-2 px-3 text-[12px] text-brand-950 outline-none focus:border-brand-400"
                 />
                 <ActionButton
                   variant="primary"
@@ -1702,7 +1702,7 @@ export function GitHubFixesLogView({
                   {proofCards.map((card) => (
                     <div
                       key={card.runId}
-                      className="rounded-xl border bg-white p-4 shadow-2xs space-y-3"
+                      className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs space-y-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1727,7 +1727,7 @@ export function GitHubFixesLogView({
                             href={card.after.pullRequestUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-brand-800 hover:bg-surface-3 hover:text-brand-950"
                           >
                             Open in Admin / PR <ExternalLink size={10} />
                           </a>
@@ -1795,7 +1795,7 @@ export function GitHubFixesLogView({
                   {filteredPrChanges.map((ch) => (
                     <div
                       key={ch.key}
-                      className="rounded-xl border bg-white p-4 shadow-2xs space-y-3"
+                      className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs space-y-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1829,7 +1829,7 @@ export function GitHubFixesLogView({
                               href={ch.pullRequestUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50"
+                              className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-brand-800 hover:bg-surface-3 hover:text-brand-950"
                             >
                               <GitPullRequest size={12} /> View PR <ExternalLink size={10} />
                             </a>
@@ -1947,7 +1947,7 @@ export function GitHubFixesLogView({
                   CMS &amp; Website Activity Ledger ({count(ledgerEvents.length)})
                 </h3>
                 {ledgerEvents.map((ev) => (
-                  <article key={ev.id} className="space-y-2 rounded-xl border bg-white p-4 shadow-2xs">
+                  <article key={ev.id} className="space-y-2 rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1970,7 +1970,7 @@ export function GitHubFixesLogView({
                           href={ev.pullRequestUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-surface-3 hover:text-brand-950"
                         >
                           Open Link <ExternalLink size={11} />
                         </a>
@@ -1991,7 +1991,7 @@ export function GitHubFixesLogView({
               const verifiedCount = changes.filter((change) => change.verification === "MATCHED").length;
               const isMerged = item.reviewState === "MERGED";
               return (
-                <article key={item.prUrl} className="space-y-3 rounded-xl border bg-white p-4 shadow-2xs">
+                <article key={item.prUrl} className="space-y-3 rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
@@ -2010,7 +2010,7 @@ export function GitHubFixesLogView({
                             : "Check GitHub for the current pull request status"}
                       </p>
                     </div>
-                    <a href={item.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-[11.5px] font-semibold text-accent-700 hover:bg-brand-50">
+                    <a href={item.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[11.5px] font-semibold text-brand-800 hover:bg-surface-3 hover:text-brand-950">
                       <GitPullRequest size={13} /> {item.reviewState === "OPEN" ? "Review & merge on GitHub" : "View pull request"} <ExternalLink size={11} />
                     </a>
                   </div>
@@ -2020,7 +2020,7 @@ export function GitHubFixesLogView({
                       <summary className="cursor-pointer font-semibold">View {changes.length} recorded change{changes.length === 1 ? "" : "s"} and proof</summary>
                       <div className="mt-3 space-y-3">
                         {changes.map((change, index) => (
-                          <div key={`${change.file}-${change.field}-${index}`} className="rounded-lg border bg-white p-3">
+                          <div key={`${change.file}-${change.field}-${index}`} className="rounded-lg border border-brand-200 bg-surface-1 p-3">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-semibold text-brand-900">{change.findingTitle || FIELD_LABELS[change.field] || change.field}</span>
                               <Pill tone={isMerged && change.verification === "MATCHED" ? "good" : "default"}>

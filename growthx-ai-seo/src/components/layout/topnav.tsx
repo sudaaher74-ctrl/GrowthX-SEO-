@@ -75,7 +75,7 @@ export function TopNav({
   return (
     <header
       className={cn(
-        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-2 border-b bg-white px-3 transition-all duration-300 ease-in-out md:px-4",
+        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-2 border-b bg-surface-1/95 backdrop-blur-md px-3 transition-all duration-300 ease-in-out md:px-4",
         collapsed ? "md:left-[68px]" : "md:left-[232px]",
       )}
       style={{ borderColor: "var(--border-color)" }}

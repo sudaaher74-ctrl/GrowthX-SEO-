@@ -119,34 +119,119 @@ export function PagesTable({
   const formatPageType = (page: CrawlPage) => getPageType(page);
 
   return (
-    <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-      {/* Filter Toolbar */}
-      <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
-          {/* Search Input */}
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search pages or URLs..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-8 w-48 sm:w-60 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X size={12} />
-              </button>
+    <div className="rounded-xl border border-brand-200 bg-surface-1 shadow-xs overflow-hidden">
+      {/* Quick Segment Filter Bar */}
+      <div className="p-3 border-b border-brand-200 bg-surface-2/70 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("ALL");
+              setSelectedIndexability("ALL");
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
+              selectedStatus === "ALL" && selectedIndexability === "ALL"
+                ? "bg-signal-400 text-signal-ink shadow-xs"
+                : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
             )}
-          </div>
+          >
+            All Pages ({pages.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("200");
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
+              selectedStatus === "200"
+                ? "bg-emerald-500 text-white shadow-xs"
+                : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
+            )}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            200 OK
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("3xx");
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
+              selectedStatus === "3xx"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
+            )}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            3xx Redirects
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("4xx");
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
+              selectedStatus === "4xx"
+                ? "bg-rose-500 text-white shadow-xs"
+                : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
+            )}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            4xx/5xx Errors
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedIndexability(selectedIndexability === "INDEXABLE" ? "ALL" : "INDEXABLE");
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
+              selectedIndexability === "INDEXABLE"
+                ? "bg-brand-950 text-white shadow-xs"
+                : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
+            )}
+          >
+            Indexable Only
+          </button>
+        </div>
 
+        {/* Search Input */}
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" />
+          <input
+            type="text"
+            placeholder="Search pages or URLs..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="h-8 w-48 sm:w-60 rounded-lg border border-brand-200 bg-surface-1 pl-8 pr-3 text-xs text-brand-950 placeholder:text-brand-400 focus:outline-none focus:border-brand-400"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-600 cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="p-3 border-b border-brand-200 bg-surface-1 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
           {/* Page Type Filter (10 Types) */}
           <select
             value={selectedType}
@@ -154,7 +239,7 @@ export function PagesTable({
               setSelectedType(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-2.5 text-xs font-medium text-brand-800 focus:outline-none focus:border-brand-400"
           >
             <option value="ALL">All Page Types</option>
             {DISPLAY_PAGE_TYPES.map((t) => (
@@ -171,7 +256,7 @@ export function PagesTable({
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-2.5 text-xs font-medium text-brand-800 focus:outline-none focus:border-brand-400"
           >
             <option value="ALL">All Status Codes</option>
             <option value="200">200 OK</option>
@@ -187,7 +272,7 @@ export function PagesTable({
               setSelectedIndexability(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-2.5 text-xs font-medium text-brand-800 focus:outline-none focus:border-brand-400"
           >
             <option value="ALL">All Indexability</option>
             <option value="INDEXABLE">Indexable</option>
@@ -200,7 +285,7 @@ export function PagesTable({
             <button
               type="button"
               onClick={() => setShowColumnsMenu(!showColumnsMenu)}
-              className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 inline-flex items-center gap-1.5"
+              className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-2.5 text-xs font-medium text-brand-800 hover:bg-surface-3 inline-flex items-center gap-1.5 cursor-pointer"
             >
               <SlidersHorizontal size={12} />
               <span>Columns</span>
@@ -208,14 +293,14 @@ export function PagesTable({
             </button>
 
             {showColumnsMenu && (
-              <div className="absolute left-0 sm:left-auto sm:right-0 top-9 w-44 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800 z-20 space-y-1 text-xs">
+              <div className="absolute left-0 sm:left-auto sm:right-0 top-9 w-44 rounded-lg border border-brand-200 bg-surface-1 p-2 shadow-lg z-20 space-y-1 text-xs">
                 {Object.entries(visibleColumns).map(([col, isVisible]) => (
-                  <label key={col} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+                  <label key={col} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-surface-2 cursor-pointer text-brand-800">
                     <input
                       type="checkbox"
                       checked={isVisible}
                       onChange={() => setVisibleColumns((prev) => ({ ...prev, [col]: !isVisible }))}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-brand-300 text-brand-900 focus:ring-brand-500"
                     />
                     <span className="capitalize">{col.replace(/([A-Z])/g, " $1")}</span>
                   </label>
@@ -228,7 +313,7 @@ export function PagesTable({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-2.5 text-xs font-medium text-brand-800 focus:outline-none focus:border-brand-400"
           >
             <option value="seoScore">Sort by: SEO Score</option>
             <option value="wordCount">Sort by: Word Count</option>
@@ -240,20 +325,20 @@ export function PagesTable({
 
       {/* Table Content */}
       {filteredPages.length === 0 ? (
-        <div className="p-8 text-center text-xs text-slate-400">
+        <div className="p-8 text-center text-xs text-brand-500">
           No crawled pages match the selected criteria.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
+              <tr className="border-b border-brand-200 text-[11px] font-semibold uppercase tracking-wider text-brand-500 bg-surface-2/60">
                 <th className="p-3 pl-4 w-8">
                   <input
                     type="checkbox"
                     checked={selectedPageIds.size === paginatedPages.length && paginatedPages.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-brand-300 text-brand-900 focus:ring-brand-500"
                   />
                 </th>
                 <th className="p-3">URL / PAGE TITLE</th>
@@ -267,7 +352,7 @@ export function PagesTable({
                 <th className="p-3 pr-4 text-right">ACTIONS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y border-brand-200 divide-brand-200">
               {paginatedPages.map((page) => {
                 const isSelected = selectedPageIds.has(page.id);
                 const seoScore = getPageSeoScore(page, issuesPerUrl);
@@ -278,33 +363,32 @@ export function PagesTable({
                 return (
                   <tr
                     key={page.id}
+                    onClick={() => onOpenPageDetails?.(page)}
                     className={cn(
-                      "hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors",
-                      isSelected && "bg-blue-50/40 dark:bg-blue-950/20"
+                      "hover:bg-surface-2/80 transition-colors cursor-pointer",
+                      isSelected && "bg-brand-50/50"
                     )}
                   >
-                    <td className="p-3 pl-4">
+                    <td className="p-3 pl-4" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelectPage(page.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-brand-300 text-brand-900 focus:ring-brand-500"
                       />
                     </td>
 
                     {/* URL / Title */}
                     <td className="p-3 max-w-[280px]">
-                      <div className="font-semibold text-slate-900 dark:text-white truncate">
-                        {/* "Untitled Document" is only honest when we read
-                            the page and it had no title. When we never got a
-                            response, say that instead. */}
+                      <div className="font-semibold text-brand-950 truncate">
                         {page.title || (page.statusCode == null || page.statusCode === 0 ? "Not retrieved" : "Untitled Document")}
                       </div>
                       <a
                         href={page.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-mono text-[11px] text-blue-600 dark:text-blue-400 hover:underline truncate block mt-0.5"
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono text-[11px] text-accent-700 hover:underline truncate block mt-0.5"
                       >
                         {page.url}
                       </a>
@@ -352,12 +436,12 @@ export function PagesTable({
                           className={cn(
                             "rounded-full border px-2 py-0.5 text-[10px] font-bold",
                             page.statusCode == null || page.statusCode === 0
-                              ? "bg-brand-100 text-brand-600"
+                              ? "bg-brand-100 text-brand-600 border-brand-200"
                               : page.statusCode >= 200 && page.statusCode < 300
-                              ? "bg-success-50 text-success-700"
+                              ? "bg-success-50 text-success-700 border-success-200"
                               : page.statusCode >= 300 && page.statusCode < 400
-                              ? "bg-warning-50 text-warning-700"
-                              : "bg-error-50 text-error-700"
+                              ? "bg-warning-50 text-warning-700 border-warning-200"
+                              : "bg-error-50 text-error-700 border-error-200"
                           )}
                           title={
                             page.statusChain && page.statusChain.length > 1
@@ -365,8 +449,6 @@ export function PagesTable({
                               : undefined
                           }
                         >
-                          {/* No status means we never got a response, which
-                              is our failure to report, not the site's. */}
                           {page.statusCode == null || page.statusCode === 0
                             ? "Unreachable"
                             : `${page.statusCode}${page.statusCode >= 200 && page.statusCode < 300 ? " OK" : page.statusCode >= 300 && page.statusCode < 400 ? " Redirect" : ""}`}
@@ -381,11 +463,10 @@ export function PagesTable({
                           className={cn(
                             "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                             indexability === "INDEXABLE"
-                              ? "bg-success-50 text-success-700"
+                              ? "bg-success-50 text-success-700 border-success-200"
                               : indexability === "NOT_INDEXABLE"
-                              ? "bg-warning-50 text-warning-700"
-                              : // Unknown renders neutral. It is not a finding.
-                                "bg-brand-100 text-brand-600"
+                              ? "bg-warning-50 text-warning-700 border-warning-200"
+                              : "bg-brand-100 text-brand-600 border-brand-200"
                           )}
                           title={(page.indexabilityReason ?? []).map((r) => r.evidence).join("\n") || undefined}
                         >
@@ -400,7 +481,7 @@ export function PagesTable({
 
                     {/* Word Count */}
                     {visibleColumns.wordCount && (
-                      <td className="p-3 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
+                      <td className="p-3 text-right font-mono font-medium text-brand-800">
                         {page.wordCount.toLocaleString()}
                       </td>
                     )}
@@ -412,10 +493,10 @@ export function PagesTable({
                           className={cn(
                             "rounded-full border px-2.5 py-0.5 text-[11px] font-bold font-mono",
                             seoScore >= 75
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              ? "bg-success-50 text-success-700 border-success-200"
                               : seoScore >= 50
-                              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                              : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400"
+                              ? "bg-warning-50 text-warning-700 border-warning-200"
+                              : "bg-error-50 text-error-700 border-error-200"
                           )}
                         >
                           {seoScore}
@@ -427,41 +508,41 @@ export function PagesTable({
                     {visibleColumns.issues && (
                       <td className="p-3 text-center">
                         {issueCount > 0 ? (
-                          <span className="rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-2 py-0.5 text-[11px] font-bold">
+                          <span className="rounded-full bg-error-50 text-error-700 border border-error-200 px-2 py-0.5 text-[11px] font-bold">
                             {issueCount}
                           </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-brand-400">—</span>
                         )}
                       </td>
                     )}
 
                     {/* Last Crawled */}
                     {visibleColumns.lastCrawled && (
-                      <td className="p-3 text-slate-500 dark:text-slate-400">
+                      <td className="p-3 text-brand-500">
                         {page.crawledAt ? formatRelativeTime(page.crawledAt) : "Recently"}
                       </td>
                     )}
 
                     {/* Actions */}
-                    <td className="p-3 pr-4 text-right">
+                    <td className="p-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpenPageDetails?.(page)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
+                        >
+                          Inspect
+                        </button>
                         <a
                           href={page.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 px-2 py-1 text-xs font-semibold shadow-xs transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2 py-1 text-xs font-semibold text-brand-600 hover:text-brand-950 transition-colors shadow-xs"
                         >
                           <span>View</span>
                           <ExternalLink size={11} />
                         </a>
-                        <button
-                          type="button"
-                          onClick={() => onOpenPageDetails?.(page)}
-                          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded"
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -473,18 +554,18 @@ export function PagesTable({
       )}
 
       {/* Pagination Bar */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+      <div className="p-3 border-t border-brand-200 bg-surface-2/60 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-500">
         <div>
           Showing{" "}
-          <span className="font-semibold text-slate-900 dark:text-white">
+          <span className="font-semibold text-brand-950">
             {filteredPages.length > 0 ? startIndex + 1 : 0}
           </span>{" "}
           to{" "}
-          <span className="font-semibold text-slate-900 dark:text-white">
+          <span className="font-semibold text-brand-950">
             {Math.min(startIndex + itemsPerPage, filteredPages.length)}
           </span>{" "}
           of{" "}
-          <span className="font-semibold text-slate-900 dark:text-white">
+          <span className="font-semibold text-brand-950">
             {filteredPages.length}
           </span>{" "}
           pages
@@ -497,7 +578,7 @@ export function PagesTable({
               type="button"
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="h-7 w-7 rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="h-7 w-7 rounded border border-brand-200 bg-surface-1 text-brand-700 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-2 cursor-pointer"
             >
               <ChevronLeft size={13} />
             </button>
@@ -512,8 +593,8 @@ export function PagesTable({
                   className={cn(
                     "h-7 w-7 rounded border text-xs font-semibold transition",
                     currentPage === pageNum
-                      ? "bg-primary-600 text-white border-primary-600 shadow-xs"
-                      : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
+                      ? "bg-signal-400 text-signal-ink border-signal-400 font-bold shadow-xs"
+                      : "border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-2"
                   )}
                 >
                   {pageNum}
@@ -525,7 +606,7 @@ export function PagesTable({
               type="button"
               disabled={currentPage >= totalPagesCount}
               onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}
-              className="h-7 w-7 rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="h-7 w-7 rounded border border-brand-200 bg-surface-1 text-brand-700 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-2 cursor-pointer"
             >
               <ChevronRight size={13} />
             </button>
@@ -538,7 +619,7 @@ export function PagesTable({
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="h-7 rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-7 rounded border border-brand-200 bg-surface-1 px-2 text-xs font-medium text-brand-800"
           >
             <option value={10}>10 / page</option>
             <option value={20}>20 / page</option>

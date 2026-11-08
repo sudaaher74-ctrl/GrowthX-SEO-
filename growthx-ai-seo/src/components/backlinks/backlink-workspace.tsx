@@ -15,7 +15,7 @@ import { BacklinkOverview } from './backlink-overview';
 import { CompetitorLinkGap } from './competitor-link-gap';
 
 const date = (value: string | null) => (value ? new Date(value).toLocaleString() : 'Not checked');
-const inputClass = 'w-full rounded-lg border bg-white p-2 text-sm text-brand-950 focus:outline-primary-600';
+const inputClass = 'w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-sm text-brand-950 focus:outline-primary-600';
 
 function PublicLink({ url }: { url: string }) {
   if (!/^https?:\/\//i.test(url)) return <span>{url}</span>;

@@ -45,23 +45,23 @@ function TruthfulState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-xl border border-dashed bg-brand-50/40 text-center transition-all",
+        "flex flex-col items-center justify-center rounded-2xl border border-dashed bg-surface-1/60 text-center transition-all",
         compact ? "p-4 sm:p-6" : "p-8 sm:p-12",
-        className
+        className,
       )}
       style={{ borderColor: "var(--border-color)" }}
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-100 bg-primary-50 text-primary-600 mb-3.5">
-        <Icon size={18} />
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-200 bg-surface-2 text-brand-950 shadow-2xs mb-3.5">
+        <Icon size={18} className="text-signal-400" />
       </div>
 
-      <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-brand-950">{title}</h3>
+      <h3 className="text-[14px] font-bold tracking-tight text-brand-950">{title}</h3>
       <p className="mt-1 text-[12.5px] font-medium text-brand-700 max-w-md">{missing}</p>
-      <p className="mt-1 text-[11.5px] text-brand-400 max-w-lg leading-relaxed">{whyItMatters}</p>
+      {whyItMatters && <p className="mt-1 text-[11.5px] text-brand-500 max-w-lg leading-relaxed">{whyItMatters}</p>}
 
       {actionRequired && (
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-white border px-2.5 py-1 text-[11px] font-medium text-brand-700 shadow-2xs">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary-600 animate-pulse" />
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface-2 border border-brand-200/80 px-3 py-1 font-mono text-[11px] font-semibold text-brand-700 shadow-2xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
           <span>Next step: {actionRequired}</span>
         </div>
       )}
@@ -73,10 +73,10 @@ function TruthfulState({
               <Link
                 href={action.href}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
+                  "flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-extrabold transition-all active:scale-95 shadow-xs cursor-pointer",
                   action.variant === "secondary"
-                    ? "border bg-white text-brand-700 hover:bg-brand-50"
-                    : "bg-primary-600 text-white hover:bg-primary-700"
+                    ? "border border-brand-200 bg-surface-2 text-brand-700 hover:bg-surface-3 hover:text-brand-950 font-semibold"
+                    : "bg-signal-400 text-signal-ink hover:bg-signal-500",
                 )}
               >
                 {action.label}
@@ -86,10 +86,10 @@ function TruthfulState({
                 type="button"
                 onClick={action.onClick}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
+                  "flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-extrabold transition-all active:scale-95 shadow-xs cursor-pointer",
                   action.variant === "secondary"
-                    ? "border bg-white text-brand-700 hover:bg-brand-50"
-                    : "bg-primary-600 text-white hover:bg-primary-700"
+                    ? "border border-brand-200 bg-surface-2 text-brand-700 hover:bg-surface-3 hover:text-brand-950 font-semibold"
+                    : "bg-signal-400 text-signal-ink hover:bg-signal-500",
                 )}
               >
                 {action.label}
@@ -100,7 +100,7 @@ function TruthfulState({
             (secondaryAction.href ? (
               <Link
                 href={secondaryAction.href}
-                className="flex items-center gap-1.5 rounded-lg border bg-white px-3.5 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-4 py-2 text-[12px] font-semibold text-brand-700 hover:bg-surface-3 hover:text-brand-950 transition-colors cursor-pointer"
               >
                 {secondaryAction.label}
               </Link>
@@ -108,7 +108,7 @@ function TruthfulState({
               <button
                 type="button"
                 onClick={secondaryAction.onClick}
-                className="flex items-center gap-1.5 rounded-lg border bg-white px-3.5 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-4 py-2 text-[12px] font-semibold text-brand-700 hover:bg-surface-3 hover:text-brand-950 transition-colors cursor-pointer"
               >
                 {secondaryAction.label}
               </button>
@@ -242,7 +242,7 @@ export function FailedState({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-4 flex items-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-error-800 hover:bg-error-50 transition"
+          className="mt-4 flex items-center gap-1.5 rounded-lg border border-error-300/80 bg-surface-2 px-3 py-1.5 text-[11.5px] font-semibold text-error-800 hover:bg-error-50 transition cursor-pointer"
         >
           <RefreshCw size={12} />
           Retry Request
