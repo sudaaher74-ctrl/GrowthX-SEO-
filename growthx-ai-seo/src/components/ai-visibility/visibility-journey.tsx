@@ -165,6 +165,7 @@ function Journey({ projectId }: { projectId: string }) {
             pending={check.isPending}
             onRun={(brief) => check.mutate({ id: run.id, brief })}
             answers={data?.answers ?? []}
+            providers={data?.providers ?? []}
             hasScan={!!run.scanId}
           />
         ) : (
@@ -584,6 +585,7 @@ function PromptsSection({
   pending,
   onRun,
   answers = [],
+  providers = [],
   hasScan,
   onViewResults,
 }: {
@@ -594,6 +596,7 @@ function PromptsSection({
   pending: boolean;
   onRun: (brief: VisibilityBrief) => void;
   answers?: VisibilityAnswer[];
+  providers?: { provider: string; configured: boolean; model: string | null }[];
   hasScan?: boolean;
   onViewResults?: () => void;
 }) {
@@ -950,14 +953,54 @@ function PromptsSection({
               {ENGINES.map((engine) => {
                 const Icon = engine.icon;
                 const models = modelsForEngine(answers, engine.name);
-                const modelSummary = models.length > 1 ? `${models[0]} +${models.length - 1} more` : models[0] || "Model not recorded";
+                const matchingProvider = providers.find((p) => {
+                  const prov = (p.provider || "").toUpperCase();
+                  switch (engine.name) {
+                    case "ChatGPT":
+                      return prov.includes("OPENAI") || prov.includes("CHATGPT");
+                    case "Google AI":
+                      return prov.includes("GEMINI") || prov.includes("GOOGLE");
+                    case "Claude":
+                      return prov.includes("ANTHROPIC") || prov.includes("CLAUDE");
+                    case "Perplexity":
+                      return prov.includes("PERPLEXITY");
+                    default:
+                      return false;
+                  }
+                });
+
+                const isConfigured = matchingProvider?.configured ?? false;
+                const modelSummary =
+                  models.length > 0
+                    ? models.length > 1
+                      ? `${models[0]} +${models.length - 1} more`
+                      : models[0]
+                    : isConfigured
+                      ? matchingProvider?.model || "Ready to check"
+                      : "Not connected";
                 return (
                   <div key={engine.name} className="flex w-28 flex-col items-center justify-center gap-0.5 px-1 text-center sm:w-36">
                     <div className="flex items-center justify-center gap-1.5 text-brand-950">
                       <Icon className="h-4 w-4 shrink-0 text-brand-950" />
                       <span className="normal-case font-semibold text-brand-950">{engine.name}</span>
                     </div>
-                    <span className="max-w-full break-all text-[9px] font-normal normal-case leading-3 text-brand-500" title={models.length ? `Model used: ${models.join(", ")}` : "No model recorded in saved answers"}>
+                    <span
+                      className={cn(
+                        "max-w-full truncate text-[9px] font-mono normal-case leading-3",
+                        models.length > 0
+                          ? "font-semibold text-brand-700"
+                          : isConfigured
+                            ? "text-brand-500"
+                            : "text-brand-400 opacity-60",
+                      )}
+                      title={
+                        models.length
+                          ? `Model used: ${models.join(", ")}`
+                          : isConfigured
+                            ? "Engine configured & ready to check"
+                            : "Engine API key not configured in Settings"
+                      }
+                    >
                       {modelSummary}
                     </span>
                   </div>

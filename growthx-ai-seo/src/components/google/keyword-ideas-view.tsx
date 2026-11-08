@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Loader2, MapPin, Plus, Radar, Wand2, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MapPin, Plus, Radar, Wand2, XCircle } from "lucide-react";
 import { Table, Td, Th, Tr } from "@/components/ui/console";
 import { Caveat, EmptyNote } from "@/components/google/view-kit";
 import { useKeywordIdeas, usePresenceCheck, useTrackSuggested } from "@/hooks/use-google";
@@ -35,9 +35,15 @@ export function KeywordIdeasView() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [justTracked, setJustTracked] = useState<Set<string>>(new Set());
   const [checked, setChecked] = useState<Record<string, PresenceResult>>({});
+  const [typeFilter, setTypeFilter] = useState<"ALL" | IdeaKind>("ALL");
 
   const report = ideas.data ?? null;
   const rows = useMemo(() => report?.ideas ?? [], [report]);
+  const displayRows = useMemo(() => {
+    if (typeFilter === "ALL") return rows;
+    return rows.filter((r) => r.kind === typeFilter);
+  }, [rows, typeFilter]);
+
   const isTracked = (keyword: string, flag: boolean) => flag || justTracked.has(keyword);
   const selectedList = [...selected];
 
@@ -74,6 +80,36 @@ export function KeywordIdeasView() {
         setSelected(new Set());
       },
     });
+  }
+
+  function handleExportIdeasCsv() {
+    if (!displayRows.length) return;
+    const headers = ["Keyword", "Type", "Reason", "Search Console Position", "Google Results Status", "Tracked"];
+    const csvContent = [
+      headers.join(","),
+      ...displayRows.map((r) => {
+        const res = checked[r.keyword];
+        const status = !res ? "Not checked" : res.appears ? "Appears" : "Not in results";
+        return [
+          `"${(r.keyword || "").replace(/"/g, '""')}"`,
+          KIND_LABEL[r.kind] || r.kind,
+          `"${(r.reason || "").replace(/"/g, '""')}"`,
+          r.searchConsole?.position ? r.searchConsole.position.toFixed(1) : "N/A",
+          status,
+          isTracked(r.keyword, r.tracked) ? "Yes" : "No",
+        ].join(",");
+      }),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `keyword-ideas-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -139,6 +175,15 @@ export function KeywordIdeasView() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={handleExportIdeasCsv}
+                title="Download CSV export of keyword ideas"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 transition hover:bg-brand-100 cursor-pointer"
+              >
+                <Download size={12} className="text-brand-500" />
+                <span>Export CSV</span>
+              </button>
+              <button
+                type="button"
                 onClick={runPresence}
                 disabled={selected.size === 0 || selected.size > MAX_PRESENCE || presence.isPending}
                 title={selected.size > MAX_PRESENCE ? `Choose ${MAX_PRESENCE} or fewer to check at once` : "Ask Gemini whether your site appears in Google for these"}
@@ -159,6 +204,32 @@ export function KeywordIdeasView() {
             </div>
           </div>
 
+          {/* ── Type filter bar ── */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-brand-200 bg-surface-2/40 px-4 py-2">
+            <span className="mr-1 text-[11px] font-semibold text-brand-400">Filter type:</span>
+            {[
+              { id: "ALL", label: `All (${rows.length})` },
+              { id: "near_me", label: `Near me (${rows.filter((r) => r.kind === "near_me").length})` },
+              { id: "city", label: `Local (${rows.filter((r) => r.kind === "city").length})` },
+              { id: "product", label: `Product (${rows.filter((r) => r.kind === "product").length})` },
+              { id: "question", label: `Question (${rows.filter((r) => r.kind === "question").length})` },
+              { id: "comparison", label: `Comparison (${rows.filter((r) => r.kind === "comparison").length})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setTypeFilter(f.id as any)}
+                className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition ${
+                  typeFilter === f.id
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "border border-brand-200/60 bg-surface-1 text-brand-600 hover:text-brand-950"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {report.notice && <p className="border-b border-brand-200 px-4 py-2.5 text-[12px] text-warning-600">{report.notice}</p>}
           {presence.isError && (
             <p role="alert" className="border-b border-brand-200 px-4 py-2.5 text-[12px] font-medium text-error-600">
@@ -171,8 +242,8 @@ export function KeywordIdeasView() {
             </p>
           )}
 
-          {rows.length === 0 ? (
-            <EmptyNote>No ideas could be written yet. Run a website audit, then try again.</EmptyNote>
+          {displayRows.length === 0 ? (
+            <EmptyNote>No keyword ideas match this filter.</EmptyNote>
           ) : (
             <Table minWidth={760}>
               <thead>
@@ -181,8 +252,8 @@ export function KeywordIdeasView() {
                     <input
                       type="checkbox"
                       aria-label="Select all keywords"
-                      checked={selected.size === rows.length && rows.length > 0}
-                      onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((r) => r.keyword)) : new Set())}
+                      checked={selected.size === displayRows.length && displayRows.length > 0}
+                      onChange={(e) => setSelected(e.target.checked ? new Set(displayRows.map((r) => r.keyword)) : new Set())}
                     />
                   </Th>
                   <Th>Keyword</Th>
@@ -192,7 +263,7 @@ export function KeywordIdeasView() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {displayRows.map((row) => {
                   const result = checked[row.keyword];
                   return (
                     <Tr key={row.keyword}>

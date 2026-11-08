@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BarChart2, Hash, MousePointerClick, Search, TrendingUp } from "lucide-react";
+import { ArrowUpDown, BarChart2, Download, Hash, MousePointerClick, Search, TrendingUp } from "lucide-react";
 import { Panel } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
 import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable } from "@/components/google/view-kit";
@@ -38,6 +38,8 @@ export function KeywordsView() {
   }
 
   const [search, setSearch] = useState("");
+  const [positionRange, setPositionRange] = useState<"ALL" | "PAGE_1" | "PAGE_2" | "PAGE_3_PLUS">("ALL");
+  const [sortBy, setSortBy] = useState<"clicks" | "impressions" | "position" | "ctr">("clicks");
   const top = useGscQueries(projectId, 100);
   const striking = useGscStriking(projectId);
   const ctr = useGscCtrOpportunities(projectId);
@@ -55,11 +57,93 @@ export function KeywordsView() {
     return (weighted / totalImpressions).toFixed(1);
   }, [allQueries, totalImpressions]);
 
+  const page1Count = useMemo(() => allQueries.filter((r) => r.position <= 10).length, [allQueries]);
+  const page2Count = useMemo(() => allQueries.filter((r) => r.position > 10 && r.position <= 20).length, [allQueries]);
+  const page3Count = useMemo(() => allQueries.filter((r) => r.position > 20).length, [allQueries]);
+
   const filteredTopRows = useMemo(() => {
-    if (!search.trim()) return [...allQueries].sort((a, b) => b.clicks - a.clicks);
-    const q = search.toLowerCase().trim();
-    return allQueries.filter((r) => r.key.toLowerCase().includes(q)).sort((a, b) => b.clicks - a.clicks);
-  }, [allQueries, search]);
+    let list = [...allQueries];
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      list = list.filter((r) => r.key.toLowerCase().includes(q));
+    }
+    if (positionRange === "PAGE_1") {
+      list = list.filter((r) => r.position <= 10);
+    } else if (positionRange === "PAGE_2") {
+      list = list.filter((r) => r.position > 10 && r.position <= 20);
+    } else if (positionRange === "PAGE_3_PLUS") {
+      list = list.filter((r) => r.position > 20);
+    }
+
+    if (sortBy === "clicks") {
+      list.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+    } else if (sortBy === "impressions") {
+      list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+    } else if (sortBy === "position") {
+      list.sort((a, b) => (a.position || 0) - (b.position || 0));
+    } else if (sortBy === "ctr") {
+      list.sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+    }
+    return list;
+  }, [allQueries, search, positionRange, sortBy]);
+
+  function handleExportCsv() {
+    let rowsToExport: { key: string; clicks?: number; impressions?: number; ctr?: number; position?: number }[] = [];
+    if (tab === "top") rowsToExport = filteredTopRows;
+    else if (tab === "page2") rowsToExport = (striking.query.data ?? []) as any;
+    else if (tab === "ctr") rowsToExport = (ctr.query.data ?? []) as any;
+    else if (tab === "declining") {
+      rowsToExport = (declining.query.data ?? []).map((r) => ({
+        key: r.query,
+        clicks: r.currentClicks,
+        impressions: r.impressions,
+        ctr: r.impressions > 0 ? r.currentClicks / r.impressions : 0,
+        position: r.currentPosition,
+      }));
+    } else if (tab === "new") {
+      rowsToExport = (movement.query.data?.new ?? []).map((r) => ({
+        key: r.query,
+        clicks: r.clicks,
+        impressions: r.impressions,
+        ctr: r.impressions > 0 ? r.clicks / r.impressions : 0,
+        position: r.position,
+      }));
+    } else if (tab === "rising") {
+      rowsToExport = (movement.query.data?.rising ?? []).map((r) => ({
+        key: r.query,
+        clicks: r.clicks,
+        impressions: r.clicks ? r.clicks : 0,
+        ctr: 0,
+        position: r.position,
+      }));
+    }
+
+    if (!rowsToExport.length) return;
+
+    const headers = ["Query", "Clicks", "Impressions", "CTR", "Position"];
+    const csvContent = [
+      headers.join(","),
+      ...rowsToExport.map((r) =>
+        [
+          `"${(r.key || "").replace(/"/g, '""')}"`,
+          r.clicks ?? 0,
+          r.impressions ?? 0,
+          `${((r.ctr ?? 0) * 100).toFixed(2)}%`,
+          (r.position ?? 0).toFixed(1),
+        ].join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `keywords-${tab}-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 
   const empty = (
     <NoDataState
@@ -126,17 +210,72 @@ export function KeywordsView() {
           ))}
         </div>
 
-        <div className="relative min-w-[220px]">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search keywords…"
-            className="w-full rounded-xl border border-brand-200/70 bg-brand-100/40 py-1.5 pl-7 pr-3 text-[11.5px] text-brand-950 placeholder:text-brand-400 focus:outline-hidden focus:ring-1 focus:ring-brand-400"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px]">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search keywords…"
+              className="w-full rounded-xl border border-brand-200/70 bg-brand-100/40 py-1.5 pl-7 pr-3 text-[11.5px] text-brand-950 placeholder:text-brand-400 focus:outline-hidden focus:ring-1 focus:ring-brand-400"
+            />
+          </div>
+
+          {tab !== "ideas" && tab !== "cannibalization" && (
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              title="Download CSV export"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200/70 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-800 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+            >
+              <Download size={13} className="text-brand-500" />
+              <span>Export CSV</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {tab === "top" && allQueries.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-brand-200/60 bg-surface-1/70 px-4 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
+            {[
+              { id: "ALL", label: `All (${totalKeywords})` },
+              { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
+              { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
+              { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPositionRange(p.id as any)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                  positionRange === p.id
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "border border-brand-200/60 bg-surface-2 text-brand-600 hover:text-brand-950"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-brand-400">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="rounded-lg border border-brand-200/70 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none"
+            >
+              <option value="clicks">Clicks (Highest first)</option>
+              <option value="impressions">Impressions (Highest first)</option>
+              <option value="position">Position (Best rank first)</option>
+              <option value="ctr">CTR (Highest first)</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       <Panel title={current.label} subtitle={current.about}>
         {tab === "ideas" && <KeywordIdeasView />}
