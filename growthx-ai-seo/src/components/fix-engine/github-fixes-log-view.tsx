@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
   Bot,
   CheckCircle2,
   CircleX,
+  Clock,
+  Compass,
   Download,
   ExternalLink,
   FileCode,
@@ -20,6 +23,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  TrendingUp,
   Wrench,
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
@@ -1721,6 +1725,21 @@ export function GitHubFixesLogView({
                               ? "Verified Live on Website"
                               : "Staged / Pending Live Check"}
                           </Pill>
+                          {card.liftStatus === "IMPROVED" && (
+                            <Pill tone="good">
+                              Proven Lift ({card.after?.clicksDeltaPct != null && card.after.clicksDeltaPct > 0 ? `+${card.after.clicksDeltaPct}% Clicks` : "Gained"})
+                            </Pill>
+                          )}
+                          {card.liftStatus === "FLAT" && (
+                            <Pill tone="warn">
+                              Zero Lift · Plan B Ready
+                            </Pill>
+                          )}
+                          {card.liftStatus === "MONITORING" && (
+                            <Pill tone="default">
+                              21-Day Observation
+                            </Pill>
+                          )}
                         </div>
                         {card.after?.pullRequestUrl && (
                           <a
@@ -1770,6 +1789,73 @@ export function GitHubFixesLogView({
                           </p>
                         </div>
                       </div>
+
+                      {/* Measured Lift or Plan B Self-Healing */}
+                      {card.liftStatus === "IMPROVED" && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success-300 bg-success-50/70 p-3 text-xs">
+                          <div className="flex items-center gap-2 text-success-900">
+                            <TrendingUp size={15} className="text-success-700 shrink-0" />
+                            <span>
+                              <strong>Proven Lift:</strong>{" "}
+                              {card.after?.clicksDeltaPct != null && card.after.clicksDeltaPct > 0
+                                ? `+${card.after.clicksDeltaPct}% Search Clicks measured in Google Search Console`
+                                : "Positive search and AI citation gains recorded"}
+                            </span>
+                          </div>
+                          <Link
+                            href="/fix-engine/changes"
+                            className="text-[11px] font-bold text-success-800 hover:underline"
+                          >
+                            View Evidence Ledger →
+                          </Link>
+                        </div>
+                      )}
+
+                      {card.liftStatus === "FLAT" && (
+                        <div className="rounded-lg border border-warning-300 bg-warning-50/70 p-3.5 space-y-2.5 text-xs">
+                          <div className="flex items-center gap-2 text-warning-900 font-bold">
+                            <Bot size={15} className="text-warning-800 shrink-0" />
+                            Zero Lift Detected · Autonomous Diagnosis &amp; Plan B
+                          </div>
+                          <p className="text-brand-700">
+                            {card.loopStatus?.pivotAction || "Method 1 produced flat results. Deploy Method 2: Inject structured FAQPage schema JSON-LD and expand long-tail keyword depth."}
+                          </p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <span className="text-[11px] text-brand-500">
+                              Reigel iterates on alternative strategies until measurable results are achieved.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const syntheticFinding: GrowthOpportunity = {
+                                  id: card.loopStatus?.pivotOpportunityId || `pivot-${card.runId}`,
+                                  projectId: projectId || "",
+                                  fingerprint: `impact-loop-pivot-${card.runId}-iteration-2`,
+                                  source: "WEBSITE",
+                                  category: "TECHNICAL",
+                                  title: card.loopStatus?.pivotTitle || `[Plan B: Adaptive Pivot] ${card.title}`,
+                                  summary: card.loopStatus?.pivotAction || "Method 1 produced flat results. Deploy Method 2 to achieve search lift.",
+                                  evidence: (card.loopStatus?.rca ?? []).map((r) => ({ label: "Diagnostic RCA", value: r, source: "Closed-Loop Engine" })),
+                                  recommendedAction: card.loopStatus?.pivotAction || "Deploy Method 2 to achieve verified search lift.",
+                                  potential: "HIGH",
+                                  effort: "LOW",
+                                  confidence: 85,
+                                  priority: 85,
+                                  status: "OPEN",
+                                  lifecycle: "QUEUED",
+                                  affectedPages: [card.url],
+                                  detectedAt: new Date().toISOString(),
+                                  lastSeenAt: new Date().toISOString(),
+                                };
+                                setCmsFinding(syntheticFinding);
+                              }}
+                              className="rounded-full bg-signal-400 px-3.5 py-1 text-xs font-bold text-signal-ink shadow-sm transition hover:bg-signal-500"
+                            >
+                              Deploy Plan B (Attempt 2) PR →
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

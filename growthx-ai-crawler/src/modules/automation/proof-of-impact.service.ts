@@ -1012,7 +1012,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       let liftStatus: 'IMPROVED' | 'FLAT' | 'MONITORING' = 'MONITORING';
       if ((searchClicksDelta != null && searchClicksDelta > 0) || hasPositiveAiChange) {
         liftStatus = 'IMPROVED';
-      } else if (daysSinceRun >= 30 && hasMeasuredComparison) {
+      } else if ((daysSinceRun >= 14 || daysSinceRun >= 30) && hasMeasuredComparison) {
         liftStatus = 'FLAT';
       }
 
@@ -1023,7 +1023,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       const rca = [
         `Live HTML was verified for ${affectedUrl}.`,
         hasSearchComparison
-          ? `Search Console clicks changed ${clicksDelta == null ? searchClicksDelta : `${clicksDelta}%`} in the measured 30-day comparison.`
+          ? `Search Console clicks changed ${clicksDelta == null ? searchClicksDelta : `${clicksDelta}%`} in the measured comparison.`
           : 'A comparable Search Console click measurement is unavailable.',
         hasMeasuredAiComparison ? 'AI brand mention rates were compared using saved successful responses.' : 'A comparable AI visibility measurement is unavailable.',
         'These observations describe changes over time; they do not prove that the fix caused them.',
@@ -1187,12 +1187,12 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
           });
         }
         results.push({ runId: run.id, status: 'IMPROVED', clicksDelta });
-      } else if (daysSinceRun >= 30) {
+      } else if (daysSinceRun >= 14 || daysSinceRun >= 30) {
         loopTriggeredCount++;
 
         const rca = [
           `Live HTML was verified for ${affectedUrl}.`,
-          hasSearchComparison ? `Search Console clicks changed ${clicksDelta}% in the measured 30-day comparison.` : 'A comparable Search Console click measurement is unavailable.',
+          hasSearchComparison ? `Search Console clicks changed ${clicksDelta}% in the measured comparison.` : 'A comparable Search Console click measurement is unavailable.',
           hasAiComparison ? 'AI brand mention rates were compared using saved successful responses.' : 'A comparable AI visibility measurement is unavailable.',
           'These observations describe changes over time; they do not prove that the fix caused them.',
         ];

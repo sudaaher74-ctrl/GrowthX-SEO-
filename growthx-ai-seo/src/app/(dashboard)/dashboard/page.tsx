@@ -34,6 +34,7 @@ import { useGa4Report } from "@/hooks/use-ga4-report";
 import { Card, CardHead, EmptyPrompt, LoadingLine } from "@/components/dashboard/dashboard-cards";
 import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary";
 import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
+import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
 import {
   DEFAULT_WINDOW_DAYS,
   BigMeasure,
@@ -500,6 +501,9 @@ export default function UnifiedDashboardPage() {
           )}
         </Card>
       )}
+
+      {/* Closed-Loop Adaptive Results Engine */}
+      <ClosedLoopResultsCard />
 
       {/* Row 3: what should I fix first? */}
       <section id="todo" className="flex flex-col gap-4 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
