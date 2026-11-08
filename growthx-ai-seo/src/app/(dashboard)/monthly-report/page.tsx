@@ -1449,7 +1449,7 @@ export default function MonthlyReport() {
                 <div>
                   <h2 className="text-lg font-bold text-brand-950">Closed-Loop Results &amp; ROI Delivered</h2>
                   <p className="text-xs text-brand-500">
-                    Recorded website fixes, live HTML verification, measured search lift over 21-day observation cycles, and autonomous Plan B strategy pivots.
+                    Recorded website fixes, live HTML verification, measured search lift over 21-day observation cycles, and autonomous follow-up optimization cycles.
                   </p>
                 </div>
                 <div className="no-print flex items-center gap-2">
@@ -1473,7 +1473,7 @@ export default function MonthlyReport() {
                 </div>
 
                 <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3 shadow-2xs">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Evaluating</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">In Observation</p>
                   <p className="text-[16px] font-bold text-brand-950 leading-tight mt-0.5">
                     {evaluatingFixes.length} in flight
                   </p>
@@ -1481,11 +1481,11 @@ export default function MonthlyReport() {
                 </div>
 
                 <div className="rounded-xl border border-warning-200 bg-surface-1 p-3 shadow-2xs">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Plan B Pivots</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Needs Adjustment</p>
                   <p className="text-[16px] font-bold text-warning-800 leading-tight mt-0.5">
-                    {adaptivePivots.length} adapted
+                    {adaptivePivots.length} pending
                   </p>
-                  <p className="text-[10.5px] text-brand-400 mt-0.5">Iteration 2 active</p>
+                  <p className="text-[10.5px] text-brand-400 mt-0.5">Follow-up ready</p>
                 </div>
 
                 <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3 shadow-2xs">
@@ -1526,7 +1526,7 @@ export default function MonthlyReport() {
                 <div className="rounded-xl border border-warning-300 bg-warning-50/50 p-4 space-y-2">
                   <div className="flex items-center gap-2 text-warning-900 font-bold text-xs">
                     <Bot size={16} className="text-warning-800 shrink-0" />
-                    <span>Autonomous Self-Healing Strategy Pivots (Plan B)</span>
+                    <span>Autonomous Follow-up Strategy Iterations</span>
                   </div>
                   <p className="text-xs text-brand-700">
                     When initial fixes produced flat search signals, Reigel diagnosed root causes and formulated alternative methods (e.g. FAQ schema and semantic entity depth) to keep driving toward positive ROI.
