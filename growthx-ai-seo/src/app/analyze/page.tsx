@@ -18,14 +18,17 @@ import {
   Layers,
   Loader2,
   Lock,
+  Moon,
   Radar,
   Search,
   ShieldCheck,
+  Sun,
   Zap,
 } from "lucide-react";
 import { api, auth, subscribeToAuthChange, type AutopilotRun } from "@/lib/api-client";
 import type { CrawlPage } from "@/lib/api-types";
 import { setActiveProject, useWorkspace } from "@/hooks/use-growthx";
+import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 
 function cleanDomainInput(raw: string): string {
@@ -181,6 +184,7 @@ function AnalyzeOnboardingInner() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { orgId, setOrgId, projects } = useWorkspace();
+  const { isDark, toggleTheme } = useTheme();
 
   const signedIn = useSyncExternalStore(
     subscribeToAuthChange,
@@ -385,25 +389,25 @@ function AnalyzeOnboardingInner() {
   if (signedIn !== true) return null;
 
   // ===========================================================================
-  // SCREEN 1: PURE BLACK PREMIUM ONBOARDING LAUNCH SCREEN (ZERO YELLOW TINT)
+  // SCREEN 1: ONBOARDING LAUNCH SCREEN — MATCHES REIGEL DASHBOARD & LANDING THEME
   // ===========================================================================
   if (phase === "input") {
     return (
       <div
-        className="dash-dark dark relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none"
+        className="relative flex min-h-screen lg:h-screen w-full flex-col justify-between overflow-x-hidden lg:overflow-hidden select-none transition-colors duration-200"
         style={{ background: "var(--color-canvas)" }}
       >
-        {/* Subtle Neutral Technical Grid + Soft Violet Spotlight (No Yellow!) */}
+        {/* Subtle Ambient Glow matching Landing Hero & Dashboard */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div
             className="absolute left-1/2 top-1/3 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-3xl"
             style={{
               background:
-                "radial-gradient(circle, rgba(139, 92, 246, 0.22) 0%, rgba(9, 10, 13, 0) 70%)",
+                "radial-gradient(circle, rgba(212, 255, 0, 0.12) 0%, transparent 70%)",
             }}
           />
           <svg
-            className="absolute inset-0 h-full w-full opacity-[0.08]"
+            className="absolute inset-0 h-full w-full opacity-[0.05]"
             xmlns="http://www.w3.org/2000/svg"
           >
             <defs>
@@ -441,28 +445,31 @@ function AnalyzeOnboardingInner() {
 
         {/* Top Header */}
         <header
-          className="relative z-20 flex h-16 shrink-0 items-center justify-between border-b bg-surface-1/80 px-6 backdrop-blur-md sm:px-10"
+          className="relative z-20 flex h-16 shrink-0 items-center justify-between border-b bg-surface-1/90 px-6 backdrop-blur-md sm:px-10"
           style={{ borderColor: "var(--border-color)" }}
         >
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-series-6 font-mono text-xs font-black text-white shadow-xs">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs">
                 R
               </span>
               <span className="text-lg font-extrabold tracking-tight text-brand-950">
                 Reigel
               </span>
+              <span className="hidden sm:inline rounded border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-brand-500">
+                AI SEO
+              </span>
             </Link>
             <span className="hidden sm:inline text-brand-300">/</span>
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-700">
-              <span className="h-2 w-2 rounded-full bg-series-6" />
+              <span className="h-2 w-2 rounded-full bg-signal-400" />
               Step 1 · Add Your Website
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-[11px] font-semibold text-brand-500">
-              <Lock size={11} className="text-series-6" />
+              <Lock size={11} className="text-brand-400" />
               Safe Read-Only Crawler
             </span>
             {projects.length > 0 && (
@@ -475,19 +482,28 @@ function AnalyzeOnboardingInner() {
                 <ArrowRight size={13} />
               </button>
             )}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Switch to day mode" : "Switch to night mode"}
+              title={isDark ? "Switch to day mode" : "Switch to night mode"}
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 text-brand-600 transition hover:bg-surface-3 hover:text-brand-950 cursor-pointer"
+            >
+              {isDark ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
           </div>
         </header>
 
         {/* Centerpiece Onboarding Command Card */}
         <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-4 py-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-surface-1 px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-600 shadow-xs">
-            <Radar size={13} className="text-series-6" />
+            <Radar size={13} className="text-signal-400" />
             <span>Autonomous Website Structure &amp; SEO Crawler</span>
           </div>
 
           <h1 className="mt-5 text-center text-3xl font-extrabold tracking-tight text-brand-950 sm:text-5xl sm:leading-[1.12]">
             Enter your website to start{" "}
-            <span className="text-series-6">a live technical audit.</span>
+            <span className="text-signal-400">a live technical audit.</span>
           </h1>
 
           <p className="mt-3.5 max-w-xl text-center text-sm leading-relaxed text-brand-500 sm:text-base">
@@ -510,8 +526,8 @@ function AnalyzeOnboardingInner() {
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-series-6 transition-colors">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-series-6">
+                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-brand-400 transition-colors">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-signal-400">
                     <Globe size={17} />
                   </span>
                   <span className="select-none font-mono text-sm font-bold text-brand-400">
@@ -533,11 +549,11 @@ function AnalyzeOnboardingInner() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-series-6 px-7 py-4 text-sm font-extrabold text-white shadow-md transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 hover:bg-signal-500 active:scale-[0.98] px-7 py-4 text-sm font-extrabold text-signal-ink shadow-xs transition-all disabled:opacity-60 cursor-pointer"
                 >
                   {submitting ? (
                     <>
-                      <Loader2 size={16} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin text-signal-ink" />
                       <span>Starting Crawler…</span>
                     </>
                   ) : (
@@ -555,7 +571,7 @@ function AnalyzeOnboardingInner() {
                   Starts from your root domain &amp; maps pages step by step
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Zap size={13} className="text-series-6" />
+                  <Zap size={13} className="text-signal-400" />
                   128+ SEO, speed &amp; AI visibility checks
                 </span>
                 <span className="inline-flex items-center gap-1.5">
@@ -570,7 +586,7 @@ function AnalyzeOnboardingInner() {
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-signal-400">
                   <Radar size={13} />
                 </span>
                 <span>01 · Live Sitemap Spider</span>
@@ -582,7 +598,7 @@ function AnalyzeOnboardingInner() {
 
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-signal-400">
                   <Search size={13} />
                 </span>
                 <span>02 · Technical &amp; Speed Audit</span>
@@ -594,7 +610,7 @@ function AnalyzeOnboardingInner() {
 
             <div className="rounded-2xl border border-brand-200/80 bg-surface-1/80 p-4 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-series-6">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-2 text-signal-400">
                   <ShieldCheck size={13} />
                 </span>
                 <span>03 · Instant Audit Dashboard</span>
@@ -753,16 +769,16 @@ function AnalyzeOnboardingInner() {
 
   return (
     <div
-      className="dash-dark dark relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none"
+      className="relative min-h-screen lg:h-screen w-full overflow-x-hidden lg:overflow-hidden flex flex-col justify-between select-none transition-colors duration-200"
       style={{ background: "var(--color-canvas)" }}
     >
-      {/* ── PURE MATTE-BLACK TECHNICAL GRID (NO YELLOW GLOW) ── */}
+      {/* ── AMBIENT GLOW & TECHNICAL GRID (MATCHES DASHBOARD THEME) ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
           className="absolute left-1/2 top-1/2 h-[500px] w-[740px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-15 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(9, 10, 13, 0) 70%)",
+              "radial-gradient(circle, rgba(212, 255, 0, 0.10) 0%, transparent 70%)",
           }}
         />
         <svg
@@ -809,7 +825,7 @@ function AnalyzeOnboardingInner() {
       >
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-series-6 font-mono text-xs font-black text-white">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink">
               R
             </span>
             <span className="text-sm font-extrabold tracking-tight text-brand-950">
@@ -821,7 +837,7 @@ function AnalyzeOnboardingInner() {
             <Radar
               size={12}
               className={cn(
-                "text-series-6",
+                "text-signal-400",
                 !isCompleted && "animate-spin",
               )}
             />
@@ -843,7 +859,7 @@ function AnalyzeOnboardingInner() {
             </strong>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1">
-            <Zap size={12} className="text-series-6" />
+            <Zap size={12} className="text-signal-400" />
             <span className="text-brand-500">Avg Speed:</span>
             <strong className="font-mono text-brand-950">
               {avgSpeedMs ? `${avgSpeedMs}ms` : "—"}
@@ -866,6 +882,15 @@ function AnalyzeOnboardingInner() {
             <span>Website Audit</span>
             <ArrowRight size={13} />
           </button>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to day mode" : "Switch to night mode"}
+            title={isDark ? "Switch to day mode" : "Switch to night mode"}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 text-brand-600 transition hover:bg-surface-3 hover:text-brand-950 cursor-pointer"
+          >
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
       </header>
 
@@ -880,10 +905,10 @@ function AnalyzeOnboardingInner() {
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <Activity size={13} className="text-series-6" />
+                  <Activity size={13} className="text-signal-400" />
                   Active File Scanner
                 </span>
-                <span className="rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-series-6">
+                <span className="rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
                   {isCompleted ? "DONE" : "LIVE"}
                 </span>
               </div>
@@ -901,7 +926,7 @@ function AnalyzeOnboardingInner() {
                       : `https://${displayDomain}`}
                   </span>
                   {!isCompleted && (
-                    <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
+                    <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                   )}
                 </div>
                 <p className="mt-1.5 truncate text-xs font-medium text-brand-600">
@@ -947,7 +972,7 @@ function AnalyzeOnboardingInner() {
             <div className="rounded-2xl border border-brand-200 bg-surface-1/95 p-4 shadow-card backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-brand-200 pb-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
-                  <Layers size={13} className="text-series-6" />
+                  <Layers size={13} className="text-signal-400" />
                   Runtime Crawler Tasks
                 </span>
                 <span className="text-[10px] font-semibold text-brand-400">
@@ -963,7 +988,7 @@ function AnalyzeOnboardingInner() {
                       "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-all",
                       eng.status === "done"
                         ? "border-brand-200 bg-surface-2/60 text-brand-950"
-                        : "border-series-6/60 bg-surface-2 text-brand-950",
+                        : "border-brand-400/60 bg-surface-2 text-brand-950",
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
@@ -972,7 +997,7 @@ function AnalyzeOnboardingInner() {
                           <Check size={10} strokeWidth={3.5} />
                         </span>
                       ) : (
-                        <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
+                        <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-[11px] font-bold text-brand-900">
@@ -997,7 +1022,7 @@ function AnalyzeOnboardingInner() {
               {/* LEVEL 0: TOP DOMAIN PILL (Starts from your website only!) */}
               <div className="flex flex-col items-center">
                 <div className="relative flex items-center gap-3 rounded-full border border-brand-300 bg-surface-1 px-6 py-2.5 shadow-card transition-all duration-300">
-                  <Globe size={17} className="shrink-0 text-series-6" />
+                  <Globe size={17} className="shrink-0 text-signal-400" />
                   <span className="font-sans text-base font-extrabold tracking-tight text-brand-950 sm:text-lg">
                     {displayDomain}
                   </span>
@@ -1006,7 +1031,7 @@ function AnalyzeOnboardingInner() {
                   </span>
 
                   {showHome && (
-                    <span className="absolute -bottom-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-series-6" />
+                    <span className="absolute -bottom-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-signal-400" />
                   )}
                 </div>
 
@@ -1024,20 +1049,20 @@ function AnalyzeOnboardingInner() {
                       "relative flex min-w-[165px] items-center justify-center gap-2 rounded-2xl border px-5 py-2 shadow-card transition-all duration-300",
                       homeDone
                         ? "border-brand-200 bg-surface-1 text-brand-950"
-                        : "border-series-6 bg-surface-1 text-brand-950",
+                        : "border-brand-400 bg-surface-1 text-brand-950",
                     )}
                   >
-                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-series-6" />
+                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-signal-400" />
 
                     {homeDone ? (
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600">
                         <Check size={10} strokeWidth={3.5} />
                       </span>
                     ) : (
-                      <Loader2 size={14} className="shrink-0 animate-spin text-series-6" />
+                      <Loader2 size={14} className="shrink-0 animate-spin text-signal-400" />
                     )}
 
-                    <Home size={14} className="shrink-0 text-series-6" />
+                    <Home size={14} className="shrink-0 text-signal-400" />
                     <span className="font-mono text-xs font-extrabold text-brand-950 sm:text-sm">
                       / (Home)
                     </span>
@@ -1074,7 +1099,7 @@ function AnalyzeOnboardingInner() {
                               d={pathD}
                               stroke={
                                 isCurrent
-                                  ? "var(--color-series-6)"
+                                  ? "var(--color-signal-400)"
                                   : "var(--color-brand-300)"
                               }
                               strokeWidth={isCurrent ? "2.2" : "1.6"}
@@ -1086,7 +1111,7 @@ function AnalyzeOnboardingInner() {
                               r="3"
                               fill={
                                 isCurrent
-                                  ? "var(--color-series-6)"
+                                  ? "var(--color-signal-400)"
                                   : "var(--color-brand-400)"
                               }
                             />
@@ -1112,7 +1137,7 @@ function AnalyzeOnboardingInner() {
                               "relative flex flex-col items-center justify-center rounded-2xl border px-3 py-2 shadow-card transition-all duration-300",
                               isDone
                                 ? "border-brand-200 bg-surface-1 text-brand-950"
-                                : "border-series-6 bg-surface-1 text-brand-950",
+                                : "border-brand-400 bg-surface-1 text-brand-950",
                             )}
                           >
                             <div className="flex w-full items-center justify-center gap-1.5">
@@ -1123,10 +1148,10 @@ function AnalyzeOnboardingInner() {
                               ) : (
                                 <Loader2
                                   size={13}
-                                  className="shrink-0 animate-spin text-series-6"
+                                  className="shrink-0 animate-spin text-signal-400"
                                 />
                               )}
-                              <Folder size={13} className="shrink-0 text-series-6" />
+                              <Folder size={13} className="shrink-0 text-signal-400" />
                               <span className="truncate font-mono text-[11px] font-bold text-brand-950 sm:text-xs">
                                 {sec.path}
                               </span>
@@ -1180,7 +1205,7 @@ function AnalyzeOnboardingInner() {
                                     d={pathD}
                                     stroke={
                                       isCurrent
-                                        ? "var(--color-series-6)"
+                                        ? "var(--color-signal-400)"
                                         : "var(--color-brand-300)"
                                     }
                                     strokeWidth={isCurrent ? "2.2" : "1.5"}
@@ -1192,7 +1217,7 @@ function AnalyzeOnboardingInner() {
                                     r="2.8"
                                     fill={
                                       isCurrent
-                                        ? "var(--color-series-6)"
+                                        ? "var(--color-signal-400)"
                                         : "var(--color-brand-400)"
                                     }
                                   />
@@ -1216,7 +1241,7 @@ function AnalyzeOnboardingInner() {
                                   d={pathD}
                                   stroke={
                                     isCurrent
-                                      ? "var(--color-series-6)"
+                                      ? "var(--color-signal-400)"
                                       : "var(--color-brand-300)"
                                   }
                                   strokeWidth={isCurrent ? "2.2" : "1.5"}
@@ -1228,7 +1253,7 @@ function AnalyzeOnboardingInner() {
                                   r="2.8"
                                   fill={
                                     isCurrent
-                                      ? "var(--color-series-6)"
+                                      ? "var(--color-signal-400)"
                                       : "var(--color-brand-400)"
                                   }
                                 />
@@ -1256,7 +1281,7 @@ function AnalyzeOnboardingInner() {
                                 "flex flex-col items-center justify-center rounded-2xl border px-2.5 py-2 shadow-card transition-all duration-300",
                                 isDone
                                   ? "border-brand-200 bg-surface-1 text-brand-950"
-                                  : "border-series-6 bg-surface-1 text-brand-950",
+                                  : "border-brand-400 bg-surface-1 text-brand-950",
                               )}
                             >
                               <div className="flex w-full items-center justify-center gap-1.5">
@@ -1267,7 +1292,7 @@ function AnalyzeOnboardingInner() {
                                 ) : (
                                   <Loader2
                                     size={12}
-                                    className="shrink-0 animate-spin text-series-6"
+                                    className="shrink-0 animate-spin text-signal-400"
                                   />
                                 )}
                                 <FileText size={12} className="shrink-0 text-brand-400" />
@@ -1321,7 +1346,7 @@ function AnalyzeOnboardingInner() {
                         "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 font-mono text-[11px] transition-all",
                         done
                           ? "border-brand-200 bg-surface-2/60 text-brand-950"
-                          : "border-series-6 bg-surface-2 text-brand-950",
+                          : "border-brand-400 bg-surface-2 text-brand-950",
                       )}
                     >
                       <div className="flex min-w-0 items-center gap-2">
@@ -1332,7 +1357,7 @@ function AnalyzeOnboardingInner() {
                         ) : (
                           <Loader2
                             size={12}
-                            className="shrink-0 animate-spin text-series-6"
+                            className="shrink-0 animate-spin text-signal-400"
                           />
                         )}
                         <span className="truncate font-semibold">
@@ -1342,7 +1367,7 @@ function AnalyzeOnboardingInner() {
                       <span
                         className={cn(
                           "shrink-0 text-[10px] font-bold",
-                          done ? "text-brand-500" : "text-series-6",
+                          done ? "text-brand-500" : "text-signal-400",
                         )}
                       >
                         {done
@@ -1356,7 +1381,7 @@ function AnalyzeOnboardingInner() {
                 </div>
               ) : (
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs text-brand-500">
-                  <Loader2 size={13} className="shrink-0 animate-spin text-series-6" />
+                  <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                   <span>Starting from {displayDomain}…</span>
                 </div>
               )}
@@ -1374,7 +1399,7 @@ function AnalyzeOnboardingInner() {
                 {isCompleted ? (
                   <Check size={17} className="text-success-500" strokeWidth={3} />
                 ) : (
-                  <Loader2 size={16} className="animate-spin text-series-6" />
+                  <Loader2 size={16} className="animate-spin text-signal-400" />
                 )}
                 <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
                   {isCompleted
@@ -1393,7 +1418,7 @@ function AnalyzeOnboardingInner() {
             <div className="mt-2 flex w-full items-center gap-3.5">
               <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
                 <div
-                  className="h-full rounded-full bg-series-6 transition-all duration-500"
+                  className="h-full rounded-full bg-signal-400 transition-all duration-500"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
@@ -1413,10 +1438,10 @@ export default function AnalyzePage() {
     <Suspense
       fallback={
         <div
-          className="dash-dark dark flex min-h-screen items-center justify-center"
+          className="flex min-h-screen items-center justify-center transition-colors duration-200"
           style={{ background: "var(--color-canvas)" }}
         >
-          <Loader2 size={24} className="animate-spin text-series-6" />
+          <Loader2 size={24} className="animate-spin text-signal-400" />
         </div>
       }
     >

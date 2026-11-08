@@ -72,7 +72,7 @@ function CallbackContent() {
           <p className="text-sm text-error-400">{error}</p>
         ) : (
           <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-series-6 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-signal-400 border-t-transparent" />
             <p className="animate-pulse text-sm text-brand-300">Completing sign in…</p>
           </div>
         )}
@@ -87,7 +87,7 @@ export default function AuthCallbackPage() {
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-brand-950 text-brand-50">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-series-6 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-signal-400 border-t-transparent" />
             <p className="animate-pulse text-sm text-brand-300">Completing sign in…</p>
           </div>
         </div>
