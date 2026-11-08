@@ -1472,6 +1472,10 @@ export const api = {
     projectId: string,
     body: { owner: string; name: string; accessToken: string; defaultBranch?: string; framework?: string; contentDir?: string; autoMerge?: boolean },
   ) => post<SiteRepository>(`/api/projects/${projectId}/automation/repository`, body),
+  disconnectRepository: (projectId: string) =>
+    del<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/repository`).catch(() =>
+      post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/repository/disconnect`, {}),
+    ),
   createContentPiece: (
     projectId: string,
     body: { title: string; targetQuery?: string; format?: string; rationale?: string },

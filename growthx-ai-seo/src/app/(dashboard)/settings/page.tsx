@@ -32,6 +32,7 @@ import { GitHubAgentConnectWorkflow } from "@/components/settings/github-agent-c
 import { WordPressConnectModal, type CmsConnectPlatform } from "@/components/settings/wordpress-connect-modal";
 import {
   useConnectRepository,
+  useDisconnectRepository,
   useRepository,
   useWorkspace,
   useProfile,
@@ -253,7 +254,8 @@ function accountLabel(provider: GoogleProviderStatus | undefined): string {
 }
 
 function IntegrationsView() {
-  const { projectId } = useWorkspace();
+  const { projectId, projects } = useWorkspace();
+  const currentDomain = projects.find((p) => p.id === projectId)?.name;
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const profile = useProfile();
@@ -261,6 +263,7 @@ function IntegrationsView() {
 
   const repo = useRepository(projectId);
   const connectRepo = useConnectRepository(projectId);
+  const disconnectRepo = useDisconnectRepository(projectId);
   const localSeo = useLocalSeo(projectId);
 
   // Google connections query
@@ -433,12 +436,8 @@ function IntegrationsView() {
 
   const handleDisconnectGitHub = async () => {
     try {
-      await connectRepo.mutateAsync({
-        owner: "",
-        name: "",
-        accessToken: "",
-      });
-      setActionNotice({ type: "success", text: "GitHub repository disconnected." });
+      await disconnectRepo.mutateAsync();
+      setActionNotice({ type: "success", text: "GitHub repository disconnected from this workspace." });
     } catch (err) {
       setActionNotice({ type: "error", text: errorMessage(err) });
     }
@@ -680,7 +679,7 @@ function IntegrationsView() {
                 <p className="font-mono text-brand-900">{repo.data?.owner}/{repo.data?.name}</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={openGitHubModal} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">Change repository</button>
-                  <button type="button" disabled={connectRepo.isPending} onClick={handleDisconnectGitHub} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50">{connectRepo.isPending ? "Disconnecting…" : "Disconnect"}</button>
+                  <button type="button" disabled={disconnectRepo.isPending} onClick={handleDisconnectGitHub} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50 disabled:opacity-50">{disconnectRepo.isPending ? "Disconnecting…" : "Disconnect"}</button>
                 </div>
               </div>
             )}
@@ -845,6 +844,7 @@ function IntegrationsView() {
         >
           <GitHubAgentConnectWorkflow
             projectId={projectId}
+            projectDomain={currentDomain}
             userEmail={user?.email}
             existingRepo={repo.data ?? null}
             mode="modal"

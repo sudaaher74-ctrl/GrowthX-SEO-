@@ -24,6 +24,7 @@ import { errorMessage } from "@/lib/error-message";
 
 export interface GitHubAgentConnectWorkflowProps {
   projectId: string | null;
+  projectDomain?: string | null;
   userEmail?: string | null;
   existingRepo?: {
     owner?: string;
@@ -88,6 +89,7 @@ function inferFramework(repo: GitHubLiveRepo): string {
 
 export function GitHubAgentConnectWorkflow({
   projectId,
+  projectDomain,
   userEmail,
   existingRepo,
   mode = "modal",
@@ -212,10 +214,27 @@ export function GitHubAgentConnectWorkflow({
                     `${existingRepo.owner}/${existingRepo.name}`.toLowerCase(),
                 )
               : null;
-          const pick = existingMatch || valid[0];
-          setSelectedFullName(pick.full_name);
-          setBranchInput(pick.default_branch || "main");
-          setFrameworkInput(inferFramework(pick));
+
+          const normDomain = (projectDomain || "").toLowerCase().replace(/^www\./, "");
+          const domainRoot = normDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
+
+          // If domainRoot is specific (>= 3 chars), check if any repo name matches this workspace domain
+          const domainMatch = domainRoot.length >= 3
+            ? valid.find((r) => {
+                const cleanRepoName = r.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return cleanRepoName.includes(domainRoot);
+              })
+            : null;
+
+          const pick = existingMatch || domainMatch;
+          if (pick) {
+            setSelectedFullName(pick.full_name);
+            setBranchInput(pick.default_branch || "main");
+            setFrameworkInput(inferFramework(pick));
+          } else {
+            // Keep empty so user explicitly picks their repository for this project without auto-linking an unrelated repo
+            setSelectedFullName("");
+          }
         }
       } catch (err) {
         setErrorText(errorMessage(err));
@@ -223,7 +242,7 @@ export function GitHubAgentConnectWorkflow({
         setLoadingRepos(false);
       }
     },
-    [existingRepo],
+    [existingRepo, projectDomain],
   );
 
   useEffect(() => {
@@ -1078,7 +1097,22 @@ export function GitHubAgentConnectWorkflow({
 
             {/* Target Branch & Framework Settings */}
             {selectedRepoObj && (
-              <div className="grid grid-cols-1 gap-3 rounded-xl border border-brand-200 bg-surface-2 p-4 sm:grid-cols-2">
+              <>
+                {projectDomain && (() => {
+                  const normDomain = projectDomain.toLowerCase().replace(/^www\./, "");
+                  const domainRoot = normDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
+                  const cleanRepoName = selectedRepoObj.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const isMismatch = domainRoot.length >= 4 && cleanRepoName.length >= 3 && !cleanRepoName.includes(domainRoot);
+                  if (isMismatch) {
+                    return (
+                      <div className="rounded-xl border border-warning-200 bg-warning-50/80 p-3 text-xs leading-5 text-warning-800">
+                        <strong className="font-semibold">Workspace Check:</strong> This repository (<code>{selectedRepoObj.full_name}</code>) does not match the active workspace domain (<strong>{projectDomain}</strong>). Connect the dedicated repository for this site to keep projects completely separate.
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-brand-200 bg-surface-2 p-4 sm:grid-cols-2">
                 <div>
                   <label
                     htmlFor="github-branch-input"
@@ -1115,6 +1149,7 @@ export function GitHubAgentConnectWorkflow({
                   </select>
                 </div>
               </div>
+              </>
             )}
           </div>
         )}

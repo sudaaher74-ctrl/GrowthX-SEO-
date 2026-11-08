@@ -292,6 +292,8 @@ export function GitHubFixesLogView({
   });
 
   const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["automation-repo", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["repository", projectId] });
     queryClient.invalidateQueries({ queryKey: ["automation-runs", projectId] });
     queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId, isPollingRuns] });
     queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
@@ -698,6 +700,20 @@ export function GitHubFixesLogView({
     },
   });
 
+  const disconnectRepoMutation = useMutation({
+    mutationFn: () => api.disconnectRepository(projectId!),
+    onSuccess: () => {
+      setActionBanner({
+        tone: "good",
+        text: `Disconnected repository from ${domain || "this workspace"} and cleared mismatched task history.`,
+      });
+      invalidateAll();
+    },
+    onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
+
   useEffect(() => {
     const now = Date.now();
     for (const report of changeReports) {
@@ -848,6 +864,14 @@ export function GitHubFixesLogView({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <ActionButton
               variant="primary"
+              disabled={disconnectRepoMutation.isPending}
+              icon={<CircleX size={12} />}
+              onClick={() => disconnectRepoMutation.mutate()}
+            >
+              {disconnectRepoMutation.isPending ? "Disconnecting…" : "Disconnect Repo from this Workspace"}
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
               icon={<GitBranch size={12} />}
               onClick={() => {
                 setSubSection("ALL");
@@ -856,6 +880,20 @@ export function GitHubFixesLogView({
             >
               Change GitHub Repo
             </ActionButton>
+            {failedTaskRuns.some((r) => r.ctx.isRepoDomainMismatch) && (
+              <ActionButton
+                variant="secondary"
+                disabled={dismissAllFailedMutation.isPending}
+                icon={<CircleX size={12} />}
+                onClick={() =>
+                  dismissAllFailedMutation.mutate(
+                    failedTaskRuns.filter((r) => r.ctx.isRepoDomainMismatch).map((r) => r.run.id),
+                  )
+                }
+              >
+                Clear Mismatched Runs
+              </ActionButton>
+            )}
             <ActionButton
               variant="secondary"
               icon={<Globe size={12} />}
@@ -1061,13 +1099,21 @@ export function GitHubFixesLogView({
               </button>
               {connectedRepo ? (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Pill tone="good">GitHub · {connectedRepo.owner}/{connectedRepo.name}</Pill>
+                  <Pill tone={repoMismatchInfo ? "warn" : "good"}>GitHub · {connectedRepo.owner}/{connectedRepo.name}</Pill>
                   <button
                     type="button"
                     onClick={() => setShowRepoConnect((v) => !v)}
                     className="text-[11px] font-semibold text-accent-700 hover:underline"
                   >
                     {showRepoConnect ? "Hide GitHub" : "Change repo"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disconnectRepoMutation.isPending}
+                    onClick={() => disconnectRepoMutation.mutate()}
+                    className="text-[11px] font-semibold text-error-600 hover:underline disabled:opacity-50"
+                  >
+                    {disconnectRepoMutation.isPending ? "Disconnecting…" : "Disconnect"}
                   </button>
                 </div>
               ) : (
@@ -1087,6 +1133,7 @@ export function GitHubFixesLogView({
               <div className="rounded-xl border bg-brand-50/40 p-4">
                 <RepoConnectForm
                   projectId={projectId}
+                  projectDomain={domain}
                   existingRepo={connectedRepo}
                   onConnected={() => {
                     setShowRepoConnect(false);
@@ -1386,6 +1433,7 @@ export function GitHubFixesLogView({
                   variant="primary"
                   disabled={
                     !connectedRepo ||
+                    Boolean(repoMismatchInfo) ||
                     isEngineerBusy ||
                     runPlanFixesMutation.isPending ||
                     selectedFindingIds.length > 8 ||
@@ -1404,9 +1452,11 @@ export function GitHubFixesLogView({
                 >
                   {runPlanFixesMutation.isPending
                     ? "Opening GitHub PR…"
-                    : selectedFindingIds.length > 0
-                      ? `Fix ${count(selectedFindingIds.length)} Selected via GitHub PR`
-                      : `Queue next 8 ${moduleFilter === "ALL" ? "plan" : GROUPS.find((g) => g.id === moduleFilter)?.label} findings`}
+                    : repoMismatchInfo
+                      ? "Resolve Repo Mismatch to Fix"
+                      : selectedFindingIds.length > 0
+                        ? `Fix ${count(selectedFindingIds.length)} Selected via GitHub PR`
+                        : `Queue next 8 ${moduleFilter === "ALL" ? "plan" : GROUPS.find((g) => g.id === moduleFilter)?.label} findings`}
                 </ActionButton>
               </div>
             </div>
@@ -2122,16 +2172,29 @@ export function GitHubFixesLogView({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {ctx.isRepoDomainMismatch && (
-                        <ActionButton
-                          variant="primary"
-                          icon={<GitBranch size={12} />}
-                          onClick={() => {
-                            setSubSection("ALL");
-                            setShowRepoConnect(true);
-                          }}
-                        >
-                          Change GitHub Repo
-                        </ActionButton>
+                        <>
+                          <ActionButton
+                            variant="primary"
+                            disabled={disconnectRepoMutation.isPending}
+                            icon={<CircleX size={12} />}
+                            onClick={() => {
+                              disconnectRepoMutation.mutate();
+                              dismissRunMutation.mutate(run.id);
+                            }}
+                          >
+                            Disconnect Repo &amp; Clear
+                          </ActionButton>
+                          <ActionButton
+                            variant="secondary"
+                            icon={<GitBranch size={12} />}
+                            onClick={() => {
+                              setSubSection("ALL");
+                              setShowRepoConnect(true);
+                            }}
+                          >
+                            Change GitHub Repo
+                          </ActionButton>
+                        </>
                       )}
                       <ActionButton
                         variant="secondary"
@@ -2235,10 +2298,12 @@ export function GitHubFixesLogView({
 
 function RepoConnectForm({
   projectId,
+  projectDomain,
   existingRepo,
   onConnected,
 }: {
   projectId: string | null;
+  projectDomain?: string | null;
   existingRepo: { owner: string; name: string; defaultBranch: string; framework: string } | null;
   onConnected: () => void;
 }) {
@@ -2247,6 +2312,7 @@ function RepoConnectForm({
   return (
     <GitHubAgentConnectWorkflow
       projectId={projectId}
+      projectDomain={projectDomain}
       userEmail={profile.data?.email}
       existingRepo={existingRepo}
       mode="inline"

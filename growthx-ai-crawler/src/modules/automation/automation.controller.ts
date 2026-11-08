@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Optional, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Optional, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AutomationService } from './automation.service';
@@ -190,6 +190,20 @@ export class AutomationController {
   })
   connectRepository(@Param('projectId') projectId: string, @Body() body: ConnectRepoDto) {
     return this.automation.connectRepository(projectId, body);
+  }
+
+  @Delete('repository')
+  @ApiOperation({ summary: 'Disconnect GitHub repository for this project' })
+  @ApiParam({ name: 'projectId' })
+  disconnectRepository(@Param('projectId') projectId: string) {
+    return this.automation.disconnectRepository(projectId);
+  }
+
+  @Post('repository/disconnect')
+  @ApiOperation({ summary: 'Disconnect GitHub repository for this project' })
+  @ApiParam({ name: 'projectId' })
+  disconnectRepositoryPost(@Param('projectId') projectId: string) {
+    return this.automation.disconnectRepository(projectId);
   }
 
   // ── content pipeline

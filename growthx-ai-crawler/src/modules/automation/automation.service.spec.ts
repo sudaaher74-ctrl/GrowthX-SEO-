@@ -65,11 +65,13 @@ describe('AutomationService', () => {
       siteRepository: {
         findUnique: jest.fn().mockResolvedValue(REPO),
         upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'repo_1', ...create })),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       automationRun: {
         create: jest.fn().mockResolvedValue({ id: 'run_1' }),
         update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'run_1', ...data })),
         findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
       issue: { findMany: jest.fn().mockResolvedValue([issue()]) },
       aIRecommendation: {
@@ -169,6 +171,13 @@ describe('AutomationService', () => {
       await expect(
         service.connectRepository('proj_1', { owner: 'a', name: '', accessToken: 't' }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('disconnects a repository and cleans up associated runs for the project', async () => {
+      const res = await service.disconnectRepository('proj_1');
+      expect(res).toEqual({ disconnected: true });
+      expect(prisma.automationRun.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'proj_1' } });
+      expect(prisma.siteRepository.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'proj_1' } });
     });
   });
 

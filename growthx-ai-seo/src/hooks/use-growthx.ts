@@ -363,7 +363,23 @@ export function useConnectRepository(projectId: string | null) {
   return useMutation({
     mutationFn: (body: { owner: string; name: string; accessToken: string; defaultBranch?: string; framework?: string; contentDir?: string; autoMerge?: boolean }) =>
       api.connectRepository(projectId!, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["repository", projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["repository", projectId] });
+      qc.invalidateQueries({ queryKey: ["automation-repo", projectId] });
+      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
+    },
+  });
+}
+
+export function useDisconnectRepository(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.disconnectRepository(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["repository", projectId] });
+      qc.invalidateQueries({ queryKey: ["automation-repo", projectId] });
+      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
+    },
   });
 }
 

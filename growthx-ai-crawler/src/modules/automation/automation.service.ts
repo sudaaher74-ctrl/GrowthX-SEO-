@@ -154,6 +154,20 @@ export class AutomationService {
     return repo ? this.redact(repo) : null;
   }
 
+  async disconnectRepository(projectId: string) {
+    if (this.prisma.automationRun?.deleteMany) {
+      await this.prisma.automationRun.deleteMany({
+        where: { projectId },
+      });
+    }
+    if (this.prisma.siteRepository?.deleteMany) {
+      await this.prisma.siteRepository.deleteMany({
+        where: { projectId },
+      });
+    }
+    return { disconnected: true };
+  }
+
   /** The token must never leave the server. */
   private redact<T extends { accessTokenEncrypted: string }>(repo: T) {
     const { accessTokenEncrypted: _omitted, ...safe } = repo;
