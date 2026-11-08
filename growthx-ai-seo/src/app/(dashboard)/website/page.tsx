@@ -131,13 +131,13 @@ function WebsiteAuditClient() {
   }, [crawl.data?.status, refetchHistory, refetchIssues, refetchPages, refetchPortfolio]);
 
   async function handleReCrawl() {
-    if (!client?.domain || crawling || crawlInProgress) return;
+    if (!auditDomain || crawling || crawlInProgress) return;
     setCrawlActionError(null);
     setCrawlActionMessage(null);
     setCrawling(true);
     try {
       await api.startCrawl({
-        domain: client.domain,
+        domain: auditDomain,
         maxDepth: 20,
         maxConcurrency: 10,
         useSitemap: true,
@@ -145,9 +145,9 @@ function WebsiteAuditClient() {
       const latest = await crawl.refetch();
       await history.refetch();
       if (latest.data?.status === "PENDING" || latest.data?.status === "RUNNING") {
-        setCrawlActionMessage("The website check for " + client.domain + " has started. This page will update while it runs.");
+        setCrawlActionMessage("The website check for " + auditDomain + " has started. This page will update while it runs.");
       } else {
-        setCrawlActionMessage("The website check for " + client.domain + " was accepted. Refresh the page in a moment to see its progress.");
+        setCrawlActionMessage("The website check for " + auditDomain + " was accepted. Refresh the page in a moment to see its progress.");
       }
     } catch (error) {
       setCrawlActionError(
@@ -297,7 +297,7 @@ function WebsiteAuditClient() {
               <button
                 type="button"
                 onClick={handleReCrawl}
-                disabled={crawling || !client?.domain}
+                disabled={crawling || !auditDomain}
                 className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
               >
                 <RefreshCw size={13} className={cn(crawling && "animate-spin")} />

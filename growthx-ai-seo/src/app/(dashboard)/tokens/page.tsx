@@ -31,14 +31,14 @@ export default function TokensPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Tokens"
-        subtitle="What your workspace can use each month. AI analysis and local ranking scans use tokens."
+        title="Credits"
+        subtitle="What your workspace can use each month. AI analysis, visibility checks, and automated scans use credits."
       />
 
       <QueryState isLoading={!orgId || tokens.isLoading} error={tokens.error}>
         {data && !isActive(data) && (
           <Panel padded>
-            <p className="text-[13px] font-semibold text-brand-950">Tokens are switched off</p>
+            <p className="text-[13px] font-semibold text-brand-950">Credits are switched off</p>
             <p className="mt-1 text-[12.5px] text-brand-500">
               Nothing you do here is counted or limited on this deployment.
             </p>
@@ -74,13 +74,13 @@ function Overview({ data }: { data: ActiveTokens }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi
-          label="Available now"
+          label="Available credits"
           value={formatTokens(data.available)}
           tone={standing === "out" ? "danger" : "default"}
-          sub={`${formatTokensExact(data.available)} tokens. Monthly tokens are used first.`}
+          sub={`${formatTokensExact(data.available)} credits. Monthly allowance is used first.`}
         />
         <Kpi
-          label="Monthly tokens left"
+          label="Monthly allowance left"
           value={formatTokens(data.allowance.remaining)}
           meter={pct}
           sub={
@@ -93,25 +93,25 @@ function Overview({ data }: { data: ActiveTokens }) {
           }
         />
         <Kpi
-          label="Bonus tokens"
+          label="Bonus credits"
           value={formatTokens(data.bonus)}
-          sub="Never expire. Used after your monthly tokens."
+          sub="Never expire. Used after your monthly allowance."
         />
       </div>
 
       <Panel
         title="Used this month"
-        subtitle={totalUsed > 0 ? `${formatTokensExact(totalUsed)} tokens in total` : undefined}
+        subtitle={totalUsed > 0 ? `${formatTokensExact(totalUsed)} credits in total` : undefined}
       >
         {data.usage.lines.length === 0 ? (
-          <p className="px-4 py-6 text-[12.5px] text-brand-500">Nothing has used tokens yet this month.</p>
+          <p className="px-4 py-6 text-[12.5px] text-brand-500">Nothing has used credits yet this month.</p>
         ) : (
           <Table minWidth={560}>
             <thead>
               <tr>
                 <Th>What</Th>
                 <Th align="right">Times</Th>
-                <Th align="right">Tokens</Th>
+                <Th align="right">Credits</Th>
                 <Th>Share</Th>
               </tr>
             </thead>
@@ -140,23 +140,23 @@ function Overview({ data }: { data: ActiveTokens }) {
         )}
       </Panel>
 
-      <Panel title="What uses tokens" subtitle="Anything not listed here does not use tokens." padded>
+      <Panel title="What uses credits" subtitle="Anything not listed here does not use credits." padded>
         <ul className="space-y-4">
           <li>
             <p className="text-[12.5px] font-semibold text-brand-950">{actionLabel("AI_USAGE")}</p>
             <p className="mt-0.5 text-[12px] text-brand-500">
               The AI reads and writes in small pieces of text called tokens, about four characters each. Every piece
-              it reads costs {data.rates.ai.inputWeight} of your tokens, and every piece it writes costs{" "}
-              {data.rates.ai.outputWeight}. A short answer costs little; a full report costs more.
+              it reads costs {data.rates.ai.inputWeight} credit, and every piece it writes costs{" "}
+              {data.rates.ai.outputWeight} credits. A short answer costs little; a full report costs more.
             </p>
           </li>
           {data.rates.actions.map((rate) => (
             <li key={rate.action}>
               <p className="text-[12.5px] font-semibold text-brand-950">{actionLabel(rate.action)}</p>
               <p className="mt-0.5 text-[12px] text-brand-500">
-                {formatTokensExact(rate.tokensPerUnit)} tokens per {rate.unit}.
+                {formatTokensExact(rate.tokensPerUnit)} credits per {rate.unit}.
                 {rate.action === "GEO_GRID_POINT" &&
-                  ` A 3×3 scan checks 9 points (${formatTokensExact(9 * rate.tokensPerUnit)} tokens) and a 9×9 scan checks 81 (${formatTokensExact(81 * rate.tokensPerUnit)}). If a scan fails, its tokens are returned.`}
+                  ` A 3×3 scan checks 9 points (${formatTokensExact(9 * rate.tokensPerUnit)} credits) and a 9×9 scan checks 81 (${formatTokensExact(81 * rate.tokensPerUnit)}). If a scan fails, its credits are returned.`}
               </p>
             </li>
           ))}
@@ -171,20 +171,20 @@ function History({ orgId, mode }: { orgId: string | null; mode: ActiveTokens["mo
   const rows = ledger.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <Panel title="History" subtitle="Every change to your tokens, newest first.">
+    <Panel title="History" subtitle="Every change to your credits, newest first.">
       <QueryState
         isLoading={ledger.isLoading}
         error={ledger.error}
         isEmpty={rows.length === 0}
         emptyTitle="No history yet"
-        emptyBody="Your tokens will be listed here as they are added and used."
+        emptyBody="Your credits will be listed here as they are added and used."
       >
         <Table minWidth={720}>
           <thead>
             <tr>
               <Th>When</Th>
               <Th>What</Th>
-              <Th align="right">Tokens</Th>
+              <Th align="right">Credits</Th>
               <Th align="right">Balance after</Th>
             </tr>
           </thead>
@@ -208,7 +208,7 @@ function History({ orgId, mode }: { orgId: string | null; mode: ActiveTokens["mo
                     {note && <p className="mt-0.5 text-[11px] text-brand-400">{note}</p>}
                     {mode === "enforce" && row.shortfall > 0 && (
                       <p className="mt-0.5 text-[11px] text-warning-700">
-                        {formatTokensExact(row.shortfall)} more tokens were needed than you had.
+                        {formatTokensExact(row.shortfall)} more credits were needed than you had.
                       </p>
                     )}
                   </Td>

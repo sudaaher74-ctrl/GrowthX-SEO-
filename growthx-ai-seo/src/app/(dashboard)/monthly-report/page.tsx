@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -97,10 +97,14 @@ export default function MonthlyReport() {
   const { projectId, orgId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const project = projects.find((item) => item.id === projectId);
-  const domain = portfolio.data?.clients.find((item) => item.projectId === projectId)?.domain;
+  const domain = project?.name ?? portfolio.data?.clients.find((item) => item.projectId === projectId)?.domain;
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"ALL" | "TRAFFIC" | "AI" | "FIXES" | "AUDIT">("ALL");
+
+  useEffect(() => {
+    setSelectedMonth(null);
+  }, [projectId]);
 
   const search = useQuery({
     queryKey: ["monthly-search", projectId],
@@ -412,7 +416,7 @@ export default function MonthlyReport() {
       ) : (
         <>
           {/* Navigation Sub-Pills */}
-          <div className="no-print flex flex-wrap items-center gap-1.5 border-b border-brand-200 pb-3 text-xs">
+          <div className="no-print flex flex-wrap items-center gap-1.5 pb-1 text-xs">
             {[
               { id: "ALL", label: "Full Report" },
               { id: "TRAFFIC", label: "Search & Visitors" },
@@ -424,10 +428,10 @@ export default function MonthlyReport() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                className={`rounded-full px-3.5 py-1.5 text-[11.5px] font-semibold transition shadow-xs ${
                   activeTab === tab.id
-                    ? "bg-brand-950 text-brand-50"
-                    : "text-brand-600 hover:bg-surface-2 hover:text-brand-950"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "border border-brand-200/60 bg-brand-50 text-brand-400 hover:text-brand-950 hover:bg-brand-100"
                 }`}
               >
                 {tab.label}

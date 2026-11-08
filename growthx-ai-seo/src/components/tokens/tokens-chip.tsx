@@ -32,7 +32,7 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
           : `Refills ${refills}`;
 
   if (variant === "icon") {
-    const description = `${formatTokens(data.available)} tokens · ${caption}`;
+    const description = `${formatTokens(data.available)} credits · ${caption}`;
     return (
       <div className="group relative mx-auto mb-2 flex justify-center">
         <Link
@@ -55,7 +55,7 @@ export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () =
           <span className="sr-only">{description}</span>
         </Link>
         <div className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-[11px] font-semibold text-brand-950 shadow-lg group-hover:flex group-hover:items-center group-hover:gap-2">
-          <span>Tokens: {formatTokens(data.available)}</span>
+          <span>Credits: {formatTokens(data.available)}</span>
           <span className="text-[10px] font-normal text-brand-400">· {caption}</span>
         </div>
       </div>
