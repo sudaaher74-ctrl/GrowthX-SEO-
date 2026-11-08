@@ -42,7 +42,10 @@ import {
   useUpdateMemberRole,
   usePortfolio,
   useLocalSeo,
+  useTokens,
+  setActiveProject,
 } from "@/hooks/use-growthx";
+import { formatTokens, formatTokensExact, isActive, refillDate, standingOf } from "@/lib/tokens";
 import { api, type GoogleProviderStatus, type Role } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
@@ -875,6 +878,7 @@ function IntegrationsView() {
 function WebsitesView() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
+  const router = useRouter();
   const clients = portfolio.data?.clients ?? [];
 
   return (
@@ -888,15 +892,15 @@ function WebsitesView() {
         {clients.map((c) => (
           <div
             key={c.projectId}
-            className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-4 shadow-2xs ${
-              c.projectId === projectId ? "ring-1 ring-primary-500" : ""
+            className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs ${
+              c.projectId === projectId ? "ring-1 ring-signal-400" : ""
             }`}
           >
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-brand-950">{c.name || c.domain}</h3>
                 {c.projectId === projectId && (
-                  <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10.5px] font-bold text-primary-700">
+                  <span className="rounded-full bg-signal-400/20 px-2 py-0.5 text-[10.5px] font-bold text-brand-950 font-mono">
                     Active
                   </span>
                 )}
@@ -910,9 +914,10 @@ function WebsitesView() {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = `/website`;
+                  setActiveProject(c.projectId);
+                  router.push("/website");
                 }}
-                className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                className="rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-3 hover:text-brand-950 cursor-pointer transition-colors"
               >
                 View Audit
               </button>
@@ -929,58 +934,88 @@ function WebsitesView() {
    ========================================================================= */
 
 function CreditsView() {
+  const { orgId } = useWorkspace();
+  const tokens = useTokens(orgId);
+  const data = tokens.data;
+  const router = useRouter();
+
+  if (!data || !isActive(data)) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-base font-bold text-brand-950">Credits</h2>
+          <p className="text-xs text-brand-500">Monitor credit consumption, active allocations, and plan allowances</p>
+        </div>
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
+          <p className="text-xs font-bold text-brand-950">Credits are switched off or loading…</p>
+          <p className="mt-1 text-xs text-brand-500">Nothing in this workspace is limited or billed.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const standing = standingOf(data);
+  const refills = refillDate(data.allowance.periodEnd);
+  const pct = Math.round((data.allowance.remaining / Math.max(1, data.allowance.granted)) * 100);
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-bold text-brand-950">Credits & Tokens</h2>
-        <p className="text-xs text-brand-500">Monitor token consumption, active allocations, and plan allowances</p>
+        <h2 className="text-base font-bold text-brand-950">Credits</h2>
+        <p className="text-xs text-brand-500">Monitor credit consumption, active allocations, and plan allowances</p>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-2xs">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-brand-400">Available Balance</p>
-            <p className="mt-1 text-3xl font-extrabold text-brand-950">2.633M tokens</p>
-            <p className="mt-1 text-xs text-brand-500">Refills on 1 November 2026</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-400">Available Credits</p>
+            <p className="mt-1 text-3xl font-extrabold text-brand-950">
+              {formatTokens(data.available)} <span className="text-lg font-semibold text-brand-500">credits</span>
+            </p>
+            <p className="mt-1 text-xs text-brand-500">
+              {formatTokensExact(data.available)} available · Refills on {refills}
+            </p>
           </div>
           <button
             type="button"
-            className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-primary-700"
+            onClick={() => router.push("/tokens")}
+            className="rounded-xl bg-signal-400 px-4 py-2 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 active:scale-95 transition-all cursor-pointer"
           >
-            Upgrade Plan
+            View Full Credit Ledger &amp; Rates
           </button>
         </div>
 
-        <div className="mt-6 border-t pt-5">
-          <p className="mb-2 text-xs font-semibold text-brand-700">Usage by Engine</p>
-          <div className="space-y-2">
-            <div>
-              <div className="flex justify-between text-xs text-brand-600">
-                <span>Fix Engine & Code Synthesis</span>
-                <span className="font-mono">1.12M tokens</span>
-              </div>
-              <div className="mt-1 h-2 w-full rounded-full bg-brand-100">
-                <div className="h-2 rounded-full bg-primary-600" style={{ width: "42%" }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs text-brand-600">
-                <span>AI Visibility Sampling</span>
-                <span className="font-mono">840K tokens</span>
-              </div>
-              <div className="mt-1 h-2 w-full rounded-full bg-brand-100">
-                <div className="h-2 rounded-full bg-signal-400" style={{ width: "32%" }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs text-brand-600">
-                <span>Backlink & Competitor Intelligence</span>
-                <span className="font-mono">673K tokens</span>
-              </div>
-              <div className="mt-1 h-2 w-full rounded-full bg-brand-100">
-                <div className="h-2 rounded-full bg-brand-500" style={{ width: "26%" }} />
-              </div>
-            </div>
+        <div className="mt-6 border-t border-brand-200/80 pt-5">
+          <div className="flex items-center justify-between text-xs font-semibold text-brand-700">
+            <span>Monthly Allowance Left</span>
+            <span className="font-mono text-brand-950">
+              {formatTokens(data.allowance.remaining)} / {formatTokens(data.allowance.granted)} ({pct}%)
+            </span>
+          </div>
+          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
+            <div
+              className="h-full rounded-full bg-signal-400 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+            />
+          </div>
+          <div className="mt-4 flex items-center justify-between text-[11px] text-brand-500">
+            <span>
+              Bonus credits: <strong className="text-brand-800">{formatTokens(data.bonus)}</strong> (never expire)
+            </span>
+            <span>
+              Standing:{" "}
+              <strong
+                className={
+                  standing === "out"
+                    ? "text-error-600"
+                    : standing === "low"
+                      ? "text-warning-600"
+                      : "text-success-600"
+                }
+              >
+                {standing === "out" ? "Exhausted" : standing === "low" ? "Low" : "Healthy"}
+              </strong>
+            </span>
           </div>
         </div>
       </div>
@@ -1001,7 +1036,7 @@ function AgentsView() {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-2xl border bg-white p-5 shadow-2xs">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-brand-950">Fix Engine Remediation Agent</h3>
@@ -1013,7 +1048,7 @@ function AgentsView() {
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-5 shadow-2xs">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-brand-950">Continuous Website Audit Agent</h3>
@@ -1025,7 +1060,7 @@ function AgentsView() {
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-5 shadow-2xs">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-brand-950">AI Visibility & Brand Monitor</h3>
@@ -1054,19 +1089,19 @@ function SkillsMcpView() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border bg-white p-5 shadow-2xs">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
           <h3 className="font-bold text-brand-950">Crawler Core MCP</h3>
           <p className="mt-0.5 text-xs text-brand-500">Robots-aware, headless renderer and DOM extractor</p>
-          <div className="mt-4 flex items-center justify-between border-t pt-2 text-xs">
+          <div className="mt-4 flex items-center justify-between border-t border-brand-200/80 pt-2 text-xs">
             <span className="text-success-700 font-medium">● Operational</span>
             <span className="text-brand-400">v3.2</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-5 shadow-2xs">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
           <h3 className="font-bold text-brand-950">Multi-AI Router MCP</h3>
           <p className="mt-0.5 text-xs text-brand-500">Queries Claude, OpenAI, and Sarvam with zero hallucination gates</p>
-          <div className="mt-4 flex items-center justify-between border-t pt-2 text-xs">
+          <div className="mt-4 flex items-center justify-between border-t border-brand-200/80 pt-2 text-xs">
             <span className="text-success-700 font-medium">● Operational</span>
             <span className="text-brand-400">v2.8</span>
           </div>
@@ -1112,7 +1147,7 @@ function TeamSettingsView() {
         <p className="text-xs text-brand-500">Invite colleagues and manage role-based workspace permissions</p>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-white p-6 shadow-2xs">
+      <div className="overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
         <form onSubmit={handleInvite} className="flex flex-wrap gap-2">
           <input
             value={email}
@@ -1191,7 +1226,7 @@ function PersonalizationView() {
         <p className="text-xs text-brand-500">Fine-tune tone, editorial style, and audience positioning</p>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-2xs space-y-4">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-4">
         <div>
           <label className="block text-xs font-semibold text-brand-700 mb-1">Tone of Voice</label>
           <select
@@ -1243,7 +1278,7 @@ function AccountSecurityView() {
         <p className="text-xs text-brand-500">Manage credentials, authentication methods, and security settings</p>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-2xs space-y-4">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-4">
         <div>
           <label className="block text-xs font-semibold text-brand-400 uppercase tracking-wider mb-1">Email</label>
           <input
@@ -1291,7 +1326,7 @@ function DevicesView() {
         <p className="text-xs text-brand-500">Browsers and devices currently authorized to access this workspace</p>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-2xs space-y-3">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-3">
         <div className="flex items-center justify-between py-2 border-b">
           <div className="flex items-center gap-3">
             <Smartphone size={18} className="text-brand-500" />
@@ -1321,7 +1356,7 @@ function SubscriptionView() {
         <p className="text-xs text-brand-500">Manage plan tier, monthly allowances, and invoices</p>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-2xs">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-bold text-primary-700">
