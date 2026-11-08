@@ -242,11 +242,12 @@ export default function CompetitorIntelligencePage() {
 }
 
 function CompetitorIntelligenceClient() {
-  const { orgId, projectId } = useWorkspace();
+  const { orgId, projectId, projects } = useWorkspace();
   const qc = useQueryClient();
   const portfolio = usePortfolio(orgId);
+  const activeProject = projects.find((p) => p.id === projectId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
-  const customerDomain = clientRow?.domain || "";
+  const customerDomain = activeProject?.name ?? clientRow?.domain ?? "";
 
   const searchParams = useSearchParams();
   const pathname = usePathname();

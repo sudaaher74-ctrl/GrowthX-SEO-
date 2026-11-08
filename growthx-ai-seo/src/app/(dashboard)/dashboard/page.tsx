@@ -74,7 +74,14 @@ export default function UnifiedDashboardPage() {
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
   const [auditActionError, setAuditActionError] = useState<string | null>(null);
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
+  const activeProject = projects.find((p) => p.id === projectId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const currentDomain = activeProject?.name ?? client?.domain ?? null;
+
+  useEffect(() => {
+    setPickedGroup(null);
+    setAuditActionError(null);
+  }, [projectId]);
 
   useEffect(() => {
     let pendingDomain = "";
@@ -90,7 +97,7 @@ export default function UnifiedDashboardPage() {
     }
   }, [workspaceLoading, portfolio.isLoading, portfolio.data?.clients.length, orgId, projects.length, router]);
 
-  const crawl = useLatestCrawl(client?.domain ?? null);
+  const crawl = useLatestCrawl(currentDomain);
   const startCrawlMutation = useStartCrawl();
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
@@ -186,11 +193,11 @@ export default function UnifiedDashboardPage() {
   const setupIncomplete = setupSteps.some((s) => !s.done);
 
   const runAudit = async () => {
-    if (!client?.domain || auditBusy) return;
+    if (!currentDomain || auditBusy) return;
     setAuditActionError(null);
     try {
       await startCrawlMutation.mutateAsync({
-        domain: client.domain,
+        domain: currentDomain,
         maxDepth: 10,
         maxConcurrency: 3,
         useSitemap: true,
@@ -285,10 +292,10 @@ export default function UnifiedDashboardPage() {
             Dashboard
           </h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-medium text-brand-400">
-            {client?.domain ? (
+            {currentDomain ? (
               <>
                 <Globe size={12} className="text-brand-400" />
-                <span>{client.domain}</span>
+                <span>{currentDomain}</span>
                 <span className="text-brand-300">·</span>
                 <span>
                   {crawlCompleted
@@ -311,7 +318,7 @@ export default function UnifiedDashboardPage() {
           <button
             type="button"
             onClick={runAudit}
-            disabled={auditBusy || !client?.domain}
+            disabled={auditBusy || !currentDomain}
             className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm"
           >
             <RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />
@@ -365,12 +372,12 @@ export default function UnifiedDashboardPage() {
               body={
                 crawlRunning
                   ? "Your score and to-do list will appear here as soon as the check is finished."
-                  : client?.domain
+                  : currentDomain
                     ? "Run a check and we'll give your website a score and a simple list of things to fix."
                     : "Add your website above and we'll give it a score and a simple list of things to fix."
               }
               action={
-                crawlRunning || !client?.domain
+                crawlRunning || !currentDomain
                   ? undefined
                   : { label: "Check my website", onClick: runAudit, disabled: auditBusy }
               }

@@ -38,21 +38,23 @@ function WebsiteAuditClient() {
   const queryDomain = searchParams.get("domain");
   const tabParam = searchParams.get("tab");
 
-  const { orgId, projectId } = useWorkspace();
+  const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
 
   const clients = portfolio.data?.clients ?? [];
+  const activeProject = projects.find((p) => p.id === projectId);
   const client = queryDomain
     ? (clients.find((c) => c.domain === queryDomain) ?? null)
-    : (clients.find((c) => c.projectId === projectId) ?? clients[0] ?? null);
-  const auditProjectId = client?.projectId ?? null;
+    : (clients.find((c) => c.projectId === projectId) ?? null);
+  const auditProjectId = queryDomain ? (client?.projectId ?? projectId) : projectId;
+  const auditDomain = queryDomain ?? activeProject?.name ?? client?.domain ?? null;
 
-  const crawl = useLatestCrawl(client?.domain ?? null);
+  const crawl = useLatestCrawl(auditDomain);
   const crawlInProgress = crawl.data?.status === "PENDING" || crawl.data?.status === "RUNNING";
-  const cancelCrawl = useCancelCrawl(client?.domain ?? null);
+  const cancelCrawl = useCancelCrawl(auditDomain);
   const issues = useQuery({queryKey:["audit-all-issues",crawl.data?.id],queryFn:()=>allCrawlRows((page)=>api.getCrawlIssues(crawl.data!.id,{page,limit:200})),enabled:!!crawl.data?.id,refetchInterval:crawlInProgress?4000:false});
   const pages = useQuery({queryKey:["audit-all-pages",crawl.data?.id],queryFn:()=>allCrawlRows((page)=>api.getCrawlPages(crawl.data!.id,{page,limit:200})),enabled:!!crawl.data?.id,refetchInterval:crawlInProgress?4000:false});
-  const history = useCrawlHistory(client?.domain ?? null, 12);
+  const history = useCrawlHistory(auditDomain, 12);
   // Counts come from the one endpoint every screen shares. The lists below are
   // fetched a page at a time — 100 rows — so their length is a page size, not a
   // count. Reading it as one is how this screen said 100 issues while the

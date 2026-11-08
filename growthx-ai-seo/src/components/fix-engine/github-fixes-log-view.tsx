@@ -220,6 +220,14 @@ export function GitHubFixesLogView({
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const autoVerificationAttempts = useRef(new Map<string, number>());
 
+  useEffect(() => {
+    setSelectedFindingIds([]);
+    setTrackedRunId(null);
+    setShowRepoConnect(false);
+    setActionBanner(null);
+    setCmsFinding(undefined);
+  }, [projectId]);
+
   const findingsQuery = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
   const issueGroups = useIssueGroups(projectId, { limit: 100 });
