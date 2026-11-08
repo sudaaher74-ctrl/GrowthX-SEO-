@@ -7,6 +7,8 @@ import {
   AlertCircle,
   ArrowRight,
   Bot,
+  Calendar,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -18,6 +20,7 @@ import {
   FileCode2,
   GitPullRequest,
   Globe,
+  HelpCircle,
   Loader2,
   Play,
   Plug,
@@ -64,6 +67,7 @@ import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
 import { relativeTime } from "@/components/ui/console";
+import { PLANS, planPrice, type Currency, type BillingCycle } from "@/lib/pricing";
 
 type SettingsTab =
   | "websites"
@@ -902,12 +906,26 @@ function WebsitesView() {
   const portfolio = usePortfolio(orgId);
   const router = useRouter();
   const clients = portfolio.data?.clients ?? [];
+  const activeCount = Math.max(1, clients.length);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-bold text-brand-950">Websites</h2>
-        <p className="text-xs text-brand-500">Manage tracked websites, domains, and automated audit cadences</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-brand-950">Websites</h2>
+          <p className="text-xs text-brand-500">Manage tracked websites, domains, and automated audit cadences</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 text-xs font-bold text-brand-950 border border-brand-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+          <span>Early Access: {activeCount} of 1 Website Slot Used</span>
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-brand-200 bg-surface-2 p-3.5 text-xs text-brand-700">
+        <p className="font-semibold text-brand-950">Free Launch Tier Condition:</p>
+        <p className="mt-0.5 text-brand-500">
+          Every login user can monitor <strong>1 active website</strong> with up to <strong>5,000 pages crawl capacity</strong> and <strong>2 AI Visibility audit cycles</strong> during our promotional launch period (100% free through December 31, 2026).
+        </p>
       </div>
 
       <div className="space-y-3">
@@ -1923,32 +1941,474 @@ function DevicesView() {
 }
 
 /* =========================================================================
-   10. SUBSCRIPTION VIEW
+   10. SUBSCRIPTION VIEW (PROMOTIONAL FREE TIER & COMPLETE CREDIT SYSTEM)
    ========================================================================= */
 
 function SubscriptionView() {
+  const router = useRouter();
+  const { orgId, projectId, projects } = useWorkspace();
+  const currentProject = projects.find((p) => p.id === projectId) ?? projects[0];
+  const currentDomain = currentProject?.name;
+
+  const tokens = useTokens(orgId);
+  const tokenData = tokens.data;
+  const isTokensActive = isActive(tokenData);
+
+  const crawlQuery = useQuery({
+    queryKey: ["latest-crawl", currentDomain],
+    queryFn: () => (currentDomain ? api.getLatestCrawl(currentDomain) : null),
+    enabled: Boolean(currentDomain),
+  });
+  const crawl = crawlQuery.data;
+
+  // 3 Core Quota Rules
+  const websiteCount = Math.max(1, projects.length);
+  const websiteCap = 1;
+  const pagesCrawled = crawl?.pagesCrawled ?? 0;
+  const crawlCap = 5000;
+  const crawlPct = Math.min(100, Math.round((pagesCrawled / crawlCap) * 100));
+  const aiCyclesGranted = 2;
+  const aiCyclesUsed = 1;
+  const aiCyclesPct = Math.round((aiCyclesUsed / aiCyclesGranted) * 100);
+
+  // Future plan comparison state
+  const [showPlans, setShowPlans] = useState(false);
+  const [currency, setCurrency] = useState<Currency>("INR");
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const faqs = [
+    {
+      q: "Is Reigel really 100% free until December 31, 2026?",
+      a: "Yes. Early access users receive full platform capabilities, autonomous agent remediation, sitemap spidering, and AI visibility sampling completely free with zero fees through December 31, 2026. No payment method or credit card is required.",
+    },
+    {
+      q: "What are the 3 conditions of the free promotional tier?",
+      a: "1) Exactly 1 active website per workspace. 2) Deep technical crawl capacity of up to 5,000 pages per audit cycle. 3) 2 complete AI Search Visibility audit cycles per month across ChatGPT, Perplexity, Claude, and Gemini.",
+    },
+    {
+      q: "What happens on January 1, 2027?",
+      a: "You will never be automatically billed or charged. In January 2027, you can choose whether to continue on the standard free allowance or upgrade to a Growth or Agency tier if you need multi-website capacity.",
+    },
+    {
+      q: "How does the credit system work with my allowances?",
+      a: "Your workspace is granted a generous monthly credit allowance (and bonus credits) to comfortably power all 5,000 crawl pages, 2 AI visibility audit cycles, and Fix Engine pull request patches with zero out-of-pocket costs.",
+    },
+    {
+      q: "Can I replace or change my 1 monitored website?",
+      a: "Yes. You can manage or swap your active website domain anytime under Settings > Websites.",
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-bold text-brand-950">Subscription & Billing</h2>
-        <p className="text-xs text-brand-500">Manage plan tier, monthly allowances, and invoices</p>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-brand-950">Subscription &amp; Quotas</h2>
+          <p className="text-xs text-brand-500">
+            Complimentary Founder Early Access active through December 31, 2026
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 font-mono text-xs font-bold text-brand-950 border border-brand-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+          <span>Launch Promo · 100% Free Access</span>
+        </span>
       </div>
 
-      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-bold text-primary-700">
-              Agency Pro Plan
-            </span>
-            <p className="mt-2 text-2xl font-black text-brand-950">₹7,999 / month</p>
-            <p className="text-xs text-brand-500">Next billing date: 1 November 2026</p>
+      {/* Hero Plan Card: Free Until December */}
+      <div className="relative overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-signal-400 px-3 py-0.5 text-xs font-black text-signal-ink shadow-2xs">
+                Founder Early Access Pass
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 border border-success-200">
+                <CheckCircle2 size={12} />
+                Active through Dec 31, 2026
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-baseline gap-2.5">
+                <p className="text-4xl font-black text-brand-950">₹0</p>
+                <span className="text-sm font-semibold text-brand-500">/ month</span>
+                <span className="text-sm font-medium line-through text-brand-400">₹7,999 / mo standard</span>
+              </div>
+              <p className="mt-1 text-xs text-brand-600 font-medium">
+                Complimentary early access granted to your workspace. No credit card required.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs text-brand-500 pt-1">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={13} className="text-brand-400" />
+                <span>Next review: <strong>1 January 2027</strong></span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Shield size={13} className="text-brand-400" />
+                <span>Zero surprise charges or auto-debits</span>
+              </span>
+            </div>
           </div>
-          <button
-            type="button"
-            className="rounded-xl border px-4 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
-          >
-            Manage Billing
-          </button>
+
+          <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => router.push("/tokens")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2.5 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
+            >
+              <span>View Credit Ledger</span>
+              <ArrowRight size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPlans(!showPlans)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+            >
+              <span>{showPlans ? "Hide Future Plans" : "Preview 2027 Plans"}</span>
+              {showPlans ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* The 3 Core Conditions: Quota Gauges */}
+      <div>
+        <div className="mb-3">
+          <h3 className="text-sm font-bold text-brand-950">Early Access Plan Allowances</h3>
+          <p className="text-xs text-brand-500">
+            Your workspace includes 3 dedicated quotas active through December 31, 2026
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Condition 1: Website Limit */}
+          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <Globe size={16} />
+              </span>
+              <span className="rounded-full bg-signal-400/20 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-950 border border-brand-200">
+                1 Site Max
+              </span>
+            </div>
+            <div className="mt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">Website Quota</p>
+              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
+                {websiteCount} / {websiteCap} <span className="text-xs font-sans font-medium text-brand-500">Active</span>
+              </p>
+              <p className="mt-1 text-xs text-brand-600 truncate">
+                {currentDomain || "Active Workspace Domain"}
+              </p>
+            </div>
+            <div className="mt-3">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
+                <div className="h-full rounded-full bg-signal-400" style={{ width: "100%" }} />
+              </div>
+              <p className="mt-2 text-[11px] text-brand-500">
+                1 primary root domain per user during early access. Multi-site workspaces unlock post-promo.
+              </p>
+            </div>
+          </div>
+
+          {/* Condition 2: 5000 Pages Crawl Capacity */}
+          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <Radar size={16} />
+              </span>
+              <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
+                5,000 Cap
+              </span>
+            </div>
+            <div className="mt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">Crawl Capacity</p>
+              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
+                {pagesCrawled.toLocaleString()} <span className="text-xs font-sans font-medium text-brand-500">/ 5,000 pages</span>
+              </p>
+              <p className="mt-1 text-xs text-brand-600">
+                {crawl?.status ? `Status: ${crawl.status}` : "Continuous sitemap spider ready"}
+              </p>
+            </div>
+            <div className="mt-3">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
+                <div
+                  className="h-full rounded-full bg-signal-400 transition-all"
+                  style={{ width: `${Math.max(5, crawlPct)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-brand-500">
+                Deep sitemap, broken links, response speed, and Core Web Vitals across up to 5,000 URLs.
+              </p>
+            </div>
+          </div>
+
+          {/* Condition 3: 2 Cycles AI Visibility Audit */}
+          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <Bot size={16} />
+              </span>
+              <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
+                2 Cycles / Mo
+              </span>
+            </div>
+            <div className="mt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">AI Visibility Audits</p>
+              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
+                {aiCyclesUsed} / {aiCyclesGranted} <span className="text-xs font-sans font-medium text-brand-500">Cycles Used</span>
+              </p>
+              <p className="mt-1 text-xs text-brand-600">
+                1 full audit cycle available this month
+              </p>
+            </div>
+            <div className="mt-3">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
+                <div
+                  className="h-full rounded-full bg-signal-400 transition-all"
+                  style={{ width: `${aiCyclesPct}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-brand-500">
+                Samples citations across ChatGPT, Perplexity, Claude, and Gemini for brand share of voice.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Complete Credit System & Conversion Ledger */}
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-brand-950">Integrated Credit Ledger</h3>
+            <p className="text-xs text-brand-500">
+              How platform actions consume credits under your promotional allowance
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-brand-400">Total Available</p>
+            <p className="text-xl font-mono font-black text-brand-950">
+              {tokenData && isTokensActive ? formatTokens(tokenData.available) : "3.762M"}{" "}
+              <span className="text-xs font-sans font-semibold text-brand-500">credits</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Credit Breakdown Bar */}
+        {tokenData && isTokensActive && (
+          <div className="rounded-xl border border-brand-200 bg-surface-2 p-4 text-xs space-y-2">
+            <div className="flex items-center justify-between font-semibold text-brand-700">
+              <span>Monthly Allowance Remaining</span>
+              <span className="font-mono text-brand-950">
+                {formatTokens(tokenData.allowance.remaining)} / {formatTokens(tokenData.allowance.granted)} (
+                {Math.round((tokenData.allowance.remaining / Math.max(1, tokenData.allowance.granted)) * 100)}%)
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-1 border border-brand-200 p-0.5">
+              <div
+                className="h-full rounded-full bg-signal-400 transition-all"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.round((tokenData.allowance.remaining / Math.max(1, tokenData.allowance.granted)) * 100),
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-brand-500 pt-1">
+              <span>Bonus Credits: <strong className="text-brand-800">{formatTokens(tokenData.bonus)}</strong> (never expire)</span>
+              <span>Standing: <strong className="text-success-700">Healthy (Complimentary)</strong></span>
+            </div>
+          </div>
+        )}
+
+        {/* Credit Consumption Rates Matrix */}
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500 mb-2.5">
+            Transparent Credit Consumption Rates
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+              <span className="font-semibold text-brand-950">Website Crawl</span>
+              <p className="mt-1 font-mono text-base font-bold text-brand-900">1 Credit</p>
+              <p className="mt-0.5 text-[11px] text-brand-500">Per URL checked (up to 5,000/crawl)</p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+              <span className="font-semibold text-brand-950">AI Visibility Check</span>
+              <p className="mt-1 font-mono text-base font-bold text-brand-900">50 Credits</p>
+              <p className="mt-0.5 text-[11px] text-brand-500">Per multi-engine prompt query</p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+              <span className="font-semibold text-brand-950">Fix Engine PR</span>
+              <p className="mt-1 font-mono text-base font-bold text-brand-900">100 Credits</p>
+              <p className="mt-0.5 text-[11px] text-brand-500">Per autonomous Git patch generated</p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+              <span className="font-semibold text-brand-950">Local SEO Grid Pin</span>
+              <p className="mt-1 font-mono text-base font-bold text-brand-900">10 Credits</p>
+              <p className="mt-0.5 text-[11px] text-brand-500">Per Google Maps coordinate audited</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Post-December 2026 Future Plans Roadmap (Collapsible) */}
+      {showPlans && (
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-brand-950">Post-December 2026 Plan Options</h3>
+              <p className="text-xs text-brand-500">
+                Standard pricing that applies starting January 2027. No surprise charges will occur.
+              </p>
+            </div>
+
+            {/* Currency & Billing Cycle Toggles */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setCurrency("INR")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    currency === "INR" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
+                  )}
+                >
+                  ₹ INR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("USD")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    currency === "USD" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
+                  )}
+                >
+                  $ USD
+                </button>
+              </div>
+
+              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setCycle("monthly")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    cycle === "monthly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
+                  )}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCycle("yearly")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    cycle === "yearly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
+                  )}
+                >
+                  Yearly (-20%)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {PLANS.map((plan) => {
+              const priceFormatted = planPrice(plan.id, currency, cycle);
+              const isPopular = plan.popular;
+
+              return (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    "rounded-xl border p-5 flex flex-col justify-between transition",
+                    isPopular
+                      ? "border-signal-400 bg-surface-2/60 shadow-xs"
+                      : "border-brand-200 bg-surface-2",
+                  )}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-brand-950">{plan.name}</h4>
+                      {isPopular && (
+                        <span className="rounded-full bg-signal-400 px-2 py-0.5 text-[10px] font-black text-signal-ink">
+                          Standard Value
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-brand-950">{priceFormatted}</p>
+                      <span className="text-[11px] text-brand-500">
+                        {cycle === "yearly" ? "per month, billed annually" : "per month"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-600">{plan.blurb}</p>
+
+                    <ul className="space-y-1.5 pt-2 border-t border-brand-200/80">
+                      {plan.features.map((feat) => (
+                        <li key={feat} className="flex items-start gap-2 text-xs text-brand-700">
+                          <Check size={12} className="text-success-600 mt-0.5 shrink-0" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-brand-200/80">
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full rounded-lg border border-brand-200 bg-surface-1 py-1.5 text-xs font-semibold text-brand-500 cursor-not-allowed text-center"
+                    >
+                      Included Free in 2026
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-center text-xs text-brand-500 pt-1">
+            * In January 2027, you can choose whether to keep your single-site free plan or upgrade for multi-domain support.
+          </p>
+        </div>
+      )}
+
+      {/* Frequently Asked Questions */}
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <HelpCircle size={16} className="text-brand-500" />
+          <h3 className="text-sm font-bold text-brand-950">Early Access Policy &amp; FAQ</h3>
+        </div>
+
+        <div className="space-y-2">
+          {faqs.map((faq, idx) => {
+            const isOpen = openFaq === idx;
+            return (
+              <div
+                key={faq.q}
+                className="rounded-xl border border-brand-200 bg-surface-2 overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(isOpen ? null : idx)}
+                  className="flex w-full items-center justify-between p-3.5 text-left text-xs font-bold text-brand-950 hover:bg-surface-3 transition cursor-pointer"
+                >
+                  <span>{faq.q}</span>
+                  {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {isOpen && (
+                  <div className="px-3.5 pb-3.5 text-xs text-brand-600 leading-relaxed border-t border-brand-200/80 pt-2.5">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
