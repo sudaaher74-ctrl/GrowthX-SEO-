@@ -54,10 +54,10 @@ export function ActionButton({
     <button
       {...props}
       className={cn(
-        "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50",
+        "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 cursor-pointer",
         variant === "primary"
-          ? "bg-primary-600 text-white shadow-sm hover:bg-primary-700"
-          : "border bg-white text-brand-700 hover:bg-brand-50",
+          ? "bg-signal-400 text-signal-ink font-bold shadow-xs hover:bg-signal-500"
+          : "border border-brand-200 bg-surface-2 text-brand-700 hover:bg-surface-3 hover:text-brand-950",
         props.className,
       )}
     >
@@ -95,7 +95,7 @@ export function Kpi({
   aside?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col rounded-xl border bg-white p-4 shadow-card">
+    <div className="flex flex-col rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
       <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span
@@ -153,11 +153,10 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <div className={`overflow-hidden rounded-xl border bg-white shadow-card ${className ?? ""}`}>
+    <div className={`overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xs ${className ?? ""}`}>
       {title && (
         <div
-          className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3"
-         
+          className="flex flex-wrap items-baseline justify-between gap-2 border-b border-brand-200/80 px-4 py-3"
         >
           <div>
             <h2 className="text-[13px] font-semibold text-brand-950">{title}</h2>
@@ -301,11 +300,10 @@ export function Th({
     <th
       onClick={onClick}
       className={cn(
-        "border-b px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-400",
+        "border-b border-brand-200/80 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-400",
         align === "right" ? "text-right" : "text-left",
         onClick && "cursor-pointer select-none hover:text-brand-600",
       )}
-     
     >
       {children}
       {sorted && <span className="ml-1">{sorted === "desc" ? "↓" : "↑"}</span>}
@@ -333,7 +331,7 @@ export function Td({
 
 export function Tr({ children, className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <tr {...props} className={cn("border-b border-brand-100 transition-colors last:border-0 hover:bg-brand-50", className)}>
+    <tr {...props} className={cn("border-b border-brand-200/60 transition-colors last:border-0 hover:bg-surface-2/60", className)}>
       {children}
     </tr>
   );
