@@ -32,8 +32,10 @@ export function Chip({ active, onClick, children, title }: { active: boolean; on
       title={title}
       onClick={onClick}
       className={cn(
-        "rounded-lg border px-2.5 py-1 text-[11.5px] font-medium",
-        active ? "border-primary-500 bg-primary-50 text-primary-700" : "bg-white text-brand-600 hover:bg-brand-50",
+        "rounded-xl border px-3 py-1.5 text-[11.5px] font-semibold transition shadow-xs",
+        active
+          ? "border-signal-400/80 bg-signal-400 text-signal-ink font-bold shadow-xs"
+          : "border-brand-200/60 bg-brand-50 text-brand-400 hover:text-brand-950 hover:bg-brand-100",
       )}
     >
       {children}
