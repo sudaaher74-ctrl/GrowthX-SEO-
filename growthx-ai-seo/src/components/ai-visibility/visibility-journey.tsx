@@ -16,7 +16,9 @@ import {
   Pencil,
   Plus,
   Bot,
+  Radar,
   RefreshCw,
+  ShieldCheck,
   Target,
   Trash2,
   Zap,
@@ -80,11 +82,78 @@ function Journey({ projectId }: { projectId: string }) {
         </div>
       </Panel>}
       {run && <>
-        {busy && <Panel padded><div role="status" aria-live="polite" className="space-y-3">
-          <div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-brand-950">{run.phase === "PREPARE" ? "Understanding your business and preparing prompts" : run.status === "QUEUED" ? "Starting your AI checks" : run.status === "CHECKING" ? `Asking ${assistantNames} your buyer prompts` : "Analysing saved answers"}</span><span>{run.progress}%</span></div>
-          <progress aria-label="AI Visibility progress" max={100} value={run.progress} className="h-2 w-full accent-primary-600" />
-          <p className="text-xs text-brand-500">Progress is saved. You can leave and return without starting again.</p>
-        </div></Panel>}
+        {busy && (
+          <Panel padded>
+            <div role="status" aria-live="polite" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 text-brand-950 shadow-2xs">
+                    <Radar size={18} className="text-signal-400 animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
+                      AI Search Visibility Analysis
+                    </h3>
+                    <p className="mt-0.5 text-xs text-brand-500 font-medium">
+                      {run.phase === "PREPARE"
+                        ? "Understanding your business profile & preparing buyer prompts…"
+                        : run.status === "QUEUED"
+                          ? "Connecting to AI search models & initializing query queue…"
+                          : run.status === "CHECKING"
+                            ? `Asking ${assistantNames} your buyer prompts`
+                            : "Analyzing model responses & calculating recommendation share…"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 font-mono text-xs font-extrabold text-brand-950">
+                    <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
+                    <span>{run.progress}%</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Modern Sleek Progress Bar */}
+              <div
+                role="progressbar"
+                aria-label="AI Visibility progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={run.progress}
+                className="h-2.5 w-full overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5"
+              >
+                <div
+                  className="h-full rounded-full bg-signal-400 transition-all duration-500 relative"
+                  style={{ width: `${Math.min(100, Math.max(0, run.progress))}%` }}
+                />
+              </div>
+
+              {/* Telemetry Row: Active AI Engines & Real-time Auto-save */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pt-0.5 text-xs text-brand-500">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-brand-400 mr-0.5">
+                    Measuring Engines:
+                  </span>
+                  {configured.map((p) => (
+                    <span
+                      key={p.provider}
+                      className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-semibold text-brand-700"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+                      {providerName(p.provider, p.model)}
+                    </span>
+                  ))}
+                </div>
+
+                <p className="flex items-center gap-1 text-[11px] text-brand-500 font-medium">
+                  <ShieldCheck size={12} className="text-success-500 shrink-0" />
+                  <span>Progress is saved automatically &middot; Safe to leave or return</span>
+                </p>
+              </div>
+            </div>
+          </Panel>
+        )}
         {run.status === "FAILED" && <StatusNote tone="bad">This analysis did not complete. Start a new analysis to try again.</StatusNote>}
         {run.brief ? (
           <PromptsSection
