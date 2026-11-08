@@ -4,20 +4,30 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
-  Globe,
-  Zap,
-  SlidersHorizontal,
-  Plug,
+  ChevronUp,
+  Clock,
   Compass,
-  Users,
-  UserCircle,
-  Shield,
-  Smartphone,
   CreditCard,
-  Info,
+  ExternalLink,
+  FileCode2,
+  GitPullRequest,
+  Globe,
+  Loader2,
+  Play,
+  Plug,
+  Radar,
   RefreshCw,
+  Shield,
+  SlidersHorizontal,
+  Smartphone,
   Trash2,
+  Zap,
 } from "lucide-react";
 import {
   GoogleSearchConsoleLogo,
@@ -44,10 +54,13 @@ import {
   useLocalSeo,
   useTokens,
   setActiveProject,
+  useStartCrawl,
 } from "@/hooks/use-growthx";
 import { resetTour } from "@/hooks/use-tour";
 import { formatTokens, formatTokensExact, isActive, refillDate, standingOf } from "@/lib/tokens";
 import { api, type GoogleProviderStatus, type Role } from "@/lib/api-client";
+import type { AutomationRun } from "@/lib/api-types";
+import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
 import { relativeTime } from "@/components/ui/console";
@@ -1033,54 +1046,610 @@ function CreditsView() {
 }
 
 /* =========================================================================
-   4. AGENTS VIEW
+   4. AGENTS VIEW (AUTONOMOUS AGENTS COMMAND CENTER)
    ========================================================================= */
 
+interface AgentConfig {
+  fixEngineEnabled: boolean;
+  fixEngineMode: "auto_pr" | "manual_review";
+  auditAgentEnabled: boolean;
+  auditFrequency: "weekly" | "every_3_days" | "daily" | "manual";
+  aiMonitorEnabled: boolean;
+  aiMonitorCadence: "daily" | "weekly" | "manual";
+}
+
+const DEFAULT_AGENT_CONFIG: AgentConfig = {
+  fixEngineEnabled: true,
+  fixEngineMode: "auto_pr",
+  auditAgentEnabled: true,
+  auditFrequency: "weekly",
+  aiMonitorEnabled: true,
+  aiMonitorCadence: "daily",
+};
+
 function AgentsView() {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const { projectId, projects } = useWorkspace();
+  const currentProject = projects.find((p) => p.id === projectId) ?? projects[0];
+  const currentDomain = currentProject?.name;
+  const profile = useProfile();
+  const user = profile.data;
+
+  // Real Grounded Queries
+  const repo = useRepository(projectId);
+  const crawlQuery = useQuery({
+    queryKey: ["latest-crawl", currentDomain],
+    queryFn: () => (currentDomain ? api.getLatestCrawl(currentDomain) : null),
+    enabled: Boolean(currentDomain),
+  });
+  const crawl = crawlQuery.data;
+
+  const automationRunsQuery = useQuery({
+    queryKey: ["automation-runs", projectId],
+    queryFn: () => (projectId ? api.listAutomationRuns(projectId) : []),
+    enabled: Boolean(projectId),
+  });
+  const automationRuns = automationRunsQuery.data ?? [];
+
+  const aiVisibilityQuery = useQuery({
+    queryKey: ["ai-visibility", projectId],
+    queryFn: () => (projectId ? api.getVisibility(projectId, 28) : null),
+    enabled: Boolean(projectId),
+  });
+  const aiReport = aiVisibilityQuery.data;
+
+  const startCrawlMutation = useStartCrawl();
+
+  // Agent Settings per Project
+  const [config, setConfig] = useState<AgentConfig>(() => {
+    if (typeof window === "undefined" || !projectId) return DEFAULT_AGENT_CONFIG;
+    try {
+      const saved = localStorage.getItem(`growthx_agent_settings_${projectId}`);
+      return saved ? { ...DEFAULT_AGENT_CONFIG, ...JSON.parse(saved) } : DEFAULT_AGENT_CONFIG;
+    } catch {
+      return DEFAULT_AGENT_CONFIG;
+    }
+  });
+
+  const updateConfig = (key: keyof AgentConfig, value: unknown) => {
+    setConfig((prev) => {
+      const next = { ...prev, [key]: value };
+      if (typeof window !== "undefined" && projectId) {
+        try {
+          localStorage.setItem(`growthx_agent_settings_${projectId}`, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+    setNotice({
+      type: "success",
+      text: "Autonomous agent configuration updated.",
+    });
+  };
+
+  // UI state
+  const [expandedAgent, setExpandedAgent] = useState<"fix_engine" | "audit_agent" | "ai_monitor" | null>(null);
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; type: "success" | "info" } | null>(null);
+
+  const isRepoConnected = Boolean(repo.data?.owner && repo.data?.name);
+  const crawlStatus = crawl?.status;
+  const isCrawlRunning = crawlStatus === "RUNNING" || crawlStatus === "PENDING" || startCrawlMutation.isPending;
+
+  const handleTriggerAudit = async () => {
+    if (!currentDomain) return;
+    try {
+      setNotice({ text: `Initiating continuous crawler for ${currentDomain}…`, type: "info" });
+      await startCrawlMutation.mutateAsync({ domain: currentDomain });
+      setNotice({ text: "Crawl dispatched! Opening Website Audit…", type: "success" });
+      setTimeout(() => {
+        router.push("/website");
+      }, 850);
+    } catch (err) {
+      setNotice({ text: err instanceof Error ? err.message : "Failed to start audit", type: "info" });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-bold text-brand-950">Autonomous Agents</h2>
-        <p className="text-xs text-brand-500">Configure background crawling and auto-remediation behaviors</p>
+      {/* Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold text-brand-950">Autonomous Agents</h2>
+            <span className="rounded-full bg-signal-400/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-brand-900 border border-brand-200">
+              {currentDomain ?? "Platform"}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-brand-500">
+            Configure background crawling schedules, automated pull request remediation, and AI search monitoring
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            qc.invalidateQueries({ queryKey: ["latest-crawl", currentDomain] });
+            qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
+            qc.invalidateQueries({ queryKey: ["ai-visibility", projectId] });
+            qc.invalidateQueries({ queryKey: ["repository", projectId] });
+            setNotice({ text: "Agent telemetry refreshed.", type: "success" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+        >
+          <RefreshCw size={12} className={crawlQuery.isFetching ? "animate-spin" : ""} />
+          <span>Refresh Telemetry</span>
+        </button>
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className="flex items-center justify-between rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-2.5 text-xs text-brand-900 shadow-2xs"
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={14} className="text-success-600" />
+            <span>{notice.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="text-brand-400 hover:text-brand-950 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* AGENT CARDS GRID */}
       <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-brand-950">Fix Engine Remediation Agent</h3>
-              <p className="text-xs text-brand-500">Automatically creates GitHub pull requests for identified issues</p>
+        {/* =========================================================================
+            AGENT 1: FIX ENGINE REMEDIATION AGENT
+            ========================================================================= */}
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs transition hover:border-brand-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <FileCode2 size={18} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-brand-950">Fix Engine Remediation Agent</h3>
+                  {isRepoConnected ? (
+                    config.fixEngineEnabled ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-semibold text-success-700 border border-success-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                        Active · Auto-PR
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-brand-500 border border-brand-200">
+                        Paused
+                      </span>
+                    )
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2.5 py-0.5 text-[11px] font-semibold text-warning-700 border border-warning-200">
+                      <AlertCircle size={11} />
+                      Setup Required
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-brand-500">
+                  {isRepoConnected
+                    ? `Connected to GitHub: ${repo.data?.owner}/${repo.data?.name} (branch: ${repo.data?.defaultBranch || "main"})`
+                    : "Autonomously drafts pull requests with code patches for detected technical and content regressions"}
+                </p>
+              </div>
             </div>
-            <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700">
-              Active
-            </span>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => updateConfig("fixEngineEnabled", !config.fixEngineEnabled)}
+                disabled={!isRepoConnected}
+                aria-label={config.fixEngineEnabled ? "Pause Fix Engine Agent" : "Enable Fix Engine Agent"}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
+                  config.fixEngineEnabled && isRepoConnected ? "bg-signal-400" : "bg-brand-200",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-surface-1 transition shadow-sm",
+                    config.fixEngineEnabled && isRepoConnected ? "translate-x-6" : "translate-x-1",
+                  )}
+                />
+              </button>
+            </div>
           </div>
+
+          {/* Connected State Controls OR Setup Banner */}
+          {isRepoConnected ? (
+            <div className="mt-4 pt-3.5 border-t border-brand-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-1.5 font-medium text-brand-700">
+                  <span>Execution Mode:</span>
+                  <select
+                    value={config.fixEngineMode}
+                    onChange={(e) => updateConfig("fixEngineMode", e.target.value as "auto_pr" | "manual_review")}
+                    className="rounded-lg border border-brand-200 bg-surface-2 px-2 py-1 text-xs text-brand-900 focus:outline-none"
+                  >
+                    <option value="auto_pr">Draft Pull Requests (Auto-PR)</option>
+                    <option value="manual_review">Manual Review in Fix Engine</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpandedAgent(expandedAgent === "fix_engine" ? null : "fix_engine")}
+                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+                >
+                  <span>Activity &amp; PRs ({automationRuns.length})</span>
+                  {expandedAgent === "fix_engine" ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/fix-engine")}
+                  className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
+                >
+                  <span>Open Fix Engine</span>
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50/40 p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-brand-700">
+                <span className="font-semibold text-brand-950">Connect a GitHub repository</span> to let the Fix Engine
+                autonomously open pull requests for SEO titles, canonical links, and schemas.
+              </div>
+              <button
+                type="button"
+                onClick={() => setGithubModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
+              >
+                <span>Connect GitHub Repository</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Expandable Activity Drawer: Recent PRs */}
+          {expandedAgent === "fix_engine" && (
+            <div className="mt-4 pt-4 border-t border-brand-200/80 space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                Recent Remediation Runs
+              </h4>
+              {automationRuns.length === 0 ? (
+                <p className="text-xs text-brand-500 italic py-2">
+                  No automated PR runs recorded yet for this workspace. Start a run from the Fix Engine.
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {automationRuns.slice(0, 5).map((run: AutomationRun) => (
+                    <div
+                      key={run.id}
+                      className="flex items-center justify-between rounded-xl border border-brand-200 bg-surface-2 p-2.5 text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <GitPullRequest size={13} className="text-brand-500" />
+                        <span className="font-mono text-brand-950 font-medium">
+                          {run.branch || run.id.slice(0, 8)}
+                        </span>
+                        <span className="text-brand-500">
+                          {run.filesChanged?.length ? `${run.filesChanged.length} files changed` : "Code patch"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold font-mono",
+                            run.status === "MERGED" || run.status === "AWAITING_REVIEW"
+                              ? "bg-success-50 text-success-700"
+                              : run.status === "FAILED"
+                              ? "bg-error-50 text-error-700"
+                              : "bg-surface-3 text-brand-600",
+                          )}
+                        >
+                          {run.status}
+                        </span>
+                        {run.pullRequestUrl && (
+                          <a
+                            href={run.pullRequestUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-brand-500 hover:text-brand-950 inline-flex items-center gap-0.5"
+                          >
+                            <span>PR</span>
+                            <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-brand-950">Continuous Website Audit Agent</h3>
-              <p className="text-xs text-brand-500">Runs weekly health audits and core web vitals inspections</p>
+        {/* =========================================================================
+            AGENT 2: CONTINUOUS WEBSITE AUDIT AGENT
+            ========================================================================= */}
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs transition hover:border-brand-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <Radar size={18} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-brand-950">Continuous Website Audit Agent</h3>
+                  {config.auditAgentEnabled ? (
+                    isCrawlRunning ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand-950 border border-brand-200">
+                        <Loader2 size={11} className="animate-spin text-signal-400" />
+                        Running Live Audit…
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-semibold text-success-700 border border-success-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                        Scheduled · Active
+                      </span>
+                    )
+                  ) : (
+                    <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-brand-500 border border-brand-200">
+                      Paused
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-brand-500">
+                  {crawl
+                    ? `Last audit completed ${crawl.finishedAt ? relativeTime(crawl.finishedAt) : "recently"} · ${crawl.pagesCrawled} pages mapped (${crawl.issuesFound} issues found)`
+                    : "Runs scheduled technical sitemap spider, response speed audits, and Core Web Vitals checks"}
+                </p>
+              </div>
             </div>
-            <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700">
-              Scheduled
-            </span>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => updateConfig("auditAgentEnabled", !config.auditAgentEnabled)}
+                aria-label={config.auditAgentEnabled ? "Pause Continuous Audit Agent" : "Enable Continuous Audit Agent"}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer",
+                  config.auditAgentEnabled ? "bg-signal-400" : "bg-brand-200",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-surface-1 transition shadow-sm",
+                    config.auditAgentEnabled ? "translate-x-6" : "translate-x-1",
+                  )}
+                />
+              </button>
+            </div>
           </div>
+
+          <div className="mt-4 pt-3.5 border-t border-brand-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 font-medium text-brand-700">
+                <Clock size={12} className="text-brand-400" />
+                <span>Audit Schedule:</span>
+                <select
+                  value={config.auditFrequency}
+                  onChange={(e) => updateConfig("auditFrequency", e.target.value as AgentConfig["auditFrequency"])}
+                  className="rounded-lg border border-brand-200 bg-surface-2 px-2 py-1 text-xs text-brand-900 focus:outline-none"
+                >
+                  <option value="weekly">Weekly (Monday 01:00 UTC)</option>
+                  <option value="every_3_days">Every 3 Days</option>
+                  <option value="daily">Daily (Midnight UTC)</option>
+                  <option value="manual">Manual On-Demand Only</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setExpandedAgent(expandedAgent === "audit_agent" ? null : "audit_agent")}
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+              >
+                <span>Telemetry Details</span>
+                {expandedAgent === "audit_agent" ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              <button
+                type="button"
+                onClick={handleTriggerAudit}
+                disabled={isCrawlRunning}
+                className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition disabled:opacity-50 cursor-pointer"
+              >
+                {isCrawlRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                <span>{isCrawlRunning ? "Auditing…" : "Run Audit Now"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Expandable Activity Drawer: Audit Diagnostics */}
+          {expandedAgent === "audit_agent" && (
+            <div className="mt-4 pt-4 border-t border-brand-200/80 space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                Active Spider Telemetry &amp; Last Scan
+              </h4>
+              {crawl ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+                    <span className="text-[10px] uppercase font-bold text-brand-500">Pages Crawled</span>
+                    <p className="mt-1 text-lg font-mono font-bold text-brand-950">{crawl.pagesCrawled}</p>
+                  </div>
+                  <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+                    <span className="text-[10px] uppercase font-bold text-brand-500">Issues Detected</span>
+                    <p className="mt-1 text-lg font-mono font-bold text-brand-950">{crawl.issuesFound}</p>
+                  </div>
+                  <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
+                    <span className="text-[10px] uppercase font-bold text-brand-500">Health Status</span>
+                    <p className="mt-1 text-sm font-bold text-success-700">{crawl.status}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-brand-500 italic py-2">
+                  No crawl recorded yet. Click &quot;Run Audit Now&quot; to start the technical spider.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-brand-950">AI Visibility & Brand Monitor</h3>
-              <p className="text-xs text-brand-500">Samples ChatGPT, Claude, and Perplexity daily for brand share</p>
+        {/* =========================================================================
+            AGENT 3: AI VISIBILITY & BRAND MONITOR
+            ========================================================================= */}
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs transition hover:border-brand-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
+                <Bot size={18} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-brand-950">AI Visibility &amp; Brand Monitor</h3>
+                  {config.aiMonitorEnabled ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 text-[11px] font-semibold text-success-700 border border-success-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                      Active · Daily Sampling
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-brand-500 border border-brand-200">
+                      Paused
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-brand-500">
+                  {aiReport?.summary
+                    ? `${aiReport.summary.citationSharePct}% citation share across ChatGPT, Perplexity, Gemini, and Claude`
+                    : "Samples leading AI search engines daily to track citations and prompt recommendations"}
+                </p>
+              </div>
             </div>
-            <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700">
-              Active
-            </span>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => updateConfig("aiMonitorEnabled", !config.aiMonitorEnabled)}
+                aria-label={config.aiMonitorEnabled ? "Pause AI Monitor Agent" : "Enable AI Monitor Agent"}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer",
+                  config.aiMonitorEnabled ? "bg-signal-400" : "bg-brand-200",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-surface-1 transition shadow-sm",
+                    config.aiMonitorEnabled ? "translate-x-6" : "translate-x-1",
+                  )}
+                />
+              </button>
+            </div>
           </div>
+
+          <div className="mt-4 pt-3.5 border-t border-brand-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 font-medium text-brand-700">
+                <Clock size={12} className="text-brand-400" />
+                <span>Sampling Cadence:</span>
+                <select
+                  value={config.aiMonitorCadence}
+                  onChange={(e) => updateConfig("aiMonitorCadence", e.target.value as AgentConfig["aiMonitorCadence"])}
+                  className="rounded-lg border border-brand-200 bg-surface-2 px-2 py-1 text-xs text-brand-900 focus:outline-none"
+                >
+                  <option value="daily">Daily Sampling (04:00 UTC)</option>
+                  <option value="weekly">Weekly Sampling</option>
+                  <option value="manual">On-Demand Only</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setExpandedAgent(expandedAgent === "ai_monitor" ? null : "ai_monitor")}
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+              >
+                <span>Engine Breakdown</span>
+                {expandedAgent === "ai_monitor" ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/ai-visibility")}
+                className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
+              >
+                <span>Open AI Visibility</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Expandable Activity Drawer: AI Engines Breakdown */}
+          {expandedAgent === "ai_monitor" && (
+            <div className="mt-4 pt-4 border-t border-brand-200/80 space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                Active AI Assistants &amp; Coverage
+              </h4>
+              {aiReport?.byAssistant?.length ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {aiReport.byAssistant.map((a: { assistant: string; model?: string | null; checked: number; cited: number; citationSharePct: number }) => (
+                    <div
+                      key={a.assistant}
+                      className="rounded-xl border border-brand-200 bg-surface-2 p-2.5 text-xs"
+                    >
+                      <span className="font-semibold text-brand-950 capitalize">{a.assistant}</span>
+                      <p className="mt-1 font-mono text-sm font-bold text-brand-900">
+                        {a.citationSharePct}% share
+                      </p>
+                      <p className="text-[10px] text-brand-500">{a.cited} of {a.checked} cited</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-brand-500 italic py-2">
+                  No sampling runs recorded yet. Open AI Visibility to track your brand prompts across AI assistants.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* GitHub Repository Connect Workflow Modal */}
+      {githubModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Connect GitHub Project to Reigel Coding Agent"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setGithubModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/75 p-3 sm:p-4 backdrop-blur-xs"
+        >
+          <GitHubAgentConnectWorkflow
+            projectId={projectId}
+            projectDomain={currentDomain}
+            userEmail={user?.email}
+            existingRepo={repo.data ?? null}
+            mode="modal"
+            onCancel={() => setGithubModalOpen(false)}
+            onConnected={() => {
+              setGithubModalOpen(false);
+              qc.invalidateQueries({ queryKey: ["repository", projectId] });
+              qc.invalidateQueries({ queryKey: ["automation-repo", projectId] });
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
