@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Download, Loader2, MapPin, Plus, Radar, Wand2, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MapPin, Plus, Radar, Search, Wand2, XCircle } from "lucide-react";
 import { Table, Td, Th, Tr } from "@/components/ui/console";
 import { Caveat, EmptyNote } from "@/components/google/view-kit";
 import { useKeywordIdeas, usePresenceCheck, useTrackSuggested } from "@/hooks/use-google";
@@ -36,13 +36,19 @@ export function KeywordIdeasView() {
   const [justTracked, setJustTracked] = useState<Set<string>>(new Set());
   const [checked, setChecked] = useState<Record<string, PresenceResult>>({});
   const [typeFilter, setTypeFilter] = useState<"ALL" | IdeaKind>("ALL");
+  const [ideasSearch, setIdeasSearch] = useState("");
 
   const report = ideas.data ?? null;
   const rows = useMemo(() => report?.ideas ?? [], [report]);
   const displayRows = useMemo(() => {
-    if (typeFilter === "ALL") return rows;
-    return rows.filter((r) => r.kind === typeFilter);
-  }, [rows, typeFilter]);
+    let list = rows;
+    if (typeFilter !== "ALL") list = list.filter((r) => r.kind === typeFilter);
+    if (ideasSearch.trim()) {
+      const q = ideasSearch.toLowerCase().trim();
+      list = list.filter((r) => r.keyword.toLowerCase().includes(q) || (r.reason && r.reason.toLowerCase().includes(q)));
+    }
+    return list;
+  }, [rows, typeFilter, ideasSearch]);
 
   const isTracked = (keyword: string, flag: boolean) => flag || justTracked.has(keyword);
   const selectedList = [...selected];
@@ -177,7 +183,7 @@ export function KeywordIdeasView() {
                 type="button"
                 onClick={handleExportIdeasCsv}
                 title="Download CSV export of keyword ideas"
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 transition hover:bg-brand-100 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 transition hover:bg-surface-3 cursor-pointer"
               >
                 <Download size={12} className="text-brand-500" />
                 <span>Export CSV</span>
@@ -187,7 +193,7 @@ export function KeywordIdeasView() {
                 onClick={runPresence}
                 disabled={selected.size === 0 || selected.size > MAX_PRESENCE || presence.isPending}
                 title={selected.size > MAX_PRESENCE ? `Choose ${MAX_PRESENCE} or fewer to check at once` : "Ask Gemini whether your site appears in Google for these"}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-[11.5px] font-bold text-brand-950 transition hover:bg-brand-100 disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3.5 py-1.5 text-[11.5px] font-bold text-brand-950 transition hover:bg-surface-3 disabled:opacity-50 cursor-pointer"
               >
                 {presence.isPending ? <Loader2 size={12} className="animate-spin" /> : <Radar size={12} />}
                 <span>Check Google ({Math.min(selected.size, MAX_PRESENCE)})</span>
@@ -204,30 +210,43 @@ export function KeywordIdeasView() {
             </div>
           </div>
 
-          {/* ── Type filter bar ── */}
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-brand-200 bg-surface-2/40 px-4 py-2">
-            <span className="mr-1 text-[11px] font-semibold text-brand-400">Filter type:</span>
-            {[
-              { id: "ALL", label: `All (${rows.length})` },
-              { id: "near_me", label: `Near me (${rows.filter((r) => r.kind === "near_me").length})` },
-              { id: "city", label: `Local (${rows.filter((r) => r.kind === "city").length})` },
-              { id: "product", label: `Product (${rows.filter((r) => r.kind === "product").length})` },
-              { id: "question", label: `Question (${rows.filter((r) => r.kind === "question").length})` },
-              { id: "comparison", label: `Comparison (${rows.filter((r) => r.kind === "comparison").length})` },
-            ].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setTypeFilter(f.id as any)}
-                className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition ${
-                  typeFilter === f.id
-                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                    : "border border-brand-200/60 bg-surface-1 text-brand-600 hover:text-brand-950"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* ── Type filter bar & search ── */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-surface-2/40 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-semibold text-brand-400">Filter type:</span>
+              {[
+                { id: "ALL", label: `All (${rows.length})` },
+                { id: "near_me", label: `Near me (${rows.filter((r) => r.kind === "near_me").length})` },
+                { id: "city", label: `Local (${rows.filter((r) => r.kind === "city").length})` },
+                { id: "product", label: `Product (${rows.filter((r) => r.kind === "product").length})` },
+                { id: "question", label: `Question (${rows.filter((r) => r.kind === "question").length})` },
+                { id: "comparison", label: `Comparison (${rows.filter((r) => r.kind === "comparison").length})` },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setTypeFilter(f.id as any)}
+                  className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition ${
+                    typeFilter === f.id
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                      : "border border-brand-200 bg-surface-1 text-brand-700 hover:text-brand-950 hover:bg-surface-2"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative min-w-[170px]">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+              <input
+                type="text"
+                value={ideasSearch}
+                onChange={(e) => setIdeasSearch(e.target.value)}
+                placeholder="Filter ideas…"
+                className="w-full rounded-lg border border-brand-200 bg-surface-1 py-1 pl-6 pr-2.5 text-[11px] text-brand-950 placeholder:text-brand-400 focus:outline-none focus:border-brand-400"
+              />
+            </div>
           </div>
 
           {report.notice && <p className="border-b border-brand-200 px-4 py-2.5 text-[12px] text-warning-600">{report.notice}</p>}

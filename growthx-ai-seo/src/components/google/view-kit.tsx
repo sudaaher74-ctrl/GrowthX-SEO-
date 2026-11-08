@@ -32,10 +32,10 @@ export function Chip({ active, onClick, children, title }: { active: boolean; on
       title={title}
       onClick={onClick}
       className={cn(
-        "rounded-xl border px-3 py-1.5 text-[11.5px] font-semibold transition shadow-xs",
+        "rounded-xl border px-3 py-1.5 text-[11.5px] font-semibold transition shadow-xs cursor-pointer",
         active
           ? "border-signal-400/80 bg-signal-400 text-signal-ink font-bold shadow-xs"
-          : "border-brand-200/60 bg-brand-50 text-brand-400 hover:text-brand-950 hover:bg-brand-100",
+          : "border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3",
       )}
     >
       {children}
@@ -95,5 +95,5 @@ export function EmptyNote({ children }: { children: React.ReactNode }) {
 
 /** Shown under a table to say what the view cannot tell you, rather than implying it. */
 export function Caveat({ children }: { children: React.ReactNode }) {
-  return <p className="border-t px-4 py-2.5 text-[11px] text-brand-500">{children}</p>;
+  return <p className="border-t border-brand-200/80 px-4 py-2.5 text-[11px] text-brand-500">{children}</p>;
 }

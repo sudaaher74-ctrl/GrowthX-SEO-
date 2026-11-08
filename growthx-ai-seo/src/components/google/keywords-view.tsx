@@ -10,6 +10,7 @@ import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { count, pathOf, percent, position } from "@/lib/google-format";
+import { cn } from "@/lib/utils";
 
 type Tab = "ideas" | "top" | "new" | "rising" | "page2" | "ctr" | "declining" | "cannibalization";
 const TABS: { id: Tab; label: string; about: string }[] = [
@@ -61,11 +62,30 @@ export function KeywordsView() {
   const page2Count = useMemo(() => allQueries.filter((r) => r.position > 10 && r.position <= 20).length, [allQueries]);
   const page3Count = useMemo(() => allQueries.filter((r) => r.position > 20).length, [allQueries]);
 
+  const qLower = search.toLowerCase().trim();
+
+  // Sort helper
+  function sortRows<T extends { clicks?: number; impressions?: number; position?: number; ctr?: number }>(
+    list: T[],
+    criteria: "clicks" | "impressions" | "position" | "ctr",
+  ): T[] {
+    const copy = [...list];
+    if (criteria === "clicks") {
+      copy.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+    } else if (criteria === "impressions") {
+      copy.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+    } else if (criteria === "position") {
+      copy.sort((a, b) => (a.position || 0) - (b.position || 0));
+    } else if (criteria === "ctr") {
+      copy.sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+    }
+    return copy;
+  }
+
   const filteredTopRows = useMemo(() => {
     let list = [...allQueries];
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      list = list.filter((r) => r.key.toLowerCase().includes(q));
+    if (qLower) {
+      list = list.filter((r) => r.key.toLowerCase().includes(qLower));
     }
     if (positionRange === "PAGE_1") {
       list = list.filter((r) => r.position <= 10);
@@ -74,42 +94,95 @@ export function KeywordsView() {
     } else if (positionRange === "PAGE_3_PLUS") {
       list = list.filter((r) => r.position > 20);
     }
+    return sortRows(list, sortBy);
+  }, [allQueries, qLower, positionRange, sortBy]);
 
-    if (sortBy === "clicks") {
-      list.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
-    } else if (sortBy === "impressions") {
-      list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-    } else if (sortBy === "position") {
-      list.sort((a, b) => (a.position || 0) - (b.position || 0));
-    } else if (sortBy === "ctr") {
-      list.sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+  const filteredPage2Rows = useMemo(() => {
+    let list = striking.query.data ?? [];
+    if (qLower) {
+      list = list.filter((r) => r.key.toLowerCase().includes(qLower));
+    }
+    return sortRows(list, sortBy);
+  }, [striking.query.data, qLower, sortBy]);
+
+  const filteredCtrRows = useMemo(() => {
+    let list = ctr.query.data ?? [];
+    if (qLower) {
+      list = list.filter((r) => r.key.toLowerCase().includes(qLower));
+    }
+    return sortRows(list, sortBy);
+  }, [ctr.query.data, qLower, sortBy]);
+
+  const filteredDecliningRows = useMemo(() => {
+    let list = (declining.query.data ?? []).map((r) => ({
+      key: r.query,
+      query: r.query,
+      clicks: r.currentClicks,
+      impressions: r.impressions,
+      ctr: r.impressions > 0 ? r.currentClicks / r.impressions : 0,
+      position: r.currentPosition,
+      previousPosition: r.previousPosition,
+    }));
+    if (qLower) {
+      list = list.filter((r) => r.key.toLowerCase().includes(qLower));
+    }
+    return sortRows(list, sortBy);
+  }, [declining.query.data, qLower, sortBy]);
+
+  const filteredNewRows = useMemo(() => {
+    let list = (movement.query.data?.new ?? []).map((r) => ({
+      key: r.query,
+      query: r.query,
+      clicks: r.clicks,
+      impressions: r.impressions,
+      ctr: r.impressions > 0 ? r.clicks / r.impressions : 0,
+      position: r.position,
+    }));
+    if (qLower) {
+      list = list.filter((r) => r.key.toLowerCase().includes(qLower));
+    }
+    return sortRows(list, sortBy);
+  }, [movement.query.data?.new, qLower, sortBy]);
+
+  const filteredRisingRows = useMemo(() => {
+    let list = movement.query.data?.rising ?? [];
+    if (qLower) {
+      list = list.filter((r) => r.query.toLowerCase().includes(qLower));
     }
     return list;
-  }, [allQueries, search, positionRange, sortBy]);
+  }, [movement.query.data?.rising, qLower]);
+
+  const filteredCannibalRows = useMemo(() => {
+    let list = movement.query.data?.cannibalization ?? [];
+    if (qLower) {
+      list = list.filter(
+        (c) =>
+          c.query.toLowerCase().includes(qLower) ||
+          c.pages.some((p) => p.page.toLowerCase().includes(qLower)),
+      );
+    }
+    return list;
+  }, [movement.query.data?.cannibalization, qLower]);
+
+  const tabBadges: Partial<Record<Tab, number>> = {
+    top: totalKeywords,
+    new: movement.query.data?.new?.length,
+    rising: movement.query.data?.rising?.length,
+    page2: striking.query.data?.length,
+    ctr: ctr.query.data?.length,
+    declining: declining.query.data?.length,
+    cannibalization: movement.query.data?.cannibalization?.length,
+  };
 
   function handleExportCsv() {
     let rowsToExport: { key: string; clicks?: number; impressions?: number; ctr?: number; position?: number }[] = [];
     if (tab === "top") rowsToExport = filteredTopRows;
-    else if (tab === "page2") rowsToExport = (striking.query.data ?? []) as any;
-    else if (tab === "ctr") rowsToExport = (ctr.query.data ?? []) as any;
-    else if (tab === "declining") {
-      rowsToExport = (declining.query.data ?? []).map((r) => ({
-        key: r.query,
-        clicks: r.currentClicks,
-        impressions: r.impressions,
-        ctr: r.impressions > 0 ? r.currentClicks / r.impressions : 0,
-        position: r.currentPosition,
-      }));
-    } else if (tab === "new") {
-      rowsToExport = (movement.query.data?.new ?? []).map((r) => ({
-        key: r.query,
-        clicks: r.clicks,
-        impressions: r.impressions,
-        ctr: r.impressions > 0 ? r.clicks / r.impressions : 0,
-        position: r.position,
-      }));
-    } else if (tab === "rising") {
-      rowsToExport = (movement.query.data?.rising ?? []).map((r) => ({
+    else if (tab === "page2") rowsToExport = filteredPage2Rows;
+    else if (tab === "ctr") rowsToExport = filteredCtrRows;
+    else if (tab === "declining") rowsToExport = filteredDecliningRows;
+    else if (tab === "new") rowsToExport = filteredNewRows;
+    else if (tab === "rising") {
+      rowsToExport = filteredRisingRows.map((r) => ({
         key: r.query,
         clicks: r.clicks,
         impressions: r.clicks ? r.clicks : 0,
@@ -155,11 +228,25 @@ export function KeywordsView() {
     />
   );
 
+  const emptySearch = (
+    <div className="p-8 text-center space-y-2">
+      <p className="text-xs font-bold text-brand-950">No queries matching &quot;{search}&quot;</p>
+      <p className="text-xs text-brand-500">Try adjusting your search terms or clear the filter.</p>
+      <button
+        type="button"
+        onClick={() => setSearch("")}
+        className="mt-1 rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
+      >
+        Clear Search Filter
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* ── TOP KPI SUMMARY GRID ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
             <Hash size={18} />
           </span>
@@ -169,8 +256,8 @@ export function KeywordsView() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-500/20 text-accent-600 font-bold">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
             <MousePointerClick size={18} />
           </span>
           <div>
@@ -179,8 +266,8 @@ export function KeywordsView() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-200/60 text-brand-950 font-bold">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
             <BarChart2 size={18} />
           </span>
           <div>
@@ -189,8 +276,8 @@ export function KeywordsView() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400/20 text-signal-ink font-bold">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400/20 text-brand-950 border border-brand-200 font-bold">
             <TrendingUp size={18} />
           </span>
           <div>
@@ -203,31 +290,56 @@ export function KeywordsView() {
       {/* ── FILTER TABS & SEARCH BAR ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Keyword lists">
-          {TABS.map((t) => (
-            <Chip key={t.id} active={tab === t.id} onClick={() => handleTabChange(t.id)}>
-              {t.label}
-            </Chip>
-          ))}
+          {TABS.map((t) => {
+            const badgeCount = tabBadges[t.id];
+            return (
+              <Chip key={t.id} active={tab === t.id} onClick={() => handleTabChange(t.id)}>
+                <span>{t.label}</span>
+                {badgeCount !== undefined && badgeCount > 0 && (
+                  <span
+                    className={cn(
+                      "ml-1.5 rounded-full px-1.5 py-0.2 font-mono text-[10px]",
+                      tab === t.id
+                        ? "bg-signal-ink/20 text-signal-ink font-bold"
+                        : "bg-surface-3 text-brand-600 font-semibold",
+                    )}
+                  >
+                    {badgeCount}
+                  </span>
+                )}
+              </Chip>
+            );
+          })}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px]">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+          <div className="relative min-w-[220px]">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search keywords…"
-              className="w-full rounded-xl border border-brand-200/70 bg-brand-100/40 py-1.5 pl-7 pr-3 text-[11.5px] text-brand-950 placeholder:text-brand-400 focus:outline-hidden focus:ring-1 focus:ring-brand-400"
+              placeholder="Search across keywords…"
+              className="w-full rounded-xl border border-brand-200 bg-surface-2 py-1.5 pl-8 pr-7 text-xs text-brand-950 placeholder:text-brand-400 focus:outline-none focus:border-brand-400"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-brand-400 hover:text-brand-950 cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
-          {tab !== "ideas" && tab !== "cannibalization" && (
+          {tab !== "ideas" && (
             <button
               type="button"
               onClick={handleExportCsv}
               title="Download CSV export"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200/70 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-800 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-surface-3 hover:text-brand-950 cursor-pointer"
             >
               <Download size={13} className="text-brand-500" />
               <span>Export CSV</span>
@@ -236,37 +348,49 @@ export function KeywordsView() {
         </div>
       </div>
 
-      {tab === "top" && allQueries.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-brand-200/60 bg-surface-1/70 px-4 py-2.5 text-xs">
+      {/* ── SORT & POSITION SUB-BAR ── */}
+      {(tab === "top" || tab === "page2" || tab === "ctr" || tab === "declining" || tab === "new") && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-brand-200 bg-surface-1 px-4 py-2.5 text-xs shadow-2xs">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
-            {[
-              { id: "ALL", label: `All (${totalKeywords})` },
-              { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
-              { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
-              { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPositionRange(p.id as any)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                  positionRange === p.id
-                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                    : "border border-brand-200/60 bg-surface-2 text-brand-600 hover:text-brand-950"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+            {tab === "top" ? (
+              <>
+                <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
+                {[
+                  { id: "ALL", label: `All (${totalKeywords})` },
+                  { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
+                  { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
+                  { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPositionRange(p.id as any)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                      positionRange === p.id
+                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                        : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <span className="text-xs text-brand-500 font-medium">
+                {tab === "page2" && "Queries ranking on page 2 (#11–#20) with high striking distance potential"}
+                {tab === "ctr" && "Queries getting fewer clicks than expected for their position"}
+                {tab === "declining" && "Queries that dropped in position compared to the previous period"}
+                {tab === "new" && "Queries that gained impressions this period and had none previously"}
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[11px] font-semibold text-brand-400">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="rounded-lg border border-brand-200/70 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none"
+              className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none focus:border-brand-400 cursor-pointer"
             >
               <option value="clicks">Clicks (Highest first)</option>
               <option value="impressions">Impressions (Highest first)</option>
@@ -281,7 +405,13 @@ export function KeywordsView() {
         {tab === "ideas" && <KeywordIdeasView />}
         {tab === "top" && (
           <Gate query={top.query} what="keywords">
-            {() => (filteredTopRows.length === 0 ? empty : <SearchRowsTable rows={filteredTopRows} label="Query" />)}
+            {() =>
+              filteredTopRows.length === 0 ? (
+                search.trim() ? emptySearch : empty
+              ) : (
+                <SearchRowsTable rows={filteredTopRows} label="Query" />
+              )
+            }
           </Gate>
         )}
         {(tab === "new" || tab === "rising" || tab === "cannibalization") && (
@@ -291,72 +421,108 @@ export function KeywordsView() {
               const rules = m.rules;
               if (tab === "new" || tab === "rising") {
                 const list = tab === "new" ? m.new : m.rising;
-                if (list === null) return <EmptyNote>There is no earlier period stored to compare with, so nothing can be called {tab}. It appears once a second period of Search Console history exists.</EmptyNote>;
+                if (list === null)
+                  return (
+                    <EmptyNote>
+                      There is no earlier period stored to compare with, so nothing can be called {tab}. It appears once a second period of Search Console history exists.
+                    </EmptyNote>
+                  );
                 if (list.length === 0) return <EmptyNote>No query qualifies in this period.</EmptyNote>;
                 return tab === "new" ? (
-                  <>
-                    <SearchRowsTable rows={(m.new ?? []).map((r) => ({ key: r.query, clicks: r.clicks, impressions: r.impressions, ctr: r.impressions > 0 ? r.clicks / r.impressions : 0, position: r.position }))} label="Query" />
-                    <Caveat>New means at least {count(rules.minImpressions)} impressions this period and none in the previous one.</Caveat>
-                  </>
+                  filteredNewRows.length === 0 ? (
+                    emptySearch
+                  ) : (
+                    <>
+                      <SearchRowsTable rows={filteredNewRows} label="Query" />
+                      <Caveat>New means at least {count(rules.minImpressions)} impressions this period and none in the previous one.</Caveat>
+                    </>
+                  )
                 ) : (
-                  <>
-                    <Table minWidth={720}>
-                      <thead>
-                        <tr>
-                          <Th>Query</Th>
-                          <Th align="right">Clicks before</Th>
-                          <Th align="right">Clicks now</Th>
-                          <Th align="right">Change</Th>
-                          <Th align="right">Position before</Th>
-                          <Th align="right">Position now</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(m.rising ?? []).map((r) => (
-                          <Tr key={r.query}>
-                            <Td><span className="block max-w-[320px] truncate text-[12px]" title={r.query}>{r.query}</span></Td>
-                            <Td align="right">{count(r.previousClicks)}</Td>
-                            <Td align="right">{count(r.clicks)}</Td>
-                            <Td align="right"><span className="font-mono text-[11px] text-success-600">+{count(r.clicksChange)}{r.clicksChangePct !== null ? ` (${Math.round(r.clicksChangePct)}%)` : ""}</span></Td>
-                            <Td align="right">{position(r.previousPosition)}</Td>
-                            <Td align="right">{position(r.position)}</Td>
-                          </Tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                    <Caveat>
-                      Rising means {rules.risingMinExtraClicks}+ more clicks and {rules.risingMinPct}%+ growth, or a gain of {rules.risingMinPlaces}+ places, on queries with at least {count(rules.minImpressions)} impressions.
-                    </Caveat>
-                  </>
+                  filteredRisingRows.length === 0 ? (
+                    emptySearch
+                  ) : (
+                    <>
+                      <Table minWidth={720}>
+                        <thead>
+                          <tr>
+                            <Th>Query</Th>
+                            <Th align="right">Clicks before</Th>
+                            <Th align="right">Clicks now</Th>
+                            <Th align="right">Change</Th>
+                            <Th align="right">Position before</Th>
+                            <Th align="right">Position now</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRisingRows.map((r) => (
+                            <Tr key={r.query}>
+                              <Td>
+                                <span className="block max-w-[320px] truncate text-[12px] text-brand-950 font-medium" title={r.query}>
+                                  {r.query}
+                                </span>
+                              </Td>
+                              <Td align="right">{count(r.previousClicks)}</Td>
+                              <Td align="right">{count(r.clicks)}</Td>
+                              <Td align="right">
+                                <span className="font-mono text-[11px] text-success-600 font-bold">
+                                  +{count(r.clicksChange)}
+                                  {r.clicksChangePct !== null ? ` (${Math.round(r.clicksChangePct)}%)` : ""}
+                                </span>
+                              </Td>
+                              <Td align="right">{position(r.previousPosition)}</Td>
+                              <Td align="right">{position(r.position)}</Td>
+                            </Tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                      <Caveat>
+                        Rising means {rules.risingMinExtraClicks}+ more clicks and {rules.risingMinPct}%+ growth, or a gain of {rules.risingMinPlaces}+ places, on queries with at least {count(rules.minImpressions)} impressions.
+                      </Caveat>
+                    </>
+                  )
                 );
               }
-              if (m.cannibalization === null) return <EmptyNote>The query-by-page data has not been fetched yet. Use Refresh data above.</EmptyNote>;
-              if (m.cannibalization.length === 0) return <EmptyNote>No query is split across competing pages.</EmptyNote>;
+              if (m.cannibalization === null)
+                return <EmptyNote>The query-by-page data has not been fetched yet. Use Refresh data above.</EmptyNote>;
+              if (m.cannibalization.length === 0)
+                return <EmptyNote>No query is split across competing pages.</EmptyNote>;
               return (
-                <>
-                  <ul className="divide-y">
-                    {m.cannibalization.slice(0, 30).map((c) => (
-                      <li key={c.query} className="px-4 py-3">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="text-[13px] font-semibold text-brand-950">{c.query}</span>
-                          <span className="text-[11px] text-brand-500">{count(c.impressions)} impressions · {count(c.clicks)} clicks</span>
-                        </div>
-                        <ul className="mt-1.5 space-y-1">
-                          {c.pages.map((p) => (
-                            <li key={p.page} className="flex items-center gap-3 text-[11.5px]">
-                              <span className="w-12 shrink-0 font-mono text-brand-500">{percent(p.share, 0)}</span>
-                              <span className="min-w-0 flex-1 truncate font-mono text-brand-950" title={p.page}>{pathOf(p.page)}</span>
-                              <span className="shrink-0 text-brand-500">pos {position(p.position)} · {count(p.clicks)} clicks</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                  <Caveat>
-                    A query is listed when it has {count(rules.cannibalMinQueryImpressions)}+ impressions and two or more pages each hold {percent(rules.cannibalMinPageShare, 0)}+ of them. Splitting is not always a problem; check whether the pages serve the same intent.
-                  </Caveat>
-                </>
+                filteredCannibalRows.length === 0 ? (
+                  emptySearch
+                ) : (
+                  <>
+                    <ul className="divide-y divide-brand-200/80">
+                      {filteredCannibalRows.slice(0, 30).map((c) => (
+                        <li key={c.query} className="px-4 py-3 hover:bg-surface-2/40 transition-colors">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="text-[13px] font-semibold text-brand-950">{c.query}</span>
+                            <span className="text-[11px] text-brand-500 font-mono">
+                              {count(c.impressions)} impressions · {count(c.clicks)} clicks
+                            </span>
+                          </div>
+                          <ul className="mt-2 space-y-1.5">
+                            {c.pages.map((p) => (
+                              <li key={p.page} className="flex items-center gap-3 text-[11.5px]">
+                                <span className="w-12 shrink-0 font-mono font-bold text-signal-ink bg-signal-400/20 px-1.5 py-0.5 rounded text-[10.5px]">
+                                  {percent(p.share, 0)}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate font-mono text-brand-900" title={p.page}>
+                                  {pathOf(p.page)}
+                                </span>
+                                <span className="shrink-0 text-brand-500 font-mono">
+                                  pos {position(p.position)} · {count(p.clicks)} clicks
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                    <Caveat>
+                      A query is listed when it has {count(rules.cannibalMinQueryImpressions)}+ impressions and two or more pages each hold {percent(rules.cannibalMinPageShare, 0)}+ of them. Splitting is not always a problem; check whether the pages serve the same intent.
+                    </Caveat>
+                  </>
+                )
               );
             }}
           </Gate>
@@ -366,9 +532,11 @@ export function KeywordsView() {
             {(rows) =>
               rows.length === 0 ? (
                 <EmptyNote>No queries are currently in striking distance.</EmptyNote>
+              ) : filteredPage2Rows.length === 0 ? (
+                emptySearch
               ) : (
                 <>
-                  <SearchRowsTable rows={rows} label="Query" />
+                  <SearchRowsTable rows={filteredPage2Rows} label="Query" />
                   <Caveat>
                     Selected by position {rows[0].criteria.minPosition}–{rows[0].criteria.maxPosition} with at least {count(rows[0].criteria.minImpressions)} impressions in the last {rows[0].criteria.days} days.
                   </Caveat>
@@ -382,10 +550,12 @@ export function KeywordsView() {
             {(rows) =>
               rows.length === 0 ? (
                 <EmptyNote>No query is well below the CTR expected for its position.</EmptyNote>
+              ) : filteredCtrRows.length === 0 ? (
+                emptySearch
               ) : (
                 <>
                   <SearchRowsTable
-                    rows={rows}
+                    rows={filteredCtrRows}
                     label="Query"
                     extra={[
                       { header: "Expected CTR", cell: (r) => percent((r as (typeof rows)[number]).expectedCtr) },
@@ -403,11 +573,13 @@ export function KeywordsView() {
             {(rows) =>
               rows.length === 0 ? (
                 <EmptyNote>No query lost ground against the previous period, or there is not enough stored history to compare.</EmptyNote>
+              ) : filteredDecliningRows.length === 0 ? (
+                emptySearch
               ) : (
                 <SearchRowsTable
-                  rows={rows.map((r) => ({ key: r.query, clicks: r.currentClicks, impressions: r.impressions, ctr: r.impressions > 0 ? r.currentClicks / r.impressions : 0, position: r.currentPosition }))}
+                  rows={filteredDecliningRows}
                   label="Query"
-                  extra={[{ header: "Position before", cell: (r) => position(rows.find((x) => x.query === r.key)?.previousPosition) }]}
+                  extra={[{ header: "Position before", cell: (r) => position((r as any).previousPosition) }]}
                 />
               )
             }
