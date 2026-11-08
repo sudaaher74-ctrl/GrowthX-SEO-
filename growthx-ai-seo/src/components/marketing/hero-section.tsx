@@ -5,167 +5,145 @@ import Link from "next/link";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import {
   ArrowRight,
-  ArrowUpRight,
   Bot,
-  Check,
+  CheckCircle2,
   Coins,
   Globe,
   LayoutGrid,
-  RefreshCw,
   Search,
   Sun,
-  Target,
-  TrendingUp,
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function DashboardMockup() {
-  const [activeTab, setActiveTab] = useState<"overview" | "visitors" | "todos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "ai" | "fixes">("overview");
 
   return (
-    <div className="relative select-none w-full max-w-[600px] mx-auto lg:mr-0">
-      {/* Main Dashboard Window — Matches the real Reigel Dashboard in Night & Day mode */}
-      <div className="relative rounded-3xl border border-brand-200 bg-surface-1 shadow-card overflow-hidden">
+    <div className="relative select-none w-full max-w-[620px] mx-auto lg:mr-0">
+      {/* Ambient background glow */}
+      <div
+        className="pointer-events-none absolute -inset-2 rounded-3xl opacity-40 blur-2xl"
+        style={{
+          background:
+            "radial-gradient(ellipse at 50% 30%, rgba(212, 255, 0, 0.15) 0%, rgba(212, 255, 0, 0.03) 50%, transparent 80%)",
+        }}
+      />
+
+      {/* Main Window */}
+      <div className="relative rounded-2xl sm:rounded-3xl border border-brand-200 bg-surface-1 shadow-2xl overflow-hidden">
+        {/* macOS Window Chrome Top Bar */}
+        <div className="flex items-center justify-between px-3.5 sm:px-4 py-2.5 border-b border-brand-200 bg-surface-1">
+          {/* Window control dots */}
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-error-500/80 inline-block" />
+            <span className="h-2.5 w-2.5 rounded-full bg-warning-500/80 inline-block" />
+            <span className="h-2.5 w-2.5 rounded-full bg-success-500/80 inline-block" />
+          </div>
+
+          {/* Breadcrumb / Workspace Pill */}
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-brand-500">
+            <span className="font-bold text-brand-950">reigel.in</span>
+            <span>/</span>
+            <span className="text-brand-700">yourwebsite.com</span>
+          </div>
+
+          {/* Credits + Single Theme Toggle */}
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-mono font-bold text-brand-950">
+              <Coins size={10} className="text-signal-400 shrink-0" />
+              <span>4.985M Credits</span>
+            </span>
+            <span className="flex h-5 w-5 items-center justify-center rounded-md border border-brand-200 bg-surface-2 text-brand-500">
+              <Sun size={10} />
+            </span>
+          </div>
+        </div>
+
+        {/* Dashboard Body: Sidebar + Workspace */}
         <div className="flex">
-          {/* Left Sidebar — Matches Reigel Dashboard Sidebar */}
-          <div className="w-14 sm:w-44 bg-surface-1 p-2.5 sm:p-3.5 shrink-0 flex flex-col justify-between border-r border-brand-200">
-            <div>
-              {/* Brand Row */}
-              <div className="flex items-center gap-2 mb-3.5 px-1">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-[11px] font-extrabold text-signal-ink">
-                  R
+          {/* Streamlined Sidebar */}
+          <div className="w-12 sm:w-44 bg-surface-1 p-2 sm:p-3 shrink-0 flex flex-col justify-between border-r border-brand-200">
+            <div className="space-y-3">
+              {/* Workspace Badge */}
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 p-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-surface-3 font-mono text-[9px] font-bold text-brand-800">
+                  YW
                 </span>
-                <span className="hidden sm:inline text-sm font-extrabold tracking-tight text-brand-950">
-                  Reigel
-                </span>
-                <span className="hidden sm:inline rounded border border-brand-200 bg-surface-2 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-wider text-brand-500">
-                  AI SEO
-                </span>
-              </div>
-
-              {/* Workspace Switcher Pill */}
-              <div className="hidden sm:block mb-3">
-                <div className="flex items-center justify-between px-1 mb-1">
-                  <span className="font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                    Workspace
-                  </span>
-                  <span className="rounded-full bg-success-50 px-1.5 py-0.5 font-mono text-[8px] font-bold text-success-600">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[11px] font-bold text-brand-950 leading-tight">
+                    yourwebsite.com
+                  </p>
+                  <p className="truncate text-[9px] text-brand-500 flex items-center gap-1 mt-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success-500 inline-block" />
                     4/4 Ready
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-1.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 font-mono text-[8px] font-bold text-brand-700">
-                    YW
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[10px] font-bold text-brand-950 leading-tight">
-                      yourwebsite.com
-                    </p>
-                    <p className="truncate text-[8px] text-brand-500 flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                      Sample site
-                    </p>
-                  </div>
+                  </p>
                 </div>
               </div>
 
-              {/* Sidebar Navigation */}
-              <div className="space-y-1">
-                <p className="hidden sm:block px-2 pt-1 font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                  Overview &amp; Search
-                </p>
+              {/* Navigation Items */}
+              <div className="space-y-0.5">
                 {[
-                  {
-                    icon: LayoutGrid,
-                    label: "Dashboard",
-                    tab: "overview" as const,
-                    ready: false,
-                  },
-                  {
-                    icon: Globe,
-                    label: "Website Audit",
-                    tab: "todos" as const,
-                    ready: true,
-                  },
-                  {
-                    icon: Search,
-                    label: "Organic Search",
-                    tab: "visitors" as const,
-                    ready: true,
-                  },
-                  {
-                    icon: TrendingUp,
-                    label: "Traffic",
-                    tab: "visitors" as const,
-                    ready: true,
-                  },
-                  {
-                    icon: Target,
-                    label: "Competitor Intel",
-                    ready: true,
-                  },
-                  {
-                    icon: Bot,
-                    label: "AI Visibility",
-                    ready: true,
-                  },
-                  {
-                    icon: Wrench,
-                    label: "Fix Engine",
-                    tab: "todos" as const,
-                    ready: false,
-                  },
+                  { id: "overview" as const, label: "Dashboard", icon: LayoutGrid },
+                  { id: "overview" as const, label: "Website Audit", icon: Globe },
+                  { id: "overview" as const, label: "Organic Search", icon: Search },
+                  { id: "ai" as const, label: "AI Visibility", icon: Bot },
+                  { id: "fixes" as const, label: "Fix Engine", icon: Wrench },
                 ].map((item) => {
                   const ItemIcon = item.icon;
-                  const isActive = item.tab ? activeTab === item.tab && item.label === "Dashboard" : false;
+                  const isCurrent = activeTab === item.id;
                   return (
                     <button
                       key={item.label}
                       type="button"
-                      onClick={() => item.tab && setActiveTab(item.tab)}
+                      onClick={() => setActiveTab(item.id)}
                       className={cn(
-                        "w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-full text-[10px] font-semibold transition-colors cursor-pointer text-left",
-                        isActive
-                          ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                        "w-full flex items-center gap-2.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer text-left",
+                        isCurrent
+                          ? "bg-surface-2 text-brand-950 font-bold border border-brand-200/80 shadow-2xs"
                           : "text-brand-600 hover:bg-surface-2 hover:text-brand-950",
                       )}
                     >
-                      <span className="flex items-center gap-2 min-w-0">
+                      <span className="relative flex items-center justify-center shrink-0">
                         <ItemIcon
-                          size={12}
-                          className={isActive ? "text-signal-ink shrink-0" : "text-brand-500 shrink-0"}
+                          size={13}
+                          className={isCurrent ? "text-brand-950" : "text-brand-400"}
                         />
-                        <span className="hidden sm:inline truncate">{item.label}</span>
+                        {isCurrent && (
+                          <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 h-2.5 w-0.5 rounded-full bg-signal-400 hidden sm:block" />
+                        )}
                       </span>
-                      {item.ready && !isActive && (
-                        <span className="hidden sm:flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-success-500/40 bg-success-50 text-success-600">
-                          <Check size={8} strokeWidth={3} />
-                        </span>
-                      )}
+                      <span className="hidden sm:inline truncate">{item.label}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
+
+            {/* Bottom mini indicator */}
+            <div className="hidden sm:block pt-2 border-t border-brand-200/60">
+              <div className="flex items-center justify-between text-[9px] font-mono text-brand-500 px-1">
+                <span>Crawl status</span>
+                <span className="font-bold text-success-500">Synced</span>
+              </div>
+            </div>
           </div>
 
-          {/* Right Main Workspace */}
+          {/* Right Main Panel */}
           <div
-            className="flex-1 min-w-0 flex flex-col"
+            className="flex-1 min-w-0 flex flex-col p-3 sm:p-4 space-y-3"
             style={{ background: "var(--color-canvas)" }}
           >
-            {/* Top Bar */}
-            <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-brand-200 bg-surface-1">
-              {/* Sub-nav Pill Group (Overview / Visitors / To-do list) */}
-              <div className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 p-0.5 text-[10px]">
+            {/* Tab Controls & Time Filter */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 p-0.5 text-[10.5px]">
                 <button
                   type="button"
                   onClick={() => setActiveTab("overview")}
                   className={cn(
-                    "px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
                     activeTab === "overview"
-                      ? "bg-signal-400 text-signal-ink font-bold"
+                      ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
                   )}
                 >
@@ -173,358 +151,285 @@ function DashboardMockup() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("visitors")}
+                  onClick={() => setActiveTab("ai")}
                   className={cn(
-                    "px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer",
-                    activeTab === "visitors"
-                      ? "bg-signal-400 text-signal-ink font-bold"
+                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    activeTab === "ai"
+                      ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
                   )}
                 >
-                  Visitors
+                  AI Visibility
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("todos")}
+                  onClick={() => setActiveTab("fixes")}
                   className={cn(
-                    "px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer",
-                    activeTab === "todos"
-                      ? "bg-signal-400 text-signal-ink font-bold"
+                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    activeTab === "fixes"
+                      ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
                   )}
                 >
-                  To-do list
+                  Fix Engine
                 </button>
               </div>
 
-              {/* Right Tools matching Dashboard TopNav */}
-              <div className="flex items-center gap-1.5">
-                <span className="hidden sm:inline-flex items-center rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] font-bold text-signal-ink bg-signal-400">
-                  28d
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9px] font-mono font-bold text-brand-950">
-                  <Coins size={10} className="text-signal-400 shrink-0" />
-                  <span>3.87M Credits</span>
-                </span>
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-brand-200 bg-surface-2 text-brand-500">
-                  <Sun size={10} />
-                </span>
-              </div>
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-1 px-2.5 py-0.5 font-mono text-[9.5px] font-semibold text-brand-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+                Live 28d
+              </span>
             </div>
 
-            {/* Dashboard Inner Content */}
-            <div className="p-3.5 sm:p-4 space-y-3">
-              {/* Title & Action Row */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold tracking-tight text-brand-950 leading-none">
-                    Dashboard
-                  </h3>
-                  <p className="mt-1 flex items-center gap-1 text-[10px] text-brand-500">
-                    <Globe size={10} className="text-brand-400" />
-                    <span>yourwebsite.com &middot; Sample preview</span>
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="hidden sm:inline-flex items-center rounded-full border border-brand-200 bg-surface-1 px-2.5 py-1 text-[9.5px] font-semibold text-brand-800">
-                    See improvement plan
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-signal-400 px-2.5 py-1 text-[9.5px] font-bold text-signal-ink shadow-2xs">
-                    <RefreshCw size={9} />
-                    <span>Check website again</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* TAB 1: OVERVIEW (Matches the user's Dashboard screenshot) */}
-              {activeTab === "overview" && (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                    {/* Left Card: How healthy is your website? */}
-                    <div className="sm:col-span-7 rounded-2xl border border-brand-200 bg-surface-1 p-3.5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="text-xs font-bold text-brand-950">
-                            How healthy is your website?
-                          </h4>
-                          <span className="rounded-full bg-success-50 px-2 py-0.5 text-[9px] font-bold text-success-600">
-                            Excellent
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[9.5px] text-brand-500 leading-relaxed">
-                          A score out of 100 for how easily Google can find, read and show your pages.
-                        </p>
-                      </div>
-
-                      <div className="my-3 grid grid-cols-3 gap-2">
-                        <div>
-                          <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                            Health Score
-                          </p>
-                          <p className="mt-0.5 text-xl font-black text-brand-950 leading-none">
-                            94
-                            <span className="text-[10px] font-normal text-brand-400">/100</span>
-                          </p>
-                          <p className="text-[8px] font-semibold text-brand-400 mt-0.5">
-                            Example
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                            Problems to Fix
-                          </p>
-                          <p className="mt-0.5 text-xl font-black text-brand-950 leading-none">
-                            13
-                          </p>
-                          <p className="text-[8px] font-semibold text-brand-400 mt-0.5">
-                            Sample
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                            Pages Checked
-                          </p>
-                          <p className="mt-0.5 text-xl font-black text-brand-950 leading-none">
-                            42
-                          </p>
-                          <p className="text-[8px] font-semibold text-brand-400 mt-0.5">
-                            Sample
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        {/* Severity Bar */}
-                        <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-                          <div className="h-full w-[18%] bg-warning-500" />
-                          <div className="h-full w-[38%] bg-accent-500" />
-                          <div className="h-full w-[44%] bg-brand-300" />
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2.5 text-[8.5px] text-brand-500">
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-error-500" />
-                            Urgent <strong className="text-brand-900">0</strong>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-warning-500" />
-                            Important <strong className="text-brand-900">11</strong>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
-                            Moderate <strong className="text-brand-900">45</strong>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
-                            Minor <strong className="text-brand-900">72</strong>
-                          </span>
-                        </div>
+            {/* TAB 1: OVERVIEW */}
+            {activeTab === "overview" && (
+              <div className="space-y-2.5">
+                {/* Metric Row: Health & Defects */}
+                <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-mono text-[9px] font-bold uppercase tracking-wider text-brand-400">
+                        Website Health Score
+                      </p>
+                      <div className="mt-0.5 flex items-baseline gap-2">
+                        <span className="text-2xl sm:text-3xl font-black text-brand-950 tracking-tight leading-none">
+                          94
+                        </span>
+                        <span className="text-[11px] font-semibold text-brand-500">
+                          / 100
+                        </span>
+                        <span className="rounded-full bg-success-50 px-2 py-0.5 text-[9.5px] font-bold text-success-600">
+                          Excellent
+                        </span>
                       </div>
                     </div>
 
-                    {/* Right Card: Visitors from Google */}
-                    <div className="sm:col-span-5 rounded-2xl border border-brand-200 bg-surface-1 p-3.5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-brand-950">
-                            Visitors from Google
-                          </h4>
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full border border-brand-200 bg-surface-2 text-brand-500">
-                            <ArrowUpRight size={10} />
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[9px] text-brand-500">
-                          Last 28 days &middot; Sample search traffic
-                        </p>
-
-                        <div className="mt-2.5">
-                          <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-brand-400">
-                            Clicks from Google
-                          </p>
-                          <div className="mt-0.5 flex items-baseline gap-1.5">
-                            <span className="text-xl font-black text-brand-950 leading-none">
-                              48
-                            </span>
-                            <span className="text-[9px] font-bold text-success-500">
-                              Example
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bar Chart (Matches the Dashboard's Daily Activity chart) */}
-                      <div className="my-2.5">
-                        <div className="flex items-center justify-between text-[8px] font-mono uppercase text-brand-400 mb-1">
-                          <span>Daily Activity</span>
-                          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-brand-600">
-                            Sample chart
-                          </span>
-                        </div>
-                        <div className="flex h-12 items-end gap-1 border-b border-brand-200 pb-1">
-                          {[15, 22, 18, 42, 30, 25, 55, 48, 72, 95, 78, 68].map((h, i) => (
-                            <div
-                              key={i}
-                              className={cn(
-                                "flex-1 rounded-t-xs transition-all",
-                                h > 40 ? "bg-signal-400" : "bg-brand-200",
-                              )}
-                              style={{ height: `${h}%` }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Metric Switcher Pills */}
-                      <div className="grid grid-cols-4 gap-1 rounded-full border border-brand-200 bg-surface-2 p-0.5 text-center text-[8.5px] font-semibold">
-                        <span className="rounded-full bg-signal-400 py-0.5 font-bold text-signal-ink">
-                          Clicks
-                        </span>
-                        <span className="py-0.5 text-brand-500">Seen</span>
-                        <span className="py-0.5 text-brand-500">Visits</span>
-                        <span className="py-0.5 text-brand-500">Goals</span>
-                      </div>
+                    <div className="text-right">
+                      <p className="font-mono text-[9px] font-bold uppercase tracking-wider text-brand-400">
+                        Audit Scope
+                      </p>
+                      <p className="mt-0.5 text-xs font-bold text-brand-950">
+                        42 pages crawled
+                      </p>
+                      <p className="text-[9.5px] text-brand-500">0 critical errors</p>
                     </div>
                   </div>
 
-                  {/* Bottom Card: Your to-do list */}
-                  <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold text-brand-950">
-                          Your to-do list
-                        </h4>
-                        <span className="rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[8.5px] font-semibold text-brand-600">
-                          5 prioritized
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-[8.5px] font-semibold">
-                        <span className="rounded-full bg-signal-400 px-2 py-0.5 font-bold text-signal-ink">
-                          All 5
-                        </span>
-                        <span className="rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-brand-500">
-                          Important 2
-                        </span>
-                        <span className="rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-brand-500">
-                          Moderate 2
-                        </span>
-                      </div>
+                  {/* Clean Visual Health Breakdown Bar */}
+                  <div>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-3">
+                      <div className="h-full w-[82%] bg-signal-400" />
+                      <div className="h-full w-[12%] bg-warning-500" />
+                      <div className="h-full w-[6%] bg-brand-300" />
                     </div>
-
-                    <div className="mt-2.5 grid grid-cols-3 gap-2">
-                      <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-2">
-                        <p className="font-mono text-[7.5px] font-bold uppercase tracking-wider text-brand-400">
-                          Action Queue
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-bold text-brand-950 truncate">
-                          5 defects prioritized
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-2">
-                        <p className="font-mono text-[7.5px] font-bold uppercase tracking-wider text-brand-400">
-                          Audit Scope
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-bold text-brand-950 truncate">
-                          42 pages checked
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-2">
-                        <p className="font-mono text-[7.5px] font-bold uppercase tracking-wider text-brand-400">
-                          Fix Engine
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-bold text-success-500 truncate">
-                          4 PRs ready
-                        </p>
-                      </div>
+                    <div className="mt-1.5 flex items-center justify-between text-[9px] text-brand-500">
+                      <span className="flex items-center gap-1 font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-signal-400 inline-block" />
+                        Healthy Pages (82%)
+                      </span>
+                      <span className="flex items-center gap-1 font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-warning-500 inline-block" />
+                        Minor Fixes (12%)
+                      </span>
+                      <span className="flex items-center gap-1 font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-400 inline-block" />
+                        Notices (6%)
+                      </span>
                     </div>
                   </div>
-                </>
-              )}
+                </div>
 
-              {/* TAB 2: VISITORS & AI VISIBILITY */}
-              {activeTab === "visitors" && (
-                <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-3">
+                {/* AI Engine Visibility Quick Breakdown */}
+                <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-brand-950">
-                        Search &amp; AI Visibility Breakdown
+                        AI Recommendation Share
                       </h4>
                       <p className="text-[9.5px] text-brand-500">
-                        Measured across Google Search, ChatGPT, Perplexity, Gemini &amp; Claude
+                        Brand citations in LLM purchase recommendations
                       </p>
                     </div>
-                    <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[9px] font-bold text-brand-600">
-                      Sample
+                    <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[9.5px] font-bold text-brand-950 font-mono">
+                      52% avg
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     {[
-                      { name: "ChatGPT", val: "46%", sub: "12/26 queries" },
-                      { name: "Perplexity", val: "52%", sub: "14/26 queries" },
-                      { name: "Gemini", val: "38%", sub: "10/26 queries" },
-                      { name: "Claude", val: "35%", sub: "9/26 queries" },
-                    ].map((engine) => (
+                      { name: "ChatGPT", pct: "46%", width: "46%" },
+                      { name: "Perplexity", pct: "52%", width: "52%" },
+                      { name: "Gemini", pct: "38%", width: "38%" },
+                      { name: "Claude", pct: "35%", width: "35%" },
+                    ].map((model) => (
                       <div
-                        key={engine.name}
-                        className="rounded-xl border border-brand-200 bg-surface-2 p-2.5"
+                        key={model.name}
+                        className="rounded-xl border border-brand-200 bg-surface-2 p-2"
                       >
-                        <span className="font-mono text-[8.5px] font-bold uppercase text-brand-500">
-                          {engine.name}
-                        </span>
-                        <p className="mt-1 text-base font-black text-brand-950">
-                          {engine.val}
-                        </p>
-                        <p className="text-[8.5px] text-brand-400">{engine.sub}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: TO-DO LIST & FIX ENGINE */}
-              {activeTab === "todos" && (
-                <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-brand-950">
-                      3 fixes prepared for your approval
-                    </h4>
-                    <span className="text-[9px] font-mono font-semibold text-brand-500">
-                      Opens GitHub PR
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {[
-                      { title: "Product JSON-LD schema markup", risk: "Low risk", tag: "Pull request" },
-                      { title: "Canonical tag cleanup across pages", risk: "Low risk", tag: "Pull request" },
-                      { title: "H1–H2 heading hierarchy on 4 pages", risk: "You review", tag: "Pull request" },
-                    ].map((fix) => (
-                      <div
-                        key={fix.title}
-                        className="rounded-xl border border-brand-200 bg-surface-2 p-2.5 flex items-center justify-between gap-2"
-                      >
-                        <div>
-                          <p className="text-[11px] font-bold text-brand-950">{fix.title}</p>
-                          <span className="font-mono text-[9px] text-brand-500">{fix.tag}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[9.5px] font-bold text-success-500">
-                            {fix.risk}
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[8.5px] font-bold text-brand-500">
+                            {model.name}
                           </span>
-                          <Link
-                            href="/login"
-                            className="rounded-full bg-signal-400 px-2.5 py-1 text-[9px] font-bold text-signal-ink hover:bg-signal-500"
-                          >
-                            Review
-                          </Link>
+                          <span className="text-[11px] font-black text-brand-950">
+                            {model.pct}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-1 w-full rounded-full bg-surface-3 overflow-hidden">
+                          <div
+                            className="h-full bg-signal-400 rounded-full"
+                            style={{ width: model.width }}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Fix Engine 1-Click PR Card */}
+                <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 rounded bg-success-50 border border-success-500/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-success-600">
+                        <CheckCircle2 size={9} />
+                        PR Ready
+                      </span>
+                      <p className="text-[11px] font-bold text-brand-950 truncate">
+                        Product JSON-LD schema markup
+                      </p>
+                    </div>
+                    <p className="text-[9.5px] text-brand-500 truncate">
+                      Auto-generated &amp; validated for Google Rich Results
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/login"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-signal-400 hover:bg-signal-500 px-3 py-1.5 text-[10px] font-extrabold text-signal-ink shadow-xs transition-all active:scale-95"
+                  >
+                    <span>Merge PR</span>
+                    <ArrowRight size={11} />
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: AI VISIBILITY DETAIL */}
+            {activeTab === "ai" && (
+              <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-brand-950">
+                      Sampled AI Answer References
+                    </h4>
+                    <p className="text-[9.5px] text-brand-500">
+                      Real-time queries tested across 4 major AI engines
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-success-50 px-2 py-0.5 text-[9px] font-bold text-success-600">
+                    Active Scan
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {[
+                    {
+                      query: "Which suppliers deliver fastest in our region?",
+                      status: "Recommended #1",
+                      engines: "ChatGPT · Perplexity",
+                    },
+                    {
+                      query: "Best wholesale enterprise supplier options",
+                      status: "Brand Cited",
+                      engines: "Gemini · Claude",
+                    },
+                    {
+                      query: "Verified manufacturer customer reviews & pricing",
+                      status: "Full Profile",
+                      engines: "All 4 Engines",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.query}
+                      className="rounded-xl border border-brand-200 bg-surface-2 p-2.5 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[10.5px] font-bold text-brand-950 truncate">
+                          &ldquo;{item.query}&rdquo;
+                        </p>
+                        <p className="text-[9px] font-mono text-brand-500">
+                          {item.engines}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-brand-200 bg-surface-1 px-2 py-0.5 text-[9px] font-bold text-success-600">
+                        {item.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: FIX ENGINE DETAIL */}
+            {activeTab === "fixes" && (
+              <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-2.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-brand-950">
+                      Autonomous Fix Engine
+                    </h4>
+                    <p className="text-[9.5px] text-brand-500">
+                      3 code pull requests generated and verified
+                    </p>
+                  </div>
+                  <span className="font-mono text-[9px] font-bold text-signal-400">
+                    GitHub Connected
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {[
+                    {
+                      title: "Add Product & Merchant Schema markup",
+                      branch: "reigel/fix-schema",
+                      impact: "+18 Health",
+                    },
+                    {
+                      title: "Resolve duplicate canonical tags on 4 pages",
+                      branch: "reigel/canonical-clean",
+                      impact: "+9 Health",
+                    },
+                    {
+                      title: "Generate missing OpenGraph & Twitter tags",
+                      branch: "reigel/social-meta",
+                      impact: "+6 Health",
+                    },
+                  ].map((fix) => (
+                    <div
+                      key={fix.title}
+                      className="rounded-xl border border-brand-200 bg-surface-2 p-2.5 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[10.5px] font-bold text-brand-950 truncate">
+                          {fix.title}
+                        </p>
+                        <p className="text-[9px] font-mono text-brand-500">
+                          {fix.branch} &middot;{" "}
+                          <span className="text-success-500 font-bold">
+                            {fix.impact}
+                          </span>
+                        </p>
+                      </div>
+                      <Link
+                        href="/login"
+                        className="shrink-0 rounded-lg bg-surface-1 hover:bg-surface-3 border border-brand-200 px-2.5 py-1 text-[9.5px] font-bold text-brand-950 transition-colors"
+                      >
+                        Review
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
