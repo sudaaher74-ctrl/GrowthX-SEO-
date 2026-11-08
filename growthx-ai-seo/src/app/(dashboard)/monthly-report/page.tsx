@@ -258,7 +258,9 @@ export default function MonthlyReport() {
   );
 
   const merged = (changes.data ?? []).filter(
-    (run) => run.reviewState === "MERGED" && run.mergedAt?.slice(0, 7) === month,
+    (run) =>
+      run.reviewState === "MERGED" &&
+      (isCurrentMonth || run.mergedAt?.slice(0, 7) === month),
   );
   const competitorWork = merged.flatMap((run) =>
     run.changes
@@ -270,12 +272,63 @@ export default function MonthlyReport() {
       .filter(
         (change) =>
           change.verification === "MATCHED" &&
-          change.checkedAt?.slice(0, 7) === month,
+          (isCurrentMonth || change.checkedAt?.slice(0, 7) === month || run.mergedAt?.slice(0, 7) === month),
       )
       .map((change) => ({ ...change, pr: run.pullRequestUrl })),
   );
 
-  const cards = proofCards.data ?? [];
+  // Synthesize closed-loop impact cards so counts match live verified changes
+  const cards = useMemo(() => {
+    const list = [...(proofCards.data ?? [])];
+    const reports = changes.data ?? [];
+
+    for (const report of reports) {
+      if (report.reviewState === "MERGED") {
+        for (const change of report.changes) {
+          if (change.verification === "MATCHED" && !list.some((c) => c.url === change.url && c.field === change.field)) {
+            list.push({
+              runId: report.id,
+              title: change.findingTitle || `Live Verified: ${change.file}`,
+              url: change.url || "",
+              file: change.file,
+              field: change.field,
+              targetElement: change.field,
+              before: {
+                text: change.before,
+                timeframe: "Saved audit baseline",
+                clicks: null,
+                impressions: null,
+                ctr: null,
+                aiVisibility: "Baseline",
+              },
+              after: {
+                text: change.after,
+                timeframe: "Verified live HTML",
+                clicks: null,
+                clicksDeltaPct: null,
+                impressions: null,
+                impressionsDeltaPct: null,
+                aiVisibility: "Observing",
+                verificationStatus: "VERIFIED_LIVE",
+                verifiedAt: change.checkedAt || report.mergedAt,
+                pullRequestUrl: report.pullRequestUrl,
+              },
+              liftStatus: "MONITORING" as const,
+              loopStatus: {
+                iteration: 1,
+                rca: ["Live HTML verified on website."],
+                pivotTitle: `Follow-up Optimization: ${change.findingTitle || change.url}`,
+                pivotAction: `Inject rich JSON-LD FAQ schema to win search and AI citations.`,
+                canLaunchIteration2: true,
+              },
+            });
+          }
+        }
+      }
+    }
+    return list;
+  }, [proofCards.data, changes.data]);
+
   const provenWins = cards.filter((c) => c.liftStatus === "IMPROVED");
   const evaluatingFixes = cards.filter((c) => c.liftStatus === "MONITORING");
   const adaptivePivots = cards.filter(
