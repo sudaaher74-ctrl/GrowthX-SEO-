@@ -328,12 +328,21 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                   return (
                     <tr key={card.runId} className="hover:bg-surface-2/40 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           <p className="font-bold text-brand-950 truncate max-w-xs">{card.title}</p>
-                          <div className="flex items-center gap-2 text-[11px] text-brand-500 font-mono">
-                            <span className="truncate max-w-[200px]">{card.url || card.file}</span>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+                            <span className="truncate max-w-[160px] text-brand-500 font-mono">{card.url || card.file}</span>
                             <span>·</span>
-                            <span className="text-brand-700">{FIELD_LABELS[card.field] || card.field}</span>
+                            <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-brand-700 text-[10px]">
+                              {FIELD_LABELS[card.field] || card.field}
+                            </span>
+                            <span className="rounded bg-signal-400/20 text-signal-ink border border-signal-400/30 px-1.5 py-0.2 text-[9.5px] font-bold">
+                              {card.field.includes("SCHEMA")
+                                ? "AI + Competitors"
+                                : card.field.includes("TITLE") || card.field.includes("DESCRIPTION")
+                                  ? "GSC + AI Visibility"
+                                  : "Audit + GSC"}
+                            </span>
                           </div>
                         </div>
                       </td>
