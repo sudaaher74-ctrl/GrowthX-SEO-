@@ -139,10 +139,10 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 rca: [
                   `Live HTML verified on website.`,
                   `Search engine observation window active.`,
-                  `If search lift is flat, Reigel will autonomously formulate Plan B.`,
+                  `If search lift is flat, Reigel will formulate the next optimization step.`,
                 ],
-                pivotTitle: `[Plan B Formulation] ${change.findingTitle || change.url}`,
-                pivotAction: `Pivot Method 2: Inject rich JSON-LD FAQ schema and expand high-intent long-tail keywords.`,
+                pivotTitle: `Follow-up Optimization: ${change.findingTitle || change.url}`,
+                pivotAction: `Target long-tail keyword cluster and inject structured LocalBusiness FAQ schema.`,
                 canLaunchIteration2: true,
               },
             });
@@ -523,7 +523,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
           onStagePlanB={() => {
             setActionBanner({
               tone: "good",
-              text: "Autonomous Plan B staged! Live observation and verification updated.",
+              text: "Follow-up optimization staged! Live observation and verification updated.",
             });
             queryClient.invalidateQueries({ queryKey: ["fix-proof-cards", projectId] });
             queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId] });
