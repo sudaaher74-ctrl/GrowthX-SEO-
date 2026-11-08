@@ -76,7 +76,7 @@ export function PlanBPreviewModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Autonomous Plan B Strategy"
+      aria-label="Follow-up Optimization Strategy"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -91,10 +91,10 @@ export function PlanBPreviewModal({
             </span>
             <div>
               <h2 className="text-[14.5px] font-bold text-brand-950 flex items-center gap-2">
-                Autonomous Plan B Strategy
+                Follow-up Optimization Strategy
               </h2>
               <p className="text-[11px] text-brand-500">
-                Triggered when initial fix yields 0 lift against rivals.
+                Prepared if search engine rankings require deeper topical or schema coverage.
               </p>
             </div>
           </div>
@@ -114,29 +114,29 @@ export function PlanBPreviewModal({
             <span className="font-mono text-brand-950 font-bold truncate block">{card.url || card.file}</span>
           </div>
           <span className="rounded-full bg-signal-400/20 text-signal-ink border border-signal-400/40 px-2 py-0.5 text-[10px] font-bold shrink-0">
-            Armed for Day 21
+            Automated Next Step
           </span>
         </div>
 
-        {/* Comparison: Method 1 vs Method 2 */}
+        {/* Comparison: Current vs Next Optimization */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-xl border border-brand-200 bg-surface-2/40 p-2.5 space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-brand-500 block">
-              Method 1 (Baseline Fix)
+              Current Deployed Fix
             </span>
-            <p className="font-semibold text-brand-950 text-[11.5px]">Title &amp; Meta Tweak</p>
+            <p className="font-semibold text-brand-950 text-[11.5px]">Title &amp; Meta Update</p>
             <p className="text-[10.5px] text-brand-500 leading-snug">
-              Stalled against high-DA rivals lacking rich entity schema.
+              Verified live on site. Monitored in 21-day observation window.
             </p>
           </div>
 
-          <div className="rounded-xl border border-warning-300/80 bg-warning-50/20 p-2.5 space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-warning-800 block">
-              Method 2 (Plan B Pivot)
+          <div className="rounded-xl border border-accent-300/80 bg-accent-50/20 p-2.5 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-accent-800 block">
+              Next Recommended Step
             </span>
-            <p className="font-semibold text-brand-950 text-[11.5px]">FAQ Schema + Long-Tail</p>
+            <p className="font-semibold text-brand-950 text-[11.5px]">FAQ Schema (JSON-LD)</p>
             <p className="text-[10.5px] text-brand-600 leading-snug">
-              Injects JSON-LD FAQPage markup to win rich search snippets.
+              Injects rich structured data to win SERP snippets and AI citations.
             </p>
           </div>
         </div>
@@ -191,12 +191,12 @@ export function PlanBPreviewModal({
             {staged ? (
               <>
                 <CheckCircle2 size={13} className="text-signal-ink" />
-                Round 2 PR Staged!
+                Follow-up PR Staged!
               </>
             ) : (
               <>
                 <GitBranch size={13} />
-                Stage &amp; Open Round 2 PR →
+                Stage Follow-up PR →
               </>
             )}
           </button>

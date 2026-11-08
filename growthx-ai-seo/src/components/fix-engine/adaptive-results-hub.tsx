@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { PlanBPreviewModal } from "@/components/fix-engine/plan-b-preview-modal";
-import { SelfHealingPipeline } from "@/components/fix-engine/self-healing-pipeline";
 import { ResultsTrajectoryChart } from "@/components/fix-engine/results-trajectory-chart";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
@@ -60,7 +59,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
   const { projectId } = useWorkspace();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ResultsFilterTab>(initialFilter);
-  const [viewMode, setViewMode] = useState<"CARDS" | "TABLE">("CARDS");
+  const [viewMode, setViewMode] = useState<"CARDS" | "TABLE">("TABLE");
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "warn" | "bad"; text: string } | null>(null);
   const [targetPlanBCard, setTargetPlanBCard] = useState<ProofOfImpactCard | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -206,10 +205,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
         </StatusNote>
       )}
 
-      {/* 1. Animated Visual Pipeline Stepper */}
-      <SelfHealingPipeline />
-
-      {/* 2. Recharts Search Performance Trajectory & Rival Radar */}
+      {/* 1. Results Trajectory & Observation Chart */}
       <ResultsTrajectoryChart
         totalExperiments={allCards.length}
         evaluatingCount={metrics.evaluating}
@@ -217,16 +213,15 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
         pivotedCount={metrics.pivoted}
       />
 
-      {/* 3. Filter Ribbon with View Switcher */}
+      {/* 2. Filter Ribbon with View Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filter results ledger">
+        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filter results">
           {(
             [
-              { id: "ALL", label: `All Experiments (${count(allCards.length)})` },
-              { id: "PROVEN_LIFT", label: `Proven Lift (${count(metrics.provenWins)})`, tone: "good" },
-              { id: "EVALUATING", label: `Evaluating (${count(metrics.evaluating)})` },
-              { id: "STAGNANT", label: `Zero Lift (${count(metrics.stagnant)})`, tone: "warn" },
-              { id: "PIVOTED", label: `Plan B Active (${count(metrics.pivoted)})` },
+              { id: "ALL", label: `All Fixes (${count(allCards.length)})` },
+              { id: "EVALUATING", label: `In 21d Observation (${count(metrics.evaluating)})` },
+              { id: "PROVEN_LIFT", label: `Proven Wins (${count(metrics.provenWins)})`, tone: "good" },
+              { id: "STAGNANT", label: `Needs Adjustment (${count(metrics.stagnant)})`, tone: "warn" },
             ] as const
           ).map((tab) => {
             const active = filter === tab.id;
@@ -318,8 +313,8 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 <tr>
                   <th className="px-4 py-3">Page / Target Element</th>
                   <th className="px-4 py-3">Observation Progress</th>
-                  <th className="px-4 py-3">GSC Status</th>
-                  <th className="px-4 py-3">Autonomous Plan B</th>
+                  <th className="px-4 py-3">Verification</th>
+                  <th className="px-4 py-3">Follow-up Step</th>
                   <th className="px-4 py-3 text-right">Action</th>
                 </tr>
               </thead>
@@ -357,18 +352,17 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-bold text-brand-700">
-                          <Clock size={11} className="text-brand-500" />
-                          Crawling Live HTML
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-50 text-success-700 border border-success-200 px-2 py-0.5 text-[10.5px] font-bold">
+                          ● Live on Website
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-accent-700">
-                            <Compass size={12} />
-                            Method 2 Armed
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-800">
+                            <Compass size={12} className="text-accent-700" />
+                            FAQ Schema Prepared
                           </span>
-                          <p className="text-[10px] text-brand-500">Injects LocalBusiness FAQ Schema</p>
+                          <p className="text-[10px] text-brand-500">Auto-stages if lift requires depth</p>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -377,7 +371,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                           onClick={() => handleLaunchPlanB(card)}
                           className="rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
                         >
-                          Test-Drive Plan B →
+                          Review Next Step →
                         </button>
                       </td>
                     </tr>
@@ -491,17 +485,17 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                   </div>
                 </div>
 
-                {/* Autonomous Plan B Action Strip (Clear & Actionable) */}
+                {/* Follow-up Strategy Strip */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/90 bg-surface-2 p-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-warning-500/20 text-warning-800">
-                      <Bot size={13} />
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-accent-500/20 text-accent-700">
+                      <Compass size={13} />
                     </span>
                     <div>
                       <p className="text-xs font-bold text-brand-950">
-                        Autonomous Plan B Armed:{" "}
+                        Follow-up Strategy:{" "}
                         <span className="font-normal text-brand-600">
-                          If lift is flat on Day 21, Reigel auto-prepares rich FAQ Schema + Long-Tail Cluster PR.
+                          Injects FAQ Schema (JSON-LD) if search rankings require deeper topical coverage.
                         </span>
                       </p>
                     </div>
@@ -512,7 +506,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                     onClick={() => handleLaunchPlanB(card)}
                     className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
                   >
-                    Preview / Test-Drive Plan B PR →
+                    Review Next Step →
                   </button>
                 </div>
               </article>

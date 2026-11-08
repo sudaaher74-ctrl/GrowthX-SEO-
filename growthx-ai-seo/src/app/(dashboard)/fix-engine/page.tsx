@@ -13,7 +13,7 @@ import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub
 const TABS = [
   { id: "improvement", label: "Improvement Plan", icon: Wrench },
   { id: "github-fixes", label: "Fixes & Log", icon: History },
-  { id: "results", label: "Self-Healing Results Engine", icon: TrendingUp },
+  { id: "results", label: "Results", icon: TrendingUp },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
