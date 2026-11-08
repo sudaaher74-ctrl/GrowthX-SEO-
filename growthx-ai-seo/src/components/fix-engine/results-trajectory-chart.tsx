@@ -106,10 +106,10 @@ export function ResultsTrajectoryChart({
             type="button"
             onClick={() => setSimulationMode("LIFT_WIN")}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
+              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all cursor-pointer",
               simulationMode === "LIFT_WIN"
-                ? "bg-success-100 text-success-900 font-bold border border-success-300 shadow-2xs"
-                : "text-brand-500 hover:text-brand-950",
+                ? "bg-surface-1 text-brand-950 font-bold border border-brand-200/90 shadow-2xs"
+                : "text-brand-500 hover:text-brand-950 hover:bg-surface-1/50",
             )}
           >
             <TrendingUp size={12} className="text-success-700" />
@@ -119,14 +119,14 @@ export function ResultsTrajectoryChart({
             type="button"
             onClick={() => setSimulationMode("PLAN_B_PIVOT")}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
+              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all cursor-pointer",
               simulationMode === "PLAN_B_PIVOT"
-                ? "bg-warning-100 text-warning-900 font-bold border border-warning-300 shadow-2xs"
-                : "text-brand-500 hover:text-brand-950",
+                ? "bg-surface-1 text-brand-950 font-bold border border-brand-200/90 shadow-2xs"
+                : "text-brand-500 hover:text-brand-950 hover:bg-surface-1/50",
             )}
           >
             <Bot size={12} className="text-warning-800" />
-            Simulate Flatline $\rightarrow$ Plan B Auto-Pivot
+            Simulate Flatline → Plan B Auto-Pivot
           </button>
         </div>
       </div>

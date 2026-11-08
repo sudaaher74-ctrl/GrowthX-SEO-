@@ -52,8 +52,8 @@ export function SelfHealingPipeline() {
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11.5px] font-semibold transition-all cursor-pointer",
               selectedBranch === "WIN"
-                ? "bg-success-100 text-success-900 font-bold border border-success-300 shadow-2xs"
-                : "text-brand-500 hover:text-brand-950",
+                ? "bg-surface-1 text-brand-950 font-bold border border-brand-200/90 shadow-2xs"
+                : "text-brand-500 hover:text-brand-950 hover:bg-surface-1/50",
             )}
           >
             <CheckCircle2 size={12} className="text-success-700" />
@@ -65,12 +65,12 @@ export function SelfHealingPipeline() {
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11.5px] font-semibold transition-all cursor-pointer",
               selectedBranch === "PIVOT"
-                ? "bg-warning-100 text-warning-900 font-bold border border-warning-300 shadow-2xs"
-                : "text-brand-500 hover:text-brand-950",
+                ? "bg-surface-1 text-brand-950 font-bold border border-brand-200/90 shadow-2xs"
+                : "text-brand-500 hover:text-brand-950 hover:bg-surface-1/50",
             )}
           >
             <Bot size={12} className="text-warning-800" />
-            Path B: Zero Lift $\rightarrow$ Plan B Auto-Pivot
+            Path B: Zero Lift → Plan B Auto-Pivot
           </button>
         </div>
       </div>
@@ -176,7 +176,7 @@ export function SelfHealingPipeline() {
                   <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-success-500 text-white text-xs font-bold">
                     4A
                   </span>
-                  <span className="rounded-full bg-success-100 text-success-800 border border-success-300 px-2 py-0.5 text-[10px] font-bold">
+                  <span className="rounded-full bg-success-500/15 text-success-700 border border-success-500/30 px-2 py-0.5 text-[10px] font-bold">
                     Win Confirmed
                   </span>
                 </div>
@@ -206,7 +206,7 @@ export function SelfHealingPipeline() {
                   <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-warning-500 text-white text-xs font-bold">
                     4B
                   </span>
-                  <span className="rounded-full bg-warning-100 text-warning-900 border border-warning-300 px-2 py-0.5 text-[10px] font-bold">
+                  <span className="rounded-full bg-warning-500/15 text-warning-800 border border-warning-500/30 px-2 py-0.5 text-[10px] font-bold">
                     Autonomous Pivot Triggered
                   </span>
                 </div>
@@ -216,7 +216,7 @@ export function SelfHealingPipeline() {
                     Branch B: AI Rival Diagnosis &amp; Plan B PR
                   </p>
                   <p className="text-[11px] text-warning-900 mt-0.5">
-                    Method 1 flat $\rightarrow$ AI detects rival FAQ schema advantage $\rightarrow$ Prepares Round 2 PR.
+                    Method 1 flat → AI detects rival FAQ schema advantage → Prepares Round 2 PR.
                   </p>
                 </div>
                 <div className="pt-1.5 border-t border-warning-200 flex items-center justify-between text-[11px] text-warning-950 font-semibold">

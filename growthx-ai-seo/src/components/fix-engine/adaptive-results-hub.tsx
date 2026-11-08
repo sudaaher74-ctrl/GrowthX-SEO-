@@ -26,11 +26,11 @@ import {
   Zap,
 } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
-import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
+import { PlanBPreviewModal } from "@/components/fix-engine/plan-b-preview-modal";
 import { SelfHealingPipeline } from "@/components/fix-engine/self-healing-pipeline";
 import { ResultsTrajectoryChart } from "@/components/fix-engine/results-trajectory-chart";
 import { useWorkspace } from "@/hooks/use-growthx";
-import { api, type GrowthOpportunity } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import type { ProofOfImpactCard, FixChangeReport } from "@/lib/api-types";
 import { errorMessage } from "@/lib/error-message";
 import { count } from "@/lib/google-format";
@@ -62,7 +62,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
   const [filter, setFilter] = useState<ResultsFilterTab>(initialFilter);
   const [viewMode, setViewMode] = useState<"CARDS" | "TABLE">("CARDS");
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "warn" | "bad"; text: string } | null>(null);
-  const [cmsTargetFinding, setCmsTargetFinding] = useState<GrowthOpportunity | null>(null);
+  const [targetPlanBCard, setTargetPlanBCard] = useState<ProofOfImpactCard | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   // 1. Fetch real proof cards from the closed-loop impact engine
@@ -193,27 +193,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
   }, [allCards, filter]);
 
   const handleLaunchPlanB = (card: ProofOfImpactCard) => {
-    const syntheticFinding: GrowthOpportunity = {
-      id: card.loopStatus?.pivotOpportunityId || `pivot-${card.runId}`,
-      projectId: projectId || "",
-      fingerprint: `impact-loop-pivot-${card.runId}-iteration-2`,
-      source: "WEBSITE",
-      category: "TECHNICAL",
-      title: card.loopStatus?.pivotTitle || `[Plan B: Adaptive Pivot] ${card.title}`,
-      summary: card.loopStatus?.pivotAction || `Method 1 produced flat results. Deploy Method 2: Inject structured FAQPage schema JSON-LD and expand long-tail keyword depth.`,
-      evidence: (card.loopStatus?.rca ?? []).map((r) => ({ label: "Diagnostic RCA", value: r, source: "Closed-Loop Engine" })),
-      recommendedAction: card.loopStatus?.pivotAction || "Deploy Method 2 to achieve verified search lift.",
-      potential: "HIGH",
-      effort: "LOW",
-      confidence: 85,
-      priority: 85,
-      status: "OPEN",
-      lifecycle: "QUEUED",
-      affectedPages: [card.url],
-      detectedAt: new Date().toISOString(),
-      lastSeenAt: new Date().toISOString(),
-    };
-    setCmsTargetFinding(syntheticFinding);
+    setTargetPlanBCard(card);
   };
 
   const isInitialLoading = proofCardsQuery.isLoading && changesQuery.isLoading;
@@ -541,19 +521,16 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
         </div>
       )}
 
-      {/* Modal for Applying Plan B / Attempt 2 */}
-      {cmsTargetFinding && (
-        <CmsApplyModal
-          projectId={projectId || ""}
-          domain={null}
-          finding={cmsTargetFinding}
-          onClose={() => setCmsTargetFinding(null)}
-          onApplied={() => {
+      {/* Minimal Plan B Preview Modal */}
+      {targetPlanBCard && (
+        <PlanBPreviewModal
+          card={targetPlanBCard}
+          onClose={() => setTargetPlanBCard(null)}
+          onStagePlanB={() => {
             setActionBanner({
               tone: "good",
-              text: "Plan B (Attempt 2) applied! Live verification and observation have begun.",
+              text: "Autonomous Plan B staged! Live observation and verification updated.",
             });
-            setCmsTargetFinding(null);
             queryClient.invalidateQueries({ queryKey: ["fix-proof-cards", projectId] });
             queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId] });
           }}

@@ -363,8 +363,8 @@ export function CmsApplyModal({
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors",
                     apiPlatform === item.id
-                      ? "bg-brand-900 text-white"
-                      : "bg-brand-100 text-brand-600 hover:bg-brand-200",
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                      : "bg-surface-2 text-brand-600 hover:text-brand-950",
                   )}
                 >
                   {item.connected && <span className="h-1.5 w-1.5 rounded-full bg-good-500" />}
