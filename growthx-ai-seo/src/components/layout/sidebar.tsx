@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
+  Compass,
   LogOut,
   Moon,
   MoreHorizontal,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useProfile } from "@/hooks/use-growthx";
 import { useTheme } from "@/hooks/use-theme";
+import { resetTour } from "@/hooks/use-tour";
 import { SiteSwitcher } from "@/components/layout/site-switcher";
 import { useMainNav, type NavGroupKey, type NavItem } from "@/components/layout/nav-items";
 
@@ -249,6 +251,19 @@ export function Sidebar({
                         </span>
                       </button>
 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          setMobileOpen?.(false);
+                          resetTour();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-brand-700 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+                      >
+                        <Compass size={14} className="text-brand-400" />
+                        <span>Platform Tour</span>
+                      </button>
+
                       <Link
                         href="/settings"
                         onClick={() => {
@@ -371,6 +386,13 @@ function NavLink({
   return <NavLinkEnabled item={item} active={active} collapsed={collapsed} onNavigate={onNavigate} />;
 }
 
+function getTourTag(href: string): string | undefined {
+  if (href.startsWith("/website")) return "nav-website";
+  if (href.startsWith("/fix-engine")) return "nav-fix-engine";
+  if (href.startsWith("/ai-visibility")) return "nav-ai-visibility";
+  return undefined;
+}
+
 /**
  * Clean, single-level workflow link with icon container, subtle status badges,
  * and instant hover tooltip in collapsed rail mode.
@@ -386,6 +408,8 @@ function NavLinkEnabled({
   collapsed: boolean;
   onNavigate: () => void;
 }) {
+  const tourTag = getTourTag(item.href);
+
   if (collapsed) {
     return (
       <div className="group relative flex w-full justify-center">
@@ -397,6 +421,7 @@ function NavLinkEnabled({
         )}
         <Link
           href={item.href}
+          data-tour={tourTag}
           onClick={onNavigate}
           aria-label={item.label}
           data-nav-active={active}
@@ -453,6 +478,7 @@ function NavLinkEnabled({
     >
       <Link
         href={item.href}
+        data-tour={tourTag}
         onClick={onNavigate}
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
       >

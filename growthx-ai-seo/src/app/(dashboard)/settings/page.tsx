@@ -45,6 +45,7 @@ import {
   useTokens,
   setActiveProject,
 } from "@/hooks/use-growthx";
+import { resetTour } from "@/hooks/use-tour";
 import { formatTokens, formatTokensExact, isActive, refillDate, standingOf } from "@/lib/tokens";
 import { api, type GoogleProviderStatus, type Role } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -194,6 +195,14 @@ function SettingsClient() {
                 active={activeTab === "subscription"}
                 onClick={() => setTab("subscription")}
               />
+              <button
+                type="button"
+                onClick={() => resetTour()}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[12.5px] font-medium text-brand-600 hover:bg-surface-2 hover:text-brand-950 transition-colors cursor-pointer"
+              >
+                <Compass size={15} className="text-brand-400" />
+                <span>Product Tour</span>
+              </button>
             </nav>
           </div>
         </aside>

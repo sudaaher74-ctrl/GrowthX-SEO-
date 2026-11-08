@@ -69,6 +69,7 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
   return (
     <div className={cn("relative min-w-0", chip ? "" : "px-0.5 mb-3")}>
       <button
+        data-tour="workspace-switcher"
         onClick={() => setSwitcherOpen((v) => !v)}
         className={cn(
           "flex min-w-0 items-center gap-2.5 border text-left transition-all focus-visible:outline-2 focus-visible:outline-primary-600",

@@ -113,6 +113,7 @@ export function TopNav({
             do, and a text cursor promised editing that was not there. */}
         <button
           type="button"
+          data-tour="command-search"
           onClick={() => setPaletteOpen(true)}
           aria-label="Search pages and commands"
           title="Search pages and commands (⌘K)"
@@ -145,7 +146,9 @@ export function TopNav({
         </div>
 
         {/* Credits Chip */}
-        <TokensChip variant="bar" />
+        <div data-tour="credits-chip" className="flex items-center">
+          <TokensChip variant="bar" />
+        </div>
 
         {/* Theme Toggle */}
         <button

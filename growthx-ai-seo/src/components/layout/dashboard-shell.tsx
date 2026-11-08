@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
 import { TokenBanner } from "@/components/tokens/token-banner";
+import { ProductTour } from "@/components/tour/product-tour";
 
 import { useTheme } from "@/hooks/use-theme";
 
@@ -134,6 +135,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <AivaPanel />
+      {!isAdmin && <ProductTour />}
     </AivaProvider>
   );
 }
