@@ -164,7 +164,8 @@ export function useMainNav(): { mainNav: NavItem[] } {
       group: "execution",
       children: [
         { id: "improvement", label: "Improvement", href: "/fix-engine?tab=improvement", tab: "improvement", isDefault: true },
-        { id: "github-fixes", label: "GitHub Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
+        { id: "github-fixes", label: "Improvements & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
+        { id: "results-ledger", label: "Results & Impact Ledger", href: "/fix-engine/changes" },
       ],
     },
     {

@@ -15,11 +15,14 @@ import {
   YAxis,
 } from "recharts";
 import {
+  AlertCircle,
   BarChart3,
-  CheckCircle2,
   Bot,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Compass,
   ExternalLink,
   Eye,
   GitPullRequest,
@@ -137,6 +140,13 @@ export default function MonthlyReport() {
   const changes = useQuery({
     queryKey: ["monthly-changes", projectId],
     queryFn: () => api.listFixChanges(projectId!),
+    enabled: !!projectId,
+    retry: false,
+  });
+
+  const proofCards = useQuery({
+    queryKey: ["monthly-proof-cards", projectId],
+    queryFn: () => api.getFixProofCards(projectId!),
     enabled: !!projectId,
     retry: false,
   });
@@ -265,6 +275,13 @@ export default function MonthlyReport() {
       .map((change) => ({ ...change, pr: run.pullRequestUrl })),
   );
 
+  const cards = proofCards.data ?? [];
+  const provenWins = cards.filter((c) => c.liftStatus === "IMPROVED");
+  const evaluatingFixes = cards.filter((c) => c.liftStatus === "MONITORING");
+  const adaptivePivots = cards.filter(
+    (c) => c.liftStatus === "FLAT" || Boolean(c.loopStatus?.iteration && c.loopStatus.iteration >= 2),
+  );
+
   const aiScans = (visibility.data?.trend ?? []).filter(
     (point) => point.weekStart.slice(0, 7) === month && point.checked > 0,
   );
@@ -301,6 +318,7 @@ export default function MonthlyReport() {
     queryClient.invalidateQueries({ queryKey: ["monthly-visibility", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-competitors", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-changes", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-proof-cards", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-crawls", domain] });
   };
 
@@ -1370,24 +1388,98 @@ export default function MonthlyReport() {
           )}
 
           {/* =====================================================================
-              6. WHAT CHANGED THIS MONTH (MERGED WORK & VERIFICATION)
+              6. WHAT CHANGED THIS MONTH (CLOSED-LOOP RESULTS & ROI DELIVERED)
              ===================================================================== */}
           {(activeTab === "ALL" || activeTab === "FIXES") && (
             <section className="report-section space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-bold text-brand-950">What changed this month</h2>
+                  <h2 className="text-lg font-bold text-brand-950">Closed-Loop Results &amp; ROI Delivered</h2>
                   <p className="text-xs text-brand-500">
-                    Recorded GitHub work and live verification.
+                    Recorded website fixes, live HTML verification, measured search lift over 21-day observation cycles, and autonomous Plan B strategy pivots.
                   </p>
                 </div>
-                <Link
-                  href="/fix-engine?tab=github-fixes"
-                  className="no-print inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:underline"
-                >
-                  Open Improvements &amp; Log <ExternalLink size={12} />
-                </Link>
+                <div className="no-print flex items-center gap-2">
+                  <Link
+                    href="/fix-engine/changes"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:underline"
+                  >
+                    Open Results Ledger <ExternalLink size={12} />
+                  </Link>
+                </div>
               </div>
+
+              {/* Closed Loop KPI micro-ribbon */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-success-200 bg-surface-1 p-3 shadow-2xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Proven Wins</p>
+                  <p className="text-[16px] font-bold text-success-800 leading-tight mt-0.5">
+                    {provenWins.length} {provenWins.length === 1 ? "win" : "wins"}
+                  </p>
+                  <p className="text-[10.5px] text-brand-400 mt-0.5">Clicks / ranks lifted</p>
+                </div>
+
+                <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3 shadow-2xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Evaluating</p>
+                  <p className="text-[16px] font-bold text-brand-950 leading-tight mt-0.5">
+                    {evaluatingFixes.length} in flight
+                  </p>
+                  <p className="text-[10.5px] text-brand-400 mt-0.5">21-day observation</p>
+                </div>
+
+                <div className="rounded-xl border border-warning-200 bg-surface-1 p-3 shadow-2xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Plan B Pivots</p>
+                  <p className="text-[16px] font-bold text-warning-800 leading-tight mt-0.5">
+                    {adaptivePivots.length} adapted
+                  </p>
+                  <p className="text-[10.5px] text-brand-400 mt-0.5">Iteration 2 active</p>
+                </div>
+
+                <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3 shadow-2xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Verified Live</p>
+                  <p className="text-[16px] font-bold text-brand-950 leading-tight mt-0.5">
+                    {live.length} checks matched
+                  </p>
+                  <p className="text-[10.5px] text-brand-400 mt-0.5">Confirmed in HTML</p>
+                </div>
+              </div>
+
+              {/* Proven Wins Spotlight */}
+              {provenWins.length > 0 && (
+                <div className="rounded-xl border border-success-300 bg-success-50/50 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-success-900 font-bold text-xs">
+                    <CheckCircle2 size={16} className="text-success-700 shrink-0" />
+                    <span>Proven Performance Lift Verified by Closed-Loop Engine</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
+                    {provenWins.slice(0, 4).map((win) => (
+                      <div key={win.runId} className="rounded-lg bg-surface-1 p-2.5 border border-success-200/80 space-y-1">
+                        <p className="font-semibold text-brand-950 truncate">{win.title}</p>
+                        <p className="font-mono text-[11px] text-accent-700 truncate">{win.url}</p>
+                        <p className="text-[11px] font-bold text-success-800 flex items-center gap-1">
+                          <TrendingUp size={12} />
+                          {win.after?.clicksDeltaPct != null && win.after.clicksDeltaPct > 0
+                            ? `+${win.after.clicksDeltaPct}% Search Clicks Gain`
+                            : "Observed Positive Search & AI Lift"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Adaptive Pivots Spotlight */}
+              {adaptivePivots.length > 0 && (
+                <div className="rounded-xl border border-warning-300 bg-warning-50/50 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-warning-900 font-bold text-xs">
+                    <Bot size={16} className="text-warning-800 shrink-0" />
+                    <span>Autonomous Self-Healing Strategy Pivots (Plan B)</span>
+                  </div>
+                  <p className="text-xs text-brand-700">
+                    When initial fixes produced flat search signals, Reigel diagnosed root causes and formulated alternative methods (e.g. FAQ schema and semantic entity depth) to keep driving toward positive ROI.
+                  </p>
+                </div>
+              )}
 
               <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
                 {changes.isLoading ? (

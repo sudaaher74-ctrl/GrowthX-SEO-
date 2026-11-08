@@ -383,7 +383,16 @@ function NavLink({
       (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
   }
 
-  return <NavLinkEnabled item={item} active={active} collapsed={collapsed} onNavigate={onNavigate} />;
+  return (
+    <NavLinkEnabled
+      item={item}
+      active={active}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+      pathname={pathname}
+      currentTab={currentTab}
+    />
+  );
 }
 
 function getTourTag(href: string): string | undefined {
@@ -402,11 +411,15 @@ function NavLinkEnabled({
   active,
   collapsed,
   onNavigate,
+  pathname,
+  currentTab,
 }: {
   item: NavItem;
   active: boolean;
   collapsed: boolean;
   onNavigate: () => void;
+  pathname?: string;
+  currentTab?: string | null;
 }) {
   const tourTag = getTourTag(item.href);
 
@@ -467,70 +480,103 @@ function NavLinkEnabled({
   }
 
   return (
-    <div
-      data-nav-active={active}
-      className={cn(
-        "group relative flex items-center rounded-xl text-[12.5px] transition-all",
-        active
-          ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
-          : "font-medium text-brand-600 hover:bg-surface-2 hover:text-brand-950",
-      )}
-    >
-      <Link
-        href={item.href}
-        data-tour={tourTag}
-        onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
-      >
-        <span
-          className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
-            active
-              ? "bg-signal-ink/15 text-signal-ink"
-              : "bg-surface-2 text-brand-500 group-hover:bg-brand-200/70 group-hover:text-brand-950",
-          )}
-        >
-          <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-500 group-hover:text-brand-950"} />
-        </span>
-
-        <span className="min-w-0 flex-1 truncate leading-snug">{item.label}</span>
-
-        {item.step && (
-          <span
-            title={`Step ${item.step.n}: ${item.step.hint}`}
-            aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
-            className={cn(
-              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold transition-colors",
-              item.step.done
-                ? active
-                  ? "bg-signal-ink/15 text-signal-ink"
-                  : "border border-success-500/30 bg-success-50 text-success-700"
-                : active
-                  ? "border border-signal-ink/40 text-signal-ink"
-                  : "border border-brand-200 bg-surface-2 text-brand-500",
-            )}
-          >
-            {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
-          </span>
+    <div className="space-y-1">
+      <div
+        data-nav-active={active}
+        className={cn(
+          "group relative flex items-center rounded-xl text-[12.5px] transition-all",
+          active
+            ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
+            : "font-medium text-brand-600 hover:bg-surface-2 hover:text-brand-950",
         )}
-
-        {item.tag && (
+      >
+        <Link
+          href={item.href}
+          data-tour={tourTag}
+          onClick={onNavigate}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
+        >
           <span
             className={cn(
-              "shrink-0 rounded-full px-1.5 py-px font-mono text-[9.5px] font-bold leading-[14px]",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
               active
                 ? "bg-signal-ink/15 text-signal-ink"
-                : item.tagTone === "danger"
-                  ? "bg-error-50 text-error-700"
-                  : item.tagTone === "success"
-                    ? "border border-success-200 bg-success-50 text-success-700"
-                    : "bg-brand-200 text-brand-600",
+                : "bg-surface-2 text-brand-500 group-hover:bg-brand-200/70 group-hover:text-brand-950",
             )}
           >
-            {item.tag}
+            <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-500 group-hover:text-brand-950"} />
           </span>
-        )}
-      </Link>
+
+          <span className="min-w-0 flex-1 truncate leading-snug">{item.label}</span>
+
+          {item.step && (
+            <span
+              title={`Step ${item.step.n}: ${item.step.hint}`}
+              aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold transition-colors",
+                item.step.done
+                  ? active
+                    ? "bg-signal-ink/15 text-signal-ink"
+                    : "border border-success-500/30 bg-success-50 text-success-700"
+                  : active
+                    ? "border border-signal-ink/40 text-signal-ink"
+                    : "border border-brand-200 bg-surface-2 text-brand-500",
+              )}
+            >
+              {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
+            </span>
+          )}
+
+          {item.tag && (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px font-mono text-[9.5px] font-bold leading-[14px]",
+                active
+                  ? "bg-signal-ink/15 text-signal-ink"
+                  : item.tagTone === "danger"
+                    ? "bg-error-50 text-error-700"
+                    : item.tagTone === "success"
+                      ? "border border-success-200 bg-success-50 text-success-700"
+                      : "bg-brand-200 text-brand-600",
+              )}
+            >
+              {item.tag}
+            </span>
+          )}
+        </Link>
+      </div>
+
+      {!collapsed && active && item.children && item.children.length > 0 && (
+        <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-brand-200/60 pl-2">
+          {item.children.map((child) => {
+            const [childPath, childQuery] = child.href.split("?");
+            const childTab = childQuery ? new URLSearchParams(childQuery).get("tab") : null;
+            const isChildActive = childTab
+              ? pathname === childPath && currentTab === childTab
+              : pathname === child.href;
+
+            return (
+              <Link
+                key={child.id}
+                href={child.href}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center justify-between rounded-lg px-2 py-1 text-[11px] font-medium transition",
+                  isChildActive
+                    ? "bg-surface-2 font-bold text-brand-950 border border-brand-200/80 shadow-2xs"
+                    : "text-brand-500 hover:bg-surface-2/60 hover:text-brand-800",
+                )}
+              >
+                <span className="truncate">{child.label}</span>
+                {child.id === "results-ledger" && (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal-400" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
