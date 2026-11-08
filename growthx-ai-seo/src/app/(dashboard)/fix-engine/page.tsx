@@ -2,16 +2,18 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { History, Wrench } from "lucide-react";
+import { History, TrendingUp, Wrench } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { PageHeader, Tabs, StatusNote } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
 import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-view";
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
+import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub";
 
 const TABS = [
   { id: "improvement", label: "Improvement Plan", icon: Wrench },
-  { id: "github-fixes", label: "Improvements & Log", icon: History },
+  { id: "github-fixes", label: "Fixes & Log", icon: History },
+  { id: "results", label: "Self-Healing Results Engine", icon: TrendingUp },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -30,10 +32,12 @@ function FixEngineClient() {
   const rawTab = searchParams.get("tab");
   const legacyJourney = ["impact-ledger", "ledger", "proof"].includes(rawTab ?? "");
   const tab: TabId =
-    legacyJourney ||
-    rawTab === "github-fixes" ||
-    rawTab === "fixes" ||
-    rawTab === "improvements"
+    rawTab === "results" || rawTab === "changes" || rawTab === "self-healing" || rawTab === "proof"
+      ? "results"
+      : legacyJourney ||
+        rawTab === "github-fixes" ||
+        rawTab === "fixes" ||
+        rawTab === "improvements"
       ? "github-fixes"
       : "improvement";
   const findingId = searchParams.get("findingId");
@@ -97,13 +101,15 @@ function FixEngineClient() {
             onOpenGitHubFixes={(fId) => setTab("github-fixes", fId)}
           />
         </div>
-      ) : (
+      ) : tab === "github-fixes" ? (
         <GitHubFixesLogView
           key={`${activeProjectId}-${legacyJourney}-${findingId ?? "all"}-${preparedTask?.projectId === activeProjectId ? preparedTask.revision : 0}`}
           initialSection={legacyJourney ? "IMPROVEMENT_LOG" : "ALL"}
           initialFindingId={findingId}
           initialInstruction={preparedTask?.projectId === activeProjectId ? preparedTask.instruction : undefined}
         />
+      ) : (
+        <AdaptiveResultsHub />
       )}
     </div>
   );

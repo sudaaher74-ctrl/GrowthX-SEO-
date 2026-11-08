@@ -205,17 +205,17 @@ export function Tabs<T extends string>({
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors cursor-pointer",
               isActive
-                ? "border-primary-600 bg-primary-600 text-white shadow-sm"
-                : "border-line bg-white text-brand-600 hover:bg-primary-50 hover:text-primary-700",
+                ? "border-signal-400 bg-signal-400 font-bold text-signal-ink shadow-xs"
+                : "border-brand-200/80 bg-surface-1 text-brand-600 hover:bg-surface-2 hover:text-brand-950",
             )}
           >
-            {Icon && <Icon size={13} className={isActive ? "text-white/80" : "text-brand-400"} />}
+            {Icon && <Icon size={13} className={isActive ? "text-signal-ink" : "text-brand-400"} />}
             {tab.label}
             {tab.tag && (
               <span
                 className={cn(
                   "rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold",
-                  isActive ? "bg-white/15 text-white" : "bg-brand-100 text-brand-500",
+                  isActive ? "bg-signal-ink/15 text-signal-ink" : "bg-brand-100 text-brand-500",
                 )}
               >
                 {tab.tag}

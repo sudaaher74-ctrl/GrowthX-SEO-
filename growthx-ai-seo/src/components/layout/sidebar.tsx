@@ -548,13 +548,21 @@ function NavLinkEnabled({
       </div>
 
       {!collapsed && active && item.children && item.children.length > 0 && (
-        <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-brand-200/60 pl-2">
+        <div className="mt-1 space-y-0.5 rounded-xl border border-brand-200/50 bg-surface-2/60 p-1">
           {item.children.map((child) => {
             const [childPath, childQuery] = child.href.split("?");
             const childTab = childQuery ? new URLSearchParams(childQuery).get("tab") : null;
-            const isChildActive = childTab
-              ? pathname === childPath && currentTab === childTab
-              : pathname === child.href;
+            const isResultsMatch =
+              (child.id === "results" || child.tab === "results") &&
+              (pathname === "/fix-engine/changes" || currentTab === "results");
+            const isChildActive =
+              isResultsMatch ||
+              (childTab
+                ? (pathname === childPath || (pathname ? pathname.startsWith(childPath) : false)) &&
+                  (currentTab === childTab || (!currentTab && child.isDefault && pathname !== "/fix-engine/changes"))
+                : pathname === child.href);
+
+            const ChildIcon = child.icon;
 
             return (
               <Link
@@ -562,15 +570,23 @@ function NavLinkEnabled({
                 href={child.href}
                 onClick={onNavigate}
                 className={cn(
-                  "flex items-center justify-between rounded-lg px-2 py-1 text-[11px] font-medium transition",
+                  "flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[11px] transition-colors",
                   isChildActive
-                    ? "bg-surface-2 font-bold text-brand-950 border border-brand-200/80 shadow-2xs"
-                    : "text-brand-500 hover:bg-surface-2/60 hover:text-brand-800",
+                    ? "bg-surface-1 font-bold text-brand-950 border border-brand-200/90 shadow-2xs"
+                    : "font-medium text-brand-500 hover:bg-surface-1/60 hover:text-brand-950",
                 )}
               >
-                <span className="truncate">{child.label}</span>
-                {child.id === "results-ledger" && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal-400" />
+                <div className="flex items-center gap-2 min-w-0">
+                  {ChildIcon && (
+                    <ChildIcon
+                      size={12}
+                      className={isChildActive ? "text-brand-950" : "text-brand-400"}
+                    />
+                  )}
+                  <span className="truncate">{child.label}</span>
+                </div>
+                {isChildActive && (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal-400 ring-2 ring-signal-400/30" />
                 )}
               </Link>
             );

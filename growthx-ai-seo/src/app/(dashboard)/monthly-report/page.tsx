@@ -1401,7 +1401,7 @@ export default function MonthlyReport() {
                 </div>
                 <div className="no-print flex items-center gap-2">
                   <Link
-                    href="/fix-engine/changes"
+                    href="/fix-engine?tab=results"
                     className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:underline"
                   >
                     Open Results Ledger <ExternalLink size={12} />

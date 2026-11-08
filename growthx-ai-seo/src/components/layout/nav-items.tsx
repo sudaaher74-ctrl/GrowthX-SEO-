@@ -10,6 +10,9 @@ import {
   Link2,
   CalendarDays,
   Search,
+  History,
+  TrendingUp,
+  Sliders,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
@@ -33,7 +36,7 @@ export interface NavItem {
   tagTone?: "default" | "danger" | "success";
   disabled?: boolean;
   /** Sub-tabs, shown under the item when it is open. `tab` is its ?tab= value. */
-  children?: { label: string; href: string; id: string; tab?: string; isDefault?: boolean }[];
+  children?: { label: string; href: string; id: string; tab?: string; isDefault?: boolean; icon?: React.ElementType }[];
   /** A step of the guided workflow, ticked once it has really been done. */
   step?: { n: number; done: boolean; hint: string };
 }
@@ -163,9 +166,9 @@ export function useMainNav(): { mainNav: NavItem[] } {
       icon: Wrench,
       group: "execution",
       children: [
-        { id: "improvement", label: "Improvement", href: "/fix-engine?tab=improvement", tab: "improvement", isDefault: true },
-        { id: "github-fixes", label: "Improvements & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes" },
-        { id: "results-ledger", label: "Results & Impact Ledger", href: "/fix-engine/changes" },
+        { id: "improvement", label: "Improvement Plan", href: "/fix-engine?tab=improvement", tab: "improvement", icon: Sliders, isDefault: true },
+        { id: "github-fixes", label: "Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes", icon: History },
+        { id: "results", label: "Results Engine", href: "/fix-engine?tab=results", tab: "results", icon: TrendingUp },
       ],
     },
     {

@@ -1803,7 +1803,7 @@ export function GitHubFixesLogView({
                             </span>
                           </div>
                           <Link
-                            href="/fix-engine/changes"
+                            href="/fix-engine?tab=results"
                             className="text-[11px] font-bold text-success-800 hover:underline"
                           >
                             View Evidence Ledger →
@@ -1870,7 +1870,7 @@ export function GitHubFixesLogView({
                     GitHub Pull Request Before &amp; After Diffs ({count(filteredPrChanges.length)})
                   </h3>
                   <Link
-                    href="/fix-engine/changes"
+                    href="/fix-engine?tab=results"
                     className="text-[11.5px] font-semibold text-accent-700 hover:underline"
                   >
                     Open full standalone evidence page →

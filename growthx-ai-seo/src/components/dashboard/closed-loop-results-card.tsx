@@ -135,7 +135,7 @@ export function ClosedLoopResultsCard() {
             {evaluating ? "Evaluating…" : "Evaluate loop"}
           </button>
           <Link
-            href="/fix-engine/changes"
+            href="/fix-engine?tab=results"
             className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-sm transition hover:bg-signal-500"
           >
             View results ledger <ArrowRight size={11} />
@@ -191,7 +191,7 @@ export function ClosedLoopResultsCard() {
             </span>
           </div>
           <Link
-            href="/fix-engine/changes"
+            href="/fix-engine?tab=results"
             className="text-[11px] font-bold text-success-800 hover:underline shrink-0"
           >
             Inspect evidence →
@@ -206,7 +206,7 @@ export function ClosedLoopResultsCard() {
             </span>
           </div>
           <Link
-            href="/fix-engine/changes"
+            href="/fix-engine?tab=results"
             className="text-[11px] font-bold text-warning-900 hover:underline shrink-0"
           >
             Review Plan B →
@@ -221,7 +221,7 @@ export function ClosedLoopResultsCard() {
             </span>
           </div>
           <Link
-            href="/fix-engine/changes"
+            href="/fix-engine?tab=results"
             className="text-[11px] font-bold text-accent-700 hover:underline shrink-0"
           >
             See timeline →
