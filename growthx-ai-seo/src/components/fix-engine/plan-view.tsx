@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, GitPullRequest, Globe, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, FileCode2, GitPullRequest, Globe, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
@@ -94,9 +94,75 @@ export function PlanView({
   const shown = group === "ALL" ? items : items.filter((i) => groupOf(i.source)?.id === group);
   const active = shown.filter((i) => !["DISMISSED", "RESOLVED"].includes(i.lifecycle ?? "DETECTED"));
 
+  const highImpactCount = active.filter((i) => i.potential === "HIGH").length;
+  const autoFixableCount = active.filter((i) => i.fixClass === "AUTO").length;
+  const queuedCount = active.filter((i) => i.lifecycle === "QUEUED" || i.lifecycle === "APPROVED").length;
+
   return (
     <div className="space-y-4">
       {findings.data.warnings?.map((warning) => <StatusNote key={warning} tone="bad">{warning}</StatusNote>)}
+
+      {/* ── PLAN READINESS SUMMARY STRIP ── */}
+      {active.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-500/15 text-success-700">
+                <Zap size={16} />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-brand-400">High Impact Opportunities</p>
+                <p className="font-mono text-lg font-bold text-brand-950">
+                  {highImpactCount} <span className="text-xs font-normal text-brand-500 font-sans">fixes</span>
+                </p>
+              </div>
+            </div>
+            <span className="rounded-md border border-success-500/20 bg-success-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
+              Top Priority
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+                <ShieldCheck size={16} />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-brand-400">Safe Auto-Fixable</p>
+                <p className="font-mono text-lg font-bold text-brand-950">
+                  {autoFixableCount} <span className="text-xs font-normal text-brand-500 font-sans">low-risk</span>
+                </p>
+              </div>
+            </div>
+            <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10.5px] font-medium text-brand-500">
+              Autonomous
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
+                <GitPullRequest size={16} />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-brand-400">Ready for Pull Request</p>
+                <p className="font-mono text-lg font-bold text-brand-950">
+                  {queuedCount} <span className="text-xs font-normal text-brand-500 font-sans">staged</span>
+                </p>
+              </div>
+            </div>
+            {onOpenGitHubFixes && (
+              <button
+                type="button"
+                onClick={() => onOpenGitHubFixes()}
+                className="inline-flex items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
+              >
+                <span>Stage PR</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
@@ -205,6 +271,11 @@ function FindingRow({
             <span className="text-[13px] font-semibold text-brand-950">{f.title}</span>
             {group && <Pill tone="info">{group.label}</Pill>}
             <Pill tone={BAND[f.potential]}>{f.potential.toLowerCase()} impact</Pill>
+            {f.potential === "HIGH" && (
+              <span className="inline-flex items-center gap-1 rounded border border-success-500/25 bg-success-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-success-700">
+                High CTR Lift
+              </span>
+            )}
             <Pill tone={EFFORT[f.effort]}>{f.effort.toLowerCase()} effort</Pill>
             {cls && <span title={cls.hint}><Pill>{cls.label}</Pill></span>}
             <Pill tone={lifecycle === "QUEUED" || lifecycle === "APPROVED" ? "good" : "default"}>{LIFECYCLE_LABEL[lifecycle] ?? lifecycle}</Pill>
@@ -229,9 +300,14 @@ function FindingRow({
               </ul>
             </div>
           )}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">What to do</p>
-            <p className="mt-1 whitespace-pre-line text-[12.5px] text-brand-950">{f.recommendedAction}</p>
+          <div className="rounded-xl border border-line bg-surface-2/40 p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-brand-950 flex items-center gap-1.5">
+                <FileCode2 size={13} className="text-primary-700" /> Actionable Fix
+              </p>
+              {cls && <span className="text-[10px] text-brand-400">{cls.label}</span>}
+            </div>
+            <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-brand-950 font-sans">{f.recommendedAction}</p>
           </div>
           {pages.length > 0 && (
             <div>

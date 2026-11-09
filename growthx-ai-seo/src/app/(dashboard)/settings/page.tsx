@@ -18,6 +18,7 @@ import {
   CreditCard,
   ExternalLink,
   FileCode2,
+  GitBranch,
   GitPullRequest,
   Globe,
   HelpCircle,
@@ -27,6 +28,7 @@ import {
   Radar,
   RefreshCw,
   Shield,
+  ShieldCheck,
   SlidersHorizontal,
   Smartphone,
   Trash2,
@@ -476,6 +478,14 @@ function IntegrationsView() {
   const isGscNeedsSelection = gsc?.status === "NEEDS_SELECTION";
   const isGa4Connected = ga4?.status === "CONNECTED";
   const isGa4NeedsSelection = ga4?.status === "NEEDS_SELECTION";
+  const totalConnected =
+    (isGscConnected ? 1 : 0) +
+    (isGa4Connected ? 1 : 0) +
+    (Boolean(localSeo.data?.businessName) ? 1 : 0) +
+    (isGitHubConnected ? 1 : 0) +
+    (wpQuery.data?.connected ? 1 : 0) +
+    (shopifyQuery.data?.connected ? 1 : 0) +
+    (webflowQuery.data?.connected ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -500,6 +510,56 @@ function IntegrationsView() {
         </div>
       )}
 
+      {/* Integration Health & Pipeline Safety Banner */}
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 border border-primary-100 shadow-2xs">
+              <Plug className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-bold text-brand-950">Integration Health &amp; Pipeline Safety</h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                  {totalConnected > 0 ? `${totalConnected} Service${totalConnected === 1 ? "" : "s"} Connected` : "Ready to Connect"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-brand-500">
+                Live search telemetry ingestion, verified analytics synchronization, and protected isolated pull-request workflows.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-lg border border-success-200 bg-success-50/50 px-3 py-1.5 text-xs font-semibold text-success-800">
+              <ShieldCheck className="h-3.5 w-3.5 text-success-600" />
+              <span>Isolated Branch Guard</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 border-t border-brand-100 pt-3 text-xs">
+          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
+            <span className="text-brand-500">Telemetry Ingestion</span>
+            <span className="font-semibold text-brand-800">
+              {isGscConnected && isGa4Connected ? "GSC + GA4 Active" : isGscConnected ? "GSC Active" : isGa4Connected ? "GA4 Active" : "Read-only Ready"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
+            <span className="text-brand-500">Code Execution Path</span>
+            <span className="font-semibold text-brand-800">
+              {isGitHubConnected ? "Branch PR Staging" : "Manual Export Only"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
+            <span className="text-brand-500">CMS Staging Hook</span>
+            <span className="font-semibold text-brand-800">
+              {wpQuery.data?.connected ? "WordPress Drafts" : shopifyQuery.data?.connected ? "Shopify Staged" : webflowQuery.data?.connected ? "Webflow Staged" : "Draft / Staging Safe"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div>
         <div className="mb-3">
           <h2 className="text-base font-bold text-brand-950">Connected services</h2>
@@ -517,8 +577,8 @@ function IntegrationsView() {
                     <h3 className="text-sm font-semibold text-brand-950">Google Search Console</h3>
                     {isGscConnected && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                        Connected
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                        Live SERP Sync{gsc?.lastSyncedAt ? ` · ${relativeTime(gsc.lastSyncedAt)}` : ""}
                       </span>
                     )}
                   </div>
@@ -578,8 +638,8 @@ function IntegrationsView() {
                     <h3 className="text-sm font-semibold text-brand-950">Google Analytics</h3>
                     {isGa4Connected && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                        Connected
+                        <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                        Live Telemetry{ga4?.lastSyncedAt ? ` · ${relativeTime(ga4.lastSyncedAt)}` : ""}
                       </span>
                     )}
                   </div>
@@ -673,13 +733,13 @@ function IntegrationsView() {
                     {isGitHubConnected && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
                         <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                        Connected
+                        Safe PR Staging
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-brand-500">
                     {isGitHubConnected
-                      ? `${repo.data?.owner}/${repo.data?.name}`
+                      ? `${repo.data?.owner}/${repo.data?.name} · Isolated Branching`
                       : "Automated Pull Requests for code & template fixes"}
                   </p>
                 </div>
@@ -705,7 +765,16 @@ function IntegrationsView() {
             </div>
             {expandedConnector === "github" && isGitHubConnected && (
               <div className="mt-4 space-y-3 border-t border-brand-100 pt-3 text-xs text-brand-600">
-                <p className="font-mono text-brand-900">{repo.data?.owner}/{repo.data?.name}</p>
+                <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-brand-800">Target Repository</span>
+                    <span className="font-mono text-[11px] font-medium text-brand-900 bg-surface-1 px-2 py-0.5 rounded border border-brand-200">{repo.data?.owner}/{repo.data?.name}</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-[11px] text-brand-600 pt-1 border-t border-brand-100">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success-600" />
+                    <span><strong>Branch Isolation Guarantee:</strong> Reigel never writes directly to <code className="font-mono text-brand-900">main</code> or <code className="font-mono text-brand-900">production</code>. All automated fixes are staged to isolated branches (<code className="font-mono text-brand-900">reigel/seo-fixes-...</code>) and submitted via GitHub Pull Requests requiring review.</span>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={openGitHubModal} className="rounded-lg border border-brand-200 px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50">Change repository</button>
                   <button type="button" disabled={disconnectRepo.isPending} onClick={handleDisconnectGitHub} className="rounded-lg border border-error-200 px-2.5 py-1.5 font-medium text-error-700 hover:bg-error-50 disabled:opacity-50">{disconnectRepo.isPending ? "Disconnecting…" : "Disconnect"}</button>

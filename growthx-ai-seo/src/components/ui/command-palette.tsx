@@ -2,13 +2,33 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Search, PenLine, BarChart3, Search as SearchIcon, Zap, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Store, Wrench, CalendarDays } from "lucide-react";
+import {
+  Search,
+  PenLine,
+  BarChart3,
+  Zap,
+  Target,
+  Eye,
+  GitBranch,
+  FileSpreadsheet,
+  Settings,
+  RefreshCw,
+  Plus,
+  CornerDownLeft,
+  Wrench,
+  CalendarDays,
+  Link2,
+  Gauge,
+  Layers,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
   id: string;
   title: string;
-  category: "Navigation" | "Quick Actions" | "Keywords" | "Pages";
+  category: "Navigation" | "Deep Dives" | "Quick Actions";
   icon: React.ElementType;
   href?: string;
   action?: () => void;
@@ -43,28 +63,29 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // Core Navigation
     { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview & executive KPIs" },
     { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Technical crawler, issue deduplication & site health" },
+    { id: "nav-organic", title: "Organic Search & Keywords", category: "Navigation", icon: Search, href: "/organic-search", subtitle: "Rank tracking, search intent & page-2 striking opportunities" },
+    { id: "nav-traffic", title: "Traffic Hub", category: "Navigation", icon: BarChart3, href: "/google", subtitle: "Search Console & Analytics 4 visitors, queries & conversions" },
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, competitor crawl diff & market gaps" },
-
-    // Extended Workspace & Tools
-    { id: "nav-traffic", title: "Traffic", category: "Navigation", icon: SearchIcon, href: "/google", subtitle: "Visitors, search queries, landing pages & channels" },
+    { id: "nav-backlinks", title: "Backlink Intelligence", category: "Navigation", icon: Link2, href: "/backlinks", subtitle: "Authority backlink index, link gaps & verified checks" },
     { id: "nav-ai", title: "AI Visibility", category: "Navigation", icon: Eye, href: "/ai-visibility", subtitle: "How ChatGPT, Gemini, Perplexity and Claude describe you" },
     { id: "nav-fix", title: "Fix Engine", category: "Navigation", icon: Wrench, href: "/fix-engine", subtitle: "Your improvement plan, and changes as a pull request" },
     { id: "nav-monthly-report", title: "Monthly Report", category: "Navigation", icon: CalendarDays, href: "/monthly-report", subtitle: "Recorded work, verified changes, and measured results by month" },
-    { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
-    { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
+    { id: "nav-integrations", title: "Integrations & Connections", category: "Navigation", icon: GitBranch, href: "/settings?tab=integrations", subtitle: "Connect Google, GitHub & CMS publishing sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
-    { id: "nav-add-biz", title: "Add Website", category: "Navigation", icon: Plus, href: "/dashboard", subtitle: "Add a website from the dashboard" },
+
+    // Deep Dives & Reports
+    { id: "deep-cwv", title: "Speed & Core Web Vitals Deep Dive", category: "Deep Dives", icon: Gauge, href: "/website?tab=performance", subtitle: "LCP, INP, CLS threshold breakdown & crawl response times" },
+    { id: "deep-striking", title: "Page-2 Striking Distance Opportunities", category: "Deep Dives", icon: Target, href: "/organic-search?tab=page2", subtitle: "Queries ranking #11–#20 ready to jump to Page 1" },
+    { id: "deep-gaps", title: "Competitor Content & Keyword Gaps", category: "Deep Dives", icon: Layers, href: "/competitor-intelligence?tab=gaps", subtitle: "Identify topics where competitors rank on Page 1" },
+    { id: "deep-link-gap", title: "Competitor Link Gap Matrix", category: "Deep Dives", icon: Link2, href: "/backlinks", subtitle: "Referring domains linking to 2+ rivals but missing you" },
+    { id: "deep-results", title: "Verified HTML Results Ledger", category: "Deep Dives", icon: CheckCircle2, href: "/fix-engine?tab=results", subtitle: "Continuous rank and traffic lift observation loop" },
 
     // Quick Actions
-    // Subtitles describe what the action does. They deliberately carry no
-    // counts or metrics — the palette has no workspace data loaded, so any
-    // figure here would be a fabricated number shown to every tenant.
-    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/website"); }, subtitle: "Scan your site for SEO issues" },
-    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: PenLine, action: () => { router.push("/competitor-intelligence?tab=opportunities"); }, subtitle: "Draft an SEO-optimized article from content opportunities" },
-    // These two pointed at /search-console and /local-seo, neither of which
-    // is a route in this app — the palette was written before it was mounted,
-    // so nobody ever clicked them into a 404.
-    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/google"); }, subtitle: "Fetch the latest search queries" },
+    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/website"); }, subtitle: "Crawl your site for SEO health issues" },
+    { id: "act-verify-html", title: "Verify Live HTML Changes", category: "Quick Actions", icon: ShieldCheck, action: () => { router.push("/dashboard"); }, subtitle: "Confirm deployed changes against live server responses" },
+    { id: "act-sync-gsc", title: "Sync Google Search Console & GA4", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/google"); }, subtitle: "Fetch the latest rolling search queries and traffic" },
+    { id: "act-ai-scan", title: "Check AI Search Visibility", category: "Quick Actions", icon: Eye, action: () => { router.push("/ai-visibility"); }, subtitle: "Analyze model responses across ChatGPT and Gemini" },
+    { id: "act-open-fixes", title: "Stage GitHub Pull Request", category: "Quick Actions", icon: Wrench, action: () => { router.push("/fix-engine"); }, subtitle: "Package approved SEO code fixes into a Git branch" },
   ], [router]);
 
   const filteredItems = useMemo(() => {
