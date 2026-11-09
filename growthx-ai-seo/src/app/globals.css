@@ -784,5 +784,7 @@ html.dark [data-nav-active="true"] * {
   .report-section { break-inside: avoid-page; }
   .report-table tr { break-inside: avoid; }
   .report-table thead { display: table-header-group; }
+  .print-avoid-break { break-inside: avoid; }
+  .print-break-before { break-before: page; }
 }
 
