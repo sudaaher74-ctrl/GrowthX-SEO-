@@ -134,7 +134,7 @@ export function PlanView({
                 </p>
               </div>
             </div>
-            <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10.5px] font-medium text-brand-500">
+            <span className="rounded-md border border-brand-200/70 bg-surface-2 px-2 py-0.5 text-[10.5px] font-medium text-brand-500">
               Autonomous
             </span>
           </div>
@@ -300,7 +300,7 @@ function FindingRow({
               </ul>
             </div>
           )}
-          <div className="rounded-xl border border-line bg-surface-2/40 p-3.5 space-y-2">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3.5 space-y-2 shadow-2xs">
             <div className="flex items-center justify-between">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-brand-950 flex items-center gap-1.5">
                 <FileCode2 size={13} className="text-primary-700" /> Actionable Fix

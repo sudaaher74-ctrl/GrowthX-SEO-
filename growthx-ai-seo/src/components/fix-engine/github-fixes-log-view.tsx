@@ -2245,7 +2245,7 @@ export function GitHubFixesLogView({
                   )}
 
                   {run.steps.length > 0 && (
-                    <details className="rounded-lg border border-line bg-surface-2 px-3 py-2">
+                    <details className="rounded-lg border border-brand-200/80 bg-surface-2 px-3 py-2">
                       <summary className="cursor-pointer text-xs font-semibold text-brand-700">
                         View execution details ({run.steps.length})
                       </summary>
