@@ -3164,48 +3164,24 @@ function DevicesView() {
 }
 
 /* =========================================================================
-   10. SUBSCRIPTION VIEW (PROMOTIONAL FREE TIER & COMPLETE CREDIT SYSTEM)
+   10. SUBSCRIPTION VIEW (MINIMAL, LIKE CHATGPT & CLAUDE)
    ========================================================================= */
 
 function SubscriptionView() {
-  const router = useRouter();
-  const { orgId, projectId, projects } = useWorkspace();
-  const currentProject = projects.find((p) => p.id === projectId) ?? projects[0];
-  const currentDomain = currentProject?.name;
-
+  const { orgId } = useWorkspace();
   const { subscription, plan, claim, allPlans } = useSubscription(orgId);
 
-  const tokens = useTokens(orgId);
-  const tokenData = tokens.data;
-  const isTokensActive = isActive(tokenData);
-
-  const crawlQuery = useQuery({
-    queryKey: ["latest-crawl", currentDomain],
-    queryFn: () => (currentDomain ? api.getLatestCrawl(currentDomain) : null),
-    enabled: Boolean(currentDomain),
-  });
-  const crawl = crawlQuery.data;
-
-  // Dynamic Quota Rules based on claimed subscription
-  const websiteCount = Math.max(1, projects.length);
   const websiteCap = subscription ? subscription.limits.websites : DEFAULT_SUBSCRIPTION_LIMITS.websites;
-  const pagesCrawled = crawl?.pagesCrawled ?? 0;
   const crawlCap = subscription ? subscription.limits.crawlPages : DEFAULT_SUBSCRIPTION_LIMITS.crawlPages;
-  const crawlPct = Math.min(100, Math.round((pagesCrawled / crawlCap) * 100));
   const aiCyclesGranted = subscription ? subscription.limits.aiCycles : DEFAULT_SUBSCRIPTION_LIMITS.aiCycles;
-  const aiCyclesUsed = 1;
-  const aiCyclesPct = Math.round((aiCyclesUsed / aiCyclesGranted) * 100);
   const competitorsCap = subscription ? subscription.limits.competitors : DEFAULT_SUBSCRIPTION_LIMITS.competitors;
 
-  // Plan comparison and switching state
-  const [showPlans, setShowPlans] = useState(true);
+  const [showPlans, setShowPlans] = useState(false);
   const [currency, setCurrency] = useState<Currency>(subscription?.currency ?? "INR");
   const [cycle, setCycle] = useState<BillingCycle>(subscription?.billingCycle ?? "monthly");
   const [switchingTierId, setSwitchingTierId] = useState<string | null>(null);
   const [switchSuccessNote, setSwitchSuccessNote] = useState<string | null>(null);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const isFounderFree = subscription?.tierId === "founder_free" || !subscription;
   const activePlanDef = plan ?? allPlans[0];
 
   const getTierPriceString = (tierId: SubscriptionTierId) => {
@@ -3222,266 +3198,89 @@ function SubscriptionView() {
       setSwitchingTierId(null);
       const targetPlan = allPlans.find((p) => p.id === tierId);
       setSwitchSuccessNote(
-        `Successfully switched to ${targetPlan?.name || "plan"}! Workspace quotas and allowances updated.`
+        `Switched to ${targetPlan?.name || "plan"}. Limits updated.`
       );
-      setTimeout(() => setSwitchSuccessNote(null), 5000);
-    }, 400);
+      setTimeout(() => setSwitchSuccessNote(null), 4000);
+    }, 350);
   };
 
-  const faqs = [
-    {
-      q: "Is Reigel really 100% free until December 31, 2026?",
-      a: "Yes. Early access users receive full platform capabilities, autonomous agent remediation, sitemap spidering, and AI visibility sampling completely free with zero fees through December 31, 2026. No payment method or credit card is required.",
-    },
-    {
-      q: "What are the 3 conditions of the free promotional tier?",
-      a: "1) Exactly 1 active website per workspace. 2) Deep technical crawl capacity of up to 5,000 pages per audit cycle. 3) 2 complete AI Search Visibility audit cycles per month across ChatGPT, Perplexity, Claude, and Gemini.",
-    },
-    {
-      q: "What happens on January 1, 2027?",
-      a: "You will never be automatically billed or charged. In January 2027, you can choose whether to continue on the standard free allowance or upgrade to a Growth or Agency tier if you need multi-website capacity.",
-    },
-    {
-      q: "How does switching or upgrading my subscription work?",
-      a: "You can freely switch between the Founder Early Access Pass, Starter, Growth, or Agency tiers at any time. When you select a new tier, your website caps, crawl page capacities, and AI Visibility cycles update immediately.",
-    },
-    {
-      q: "How does the credit system work with my allowances?",
-      a: "Your workspace is granted a generous monthly credit allowance (and bonus credits) to comfortably power all crawl pages, AI visibility audit cycles, and Fix Engine pull request patches with zero out-of-pocket costs.",
-    },
-    {
-      q: "Can I replace or change my active website domain?",
-      a: "Yes. You can manage or swap your active website domain anytime under Settings > Websites.",
-    },
-  ];
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold text-brand-950">Subscription &amp; Quotas</h2>
-          <p className="text-xs text-brand-500">
-            {isFounderFree
-              ? "Complimentary Founder Early Access active through December 31, 2026"
-              : `Active Plan: ${activePlanDef.name} (${activePlanDef.badge})`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isFounderFree ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 font-mono text-xs font-bold text-brand-950 border border-brand-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-              <span>Launch Promo · 100% Free Access</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 font-mono text-xs font-bold text-primary-800 border border-primary-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary-600" />
-              <span>{activePlanDef.name} Active</span>
-            </span>
-          )}
-        </div>
+      <div>
+        <h2 className="text-base font-bold text-brand-950">Subscription</h2>
+        <p className="text-xs text-brand-500">
+          Manage your workspace plan and feature limits
+        </p>
       </div>
 
       {/* Switch Notification */}
       {switchSuccessNote && (
-        <div className="rounded-xl border border-success-200 bg-success-50 p-3.5 text-xs text-success-800 flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 size={16} className="text-success-600 shrink-0" />
+        <div className="rounded-xl border border-success-200 bg-success-50 p-3 text-xs text-success-800 flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 size={15} className="text-success-600 shrink-0" />
           <span className="font-semibold">{switchSuccessNote}</span>
         </div>
       )}
 
-      {/* Hero Plan Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-signal-400 px-3 py-0.5 text-xs font-black text-signal-ink shadow-2xs">
-                {activePlanDef.name}
+      {/* Current Plan Card (ChatGPT / Claude Style) */}
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                Current Plan
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 border border-success-200">
-                <CheckCircle2 size={12} />
-                {isFounderFree ? "Active through Dec 31, 2026" : "Active Subscription"}
-              </span>
-            </div>
-
-            <div>
-              <div className="flex items-baseline gap-2.5">
-                <p className="text-4xl font-black text-brand-950">
-                  {getTierPriceString(activePlanDef.id)}
-                </p>
-                <span className="text-sm font-semibold text-brand-500">
-                  {cycle === "yearly" ? "/ month, billed annually" : "/ month"}
-                </span>
-                {isFounderFree && (
-                  <span className="text-sm font-medium line-through text-brand-400">
-                    {currency === "INR" ? "₹7,999 / mo standard" : "$99 / mo standard"}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-xs text-brand-600 font-medium">
-                {activePlanDef.blurb}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 text-xs text-brand-500 pt-1">
-              <span className="inline-flex items-center gap-1.5">
-                <Calendar size={13} className="text-brand-400" />
-                <span>
-                  {isFounderFree
-                    ? <span>Next review: <strong>1 January 2027</strong></span>
-                    : <span>Billing cadence: <strong>{cycle === "yearly" ? "Annual" : "Monthly"}</strong></span>}
-                </span>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Shield size={13} className="text-brand-400" />
-                <span>Zero surprise charges or auto-debits</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 border border-success-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-success-600" />
+                Active
               </span>
             </div>
+            <h3 className="mt-1 text-2xl font-black text-brand-950">{activePlanDef.name}</h3>
+            <p className="mt-0.5 text-sm font-semibold text-brand-700">
+              {getTierPriceString(activePlanDef.id)}
+              <span className="text-xs font-normal text-brand-500 ml-1">
+                {activePlanDef.id === "founder_free" ? "· Complimentary access through 2026" : `/ month (${cycle})`}
+              </span>
+            </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => router.push("/tokens")}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2.5 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
-            >
-              <span>View Credit Ledger</span>
-              <ArrowRight size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPlans(!showPlans)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
-            >
-              <span>{showPlans ? "Hide Tier Options" : "Switch / Upgrade Plan"}</span>
-              {showPlans ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
+          <button
+            type="button"
+            onClick={() => setShowPlans(!showPlans)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2 text-xs font-extrabold text-signal-ink hover:bg-signal-500 transition cursor-pointer self-start sm:self-auto shadow-2xs"
+          >
+            <span>{showPlans ? "Hide Plans" : "Change Plan"}</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+
+        {/* Minimal Quota Summary Strip */}
+        <div className="mt-5 pt-4 border-t border-brand-200/70 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5">
+            <span className="text-brand-500 text-[11px] block">Monitored Sites</span>
+            <span className="font-mono font-bold text-sm text-brand-950">{websiteCap}</span>
+          </div>
+          <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5">
+            <span className="text-brand-500 text-[11px] block">Crawl Capacity</span>
+            <span className="font-mono font-bold text-sm text-brand-950">{crawlCap.toLocaleString()} URLs</span>
+          </div>
+          <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5">
+            <span className="text-brand-500 text-[11px] block">AI Visibility</span>
+            <span className="font-mono font-bold text-sm text-brand-950">{aiCyclesGranted} audits / mo</span>
+          </div>
+          <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5">
+            <span className="text-brand-500 text-[11px] block">Competitors Tracked</span>
+            <span className="font-mono font-bold text-sm text-brand-950">{competitorsCap} rivals</span>
           </div>
         </div>
       </div>
 
-      {/* Quota Gauges for Claimed Plan */}
-      <div>
-        <div className="mb-3">
-          <h3 className="text-sm font-bold text-brand-950">Active Plan Quotas &amp; Allowances</h3>
-          <p className="text-xs text-brand-500">
-            Usage meters enforced under your claimed <strong>{activePlanDef.name}</strong> subscription
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Quota 1: Website Limit */}
-          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
-                <Globe size={16} />
-              </span>
-              <span className="rounded-full bg-signal-400/20 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-950 border border-brand-200">
-                {websiteCap} Site{websiteCap === 1 ? "" : "s"} Max
-              </span>
-            </div>
-            <div className="mt-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">Website Quota</p>
-              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
-                {websiteCount} / {websiteCap} <span className="text-xs font-sans font-medium text-brand-500">Active</span>
-              </p>
-              <p className="mt-1 text-xs text-brand-600 truncate">
-                {currentDomain || "Active Workspace Domain"}
-              </p>
-            </div>
-            <div className="mt-3">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
-                <div
-                  className="h-full rounded-full bg-signal-400 transition-all"
-                  style={{ width: `${Math.min(100, Math.round((websiteCount / websiteCap) * 100))}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                {websiteCap === 1
-                  ? "1 primary root domain. Upgrade to Growth or Agency for multi-site monitoring."
-                  : `Up to ${websiteCap} monitored domains supported under your active tier.`}
-              </p>
-            </div>
-          </div>
-
-          {/* Quota 2: Crawl Capacity */}
-          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
-                <Radar size={16} />
-              </span>
-              <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
-                {crawlCap.toLocaleString()} Cap
-              </span>
-            </div>
-            <div className="mt-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">Crawl Capacity</p>
-              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
-                {pagesCrawled.toLocaleString()} <span className="text-xs font-sans font-medium text-brand-500">/ {crawlCap.toLocaleString()} pages</span>
-              </p>
-              <p className="mt-1 text-xs text-brand-600">
-                {crawl?.status ? `Status: ${crawl.status}` : "Continuous sitemap spider ready"}
-              </p>
-            </div>
-            <div className="mt-3">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
-                <div
-                  className="h-full rounded-full bg-signal-400 transition-all"
-                  style={{ width: `${Math.max(5, crawlPct)}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                Deep sitemap, broken links, response speed, and Core Web Vitals across up to {crawlCap.toLocaleString()} URLs.
-              </p>
-            </div>
-          </div>
-
-          {/* Quota 3: AI Visibility Audit Cycles */}
-          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
-                <Bot size={16} />
-              </span>
-              <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
-                {aiCyclesGranted} Cycles / Mo
-              </span>
-            </div>
-            <div className="mt-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">AI Visibility Audits</p>
-              <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
-                {aiCyclesUsed} / {aiCyclesGranted} <span className="text-xs font-sans font-medium text-brand-500">Cycles Used</span>
-              </p>
-              <p className="mt-1 text-xs text-brand-600">
-                {Math.max(0, aiCyclesGranted - aiCyclesUsed)} audit cycle{aiCyclesGranted - aiCyclesUsed === 1 ? "" : "s"} available this month
-              </p>
-            </div>
-            <div className="mt-3">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
-                <div
-                  className="h-full rounded-full bg-signal-400 transition-all"
-                  style={{ width: `${aiCyclesPct}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                Samples citations across ChatGPT, Perplexity, Claude, and Gemini for brand share of voice.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Plan Switcher / Upgrade Matrix */}
+      {/* Plan Options (Minimal Claude / ChatGPT 4-card comparison) */}
       {showPlans && (
-        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-brand-950">Switch or Upgrade Workspace Tier</h3>
-              <p className="text-xs text-brand-500">
-                Select your preferred subscription tier. Your allowances, limits, and feature access apply instantly.
-              </p>
-            </div>
+        <div className="space-y-4 pt-2 animate-in fade-in duration-150">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-brand-950">Available Plans</h3>
 
-            {/* Currency & Billing Cycle Toggles */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
                 <button
@@ -3531,7 +3330,7 @@ function SubscriptionView() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {allPlans.map((p) => {
               const isCurrent = subscription?.tierId === p.id;
               const isSwitching = switchingTierId === p.id;
@@ -3541,94 +3340,74 @@ function SubscriptionView() {
                 <div
                   key={p.id}
                   className={cn(
-                    "relative rounded-xl border p-4 flex flex-col justify-between transition",
+                    "rounded-2xl border p-4 flex flex-col justify-between transition-all",
                     isCurrent
-                      ? "border-primary-500 bg-primary-50/20 ring-2 ring-primary-500/20 shadow-xs"
-                      : p.popular
-                      ? "border-signal-400 bg-surface-2/60 shadow-xs"
-                      : "border-brand-200 bg-surface-2"
+                      ? "border-primary-500 bg-surface-1 ring-2 ring-primary-500/20 shadow-xs"
+                      : "border-brand-200 bg-surface-1 hover:border-brand-300"
                   )}
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-800">
+                      <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
                         {p.badge}
                       </span>
                       {isCurrent && (
-                        <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-black text-primary-800">
+                        <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">
                           Current
                         </span>
                       )}
                     </div>
 
                     <div>
-                      <h4 className="font-extrabold text-sm text-brand-950">{p.name}</h4>
-                      <div className="mt-1 flex items-baseline gap-1.5">
+                      <h4 className="font-bold text-sm text-brand-950">{p.name}</h4>
+                      <div className="mt-1 flex items-baseline gap-1">
                         <span className="text-xl font-black text-brand-950">{priceDisplay}</span>
                         <span className="text-[11px] text-brand-500">
-                          {p.id === "founder_free" ? "through 2026" : cycle === "yearly" ? "/mo (annual)" : "/mo"}
+                          {p.id === "founder_free" ? "" : "/mo"}
                         </span>
                       </div>
-                      <p className="mt-1 text-[11.5px] text-brand-600 line-clamp-2">{p.blurb}</p>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-brand-200/80 text-[11px]">
-                      <div className="flex items-center justify-between font-mono text-brand-800">
-                        <span>Websites:</span>
-                        <strong>{p.websiteLimit}</strong>
-                      </div>
-                      <div className="flex items-center justify-between font-mono text-brand-800">
-                        <span>Crawl Pages:</span>
-                        <strong>{p.crawlPageLimit.toLocaleString()}</strong>
-                      </div>
-                      <div className="flex items-center justify-between font-mono text-brand-800">
-                        <span>AI Cycles / Mo:</span>
-                        <strong>{p.aiCyclesMonthly}</strong>
-                      </div>
-                      <div className="flex items-center justify-between font-mono text-brand-800">
-                        <span>Tracked Rivals:</span>
-                        <strong>{p.competitorsLimit}</strong>
-                      </div>
-                    </div>
-
-                    <ul className="space-y-1 pt-2 border-t border-brand-200/80">
-                      {p.features.slice(0, 4).map((feat) => (
-                        <li key={feat} className="flex items-start gap-1.5 text-[11px] text-brand-700">
-                          <Check size={11} className="text-success-600 mt-0.5 shrink-0" />
-                          <span className="line-clamp-1">{feat}</span>
-                        </li>
-                      ))}
+                    <ul className="space-y-1.5 pt-2 border-t border-brand-200/70 text-xs text-brand-700">
+                      <li className="flex items-center gap-1.5">
+                        <Check size={12} className="text-success-600 shrink-0" />
+                        <span>{p.websiteLimit} {p.websiteLimit === 1 ? "website" : "websites"}</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check size={12} className="text-success-600 shrink-0" />
+                        <span>{p.crawlPageLimit.toLocaleString()} crawl pages</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check size={12} className="text-success-600 shrink-0" />
+                        <span>{p.aiCyclesMonthly} AI Visibility cycles</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check size={12} className="text-success-600 shrink-0" />
+                        <span>{p.competitorsLimit} rivals tracked</span>
+                      </li>
                     </ul>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-brand-200/80">
+                  <div className="pt-4 mt-3 border-t border-brand-200/70">
                     {isCurrent ? (
-                      <div className="flex items-center justify-center gap-1.5 rounded-lg border border-primary-300 bg-primary-50 py-1.5 text-xs font-bold text-primary-800">
-                        <CheckCircle2 size={13} />
-                        <span>Active Plan</span>
+                      <div className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 py-1.5 text-xs font-semibold text-brand-600">
+                        <CheckCircle2 size={13} className="text-success-600" />
+                        <span>Current Plan</span>
                       </div>
                     ) : (
                       <button
                         type="button"
                         disabled={Boolean(switchingTierId)}
                         onClick={() => handleSwitchPlan(p.id)}
-                        className={cn(
-                          "w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition cursor-pointer disabled:opacity-50",
-                          p.popular
-                            ? "bg-signal-400 text-signal-ink hover:bg-signal-500 shadow-2xs"
-                            : "bg-brand-950 text-surface-1 hover:bg-brand-800"
-                        )}
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-signal-400 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer disabled:opacity-50 shadow-2xs"
                       >
                         {isSwitching ? (
                           <>
                             <Loader2 size={12} className="animate-spin" />
-                            <span>Updating...</span>
+                            <span>Updating…</span>
                           </>
                         ) : (
-                          <>
-                            <span>Select {p.name}</span>
-                            <ArrowRight size={12} />
-                          </>
+                          <span>Select Plan</span>
                         )}
                       </button>
                     )}
@@ -3639,116 +3418,6 @@ function SubscriptionView() {
           </div>
         </div>
       )}
-
-      {/* Complete Credit System & Conversion Ledger */}
-      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-brand-950">Integrated Credit Ledger</h3>
-            <p className="text-xs text-brand-500">
-              How platform actions consume credits under your monthly allowance
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-brand-400">Total Available</p>
-            <p className="text-xl font-mono font-black text-brand-950">
-              {tokenData && isTokensActive ? formatTokens(tokenData.available) : "3.762M"}{" "}
-              <span className="text-xs font-sans font-semibold text-brand-500">credits</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Credit Breakdown Bar */}
-        {tokenData && isTokensActive && (
-          <div className="rounded-xl border border-brand-200 bg-surface-2 p-4 text-xs space-y-2">
-            <div className="flex items-center justify-between font-semibold text-brand-700">
-              <span>Monthly Allowance Remaining</span>
-              <span className="font-mono text-brand-950">
-                {formatTokens(tokenData.allowance.remaining)} / {formatTokens(tokenData.allowance.granted)} (
-                {Math.round((tokenData.allowance.remaining / Math.max(1, tokenData.allowance.granted)) * 100)}%)
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-1 border border-brand-200 p-0.5">
-              <div
-                className="h-full rounded-full bg-signal-400 transition-all"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    Math.round((tokenData.allowance.remaining / Math.max(1, tokenData.allowance.granted)) * 100),
-                  )}%`,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-brand-500 pt-1">
-              <span>Bonus Credits: <strong className="text-brand-800">{formatTokens(tokenData.bonus)}</strong> (never expire)</span>
-              <span>Standing: <strong className="text-success-700">Healthy (Complimentary)</strong></span>
-            </div>
-          </div>
-        )}
-
-        {/* Credit Consumption Rates Matrix */}
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500 mb-2.5">
-            Transparent Credit Consumption Rates
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
-              <span className="font-semibold text-brand-950">Website Crawl</span>
-              <p className="mt-1 font-mono text-base font-bold text-brand-900">1 Credit</p>
-              <p className="mt-0.5 text-[11px] text-brand-500">Per URL checked (up to {crawlCap.toLocaleString()}/crawl)</p>
-            </div>
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
-              <span className="font-semibold text-brand-950">AI Visibility Check</span>
-              <p className="mt-1 font-mono text-base font-bold text-brand-900">50 Credits</p>
-              <p className="mt-0.5 text-[11px] text-brand-500">Per multi-engine prompt query</p>
-            </div>
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
-              <span className="font-semibold text-brand-950">Fix Engine PR</span>
-              <p className="mt-1 font-mono text-base font-bold text-brand-900">100 Credits</p>
-              <p className="mt-0.5 text-[11px] text-brand-500">Per autonomous Git patch generated</p>
-            </div>
-            <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
-              <span className="font-semibold text-brand-950">Local SEO Grid Pin</span>
-              <p className="mt-1 font-mono text-base font-bold text-brand-900">10 Credits</p>
-              <p className="mt-0.5 text-[11px] text-brand-500">Per Google Maps coordinate audited</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Frequently Asked Questions */}
-      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-3">
-        <div className="flex items-center gap-2 mb-2">
-          <HelpCircle size={16} className="text-brand-500" />
-          <h3 className="text-sm font-bold text-brand-950">Early Access Policy &amp; FAQ</h3>
-        </div>
-
-        <div className="space-y-2">
-          {faqs.map((faq, idx) => {
-            const isOpen = openFaq === idx;
-            return (
-              <div
-                key={faq.q}
-                className="rounded-xl border border-brand-200 bg-surface-2 overflow-hidden"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenFaq(isOpen ? null : idx)}
-                  className="flex w-full items-center justify-between p-3.5 text-left text-xs font-bold text-brand-950 hover:bg-surface-3 transition cursor-pointer"
-                >
-                  <span>{faq.q}</span>
-                  {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                </button>
-                {isOpen && (
-                  <div className="px-3.5 pb-3.5 text-xs text-brand-600 leading-relaxed border-t border-brand-200/80 pt-2.5">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
