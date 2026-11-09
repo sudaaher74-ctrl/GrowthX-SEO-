@@ -28,6 +28,7 @@ import {
   GitPullRequest,
   Play,
   FileText,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStartCrawl, useWorkspace } from "@/hooks/use-growthx";
@@ -151,6 +152,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
     // ── CORE NAVIGATION (All Core Tabs) ──
     { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview, health score & executive telemetry beacons" },
+    { id: "nav-clients", title: "Agency Client Directory", category: "Navigation", icon: Users, href: "/clients", subtitle: "Multi-client portfolio oversight, cross-account SEO health & white-label suite" },
     { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Autonomous crawler, issue deduplication & site health score" },
     { id: "nav-organic", title: "Organic Search & Keywords", category: "Navigation", icon: Search, href: "/organic-search", subtitle: "Rank tracking, search intent & page-2 striking opportunities" },
     { id: "nav-traffic", title: "Traffic Hub", category: "Navigation", icon: BarChart3, href: "/google", subtitle: "Search Console & Analytics 4 visitors, queries & conversions" },

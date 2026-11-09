@@ -13,6 +13,7 @@ import {
   History,
   TrendingUp,
   Sliders,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
@@ -89,6 +90,13 @@ export function useMainNav(): { mainNav: NavItem[] } {
       href: "/dashboard",
       icon: LayoutGrid,
       group: "overview",
+    },
+    {
+      label: "Clients",
+      href: "/clients",
+      icon: Users,
+      group: "overview",
+      tag: portfolio.data?.clients.length ? String(portfolio.data.clients.length) : undefined,
     },
     {
       label: "Website Audit",
