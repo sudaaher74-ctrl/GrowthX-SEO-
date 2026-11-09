@@ -317,10 +317,10 @@ export function ResultsTrajectoryChart({
               </p>
             </div>
             <Link
-              href="/google/overview"
+              href="/google"
               className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
             >
-              Full Search Console Report <ArrowRight size={11} />
+              Open Traffic &amp; Search Hub <ArrowRight size={11} />
             </Link>
           </div>
 
@@ -435,10 +435,10 @@ export function ResultsTrajectoryChart({
               </p>
             </div>
             <Link
-              href="/google/analytics"
+              href="/google"
               className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
             >
-              Full Analytics Report <ArrowRight size={11} />
+              Open Traffic &amp; Analytics Hub <ArrowRight size={11} />
             </Link>
           </div>
 

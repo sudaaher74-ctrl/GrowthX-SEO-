@@ -176,8 +176,8 @@ export function ChannelShare({ data, days }: { data: Ga4ReportData; days: number
         subtitle={`Last ${days} days · from Google Analytics`}
         aside={
           <Link
-            href="/google/analytics"
-            aria-label="Open Analytics"
+            href="/google"
+            aria-label="Open Traffic & Analytics"
             className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-200/60 text-brand-600 transition hover:bg-brand-200 hover:text-brand-950"
           >
             <ArrowUpRight size={13} />

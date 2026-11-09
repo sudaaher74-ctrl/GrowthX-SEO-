@@ -1,5 +1,5 @@
-import { AnalyticsView } from "@/components/google/analytics-view";
+import { redirect } from "next/navigation";
 
 export default function GoogleAnalyticsPage() {
-  return <AnalyticsView />;
+  redirect("/google");
 }

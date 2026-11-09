@@ -399,7 +399,7 @@ export default function UnifiedDashboardPage() {
             aside={
               hasGsc || hasGa ? (
                 <Link
-                  href="/google/search-performance"
+                  href="/google"
                   aria-label="More detail on visitors"
                   className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-200/60 text-brand-600 transition hover:bg-brand-200 hover:text-brand-950"
                 >

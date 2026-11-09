@@ -98,14 +98,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
-      children: [
-        { id: "technical-seo", label: "Technical health", href: "/website?tab=technical-seo", tab: "technical-seo", isDefault: true },
-        { id: "performance", label: "Speed", href: "/website?tab=performance", tab: "performance" },
-        { id: "pages", label: "Pages", href: "/website?tab=pages", tab: "pages" },
-        { id: "content", label: "Content", href: "/website?tab=content", tab: "content" },
-        { id: "issues", label: "Problems to fix", href: "/website?tab=issues", tab: "issues" },
-        { id: "report", label: "Full Report", href: "/website?tab=report", tab: "report" },
-      ],
     },
     {
       label: "Organic Search",
@@ -113,26 +105,14 @@ export function useMainNav(): { mainNav: NavItem[] } {
       icon: Search,
       group: "overview",
       aliases: ["/organic-search", "/google/keywords"],
-      children: [
-        { id: "ideas", label: "Keyword Ideas (Gemini)", href: "/organic-search?tab=ideas", isDefault: true },
-        { id: "top", label: "Ranked Keywords", href: "/organic-search?tab=top" },
-        { id: "rising", label: "Rising & Page 2", href: "/organic-search?tab=rising" },
-      ],
     },
     {
       label: "Traffic",
       href: "/google",
       icon: BarChart3,
       group: "overview",
-      aliases: ["/traffic", "/google/traffic"],
+      aliases: ["/traffic", "/google/traffic", "/google/search-console", "/google/analytics"],
       step: { n: 2, done: googleDone, hint: googleDone ? "Traffic connected" : "Connect Search Console or Analytics" },
-      children: [
-        { id: "traffic", label: "Traffic", href: "/google", isDefault: true },
-        { id: "search-console", label: "Search Console", href: "/google/search-console" },
-        { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
-        { id: "keywords", label: "Keywords", href: "/google/keywords" },
-        { id: "report", label: "Report", href: "/google?tab=report", tab: "report" },
-      ],
     },
     {
       label: "Competitor Intelligence",
@@ -140,12 +120,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       icon: Crosshair,
       group: "intelligence",
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
-      children: [
-        { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
-        { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
-        { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
-        { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
-      ],
     },
     {
       label: "Backlink Intelligence",
@@ -165,11 +139,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
       href: "/fix-engine",
       icon: Wrench,
       group: "execution",
-      children: [
-        { id: "improvement", label: "Improvement Plan", href: "/fix-engine?tab=improvement", tab: "improvement", icon: Sliders, isDefault: true },
-        { id: "github-fixes", label: "Fixes & Log", href: "/fix-engine?tab=github-fixes", tab: "github-fixes", icon: History },
-        { id: "results", label: "Results", href: "/fix-engine?tab=results", tab: "results", icon: TrendingUp },
-      ],
     },
     {
       label: "Monthly Report",

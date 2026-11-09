@@ -1,5 +1,5 @@
-import { SearchConsoleView } from "@/components/google/search-console-view";
+import { redirect } from "next/navigation";
 
 export default function GoogleSearchConsolePage() {
-  return <SearchConsoleView />;
+  redirect("/google");
 }

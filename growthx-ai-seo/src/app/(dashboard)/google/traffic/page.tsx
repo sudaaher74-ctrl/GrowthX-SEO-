@@ -1,5 +1,5 @@
-import { TrafficView } from "@/components/google/traffic-view";
+import { redirect } from "next/navigation";
 
 export default function GoogleTrafficPage() {
-  return <TrafficView />;
+  redirect("/google");
 }

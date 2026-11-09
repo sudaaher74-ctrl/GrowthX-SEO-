@@ -1,5 +1,5 @@
-import { SearchPerformanceView } from "@/components/google/search-performance-view";
+import { redirect } from "next/navigation";
 
 export default function GoogleSearchPerformanceViewPage() {
-  return <SearchPerformanceView />;
+  redirect("/google");
 }
