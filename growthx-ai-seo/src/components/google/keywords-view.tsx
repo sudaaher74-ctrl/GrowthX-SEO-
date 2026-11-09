@@ -95,6 +95,14 @@ export function KeywordsView() {
     return set;
   });
 
+  const calculateBreakout = (pos: number) => {
+    if (pos <= 10) return { score: 100, label: "Page 1 Leader", tone: "bg-success-50 text-success-700 border-success-200/80" };
+    if (pos <= 13) return { score: Math.round(96 - (pos - 10) * 4), label: `${Math.round(96 - (pos - 10) * 4)}% Breakout`, tone: "bg-warning-50 text-warning-800 border-warning-300" };
+    if (pos <= 16) return { score: Math.round(82 - (pos - 13) * 5), label: `${Math.round(82 - (pos - 13) * 5)}% Breakout`, tone: "bg-warning-50 text-warning-800 border-warning-300" };
+    if (pos <= 20) return { score: Math.round(65 - (pos - 16) * 5), label: `${Math.round(65 - (pos - 16) * 5)}% Striking`, tone: "bg-surface-2 text-brand-700 border-brand-200" };
+    return { score: Math.max(10, Math.round(40 - (pos - 20) * 0.5)), label: `${Math.max(10, Math.round(40 - (pos - 20) * 0.5))}% Page 3+`, tone: "bg-surface-2 text-brand-400 border-brand-200" };
+  };
+
   const handleStageKeyword = (query: string, pos?: number, type: "PAGE_2_STRIKING" | "LOW_CTR" = "PAGE_2_STRIKING") => {
     const title = type === "PAGE_2_STRIKING"
       ? `Push query "${query}" from #${pos?.toFixed(1) || "15"} to Page 1`
@@ -325,13 +333,15 @@ export function KeywordsView() {
     </div>
   );
 
+  const risingCount = movement.query.data?.rising?.length ?? 0;
+  const decliningCount = declining.query.data?.length ?? 0;
+  const newCount = movement.query.data?.new?.length ?? 0;
+  const strikingCount = striking.query.data?.length ?? strikingQueries.length;
+
   return (
     <div className="space-y-5">
       {/* ── EXECUTIVE SEARCH PERFORMANCE BAROMETER ── */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -419,6 +429,122 @@ export function KeywordsView() {
                   style={{ width: `${page3Share}%` }}
                   title={`Page 3+: ${page3Count} queries (${page3Share}%)`}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* SERP Rank Velocity & Fluctuation Beacons */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => handleTabChange("rising")}
+              className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 p-2.5 text-left transition hover:bg-success-50/80 cursor-pointer"
+            >
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-success-700 font-mono block">Rising Movers</span>
+                <span className="text-base font-extrabold text-brand-950 font-mono">+{risingCount}</span>
+                <span className="text-[10px] text-success-700 block font-mono">Gaining Rank</span>
+              </div>
+              <span className="h-2.5 w-2.5 rounded-full bg-success-500 shadow-2xs shrink-0" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("declining")}
+              className="flex items-center justify-between rounded-xl border border-warning-200/60 bg-warning-50/40 p-2.5 text-left transition hover:bg-warning-50/80 cursor-pointer"
+            >
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-warning-800 font-mono block">At-Risk Dropping</span>
+                <span className="text-base font-extrabold text-brand-950 font-mono">-{decliningCount}</span>
+                <span className="text-[10px] text-warning-800 block font-mono">Needs Defense</span>
+              </div>
+              <span className="h-2.5 w-2.5 rounded-full bg-warning-500 shadow-2xs shrink-0" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("new")}
+              className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left transition hover:bg-surface-3 cursor-pointer"
+            >
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">New Entrants</span>
+                <span className="text-base font-extrabold text-brand-950 font-mono">+{newCount}</span>
+                <span className="text-[10px] text-brand-500 block font-mono">Fresh Impressions</span>
+              </div>
+              <span className="h-2.5 w-2.5 rounded-full bg-signal-400 shadow-2xs shrink-0" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("page2")}
+              className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left transition hover:bg-surface-3 cursor-pointer"
+            >
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Striking Breakouts</span>
+                <span className="text-base font-extrabold text-brand-950 font-mono">{strikingCount}</span>
+                <span className="text-[10px] text-brand-500 block font-mono">Page 2 Cusp</span>
+              </div>
+              <span className="h-2.5 w-2.5 rounded-full bg-signal-400 shadow-2xs shrink-0" />
+            </button>
+          </div>
+
+          {/* Intent Volume Cluster Radar Bar */}
+          {totalKeywords > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-brand-200/60 pt-2.5 text-xs">
+              <span className="font-semibold text-brand-700 text-[11px]">
+                Search Intent Clusters:
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("top");
+                    setIntentFilter(intentFilter === "transactional" ? "ALL" : "transactional");
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-mono transition cursor-pointer",
+                    intentFilter === "transactional"
+                      ? "border-signal-400 bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                      : "border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-signal-ink" />
+                  <span>Transactional: {transactionalCount} ({totalKeywords > 0 ? Math.round((transactionalCount / totalKeywords) * 100) : 0}%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("top");
+                    setIntentFilter(intentFilter === "commercial" ? "ALL" : "commercial");
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-mono transition cursor-pointer",
+                    intentFilter === "commercial"
+                      ? "border-signal-400 bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                      : "border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+                  <span>Commercial: {commercialCount} ({totalKeywords > 0 ? Math.round((commercialCount / totalKeywords) * 100) : 0}%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("top");
+                    setIntentFilter(intentFilter === "informational" ? "ALL" : "informational");
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-mono transition cursor-pointer",
+                    intentFilter === "informational"
+                      ? "border-signal-400 bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                      : "border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+                  <span>Informational: {informationalCount} ({totalKeywords > 0 ? Math.round((informationalCount / totalKeywords) * 100) : 0}%)</span>
+                </button>
               </div>
             </div>
           )}
@@ -659,7 +785,46 @@ export function KeywordsView() {
               filteredTopRows.length === 0 ? (
                 search.trim() ? emptySearch : empty
               ) : (
-                <SearchRowsTable rows={filteredTopRows} label="Query" />
+                <SearchRowsTable
+                  rows={filteredTopRows}
+                  label="Query"
+                  extra={[
+                    {
+                      header: "Breakout Potential",
+                      cell: (row) => {
+                        const b = calculateBreakout(row.position);
+                        return (
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold", b.tone)}>
+                              {b.label}
+                            </span>
+                          </div>
+                        );
+                      },
+                    },
+                    {
+                      header: "Action",
+                      cell: (row) => {
+                        const isStaged = stagedKeywords.has(row.key);
+                        return isStaged ? (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-success-200 bg-success-50 px-2 py-0.5 text-[10px] font-bold text-success-700 font-mono">
+                            <CheckCircle2 size={10} className="text-success-600" />
+                            <span>Staged</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleStageKeyword(row.key, row.position, row.position <= 20 ? "PAGE_2_STRIKING" : "LOW_CTR")}
+                            className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-2 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-surface-3 hover:text-brand-950 transition cursor-pointer shadow-2xs"
+                          >
+                            <Zap size={10} className="text-signal-400" />
+                            <span>Stage Fix</span>
+                          </button>
+                        );
+                      },
+                    },
+                  ]}
+                />
               )
             }
           </Gate>
@@ -803,6 +968,19 @@ export function KeywordsView() {
                     rows={filteredPage2Rows}
                     label="Query"
                     extra={[
+                      {
+                        header: "Breakout Probability",
+                        cell: (r) => {
+                          const b = calculateBreakout(r.position);
+                          return (
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold", b.tone)}>
+                                {b.label}
+                              </span>
+                            </div>
+                          );
+                        },
+                      },
                       {
                         header: "Action",
                         cell: (r) => (
