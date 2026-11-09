@@ -1,7 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpDown, BarChart2, Download, Hash, MousePointerClick, Search, TrendingUp, Target } from "lucide-react";
+import {
+  ArrowUpDown,
+  ArrowUpRight,
+  BarChart2,
+  CheckCircle2,
+  Download,
+  Hash,
+  MousePointerClick,
+  Search,
+  Target,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 import { Panel } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
 import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable, detectSearchIntent, type SearchIntent } from "@/components/google/view-kit";
@@ -10,6 +23,7 @@ import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { count, pathOf, percent, position } from "@/lib/google-format";
+import { stagingEngine } from "@/lib/staging-engine";
 import { cn } from "@/lib/utils";
 
 type Tab = "ideas" | "top" | "new" | "rising" | "page2" | "ctr" | "declining" | "cannibalization";
@@ -65,6 +79,63 @@ export function KeywordsView() {
 
   const strikingQueries = useMemo(() => allQueries.filter((r) => r.position > 10 && r.position <= 20), [allQueries]);
   const strikingImpressions = useMemo(() => strikingQueries.reduce((acc, r) => acc + (r.impressions || 0), 0), [strikingQueries]);
+
+  const totalMissedClicks = useMemo(
+    () => (ctr.query.data ?? []).reduce((acc, r) => acc + (r.estimatedMissedClicks || 0), 0),
+    [ctr.query.data],
+  );
+  const page1Share = totalKeywords > 0 ? Math.round((page1Count / totalKeywords) * 100) : 0;
+  const page2Share = totalKeywords > 0 ? Math.round((page2Count / totalKeywords) * 100) : 0;
+  const page3Share = totalKeywords > 0 ? Math.max(0, 100 - page1Share - page2Share) : 0;
+
+  const [stagedKeywords, setStagedKeywords] = useState<Set<string>>(() => {
+    const staged = stagingEngine.getStaged(projectId);
+    const set = new Set<string>();
+    staged.forEach((s) => set.add(s.title));
+    return set;
+  });
+
+  const handleStageKeyword = (query: string, pos?: number, type: "PAGE_2_STRIKING" | "LOW_CTR" = "PAGE_2_STRIKING") => {
+    const title = type === "PAGE_2_STRIKING"
+      ? `Push query "${query}" from #${pos?.toFixed(1) || "15"} to Page 1`
+      : `Optimize title & meta for query "${query}" (below expected CTR)`;
+
+    stagingEngine.stage(projectId, {
+      title,
+      category: "Organic Search",
+      source: "COMPETITOR_KEYWORD",
+      priority: "HIGH",
+      impact: type === "PAGE_2_STRIKING"
+        ? `Ranked #${pos?.toFixed(1) || "15"}. Moving to Page 1 captures significantly higher organic traffic.`
+        : `CTR is significantly below average for rank #${pos?.toFixed(1) || "N"}. Refreshing title tag and description will capture missed clicks.`,
+      effortHours: 1.5,
+      deliverable: `1. Audit page targeting "${query}".\n2. Integrate secondary semantic variations in H2s.\n3. Strengthen title tag click-through hook.\n4. Re-index page via Search Console.`,
+      evidence: `Search Console telemetry: rank #${pos?.toFixed(1) || "N"}`,
+    });
+
+    setStagedKeywords((prev) => new Set(prev).add(query));
+  };
+
+  const handleStageAllStriking = () => {
+    const list = striking.query.data ?? [];
+    for (const item of list.slice(0, 10)) {
+      stagingEngine.stage(projectId, {
+        title: `Push query "${item.key}" from #${item.position?.toFixed(1) || "15"} to Page 1`,
+        category: "Organic Search",
+        source: "COMPETITOR_KEYWORD",
+        priority: "HIGH",
+        impact: `Ranked #${item.position?.toFixed(1) || "15"}. Moving to Page 1 captures significantly higher organic traffic.`,
+        effortHours: 1.5,
+        deliverable: `1. Audit page targeting "${item.key}".\n2. Integrate secondary semantic variations in H2s.\n3. Strengthen title tag click-through hook.\n4. Re-index page via Search Console.`,
+        evidence: `Search Console telemetry: rank #${item.position?.toFixed(1) || "15"} with ${item.impressions?.toLocaleString() || 0} impressions`,
+      });
+    }
+    setStagedKeywords((prev) => {
+      const next = new Set(prev);
+      list.slice(0, 10).forEach((item) => next.add(item.key));
+      return next;
+    });
+  };
 
   const transactionalCount = useMemo(() => allQueries.filter((r) => detectSearchIntent(r.key) === "transactional").length, [allQueries]);
   const commercialCount = useMemo(() => allQueries.filter((r) => detectSearchIntent(r.key) === "commercial").length, [allQueries]);
@@ -256,6 +327,104 @@ export function KeywordsView() {
 
   return (
     <div className="space-y-5">
+      {/* ── EXECUTIVE SEARCH PERFORMANCE BAROMETER ── */}
+      <div
+        className="rounded-2xl border bg-surface-1 p-4 shadow-card"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
+                <Target size={18} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-[14.5px] font-bold text-brand-950">
+                    Organic Search Performance Barometer
+                  </h2>
+                  <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                    {totalKeywords} tracked queries
+                  </span>
+                  {totalMissedClicks > 0 && (
+                    <span className="rounded-full bg-warning-500/15 border border-warning-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-warning-800">
+                      +{count(totalMissedClicks)} missed clicks
+                    </span>
+                  )}
+                  {stagedKeywords.size > 0 && (
+                    <span className="rounded-full bg-success-500/15 border border-success-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
+                      {stagedKeywords.size} staged in Fix Engine
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[11.5px] text-brand-400">
+                  Search Console telemetry: monitor ranking distribution, striking distance lifts, and CTR optimization opportunities.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/fix-engine"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+              >
+                <Zap size={12} className="text-signal-ink" />
+                <span>Fix Engine</span>
+                <ArrowUpRight size={12} />
+              </Link>
+              <Link
+                href="/competitor-intelligence?tab=gaps"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+              >
+                <span>Competitor Gaps</span>
+                <ArrowUpRight size={12} />
+              </Link>
+            </div>
+          </div>
+
+          {/* SERP Position Distribution Meter */}
+          {totalKeywords > 0 && (
+            <div className="rounded-xl border border-brand-200/60 bg-brand-50/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold text-brand-700">SERP Position Distribution</span>
+                <div className="flex items-center gap-4 text-[10.5px] font-mono">
+                  <span className="flex items-center gap-1.5 text-success-700 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-success-500" />
+                    Page 1 (#1–#10): {page1Count} ({page1Share}%)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-warning-800 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-signal-400" />
+                    Striking (#11–#20): {page2Count} ({page2Share}%)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-brand-500 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-brand-300" />
+                    Page 3+ (#21+): {page3Count} ({page3Share}%)
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-brand-200/60 flex">
+                <div
+                  className="h-full bg-success-500 transition-all duration-500"
+                  style={{ width: `${page1Share}%` }}
+                  title={`Page 1: ${page1Count} queries (${page1Share}%)`}
+                />
+                <div
+                  className="h-full bg-signal-400 transition-all duration-500"
+                  style={{ width: `${page2Share}%` }}
+                  title={`Page 2 Striking Distance: ${page2Count} queries (${page2Share}%)`}
+                />
+                <div
+                  className="h-full bg-brand-300 transition-all duration-500"
+                  style={{ width: `${page3Share}%` }}
+                  title={`Page 3+: ${page3Count} queries (${page3Share}%)`}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── TOP KPI SUMMARY GRID ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center gap-3">
@@ -428,7 +597,7 @@ export function KeywordsView() {
                   onClick={() => setIntentFilter(item.id as any)}
                   className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition cursor-pointer ${
                     intentFilter === item.id
-                      ? "bg-brand-950 text-white font-bold shadow-xs"
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                       : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
                   }`}
                 >
@@ -461,14 +630,24 @@ export function KeywordsView() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setPositionRange("PAGE_2")}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-warning-500/40 bg-surface px-3 py-1.5 text-xs font-semibold text-warning-800 hover:bg-warning-500/10 transition shadow-2xs cursor-pointer shrink-0"
-          >
-            <span>Filter Striking Queries</span>
-            <ArrowUpDown size={12} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPositionRange("PAGE_2")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-warning-500/40 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-warning-800 hover:bg-warning-500/10 transition shadow-2xs cursor-pointer shrink-0"
+            >
+              <span>Filter Striking Queries</span>
+              <ArrowUpDown size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={handleStageAllStriking}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 active:scale-[0.98] cursor-pointer shrink-0"
+            >
+              <Zap size={12} className="text-signal-ink" />
+              <span>Stage Top Striking in Fix Engine</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -607,7 +786,38 @@ export function KeywordsView() {
                 emptySearch
               ) : (
                 <>
-                  <SearchRowsTable rows={filteredPage2Rows} label="Query" />
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11.5px] text-brand-500">
+                      {filteredPage2Rows.length} striking distance queries with Page 1 lift potential
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleStageAllStriking}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 active:scale-[0.98] cursor-pointer"
+                    >
+                      <Zap size={11} className="text-signal-ink" />
+                      <span>Stage All in Fix Engine</span>
+                    </button>
+                  </div>
+                  <SearchRowsTable
+                    rows={filteredPage2Rows}
+                    label="Query"
+                    extra={[
+                      {
+                        header: "Action",
+                        cell: (r) => (
+                          <button
+                            type="button"
+                            onClick={() => handleStageKeyword(r.key, r.position, "PAGE_2_STRIKING")}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
+                          >
+                            <Zap size={11} className="text-signal-400" />
+                            <span>{stagedKeywords.has(r.key) ? "Staged ✓" : "Stage Fix"}</span>
+                          </button>
+                        ),
+                      },
+                    ]}
+                  />
                   <Caveat>
                     Selected by position {rows[0].criteria.minPosition}–{rows[0].criteria.maxPosition} with at least {count(rows[0].criteria.minImpressions)} impressions in the last {rows[0].criteria.days} days.
                   </Caveat>
@@ -631,6 +841,19 @@ export function KeywordsView() {
                     extra={[
                       { header: "Expected CTR", cell: (r) => percent((r as (typeof rows)[number]).expectedCtr) },
                       { header: "Missed clicks", cell: (r) => count((r as (typeof rows)[number]).estimatedMissedClicks) },
+                      {
+                        header: "Action",
+                        cell: (r) => (
+                          <button
+                            type="button"
+                            onClick={() => handleStageKeyword(r.key, r.position, "LOW_CTR")}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
+                          >
+                            <Zap size={11} className="text-signal-400" />
+                            <span>{stagedKeywords.has(r.key) ? "Staged ✓" : "Stage Fix"}</span>
+                          </button>
+                        ),
+                      },
                     ]}
                   />
                   <Caveat>Missed clicks are an estimate from typical CTR by position, not a measured figure.</Caveat>
