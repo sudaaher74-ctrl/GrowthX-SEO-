@@ -1,11 +1,25 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, MoreHorizontal, Search, SlidersHorizontal, X } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  MoreHorizontal,
+  Search,
+  SlidersHorizontal,
+  X,
+  Zap,
+} from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlPage } from "@/lib/api-client";
 import { classifyPageType, toDisplayPageType, DISPLAY_PAGE_TYPES, DisplayPageType } from "@/lib/page-type";
 import { getPageSeoScore } from "./page-score";
+import { useWorkspace } from "@/hooks/use-growthx";
+import { stagingEngine } from "@/lib/staging-engine";
 
 interface PagesTableProps {
   pages: CrawlPage[];
@@ -18,6 +32,20 @@ export function PagesTable({
   issuesPerUrl,
   onOpenPageDetails,
 }: PagesTableProps) {
+  const { projectId } = useWorkspace();
+  const [stagedPageUrls, setStagedPageUrls] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!projectId) return;
+    const existing = stagingEngine.getStaged(projectId);
+    const urls = new Set(
+      existing
+        .map((item) => item.affectedUrl)
+        .filter((url): url is string => Boolean(url))
+    );
+    setStagedPageUrls(urls);
+  }, [projectId]);
+
   // Table filters & pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("ALL");
@@ -118,6 +146,94 @@ export function PagesTable({
 
   const formatPageType = (page: CrawlPage) => getPageType(page);
 
+  const handleQuickStagePage = (page: CrawlPage, issueCount: number) => {
+    if (!projectId) return;
+    const urlPath = (() => {
+      try {
+        return new URL(page.url).pathname;
+      } catch {
+        return page.url;
+      }
+    })();
+
+    const isError = page.statusCode != null && page.statusCode >= 400;
+    const isNoindex = page.indexability === "NOT_INDEXABLE";
+
+    let title = `Fix on-page SEO issues on ${urlPath}`;
+    let category = "Technical SEO";
+    let priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" = "MEDIUM";
+    let impact = `Resolves ${issueCount} detected crawl issues to protect rank and search crawl efficiency.`;
+
+    if (isError) {
+      title = `Resolve HTTP ${page.statusCode} error on ${urlPath}`;
+      category = "Crawlability & Errors";
+      priority = "CRITICAL";
+      impact = `HTTP ${page.statusCode} error blocks search bots and users, wasting crawl budget.`;
+    } else if (isNoindex) {
+      title = `Fix indexability & non-indexable status on ${urlPath}`;
+      category = "Indexability";
+      priority = "HIGH";
+      impact = "Page is currently non-indexable by search engines. Fix canonical/meta directives to restore indexation.";
+    } else if (issueCount >= 3) {
+      title = `Resolve ${issueCount} technical audit issues on ${urlPath}`;
+      priority = "HIGH";
+    }
+
+    const deliverable = [
+      `Target URL: ${page.url}`,
+      `Page Title: ${page.title || "Untitled Document"}`,
+      `HTTP Status: ${page.statusCode || "Unknown"}`,
+      `Indexability: ${page.indexability || "Unknown"}`,
+      `Reported Issues: ${issueCount}`,
+      "",
+      "Remediation Steps:",
+      "1. Audit page response headers and meta robot tags.",
+      "2. Check canonical URL consistency and internal linking structure.",
+      "3. Correct heading hierarchy (H1, H2) and missing image alt tags.",
+      "4. Verify Core Web Vitals performance and server response times.",
+    ].join("\n");
+
+    stagingEngine.stage(projectId, {
+      title,
+      category,
+      source: "TECHNICAL_AUDIT",
+      priority,
+      impact,
+      effortHours: isError ? 1 : 2,
+      deliverable,
+      evidence: `Technical Crawler · ${issueCount} issues · Status ${page.statusCode || "Unknown"}`,
+      affectedUrl: page.url,
+    });
+
+    setStagedPageUrls((prev) => new Set(prev).add(page.url));
+  };
+
+  const criticalPages = useMemo(() => {
+    return pages.filter((p) => {
+      const issues = issuesPerUrl.get(p.url) || 0;
+      return (issues > 0 || (p.statusCode != null && p.statusCode >= 400)) && !stagedPageUrls.has(p.url);
+    });
+  }, [pages, issuesPerUrl, stagedPageUrls]);
+
+  const handleStageSelectedPages = () => {
+    if (!projectId || selectedPageIds.size === 0) return;
+    const selected = pages.filter((p) => selectedPageIds.has(p.id) && !stagedPageUrls.has(p.url));
+    if (selected.length === 0) return;
+
+    for (const page of selected) {
+      const issues = issuesPerUrl.get(page.url) || 0;
+      handleQuickStagePage(page, issues);
+    }
+  };
+
+  const handleStageAllCritical = () => {
+    if (!projectId || criticalPages.length === 0) return;
+    for (const page of criticalPages) {
+      const issues = issuesPerUrl.get(page.url) || 0;
+      handleQuickStagePage(page, issues);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-brand-200 bg-surface-1 shadow-xs overflow-hidden">
       {/* Quick Segment Filter Bar */}
@@ -148,11 +264,11 @@ export function PagesTable({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
               selectedStatus === "200"
-                ? "bg-emerald-500 text-white shadow-xs"
+                ? "bg-success-600 text-white shadow-xs"
                 : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
             )}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
             200 OK
           </button>
           <button
@@ -164,11 +280,11 @@ export function PagesTable({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
               selectedStatus === "3xx"
-                ? "bg-amber-500 text-white shadow-xs"
+                ? "bg-warning-600 text-white shadow-xs"
                 : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
             )}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="h-1.5 w-1.5 rounded-full bg-warning-500" />
             3xx Redirects
           </button>
           <button
@@ -180,11 +296,11 @@ export function PagesTable({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
               selectedStatus === "4xx"
-                ? "bg-rose-500 text-white shadow-xs"
+                ? "bg-error-600 text-white shadow-xs"
                 : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
             )}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            <span className="h-1.5 w-1.5 rounded-full bg-error-500" />
             4xx/5xx Errors
           </button>
           <button
@@ -320,6 +436,32 @@ export function PagesTable({
             <option value="issues">Sort by: Issues</option>
             <option value="status">Sort by: Status</option>
           </select>
+        </div>
+
+        {/* Right Action Buttons */}
+        <div className="flex items-center gap-2">
+          {selectedPageIds.size > 0 && (
+            <button
+              type="button"
+              onClick={handleStageSelectedPages}
+              className="h-8 rounded-lg border border-signal-400 bg-signal-400 px-3 text-xs font-bold text-signal-ink shadow-xs inline-flex items-center gap-1.5 transition hover:brightness-105 active:scale-[0.98] cursor-pointer"
+            >
+              <Zap size={12} className="fill-signal-ink" />
+              <span>Stage Selected ({selectedPageIds.size})</span>
+            </button>
+          )}
+
+          {criticalPages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleStageAllCritical}
+              className="h-8 rounded-lg border border-brand-200 bg-surface-2 px-3 text-xs font-bold text-brand-800 hover:bg-surface-3 shadow-2xs inline-flex items-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
+              title="Stage all pages with HTTP errors or reported audit issues directly into Fix Engine"
+            >
+              <Zap size={12} className="text-warning-500 fill-warning-500" />
+              <span>Stage Issues ({criticalPages.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -527,6 +669,22 @@ export function PagesTable({
                     {/* Actions */}
                     <td className="p-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        {stagedPageUrls.has(page.url) ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-success-200 bg-success-50 px-2 py-1 text-[11px] font-bold text-success-700">
+                            <CheckCircle2 size={11} className="text-success-600" />
+                            <span>Staged</span>
+                          </span>
+                        ) : (issueCount > 0 || (page.statusCode != null && page.statusCode >= 400) || indexability === "NOT_INDEXABLE") ? (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickStagePage(page, issueCount)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-signal-300 bg-signal-100 hover:bg-signal-200 px-2 py-1 text-[11px] font-bold text-signal-ink transition cursor-pointer shadow-2xs active:scale-[0.98]"
+                            title="Stage this page for remediation in Fix Engine"
+                          >
+                            <Zap size={11} className="fill-signal-400 text-signal-ink" />
+                            <span>Stage Fix</span>
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => onOpenPageDetails?.(page)}

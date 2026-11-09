@@ -113,6 +113,73 @@ function SettingsClient() {
   const searchParams = useSearchParams();
   const rawTab = normalizeSettingsTab(searchParams?.get("tab") ?? null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(rawTab);
+  const qc = useQueryClient();
+  const { projectId, projects } = useWorkspace();
+  const currentProject = projects.find((p) => p.id === projectId);
+  const repo = useRepository(projectId);
+
+  const googleQuery = useQuery({
+    queryKey: ["google-connections", projectId],
+    queryFn: () => (projectId ? api.googleConnections(projectId) : null),
+    enabled: Boolean(projectId),
+  });
+
+  const wpQuery = useQuery({
+    queryKey: ["wordpress-connection", projectId],
+    queryFn: () => (projectId ? api.getWordPressConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const shopifyQuery = useQuery({
+    queryKey: ["shopify-connection", projectId],
+    queryFn: () => (projectId ? api.getShopifyConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const webflowQuery = useQuery({
+    queryKey: ["webflow-connection", projectId],
+    queryFn: () => (projectId ? api.getWebflowConnection(projectId) : null),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefreshDiagnostics = async () => {
+    setIsRefreshing(true);
+    await Promise.allSettled([
+      qc.invalidateQueries({ queryKey: ["google-connections", projectId] }),
+      qc.invalidateQueries({ queryKey: ["repository", projectId] }),
+      qc.invalidateQueries({ queryKey: ["wordpress-connection", projectId] }),
+      qc.invalidateQueries({ queryKey: ["shopify-connection", projectId] }),
+      qc.invalidateQueries({ queryKey: ["webflow-connection", projectId] }),
+      qc.invalidateQueries({ queryKey: ["local-seo", projectId] }),
+    ]);
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
+  const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
+  const isGscConnected = gsc?.status === "CONNECTED";
+  const isGa4Connected = ga4?.status === "CONNECTED";
+  const isGitHubConnected = Boolean(repo.data?.owner && repo.data?.name);
+  const isCmsConnected = Boolean(
+    wpQuery.data?.connected || shopifyQuery.data?.connected || webflowQuery.data?.connected
+  );
+  const cmsLabel = wpQuery.data?.connected
+    ? "WordPress"
+    : shopifyQuery.data?.connected
+    ? "Shopify"
+    : webflowQuery.data?.connected
+    ? "Webflow"
+    : "Manual";
+
+  const totalConnectedServices =
+    (isGscConnected ? 1 : 0) +
+    (isGa4Connected ? 1 : 0) +
+    (isGitHubConnected ? 1 : 0) +
+    (isCmsConnected ? 1 : 0);
 
   useEffect(() => {
     const requestedTab = searchParams?.get("tab") ?? null;
@@ -147,15 +214,114 @@ function SettingsClient() {
   return (
     <div className="mx-auto max-w-6xl pb-16 pt-2">
       {/* Top Header matching okara.ai screenshot */}
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={handleBack}
-          className="inline-flex items-center gap-1.5 text-2xl font-bold tracking-tight text-brand-950 transition hover:text-brand-700"
+          className="inline-flex items-center gap-1.5 text-2xl font-bold tracking-tight text-brand-950 transition hover:text-brand-700 cursor-pointer"
         >
           <ChevronLeft size={26} className="-ml-1 text-brand-950" />
           <span>Settings</span>
         </button>
+
+        <button
+          type="button"
+          onClick={handleRefreshDiagnostics}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 hover:bg-surface-3 px-3 py-1.5 text-xs font-bold text-brand-800 shadow-2xs transition active:scale-[0.98] cursor-pointer disabled:opacity-50"
+          title="Ping and refresh all connected search, code, and CMS integrations"
+        >
+          <RefreshCw size={13} className={cn("text-brand-500", isRefreshing && "animate-spin text-signal-500")} />
+          <span>{isRefreshing ? "Testing Health…" : "Diagnostic Check"}</span>
+        </button>
+      </div>
+
+      {/* Executive Integrations & Environment Health Ribbon */}
+      <div className="mb-6 rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-950 border border-brand-200 shadow-2xs">
+              <Plug className="h-5 w-5 text-signal-400" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-brand-950 font-mono">
+                  {currentProject?.name || "Global Workspace"}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10px] font-bold font-mono text-success-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                  {totalConnectedServices} Service{totalConnectedServices === 1 ? "" : "s"} Connected
+                </span>
+              </div>
+              <p className="text-xs text-brand-500">
+                Live search telemetry, repository staging guard, and CMS publishing endpoints.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Integration Status Badges */}
+        <div className="mt-3.5 pt-3 border-t border-brand-200/60 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
+            <span className="font-semibold text-brand-950">Search Console</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
+                isGscConnected
+                  ? "bg-success-50 text-success-700 border border-success-200"
+                  : "bg-brand-100 text-brand-600 border border-brand-200"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", isGscConnected ? "bg-success-500" : "bg-brand-400")} />
+              {isGscConnected ? "Active" : "Ready"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
+            <span className="font-semibold text-brand-950">Analytics 4</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
+                isGa4Connected
+                  ? "bg-success-50 text-success-700 border border-success-200"
+                  : "bg-brand-100 text-brand-600 border border-brand-200"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", isGa4Connected ? "bg-success-500" : "bg-brand-400")} />
+              {isGa4Connected ? "Active" : "Ready"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
+            <span className="font-semibold text-brand-950">GitHub Agent</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
+                isGitHubConnected
+                  ? "bg-success-50 text-success-700 border border-success-200"
+                  : "bg-brand-100 text-brand-600 border border-brand-200"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", isGitHubConnected ? "bg-success-500" : "bg-brand-400")} />
+              {isGitHubConnected ? "Branch PR" : "Manual"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
+            <span className="font-semibold text-brand-950">CMS Endpoints</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
+                isCmsConnected
+                  ? "bg-success-50 text-success-700 border border-success-200"
+                  : "bg-brand-100 text-brand-600 border border-brand-200"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", isCmsConnected ? "bg-success-500" : "bg-brand-400")} />
+              {cmsLabel}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-12">

@@ -1,19 +1,17 @@
 "use client";
+
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   Search,
-  PenLine,
   BarChart3,
   Zap,
   Target,
   Eye,
   GitBranch,
-  FileSpreadsheet,
   Settings,
   RefreshCw,
-  Plus,
   CornerDownLeft,
   Wrench,
   CalendarDays,
@@ -22,6 +20,8 @@ import {
   Layers,
   ShieldCheck,
   CheckCircle2,
+  Globe,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,9 +60,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open, onOpenChange]);
 
   const items: CommandItem[] = useMemo(() => [
-    // Core Navigation
-    { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview & executive KPIs" },
-    { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Technical crawler, issue deduplication & site health" },
+    // Core Navigation (All 9 Core Tabs)
+    { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview, health score & executive telemetry beacons" },
+    { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Autonomous crawler, issue deduplication & site health score" },
     { id: "nav-organic", title: "Organic Search & Keywords", category: "Navigation", icon: Search, href: "/organic-search", subtitle: "Rank tracking, search intent & page-2 striking opportunities" },
     { id: "nav-traffic", title: "Traffic Hub", category: "Navigation", icon: BarChart3, href: "/google", subtitle: "Search Console & Analytics 4 visitors, queries & conversions" },
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, competitor crawl diff & market gaps" },
@@ -73,11 +73,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-integrations", title: "Integrations & Connections", category: "Navigation", icon: GitBranch, href: "/settings?tab=integrations", subtitle: "Connect Google, GitHub & CMS publishing sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
 
-    // Deep Dives & Reports
+    // Deep Dives & Sub-Views
+    { id: "deep-pages", title: "Website Audit: Crawled Pages Table", category: "Deep Dives", icon: Globe, href: "/website?tab=pages", subtitle: "Inspect indexability, HTTP status codes, word counts & 1-click staging" },
     { id: "deep-cwv", title: "Speed & Core Web Vitals Deep Dive", category: "Deep Dives", icon: Gauge, href: "/website?tab=performance", subtitle: "LCP, INP, CLS threshold breakdown & crawl response times" },
     { id: "deep-striking", title: "Page-2 Striking Distance Opportunities", category: "Deep Dives", icon: Target, href: "/organic-search?tab=page2", subtitle: "Queries ranking #11–#20 ready to jump to Page 1" },
     { id: "deep-gaps", title: "Competitor Content & Keyword Gaps", category: "Deep Dives", icon: Layers, href: "/competitor-intelligence?tab=gaps", subtitle: "Identify topics where competitors rank on Page 1" },
-    { id: "deep-link-gap", title: "Competitor Link Gap Matrix", category: "Deep Dives", icon: Link2, href: "/backlinks", subtitle: "Referring domains linking to 2+ rivals but missing you" },
+    { id: "deep-rivals", title: "Competitor Rival Radar", category: "Deep Dives", icon: Radio, href: "/competitor-intelligence?tab=rivals", subtitle: "Direct benchmark comparison against primary competitors" },
+    { id: "deep-link-gap", title: "Competitor Link Gap Matrix", category: "Deep Dives", icon: Link2, href: "/backlinks?tab=gaps", subtitle: "Referring domains linking to 2+ rivals but missing you" },
     { id: "deep-results", title: "Verified HTML Results Ledger", category: "Deep Dives", icon: CheckCircle2, href: "/fix-engine?tab=results", subtitle: "Continuous rank and traffic lift observation loop" },
 
     // Quick Actions
@@ -92,12 +94,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     if (!query.trim()) return items;
     const q = query.toLowerCase();
     return items.filter(
-      item => item.title.toLowerCase().includes(q) || (item.subtitle && item.subtitle.toLowerCase().includes(q)) || item.category.toLowerCase().includes(q)
+      item =>
+        item.title.toLowerCase().includes(q) ||
+        (item.subtitle && item.subtitle.toLowerCase().includes(q)) ||
+        item.category.toLowerCase().includes(q)
     );
   }, [items, query]);
 
-  // Reset the highlighted row when the query changes. Done during render
-  // rather than in an effect so there is no extra render pass.
+  // Reset the highlighted row when the query changes.
   const [lastQuery, setLastQuery] = useState(query);
   if (query !== lastQuery) {
     setLastQuery(query);
@@ -147,48 +151,44 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={() => onOpenChange(false)}
-          className="fixed inset-0 bg-[var(--bg-overlay)] backdrop-blur-md"
+          className="fixed inset-0 bg-brand-950/40 backdrop-blur-sm"
         />
 
         {/* Modal */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+          initial={{ opacity: 0, scale: 0.96, y: -8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -10 }}
+          exit={{ opacity: 0, scale: 0.96, y: -8 }}
           transition={{ duration: 0.15 }}
           onKeyDown={handleKeyDown}
-          className="relative w-full max-w-2xl bg-[var(--card-bg)] border border-[var(--border-strong)] rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[70vh]"
+          className="relative w-full max-w-2xl bg-surface-1 border border-brand-200/80 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[72vh]"
         >
           {/* Search bar */}
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-color)] bg-[var(--surface-2)]">
-            <Search size={18} className="text-gray-400 shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-brand-200/80 bg-surface-2/80">
+            <Search size={18} className="text-brand-400 shrink-0" />
             <input
               type="text"
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
-              // Was "Search tools, keywords, pages, quick actions… (try 'audit',
-              // 'rank', 'theme')". There are no keyword, page or theme
-              // commands — only Navigation and Quick Actions — so typing
-              // "rank" or "theme" returned nothing and read as a broken search.
-              placeholder="Jump to a section, or start an action…"
-              className="w-full bg-transparent text-base text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+              placeholder="Jump to any section, deep dive, or trigger an action…"
+              className="w-full bg-transparent text-sm text-brand-950 placeholder:text-brand-400 focus:outline-none"
             />
-            <kbd className="h-6 px-2 rounded border border-[var(--border-color)] bg-[var(--surface-3)] text-xs text-[var(--text-muted)] font-mono flex items-center shrink-0">
+            <kbd className="h-6 px-2 rounded-md border border-brand-200 bg-surface-1 text-[11px] text-brand-500 font-mono flex items-center shrink-0">
               ESC
             </kbd>
           </div>
 
           {/* Results list */}
-          <div className="overflow-y-auto flex-1 p-3 space-y-4">
+          <div className="overflow-y-auto flex-1 p-3 space-y-3">
             {filteredItems.length === 0 ? (
-              <div className="py-12 text-center text-[var(--text-muted)] text-sm">
-                No results found for &ldquo;{query}&rdquo;. Try searching for &ldquo;SEO&rdquo;, &ldquo;content&rdquo;, or &ldquo;rank&rdquo;.
+              <div className="py-12 text-center text-brand-400 text-xs">
+                No results found for &ldquo;{query}&rdquo;. Try searching for &ldquo;audit&rdquo;, &ldquo;keywords&rdquo;, or &ldquo;traffic&rdquo;.
               </div>
             ) : (
               categories.map(cat => (
                 <div key={cat} className="space-y-1">
-                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-400 font-mono">
                     {cat}
                   </div>
                   {filteredItems
@@ -204,30 +204,46 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           onClick={() => handleSelect(item)}
                           onMouseEnter={() => setSelectedIndex(idx)}
                           className={cn(
-                            "flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-base group",
-                            isSelected ? "bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-100" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
+                            "flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors group",
+                            isSelected
+                              ? "bg-brand-100 text-brand-950 shadow-2xs"
+                              : "hover:bg-surface-2 text-brand-800"
                           )}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-base",
-                              isSelected ? "bg-white dark:bg-zinc-700 text-gray-900 shadow-sm" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
-                            )}>
+                            <div
+                              className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                isSelected
+                                  ? "bg-surface-1 text-signal-500 shadow-2xs border border-brand-200/80"
+                                  : "bg-surface-2 text-brand-500 group-hover:text-brand-950"
+                              )}
+                            >
                               <Icon size={16} />
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold truncate">{item.title}</div>
+                              <div className="text-xs font-bold truncate">{item.title}</div>
                               {item.subtitle && (
-                                <div className={cn("text-xs truncate", isSelected ? "text-gray-500 dark:text-gray-400" : "text-[var(--text-muted)]")}>
+                                <div
+                                  className={cn(
+                                    "text-[11px] truncate",
+                                    isSelected ? "text-brand-600" : "text-brand-400"
+                                  )}
+                                >
                                   {item.subtitle}
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-gray-500 dark:text-gray-400" : "text-transparent group-hover:text-[var(--text-muted)]")}>
-                            <span>Select</span>
-                            <CornerDownLeft size={13} />
+                          <div
+                            className={cn(
+                              "flex items-center gap-1 text-[11px] font-semibold shrink-0 font-mono",
+                              isSelected ? "text-brand-700" : "opacity-0 group-hover:opacity-100 text-brand-400"
+                            )}
+                          >
+                            <span>Jump</span>
+                            <CornerDownLeft size={12} />
                           </div>
                         </div>
                       );
@@ -238,19 +254,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-[var(--border-color)] bg-[var(--surface-2)] flex items-center justify-between text-xs text-[var(--text-muted)]">
-            <div className="flex items-center gap-4">
+          <div className="px-4 py-2.5 border-t border-brand-200/80 bg-surface-2/80 flex items-center justify-between text-xs text-brand-500 font-mono">
+            <div className="flex items-center gap-4 text-[11px]">
               <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↑</kbd>
-                <kbd className="px-1 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↓</kbd>
-                to navigate
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↑</kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↓</kbd>
+                <span>to navigate</span>
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↵</kbd>
-                to select
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↵</kbd>
+                <span>to select</span>
               </span>
             </div>
-            <span>Reigel AI SEO · Quick Command</span>
+            <span className="text-[11px] font-bold text-brand-600">Reigel Global Navigation</span>
           </div>
         </motion.div>
       </div>
