@@ -13,6 +13,9 @@ import { TokenBanner } from "@/components/tokens/token-banner";
 import { ProductTour } from "@/components/tour/product-tour";
 
 import { useTheme } from "@/hooks/use-theme";
+import { useWorkspace } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
+import { SubscriptionGateModal } from "@/components/subscription/subscription-gate-modal";
 
 /**
  * Every dashboard route renders inside this shell, so it is where the session
@@ -36,6 +39,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // (workspace, audit workflow, tokens) does not apply to it.
   const isAdmin = usePathname().startsWith("/admin");
   const { isDark } = useTheme();
+  const { orgId } = useWorkspace();
+  const { isClaimed } = useSubscription(orgId);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -136,6 +141,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
       <AivaPanel />
       {!isAdmin && <ProductTour />}
+      {!isAdmin && !isClaimed && <SubscriptionGateModal orgId={orgId} />}
     </AivaProvider>
   );
 }

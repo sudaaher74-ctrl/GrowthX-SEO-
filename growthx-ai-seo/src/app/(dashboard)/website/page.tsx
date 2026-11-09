@@ -10,6 +10,7 @@ import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, Square, X, Zap } fr
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { crawlPageTotal } from "@/lib/crawl-page-total";
+import { useSubscription, DEFAULT_SUBSCRIPTION_LIMITS } from "@/lib/subscription-engine";
 import {
   useCrawlHistory,
   useCancelCrawl,
@@ -40,6 +41,8 @@ function WebsiteAuditClient() {
 
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
+  const { subscription, plan } = useSubscription(orgId);
+  const crawlCap = subscription ? subscription.limits.crawlPages : DEFAULT_SUBSCRIPTION_LIMITS.crawlPages;
 
   const clients = portfolio.data?.clients ?? [];
   const activeProject = projects.find((p) => p.id === projectId);
@@ -263,7 +266,7 @@ function WebsiteAuditClient() {
                   Last checked: {formatRelativeTime(crawl.data.finishedAt)}
                 </span>
                 <span className="text-brand-400">·</span>
-                <span>{totalPages.toLocaleString()} pages</span>
+                <span>{totalPages.toLocaleString()} / {crawlCap.toLocaleString()} pages</span>
                 <span className="text-brand-400">·</span>
                 <span>
                   {counts
@@ -304,6 +307,15 @@ function WebsiteAuditClient() {
                 <span>{crawling ? "Starting…" : "Check my website again"}</span>
               </button>
             )}
+
+            <Link
+              href="/settings?tab=subscription"
+              title="Click to view subscription plan & crawl capacity limits"
+              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+              <span>Cap: {crawlCap.toLocaleString()} URLs ({plan?.name ?? "Active Plan"})</span>
+            </Link>
 
             <Link
               href="/fix-engine"

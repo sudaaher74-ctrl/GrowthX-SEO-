@@ -73,6 +73,12 @@ import {
   useCrawlHistory,
 } from "@/hooks/use-growthx";
 import { stagingEngine } from "@/lib/staging-engine";
+import {
+  useSubscription,
+  SUBSCRIPTION_PLANS,
+  DEFAULT_SUBSCRIPTION_LIMITS,
+  type SubscriptionTierId,
+} from "@/lib/subscription-engine";
 import { resetTour } from "@/hooks/use-tour";
 import { formatTokens, formatTokensExact, isActive, refillDate, standingOf } from "@/lib/tokens";
 import { api, type GoogleProviderStatus, type Role } from "@/lib/api-client";
@@ -81,7 +87,7 @@ import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
 import { relativeTime } from "@/components/ui/console";
-import { PLANS, planPrice, type Currency, type BillingCycle } from "@/lib/pricing";
+import { PLANS, planPrice, type Currency, type BillingCycle, type PlanId } from "@/lib/pricing";
 
 type SettingsTab =
   | "websites"
@@ -2101,8 +2107,13 @@ function WebsitesView() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const router = useRouter();
+  const { subscription, plan } = useSubscription(orgId);
   const clients = portfolio.data?.clients ?? [];
+  const websiteCap = subscription ? subscription.limits.websites : DEFAULT_SUBSCRIPTION_LIMITS.websites;
+  const crawlCap = subscription ? subscription.limits.crawlPages : DEFAULT_SUBSCRIPTION_LIMITS.crawlPages;
+  const aiCycles = subscription ? subscription.limits.aiCycles : DEFAULT_SUBSCRIPTION_LIMITS.aiCycles;
   const activeCount = Math.max(1, clients.length);
+  const isAtLimit = clients.length >= websiteCap;
 
   return (
     <div className="space-y-6">
@@ -2111,16 +2122,32 @@ function WebsitesView() {
           <h2 className="text-base font-bold text-brand-950">Websites</h2>
           <p className="text-xs text-brand-500">Manage tracked websites, domains, and automated audit cadences</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 text-xs font-bold text-brand-950 border border-brand-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-          <span>Early Access: {activeCount} of 1 Website Slot Used</span>
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 text-xs font-bold text-brand-950 border border-brand-200">
+            <span className={cn("h-1.5 w-1.5 rounded-full", isAtLimit ? "bg-warning-500" : "bg-success-500")} />
+            <span>{plan?.name || "Active Tier"}: {activeCount} of {websiteCap} Website Slot{websiteCap === 1 ? "" : "s"} Used</span>
+          </span>
+          {isAtLimit && (
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.set("tab", "subscription");
+                window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+                window.location.reload();
+              }}
+              className="rounded-lg border border-signal-400 bg-signal-400 px-2.5 py-1 text-xs font-bold text-brand-950 hover:bg-signal-500 transition cursor-pointer"
+            >
+              Upgrade Limit
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-brand-200 bg-surface-2 p-3.5 text-xs text-brand-700">
-        <p className="font-semibold text-brand-950">Free Launch Tier Condition:</p>
+        <p className="font-semibold text-brand-950">Active Subscription Allocation ({plan?.name || "Founder Early Access Pass"}):</p>
         <p className="mt-0.5 text-brand-500">
-          Every login user can monitor <strong>1 active website</strong> with up to <strong>5,000 pages crawl capacity</strong> and <strong>2 AI Visibility audit cycles</strong> during our promotional launch period (100% free through December 31, 2026).
+          Your workspace tier entitles you to monitor <strong>{websiteCap} website{websiteCap === 1 ? "" : "s"}</strong> with up to <strong>{crawlCap.toLocaleString()} pages crawl capacity</strong> and <strong>{aiCycles} AI Visibility audit cycles</strong> per month.
         </p>
       </div>
 
@@ -3146,6 +3173,8 @@ function SubscriptionView() {
   const currentProject = projects.find((p) => p.id === projectId) ?? projects[0];
   const currentDomain = currentProject?.name;
 
+  const { subscription, plan, claim, allPlans } = useSubscription(orgId);
+
   const tokens = useTokens(orgId);
   const tokenData = tokens.data;
   const isTokensActive = isActive(tokenData);
@@ -3157,21 +3186,47 @@ function SubscriptionView() {
   });
   const crawl = crawlQuery.data;
 
-  // 3 Core Quota Rules
+  // Dynamic Quota Rules based on claimed subscription
   const websiteCount = Math.max(1, projects.length);
-  const websiteCap = 1;
+  const websiteCap = subscription ? subscription.limits.websites : DEFAULT_SUBSCRIPTION_LIMITS.websites;
   const pagesCrawled = crawl?.pagesCrawled ?? 0;
-  const crawlCap = 5000;
+  const crawlCap = subscription ? subscription.limits.crawlPages : DEFAULT_SUBSCRIPTION_LIMITS.crawlPages;
   const crawlPct = Math.min(100, Math.round((pagesCrawled / crawlCap) * 100));
-  const aiCyclesGranted = 2;
+  const aiCyclesGranted = subscription ? subscription.limits.aiCycles : DEFAULT_SUBSCRIPTION_LIMITS.aiCycles;
   const aiCyclesUsed = 1;
   const aiCyclesPct = Math.round((aiCyclesUsed / aiCyclesGranted) * 100);
+  const competitorsCap = subscription ? subscription.limits.competitors : DEFAULT_SUBSCRIPTION_LIMITS.competitors;
 
-  // Future plan comparison state
-  const [showPlans, setShowPlans] = useState(false);
-  const [currency, setCurrency] = useState<Currency>("INR");
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  // Plan comparison and switching state
+  const [showPlans, setShowPlans] = useState(true);
+  const [currency, setCurrency] = useState<Currency>(subscription?.currency ?? "INR");
+  const [cycle, setCycle] = useState<BillingCycle>(subscription?.billingCycle ?? "monthly");
+  const [switchingTierId, setSwitchingTierId] = useState<string | null>(null);
+  const [switchSuccessNote, setSwitchSuccessNote] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const isFounderFree = subscription?.tierId === "founder_free" || !subscription;
+  const activePlanDef = plan ?? allPlans[0];
+
+  const getTierPriceString = (tierId: SubscriptionTierId) => {
+    if (tierId === "founder_free") {
+      return currency === "INR" ? "₹0" : "$0";
+    }
+    return planPrice(tierId as PlanId, currency, cycle);
+  };
+
+  const handleSwitchPlan = (tierId: SubscriptionTierId) => {
+    setSwitchingTierId(tierId);
+    setTimeout(() => {
+      claim(tierId, { cycle, currency });
+      setSwitchingTierId(null);
+      const targetPlan = allPlans.find((p) => p.id === tierId);
+      setSwitchSuccessNote(
+        `Successfully switched to ${targetPlan?.name || "plan"}! Workspace quotas and allowances updated.`
+      );
+      setTimeout(() => setSwitchSuccessNote(null), 5000);
+    }, 400);
+  };
 
   const faqs = [
     {
@@ -3187,11 +3242,15 @@ function SubscriptionView() {
       a: "You will never be automatically billed or charged. In January 2027, you can choose whether to continue on the standard free allowance or upgrade to a Growth or Agency tier if you need multi-website capacity.",
     },
     {
-      q: "How does the credit system work with my allowances?",
-      a: "Your workspace is granted a generous monthly credit allowance (and bonus credits) to comfortably power all 5,000 crawl pages, 2 AI visibility audit cycles, and Fix Engine pull request patches with zero out-of-pocket costs.",
+      q: "How does switching or upgrading my subscription work?",
+      a: "You can freely switch between the Founder Early Access Pass, Starter, Growth, or Agency tiers at any time. When you select a new tier, your website caps, crawl page capacities, and AI Visibility cycles update immediately.",
     },
     {
-      q: "Can I replace or change my 1 monitored website?",
+      q: "How does the credit system work with my allowances?",
+      a: "Your workspace is granted a generous monthly credit allowance (and bonus credits) to comfortably power all crawl pages, AI visibility audit cycles, and Fix Engine pull request patches with zero out-of-pocket costs.",
+    },
+    {
+      q: "Can I replace or change my active website domain?",
       a: "Yes. You can manage or swap your active website domain anytime under Settings > Websites.",
     },
   ];
@@ -3203,44 +3262,75 @@ function SubscriptionView() {
         <div>
           <h2 className="text-base font-bold text-brand-950">Subscription &amp; Quotas</h2>
           <p className="text-xs text-brand-500">
-            Complimentary Founder Early Access active through December 31, 2026
+            {isFounderFree
+              ? "Complimentary Founder Early Access active through December 31, 2026"
+              : `Active Plan: ${activePlanDef.name} (${activePlanDef.badge})`}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 font-mono text-xs font-bold text-brand-950 border border-brand-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-          <span>Launch Promo · 100% Free Access</span>
-        </span>
+        <div className="flex items-center gap-2">
+          {isFounderFree ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 font-mono text-xs font-bold text-brand-950 border border-brand-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+              <span>Launch Promo · 100% Free Access</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 font-mono text-xs font-bold text-primary-800 border border-primary-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary-600" />
+              <span>{activePlanDef.name} Active</span>
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Hero Plan Card: Free Until December */}
+      {/* Switch Notification */}
+      {switchSuccessNote && (
+        <div className="rounded-xl border border-success-200 bg-success-50 p-3.5 text-xs text-success-800 flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 size={16} className="text-success-600 shrink-0" />
+          <span className="font-semibold">{switchSuccessNote}</span>
+        </div>
+      )}
+
+      {/* Hero Plan Card */}
       <div className="relative overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-signal-400 px-3 py-0.5 text-xs font-black text-signal-ink shadow-2xs">
-                Founder Early Access Pass
+                {activePlanDef.name}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 border border-success-200">
                 <CheckCircle2 size={12} />
-                Active through Dec 31, 2026
+                {isFounderFree ? "Active through Dec 31, 2026" : "Active Subscription"}
               </span>
             </div>
 
             <div>
               <div className="flex items-baseline gap-2.5">
-                <p className="text-4xl font-black text-brand-950">₹0</p>
-                <span className="text-sm font-semibold text-brand-500">/ month</span>
-                <span className="text-sm font-medium line-through text-brand-400">₹7,999 / mo standard</span>
+                <p className="text-4xl font-black text-brand-950">
+                  {getTierPriceString(activePlanDef.id)}
+                </p>
+                <span className="text-sm font-semibold text-brand-500">
+                  {cycle === "yearly" ? "/ month, billed annually" : "/ month"}
+                </span>
+                {isFounderFree && (
+                  <span className="text-sm font-medium line-through text-brand-400">
+                    {currency === "INR" ? "₹7,999 / mo standard" : "$99 / mo standard"}
+                  </span>
+                )}
               </div>
               <p className="mt-1 text-xs text-brand-600 font-medium">
-                Complimentary early access granted to your workspace. No credit card required.
+                {activePlanDef.blurb}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-brand-500 pt-1">
               <span className="inline-flex items-center gap-1.5">
                 <Calendar size={13} className="text-brand-400" />
-                <span>Next review: <strong>1 January 2027</strong></span>
+                <span>
+                  {isFounderFree
+                    ? <span>Next review: <strong>1 January 2027</strong></span>
+                    : <span>Billing cadence: <strong>{cycle === "yearly" ? "Annual" : "Monthly"}</strong></span>}
+                </span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Shield size={13} className="text-brand-400" />
@@ -3263,31 +3353,31 @@ function SubscriptionView() {
               onClick={() => setShowPlans(!showPlans)}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-4 py-2 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition cursor-pointer"
             >
-              <span>{showPlans ? "Hide Future Plans" : "Preview 2027 Plans"}</span>
+              <span>{showPlans ? "Hide Tier Options" : "Switch / Upgrade Plan"}</span>
               {showPlans ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* The 3 Core Conditions: Quota Gauges */}
+      {/* Quota Gauges for Claimed Plan */}
       <div>
         <div className="mb-3">
-          <h3 className="text-sm font-bold text-brand-950">Early Access Plan Allowances</h3>
+          <h3 className="text-sm font-bold text-brand-950">Active Plan Quotas &amp; Allowances</h3>
           <p className="text-xs text-brand-500">
-            Your workspace includes 3 dedicated quotas active through December 31, 2026
+            Usage meters enforced under your claimed <strong>{activePlanDef.name}</strong> subscription
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Condition 1: Website Limit */}
+          {/* Quota 1: Website Limit */}
           <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
                 <Globe size={16} />
               </span>
               <span className="rounded-full bg-signal-400/20 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-950 border border-brand-200">
-                1 Site Max
+                {websiteCap} Site{websiteCap === 1 ? "" : "s"} Max
               </span>
             </div>
             <div className="mt-3">
@@ -3301,28 +3391,33 @@ function SubscriptionView() {
             </div>
             <div className="mt-3">
               <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200 p-0.5">
-                <div className="h-full rounded-full bg-signal-400" style={{ width: "100%" }} />
+                <div
+                  className="h-full rounded-full bg-signal-400 transition-all"
+                  style={{ width: `${Math.min(100, Math.round((websiteCount / websiteCap) * 100))}%` }}
+                />
               </div>
               <p className="mt-2 text-[11px] text-brand-500">
-                1 primary root domain per user during early access. Multi-site workspaces unlock post-promo.
+                {websiteCap === 1
+                  ? "1 primary root domain. Upgrade to Growth or Agency for multi-site monitoring."
+                  : `Up to ${websiteCap} monitored domains supported under your active tier.`}
               </p>
             </div>
           </div>
 
-          {/* Condition 2: 5000 Pages Crawl Capacity */}
+          {/* Quota 2: Crawl Capacity */}
           <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
                 <Radar size={16} />
               </span>
               <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
-                5,000 Cap
+                {crawlCap.toLocaleString()} Cap
               </span>
             </div>
             <div className="mt-3">
               <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">Crawl Capacity</p>
               <p className="mt-0.5 text-xl font-mono font-bold text-brand-950">
-                {pagesCrawled.toLocaleString()} <span className="text-xs font-sans font-medium text-brand-500">/ 5,000 pages</span>
+                {pagesCrawled.toLocaleString()} <span className="text-xs font-sans font-medium text-brand-500">/ {crawlCap.toLocaleString()} pages</span>
               </p>
               <p className="mt-1 text-xs text-brand-600">
                 {crawl?.status ? `Status: ${crawl.status}` : "Continuous sitemap spider ready"}
@@ -3336,19 +3431,19 @@ function SubscriptionView() {
                 />
               </div>
               <p className="mt-2 text-[11px] text-brand-500">
-                Deep sitemap, broken links, response speed, and Core Web Vitals across up to 5,000 URLs.
+                Deep sitemap, broken links, response speed, and Core Web Vitals across up to {crawlCap.toLocaleString()} URLs.
               </p>
             </div>
           </div>
 
-          {/* Condition 3: 2 Cycles AI Visibility Audit */}
+          {/* Quota 3: AI Visibility Audit Cycles */}
           <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-signal-400 border border-brand-200">
                 <Bot size={16} />
               </span>
               <span className="rounded-full bg-success-50 px-2 py-0.5 font-mono text-[11px] font-bold text-success-700 border border-success-200">
-                2 Cycles / Mo
+                {aiCyclesGranted} Cycles / Mo
               </span>
             </div>
             <div className="mt-3">
@@ -3357,7 +3452,7 @@ function SubscriptionView() {
                 {aiCyclesUsed} / {aiCyclesGranted} <span className="text-xs font-sans font-medium text-brand-500">Cycles Used</span>
               </p>
               <p className="mt-1 text-xs text-brand-600">
-                1 full audit cycle available this month
+                {Math.max(0, aiCyclesGranted - aiCyclesUsed)} audit cycle{aiCyclesGranted - aiCyclesUsed === 1 ? "" : "s"} available this month
               </p>
             </div>
             <div className="mt-3">
@@ -3375,13 +3470,183 @@ function SubscriptionView() {
         </div>
       </div>
 
+      {/* Plan Switcher / Upgrade Matrix */}
+      {showPlans && (
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-brand-950">Switch or Upgrade Workspace Tier</h3>
+              <p className="text-xs text-brand-500">
+                Select your preferred subscription tier. Your allowances, limits, and feature access apply instantly.
+              </p>
+            </div>
+
+            {/* Currency & Billing Cycle Toggles */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setCurrency("INR")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    currency === "INR" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500"
+                  )}
+                >
+                  ₹ INR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("USD")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    currency === "USD" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500"
+                  )}
+                >
+                  $ USD
+                </button>
+              </div>
+
+              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setCycle("monthly")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    cycle === "monthly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500"
+                  )}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCycle("yearly")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition cursor-pointer",
+                    cycle === "yearly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500"
+                  )}
+                >
+                  Yearly (-20%)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {allPlans.map((p) => {
+              const isCurrent = subscription?.tierId === p.id;
+              const isSwitching = switchingTierId === p.id;
+              const priceDisplay = getTierPriceString(p.id);
+
+              return (
+                <div
+                  key={p.id}
+                  className={cn(
+                    "relative rounded-xl border p-4 flex flex-col justify-between transition",
+                    isCurrent
+                      ? "border-primary-500 bg-primary-50/20 ring-2 ring-primary-500/20 shadow-xs"
+                      : p.popular
+                      ? "border-signal-400 bg-surface-2/60 shadow-xs"
+                      : "border-brand-200 bg-surface-2"
+                  )}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-800">
+                        {p.badge}
+                      </span>
+                      {isCurrent && (
+                        <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-black text-primary-800">
+                          Current
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="font-extrabold text-sm text-brand-950">{p.name}</h4>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-xl font-black text-brand-950">{priceDisplay}</span>
+                        <span className="text-[11px] text-brand-500">
+                          {p.id === "founder_free" ? "through 2026" : cycle === "yearly" ? "/mo (annual)" : "/mo"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11.5px] text-brand-600 line-clamp-2">{p.blurb}</p>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-brand-200/80 text-[11px]">
+                      <div className="flex items-center justify-between font-mono text-brand-800">
+                        <span>Websites:</span>
+                        <strong>{p.websiteLimit}</strong>
+                      </div>
+                      <div className="flex items-center justify-between font-mono text-brand-800">
+                        <span>Crawl Pages:</span>
+                        <strong>{p.crawlPageLimit.toLocaleString()}</strong>
+                      </div>
+                      <div className="flex items-center justify-between font-mono text-brand-800">
+                        <span>AI Cycles / Mo:</span>
+                        <strong>{p.aiCyclesMonthly}</strong>
+                      </div>
+                      <div className="flex items-center justify-between font-mono text-brand-800">
+                        <span>Tracked Rivals:</span>
+                        <strong>{p.competitorsLimit}</strong>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-1 pt-2 border-t border-brand-200/80">
+                      {p.features.slice(0, 4).map((feat) => (
+                        <li key={feat} className="flex items-start gap-1.5 text-[11px] text-brand-700">
+                          <Check size={11} className="text-success-600 mt-0.5 shrink-0" />
+                          <span className="line-clamp-1">{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-brand-200/80">
+                    {isCurrent ? (
+                      <div className="flex items-center justify-center gap-1.5 rounded-lg border border-primary-300 bg-primary-50 py-1.5 text-xs font-bold text-primary-800">
+                        <CheckCircle2 size={13} />
+                        <span>Active Plan</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={Boolean(switchingTierId)}
+                        onClick={() => handleSwitchPlan(p.id)}
+                        className={cn(
+                          "w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition cursor-pointer disabled:opacity-50",
+                          p.popular
+                            ? "bg-signal-400 text-signal-ink hover:bg-signal-500 shadow-2xs"
+                            : "bg-brand-950 text-surface-1 hover:bg-brand-800"
+                        )}
+                      >
+                        {isSwitching ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>Updating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Select {p.name}</span>
+                            <ArrowRight size={12} />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Complete Credit System & Conversion Ledger */}
       <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-brand-950">Integrated Credit Ledger</h3>
             <p className="text-xs text-brand-500">
-              How platform actions consume credits under your promotional allowance
+              How platform actions consume credits under your monthly allowance
             </p>
           </div>
           <div className="text-right">
@@ -3430,7 +3695,7 @@ function SubscriptionView() {
             <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
               <span className="font-semibold text-brand-950">Website Crawl</span>
               <p className="mt-1 font-mono text-base font-bold text-brand-900">1 Credit</p>
-              <p className="mt-0.5 text-[11px] text-brand-500">Per URL checked (up to 5,000/crawl)</p>
+              <p className="mt-0.5 text-[11px] text-brand-500">Per URL checked (up to {crawlCap.toLocaleString()}/crawl)</p>
             </div>
             <div className="rounded-xl border border-brand-200 bg-surface-2 p-3">
               <span className="font-semibold text-brand-950">AI Visibility Check</span>
@@ -3450,129 +3715,6 @@ function SubscriptionView() {
           </div>
         </div>
       </div>
-
-      {/* Post-December 2026 Future Plans Roadmap (Collapsible) */}
-      {showPlans && (
-        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-brand-950">Post-December 2026 Plan Options</h3>
-              <p className="text-xs text-brand-500">
-                Standard pricing that applies starting January 2027. No surprise charges will occur.
-              </p>
-            </div>
-
-            {/* Currency & Billing Cycle Toggles */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setCurrency("INR")}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 transition cursor-pointer",
-                    currency === "INR" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
-                  )}
-                >
-                  ₹ INR
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrency("USD")}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 transition cursor-pointer",
-                    currency === "USD" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
-                  )}
-                >
-                  $ USD
-                </button>
-              </div>
-
-              <div className="inline-flex rounded-lg border border-brand-200 bg-surface-2 p-0.5 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setCycle("monthly")}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 transition cursor-pointer",
-                    cycle === "monthly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
-                  )}
-                >
-                  Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCycle("yearly")}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 transition cursor-pointer",
-                    cycle === "yearly" ? "bg-surface-1 text-brand-950 shadow-xs" : "text-brand-500",
-                  )}
-                >
-                  Yearly (-20%)
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {PLANS.map((plan) => {
-              const priceFormatted = planPrice(plan.id, currency, cycle);
-              const isPopular = plan.popular;
-
-              return (
-                <div
-                  key={plan.id}
-                  className={cn(
-                    "rounded-xl border p-5 flex flex-col justify-between transition",
-                    isPopular
-                      ? "border-signal-400 bg-surface-2/60 shadow-xs"
-                      : "border-brand-200 bg-surface-2",
-                  )}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-brand-950">{plan.name}</h4>
-                      {isPopular && (
-                        <span className="rounded-full bg-signal-400 px-2 py-0.5 text-[10px] font-black text-signal-ink">
-                          Standard Value
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-2xl font-black text-brand-950">{priceFormatted}</p>
-                      <span className="text-[11px] text-brand-500">
-                        {cycle === "yearly" ? "per month, billed annually" : "per month"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-brand-600">{plan.blurb}</p>
-
-                    <ul className="space-y-1.5 pt-2 border-t border-brand-200/80">
-                      {plan.features.map((feat) => (
-                        <li key={feat} className="flex items-start gap-2 text-xs text-brand-700">
-                          <Check size={12} className="text-success-600 mt-0.5 shrink-0" />
-                          <span>{feat}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="pt-4 mt-4 border-t border-brand-200/80">
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-lg border border-brand-200 bg-surface-1 py-1.5 text-xs font-semibold text-brand-500 cursor-not-allowed text-center"
-                    >
-                      Included Free in 2026
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="text-center text-xs text-brand-500 pt-1">
-            * In January 2027, you can choose whether to keep your single-site free plan or upgrade for multi-domain support.
-          </p>
-        </div>
-      )}
 
       {/* Frequently Asked Questions */}
       <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs space-y-3">

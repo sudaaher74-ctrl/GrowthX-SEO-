@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { useSubscription, DEFAULT_SUBSCRIPTION_LIMITS } from "@/lib/subscription-engine";
 import { stagingEngine } from "@/lib/staging-engine";
 import { api, visibilityJourneyApi } from "@/lib/api-client";
 import {
@@ -53,7 +54,9 @@ export function VisibilityJourneyPage() {
 
 function Journey({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
-  const { projects } = useWorkspace();
+  const { orgId, projects } = useWorkspace();
+  const { subscription, plan } = useSubscription(orgId);
+  const aiCyclesGranted = subscription ? subscription.limits.aiCycles : DEFAULT_SUBSCRIPTION_LIMITS.aiCycles;
   const currentProject = projects.find((p) => p.id === projectId);
   const currentDomain = currentProject?.name || null;
 
@@ -417,10 +420,19 @@ function Journey({ projectId }: { projectId: string }) {
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-brand-500">
           Target Domain: <strong className="font-mono text-brand-950">{currentDomain || "Workspace Domain"}</strong>
         </span>
+        <Link
+          href="/settings?tab=subscription"
+          title="Click to view subscription plan & monthly cycle limits"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+          <span>Plan Allowance: <strong>1 of {aiCyclesGranted}</strong> Monthly AI Cycles Used</span>
+          <ArrowRight size={11} className="text-brand-400" />
+        </Link>
       </div>
     </div>
 

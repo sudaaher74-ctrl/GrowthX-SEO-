@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
+import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { useSubscription } from "@/lib/subscription-engine";
 
 import { SiteSwitcher } from "@/components/layout/site-switcher";
 import {
@@ -49,7 +51,8 @@ export function TopNav({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { projectId, projects } = useWorkspace();
+  const { orgId, projectId, projects } = useWorkspace();
+  const { subscription, plan } = useSubscription(orgId);
   // Reads the shared window rather than a private copy, so the highlighted
   // pill is the window the queries are actually using.
   const period = usePeriodDays();
@@ -144,6 +147,25 @@ export function TopNav({
             </button>
           ))}
         </div>
+
+        {/* Active Subscription Badge Chip */}
+        {subscription && (
+          <Link
+            href="/settings?tab=subscription"
+            title={`Active Plan: ${plan?.name ?? subscription.tierName} (${subscription.limits.websites} site${subscription.limits.websites === 1 ? "" : "s"}, ${subscription.limits.crawlPages.toLocaleString()} crawl pages). Click to manage.`}
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                subscription.tierId === "founder_free" ? "bg-signal-400" : "bg-primary-600"
+              )}
+            />
+            <span className="font-bold text-brand-950 truncate max-w-[130px]">
+              {plan?.name ?? subscription.tierName}
+            </span>
+          </Link>
+        )}
 
         {/* Credits Chip */}
         <div data-tour="credits-chip" className="flex items-center">

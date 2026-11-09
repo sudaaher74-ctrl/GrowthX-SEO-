@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 import { cn } from "@/lib/utils";
 import type { PortfolioClient } from "@/lib/api-types";
 
@@ -61,6 +62,9 @@ export default function ClientsPage() {
   const router = useRouter();
   const { orgId, projectId, setProjectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
+  const { subscription, plan } = useSubscription(orgId);
+  const websiteCap = subscription?.limits.websites ?? 1;
+  const isAgencyPlan = subscription?.tierId === "agency";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
@@ -149,13 +153,23 @@ export default function ClientsPage() {
                 </>
               )}
             </button>
-            <Link
-              href="/settings?tab=websites"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
-            >
-              <Globe size={13} />
-              <span>Add Client Website</span>
-            </Link>
+            {clients.length >= websiteCap ? (
+              <Link
+                href="/settings?tab=subscription"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-warning-300 bg-warning-50 px-3.5 py-1.5 text-xs font-bold text-warning-800 shadow-xs transition-all hover:bg-warning-100"
+              >
+                <span>{clients.length}/{websiteCap} Sites (Upgrade Limit)</span>
+                <ArrowRight size={13} />
+              </Link>
+            ) : (
+              <Link
+                href="/settings?tab=websites"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+              >
+                <Globe size={13} />
+                <span>Add Client Website ({clients.length}/{websiteCap})</span>
+              </Link>
+            )}
           </div>
         }
       />
@@ -466,6 +480,33 @@ export default function ClientsPage() {
         subtitle="Brand client portal links, PDF executive monthly deliverables, and custom domain access."
         padded
       >
+        {!isAgencyPlan && (
+          <div className="mb-6 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-surface-1">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-brand-950">
+                    Agency Tier Feature — Custom Client Portals & PDF Watermarks
+                  </h4>
+                  <p className="mt-0.5 text-xs text-brand-600">
+                    Your current plan ({plan?.name ?? "Starter"}) does not include White-Label client customization. Upgrade to the Agency Tier to unlock custom portal subdomains, your agency logo on all executive reports, and tailored brand themes.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/settings?tab=subscription"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-bold text-surface-1 hover:bg-primary-700 transition"
+              >
+                <span>Upgrade to Agency</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSaveWhiteLabel} className="space-y-4 max-w-3xl">
           {savedSettingsNote && (
             <div role="status">
@@ -481,9 +522,10 @@ export default function ClientsPage() {
               <input
                 type="text"
                 value={agencyName}
+                disabled={!isAgencyPlan}
                 onChange={(e) => setAgencyName(e.target.value)}
                 placeholder="e.g. Apex Strategic Growth"
-                className="w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-xs text-brand-950 focus:outline-primary-600"
+                className="w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-xs text-brand-950 focus:outline-primary-600 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="mt-1 text-[11px] text-brand-500">
                 Shown on PDF cover sheets, navigation headers, and automated alerts.
@@ -497,9 +539,10 @@ export default function ClientsPage() {
               <input
                 type="url"
                 value={agencyLogoUrl}
+                disabled={!isAgencyPlan}
                 onChange={(e) => setAgencyLogoUrl(e.target.value)}
                 placeholder="https://youragency.com/logo.svg"
-                className="w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-xs text-brand-950 focus:outline-primary-600"
+                className="w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-xs text-brand-950 focus:outline-primary-600 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="mt-1 text-[11px] text-brand-500">
                 SVG or high-res PNG for header watermarks and executive PDF exports.
@@ -521,9 +564,10 @@ export default function ClientsPage() {
                 <button
                   key={c.id}
                   type="button"
+                  disabled={!isAgencyPlan}
                   onClick={() => setBrandColor(c.id)}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                    "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed",
                     brandColor === c.id
                       ? "border-brand-950 bg-brand-50 text-brand-950 shadow-2xs"
                       : "border-brand-200 bg-surface-1 text-brand-600 hover:bg-surface-2"
@@ -544,9 +588,19 @@ export default function ClientsPage() {
                 https://portal.{agencyName.toLowerCase().replace(/[^a-z0-9]/g, "") || "agency"}.com/reports?whitelabel=true
               </code>
             </div>
-            <ActionButton type="submit" variant="primary">
-              Save White-Label Branding
-            </ActionButton>
+            {isAgencyPlan ? (
+              <ActionButton type="submit" variant="primary">
+                Save White-Label Branding
+              </ActionButton>
+            ) : (
+              <Link
+                href="/settings?tab=subscription"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-surface-1 hover:bg-primary-700"
+              >
+                <span>Unlock with Agency Tier</span>
+                <ArrowRight size={12} />
+              </Link>
+            )}
           </div>
         </form>
       </Panel>
