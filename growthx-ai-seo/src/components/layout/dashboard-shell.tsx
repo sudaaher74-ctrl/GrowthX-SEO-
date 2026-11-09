@@ -41,6 +41,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { isDark } = useTheme();
   const { orgId } = useWorkspace();
   const { isClaimed } = useSubscription(orgId);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -141,7 +146,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
       <AivaPanel />
       {!isAdmin && <ProductTour />}
-      {!isAdmin && !isClaimed && <SubscriptionGateModal orgId={orgId} />}
+      {!isAdmin && mounted && !isClaimed && <SubscriptionGateModal orgId={orgId} />}
     </AivaProvider>
   );
 }

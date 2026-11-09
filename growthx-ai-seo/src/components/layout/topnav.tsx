@@ -152,7 +152,7 @@ export function TopNav({
         {subscription && (
           <Link
             href="/settings?tab=subscription"
-            title={`Active Plan: ${plan?.name ?? subscription.tierName} (${subscription.limits.websites} site${subscription.limits.websites === 1 ? "" : "s"}, ${subscription.limits.crawlPages.toLocaleString()} crawl pages). Click to manage.`}
+            title={`Active Plan: ${plan?.name ?? subscription.tierName ?? "Active"}. Click to manage.`}
             className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
           >
             <span
@@ -162,7 +162,7 @@ export function TopNav({
               )}
             />
             <span className="font-bold text-brand-950 truncate max-w-[130px]">
-              {plan?.name ?? subscription.tierName}
+              {plan?.name ?? subscription.tierName ?? "Active Plan"}
             </span>
           </Link>
         )}

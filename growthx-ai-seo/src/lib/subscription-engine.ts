@@ -148,6 +148,7 @@ function getStorageKey(orgId: string | null | undefined): string {
 }
 
 const listeners = new Set<() => void>();
+const snapshotCache = new Map<string, { raw: string | null; parsed: ClaimedSubscription | null }>();
 
 function notifyListeners() {
   for (const listener of listeners) {
@@ -162,6 +163,7 @@ function notifyListeners() {
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
     if (e.key?.startsWith(STORAGE_PREFIX)) {
+      snapshotCache.clear();
       notifyListeners();
     }
   });
@@ -170,11 +172,37 @@ if (typeof window !== "undefined") {
 export const subscriptionEngine = {
   getClaimedSubscription(orgId: string | null | undefined): ClaimedSubscription | null {
     if (typeof window === "undefined") return null;
+    const key = getStorageKey(orgId);
     try {
-      const raw = localStorage.getItem(getStorageKey(orgId));
-      if (!raw) return null;
+      const raw = localStorage.getItem(key);
+      const cached = snapshotCache.get(key);
+      if (cached && cached.raw === raw) {
+        return cached.parsed;
+      }
+
+      if (!raw) {
+        snapshotCache.set(key, { raw: null, parsed: null });
+        return null;
+      }
+
       const parsed: ClaimedSubscription = JSON.parse(raw);
-      if (!parsed.tierId || !parsed.limits) return null;
+      if (!parsed || !parsed.tierId) {
+        snapshotCache.set(key, { raw, parsed: null });
+        return null;
+      }
+
+      const planDef =
+        SUBSCRIPTION_PLANS.find((p) => p.id === parsed.tierId) ?? SUBSCRIPTION_PLANS[0];
+
+      parsed.limits = {
+        websites: parsed.limits?.websites ?? planDef.websiteLimit,
+        crawlPages: parsed.limits?.crawlPages ?? planDef.crawlPageLimit,
+        aiCycles: parsed.limits?.aiCycles ?? planDef.aiCyclesMonthly,
+        competitors: parsed.limits?.competitors ?? planDef.competitorsLimit,
+        credits: parsed.limits?.credits ?? planDef.creditsMonthly,
+      };
+
+      snapshotCache.set(key, { raw, parsed });
       return parsed;
     } catch {
       return null;
@@ -191,6 +219,7 @@ export const subscriptionEngine = {
   ): ClaimedSubscription {
     const plan = SUBSCRIPTION_PLANS.find((p) => p.id === tierId) ?? SUBSCRIPTION_PLANS[0];
     const now = new Date().toISOString();
+    const key = getStorageKey(orgId);
 
     const claimed: ClaimedSubscription = {
       tierId: plan.id,
@@ -211,7 +240,9 @@ export const subscriptionEngine = {
 
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(getStorageKey(orgId), JSON.stringify(claimed));
+        const raw = JSON.stringify(claimed);
+        localStorage.setItem(key, raw);
+        snapshotCache.set(key, { raw, parsed: claimed });
         notifyListeners();
       } catch {
         // ignore storage errors
