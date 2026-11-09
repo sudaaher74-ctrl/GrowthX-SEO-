@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, type ReactNode } from "react";
-import { Bot, Code2, Layers, ShieldCheck, Zap } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, Code2, Layers, ShieldCheck, Zap } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { AnswerDocument, FormattedAnswer } from "./formatted-answer";
+import { stagingEngine } from "@/lib/staging-engine";
 import {
   providerName,
   type VisibilityAnswer,
@@ -185,9 +186,26 @@ export function EvidenceLinks({
   );
 }
 
-export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
+export function AnswerResults({ data, projectId }: { data: VisibilityJourneyResponse; projectId?: string }) {
   const [filter, setFilter] = useState("ALL");
   const [showAll, setShowAll] = useState(false);
+  const [stagedAnswers, setStagedAnswers] = useState<Record<string, boolean>>({});
+
+  const handleStagePromptFix = (answer: VisibilityAnswer) => {
+    if (!projectId) return;
+    stagingEngine.stage(projectId, {
+      title: `Optimize AI Search Visibility: "${answer.promptText.slice(0, 50)}..."`,
+      category: "Content & Entity Optimization",
+      source: "AI_VISIBILITY",
+      priority: "HIGH",
+      impact: "Elevate brand recommendation rate across LLM responses",
+      effortHours: 2,
+      deliverable: "Deploy direct answer geometry, schema citations, and third-party entity consensus",
+      evidence: `${providerName(answer.provider, answer.model)} answer analysis`,
+    });
+    setStagedAnswers((prev) => ({ ...prev, [answer.id]: true }));
+  };
+
   const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
   const measured = data.answers.filter((a) => !a.errorMessage && a.analysis);
   const mentions = measured.filter((a) => a.analysis?.brandMentioned).length;
@@ -258,11 +276,11 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
             {assistantStats.map((item) => (
               <div
                 key={item.provider}
-                className="rounded-xl border border-line bg-surface p-4 shadow-xs"
+                className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card"
               >
                 <div className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-surface-2 font-bold text-brand-950">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200/70 bg-surface-2 font-bold text-brand-950">
                       <Bot size={15} />
                     </div>
                     <div>
@@ -330,7 +348,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
         padded
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-primary-700">
               <Zap size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
@@ -343,7 +361,7 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
             </p>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-brand-700">
               <Code2 size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
@@ -352,18 +370,18 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
             </div>
             <p className="mt-2 text-xs leading-5 text-brand-600">
               Deploy{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 Organization
               </code>{" "}
               and{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 SameAs
               </code>{" "}
               schema linking official profiles to anchor your entity in LLM memory.
             </p>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-success-700">
               <ShieldCheck size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
@@ -372,26 +390,26 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
             </div>
             <p className="mt-2 text-xs leading-5 text-brand-600">
               Ensure your{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 robots.txt
               </code>{" "}
               allows{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 GPTBot
               </code>
               ,{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 PerplexityBot
               </code>
               , and{" "}
-              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded border border-brand-200/80 bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-brand-900">
                 ClaudeBot
               </code>{" "}
               without blocking rules.
             </p>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-warning-700">
               <Layers size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
@@ -498,6 +516,31 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
                     )}
                   </details>
                 )}
+                {projectId && (
+                  <div className="mt-3 flex items-center justify-between border-t border-brand-100/80 pt-3">
+                    <span className="text-[11.5px] text-brand-400">
+                      {a.analysis?.recommended
+                        ? "Recommendation verified across models"
+                        : "High-value prompt visibility gap"}
+                    </span>
+                    {stagedAnswers[a.id] ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-700">
+                        <CheckCircle2 size={13} className="text-success-600" />
+                        <span>Staged in Fix Engine</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleStagePromptFix(a)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-signal-400/60 bg-signal-400/10 px-3 py-1.5 text-[11.5px] font-bold text-brand-950 transition-all hover:bg-signal-400 hover:text-signal-ink active:scale-95 shadow-2xs"
+                      >
+                        <Zap size={12} className="text-signal-500" />
+                        <span>Stage Prompt Fix</span>
+                        <ArrowRight size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -508,7 +551,8 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
   );
 }
 
-export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
+export function GapResults({ data, projectId }: { data: VisibilityJourneyResponse; projectId?: string }) {
+  const [stagedGaps, setStagedGaps] = useState<Record<string, boolean>>({});
   const assessments = data.journey?.analysis ?? [];
   const assistants = [...new Set([...data.providers.map((p) => p.provider), ...data.answers.map((a) => a.provider)])];
   const measured = data.answers.filter((a) => a.analysis && !a.errorMessage);
@@ -518,6 +562,29 @@ export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
       a.mentions.filter((m) => !m.isCustomer).map((m) => m.brandName),
     ))
       rivals.set(name, (rivals.get(name) ?? 0) + 1);
+
+  const handleStageGap = (
+    competitor: string,
+    observation: string,
+    hypothesis: string,
+    key: string,
+    provider: string,
+    model?: string,
+  ) => {
+    if (!projectId) return;
+    stagingEngine.stage(projectId, {
+      title: `Close AI Visibility Gap: vs ${competitor}`,
+      category: "Competitor Strategy",
+      source: "AI_VISIBILITY",
+      priority: "HIGH",
+      impact: observation,
+      effortHours: 3,
+      deliverable: `Target competitor advantage against ${competitor}: ${hypothesis || "Build citation consensus and entity authority."}`,
+      evidence: `Observed in ${providerName(provider, model)} analysis`,
+    });
+    setStagedGaps((prev) => ({ ...prev, [key]: true }));
+  };
+
   return (
     <div className="space-y-4">
       <Panel
@@ -560,11 +627,40 @@ export function GapResults({ data }: { data: VisibilityJourneyResponse }) {
                   key={`${a.provider}-${i}`}
                   className="border-b pb-4 last:border-0"
                 >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-brand-950">
-                      {g.competitor}
-                    </h3>
-                    <Pill>{providerName(a.provider, a.model)} assessment</Pill>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-brand-950">
+                        {g.competitor}
+                      </h3>
+                      <Pill>{providerName(a.provider, a.model)} assessment</Pill>
+                    </div>
+                    {projectId && (
+                      stagedGaps[`${a.provider}-${i}`] ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-700">
+                          <CheckCircle2 size={13} className="text-success-600" />
+                          <span>Staged in Fix Engine</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStageGap(
+                              g.competitor,
+                              g.observation,
+                              g.hypothesis,
+                              `${a.provider}-${i}`,
+                              a.provider,
+                              a.model,
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+                        >
+                          <Zap size={11} className="text-signal-500" />
+                          <span>Stage Action</span>
+                          <ArrowRight size={11} />
+                        </button>
+                      )
+                    )}
                   </div>
                   <p className="mt-2 text-sm leading-6 text-brand-600">
                     <strong className="text-brand-950">Observation: </strong>

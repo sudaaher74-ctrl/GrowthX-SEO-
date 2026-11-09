@@ -64,11 +64,97 @@ function Journey({ projectId }: { projectId: string }) {
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider, p.model)));
   const error = prepare.error || check.error;
 
+  const measured = data?.answers?.filter((a) => !a.errorMessage && a.analysis) ?? [];
+  const recommended = measured.filter((a) => a.analysis?.recommended).length;
+  const recommendationRate = measured.length ? Math.round((recommended / measured.length) * 100) : 0;
+
   return <div className="space-y-5 pb-12">
     <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
       {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Bot size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
       <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
     </>} />
+
+    {/* ── EXECUTIVE AI VISIBILITY TELEMETRY RIBBON ── */}
+    <div
+      className="rounded-2xl border bg-surface-1 p-4 shadow-card"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
+              <Bot size={18} />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[14.5px] font-bold text-brand-950">
+                  AI Search Recommendation Health
+                </h2>
+                {measured.length > 0 ? (
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[10.5px] font-mono font-bold",
+                      recommendationRate >= 50
+                        ? "bg-success-50 text-success-700 border border-success-200/60"
+                        : recommendationRate > 0
+                          ? "bg-warning-50 text-warning-800 border border-warning-200/60"
+                          : "bg-error-50 text-error-700 border border-error-200/60",
+                    )}
+                  >
+                    {recommendationRate}% Recommendation Rate ({recommended}/{measured.length})
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                    {configured.length} Engines Connected
+                  </span>
+                )}
+                {busy && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[10px] font-mono font-bold text-brand-950">
+                    <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
+                    Live Analysis Running
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11.5px] text-brand-400">
+                Measuring real LLM prompt synthesis across ChatGPT, Google Gemini, Claude, and Perplexity.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/fix-engine"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+            >
+              <Zap size={12} className="text-signal-ink" />
+              <span>Fix Engine</span>
+              <ArrowRight size={12} />
+            </Link>
+            <Link
+              href="/competitor-intelligence?tab=gaps"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+            >
+              <span>Competitor Gaps</span>
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Active Engines Badge Strip */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-brand-200/60 pt-3">
+          <span className="text-[11px] font-semibold text-brand-400">Monitored LLM Engines:</span>
+          {configured.map((p) => (
+            <span
+              key={p.provider}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/70 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-800"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+              <span>{providerName(p.provider, p.model)}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
     <QueryState isLoading={query.isLoading} error={query.error}>
       {error && <StatusNote tone="bad">{error.message}</StatusNote>}
       {data && !configured.length && <StatusNote tone="bad">AI checks are temporarily unavailable. Please contact support.</StatusNote>}
@@ -174,8 +260,8 @@ function Journey({ projectId }: { projectId: string }) {
           </Panel>
         )}
         {data && data.answers.length > 0 && <>
-          <AnswerResults data={data} />
-          <GapResults data={data} />
+          <AnswerResults data={data} projectId={projectId} />
+          <GapResults data={data} projectId={projectId} />
         </>}
       </>}
     </QueryState>
