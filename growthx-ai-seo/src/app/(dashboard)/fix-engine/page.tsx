@@ -89,10 +89,7 @@ function FixEngineClient() {
       />
 
       {/* ── EXECUTIVE AUTONOMOUS EXECUTION TELEMETRY RIBBON ── */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
