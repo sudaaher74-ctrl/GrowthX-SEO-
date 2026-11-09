@@ -275,7 +275,7 @@ export function ResultsTrajectoryChart({
                 aria-selected={active}
                 onClick={() => setActivePillar(pillar.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer border",
+                  "flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer border",
                   active
                     ? "border-signal-400/80 bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "border-brand-200 bg-surface-2 text-brand-600 hover:text-brand-950 hover:bg-surface-1",
@@ -285,7 +285,7 @@ export function ResultsTrajectoryChart({
                 <span>{pillar.label}</span>
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0.2 text-[9.5px] font-bold",
+                    "rounded-md px-1.5 py-0.5 text-[10px] font-bold font-mono",
                     active
                       ? "bg-black/20 text-signal-ink"
                       : pillar.tone === "good"

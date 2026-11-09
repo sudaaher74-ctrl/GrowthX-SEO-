@@ -11,6 +11,7 @@ import {
   Bot,
   CheckCircle2,
   Clock,
+  Code2,
   Compass,
   ExternalLink,
   Eye,
@@ -219,8 +220,8 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
       <MilestoneStepper day={1} totalDays={21} />
 
       {/* 3. Filter Ribbon with View Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filter results">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
+        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-surface-2/60 p-1" role="tablist" aria-label="Filter results">
           {(
             [
               { id: "ALL", label: `All Fixes (${count(allCards.length)})` },
@@ -238,13 +239,13 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 aria-selected={active}
                 onClick={() => setFilter(tab.id)}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition cursor-pointer",
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
                   active
                     ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                    : "text-brand-500 hover:bg-surface-2 hover:text-brand-950",
+                    : "text-brand-500 hover:bg-surface-1 hover:text-brand-950",
                 )}
               >
-                {tab.label}
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -252,42 +253,44 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
 
         <div className="flex items-center gap-2">
           {/* View Mode Toggle */}
-          <div className="flex items-center rounded-lg border border-brand-200 bg-surface-2 p-0.5">
+          <div className="inline-flex items-center rounded-xl border border-brand-200 bg-surface-2/80 p-1">
             <button
               type="button"
               onClick={() => setViewMode("CARDS")}
               title="Cards View"
               className={cn(
-                "rounded-md p-1.5 transition-colors cursor-pointer",
+                "rounded-lg p-1.5 transition-colors cursor-pointer",
                 viewMode === "CARDS"
                   ? "bg-surface-1 text-brand-950 shadow-2xs font-bold"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
-              <LayoutGrid size={13} />
+              <LayoutGrid size={14} />
             </button>
             <button
               type="button"
               onClick={() => setViewMode("TABLE")}
               title="Table View"
               className={cn(
-                "rounded-md p-1.5 transition-colors cursor-pointer",
+                "rounded-lg p-1.5 transition-colors cursor-pointer",
                 viewMode === "TABLE"
                   ? "bg-surface-1 text-brand-950 shadow-2xs font-bold"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
-              <List size={13} />
+              <List size={14} />
             </button>
           </div>
 
-          <ActionButton
-            icon={<RefreshCw size={12} className={loopMutation.isPending ? "animate-spin" : undefined} />}
+          <button
+            type="button"
             onClick={() => loopMutation.mutate()}
             disabled={loopMutation.isPending || !projectId}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer disabled:opacity-50"
           >
-            {loopMutation.isPending ? "Evaluating…" : "Evaluate Loop"}
-          </ActionButton>
+            <RefreshCw size={13} className={loopMutation.isPending ? "animate-spin" : undefined} />
+            <span>{loopMutation.isPending ? "Evaluating…" : "Evaluate Loop"}</span>
+          </button>
         </div>
       </div>
 
@@ -356,9 +359,10 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                           <MilestoneStepper day={daysObserved} compact />
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-success-50 text-success-700 border border-success-200 px-2 py-0.5 text-[10.5px] font-bold">
-                            ● Live on Website
-                          </span>
+                          <div className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/80 bg-success-50/70 px-2.5 py-1 text-[11px] font-bold text-success-700">
+                            <CheckCircle2 size={12} className="text-success-600 shrink-0" />
+                            <span>Live on Website</span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="space-y-0.5">
@@ -374,16 +378,23 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                             <button
                               type="button"
                               onClick={() => setExpandedCardId(expandedCardId === card.runId ? null : card.runId)}
-                              className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:text-brand-950 hover:bg-surface-1 transition cursor-pointer"
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs",
+                                expandedCardId === card.runId
+                                  ? "border-brand-300 bg-surface-1 text-brand-950 font-bold"
+                                  : "border-brand-200 bg-surface-2 text-brand-700 hover:bg-surface-1 hover:text-brand-950",
+                              )}
                             >
-                              {expandedCardId === card.runId ? "Hide Diff" : "Inspect Diff"}
+                              <Code2 size={12} className={expandedCardId === card.runId ? "text-brand-950" : "text-brand-400"} />
+                              <span>{expandedCardId === card.runId ? "Hide Diff" : "Inspect Diff"}</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => handleLaunchPlanB(card)}
-                              className="rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
                             >
-                              Review Next Step →
+                              <span>Review Next Step</span>
+                              <ArrowRight size={12} />
                             </button>
                           </div>
                         </td>
@@ -434,8 +445,8 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 {/* Header Row */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/20 px-2.5 py-0.5 text-[11px] font-bold text-signal-ink border border-signal-400/30">
-                      <Clock size={11} className="text-signal-400" /> Day {daysObserved} of 21 · Google Crawling
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-brand-950">
+                      <Clock size={12} className="text-signal-400" /> Day {daysObserved} of 21 · Google Crawling
                     </span>
                     <Pill tone="info">{FIELD_LABELS[card.field] || card.field}</Pill>
                     <span className="text-xs text-brand-500 font-mono">
@@ -521,9 +532,10 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                   <button
                     type="button"
                     onClick={() => handleLaunchPlanB(card)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
                   >
-                    Review Next Step →
+                    <span>Review Next Step</span>
+                    <ArrowRight size={12} />
                   </button>
                 </div>
               </article>

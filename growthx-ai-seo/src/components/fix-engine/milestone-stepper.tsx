@@ -89,8 +89,9 @@ export function MilestoneStepper({
           <p className="text-[11px] text-brand-500 leading-snug">
             Code verified live in HTML DOM by Reigel crawler. Baseline metrics recorded.
           </p>
-          <span className="mt-2 inline-block font-mono text-[9.5px] font-bold text-success-700 bg-success-50 px-2 py-0.5 rounded-full border border-success-200">
-            ✓ 100% Live in HTML
+          <span className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] font-bold text-success-700 bg-success-50/80 px-2 py-0.5 rounded-md border border-success-200">
+            <CheckCircle2 size={11} className="text-success-600" />
+            100% Live in HTML
           </span>
         </div>
 
@@ -115,7 +116,7 @@ export function MilestoneStepper({
           <p className="text-[11px] text-brand-500 leading-snug">
             Googlebot and generative AI assistants crawl fresh HTML tags. Daily signals tracked.
           </p>
-          <span className="mt-2 inline-flex items-center gap-1 font-mono text-[9.5px] font-bold text-signal-400 bg-surface-2 px-2 py-0.5 rounded-full border border-brand-200">
+          <span className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold text-signal-400 bg-surface-2 px-2 py-0.5 rounded-md border border-brand-200">
             <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-ping" />
             Active Observation
           </span>
@@ -140,7 +141,7 @@ export function MilestoneStepper({
           <p className="text-[11px] text-brand-500 leading-snug">
             AI checks traffic delta. Wins locked in; flat results trigger follow-up schema PR.
           </p>
-          <span className="mt-2 inline-block font-mono text-[9.5px] font-bold text-brand-600 bg-surface-2 px-2 py-0.5 rounded-full border border-brand-200">
+          <span className="mt-2 inline-block font-mono text-[10px] font-bold text-brand-600 bg-surface-2 px-2 py-0.5 rounded-md border border-brand-200">
             Day 21 Evaluation
           </span>
         </div>

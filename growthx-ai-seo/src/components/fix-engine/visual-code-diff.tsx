@@ -52,8 +52,8 @@ export function VisualCodeDiff({
             </span>
           )}
           {verifiedLive && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-success-50 text-success-700 border border-success-200 px-2 py-0.2 text-[9.5px] font-bold">
-              <CheckCircle2 size={10} />
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-success-50/80 text-success-700 border border-success-200 px-2 py-0.5 text-[10px] font-bold">
+              <CheckCircle2 size={11} className="text-success-600" />
               Live in HTML
             </span>
           )}
