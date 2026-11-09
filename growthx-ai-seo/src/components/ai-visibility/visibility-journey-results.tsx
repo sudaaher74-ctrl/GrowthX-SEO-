@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
+import { Bot, Code2, Layers, ShieldCheck, Zap } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { AnswerDocument, FormattedAnswer } from "./formatted-answer";
@@ -195,8 +196,31 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
   const visible = data.answers.filter(
     (a) => filter === "ALL" || a.provider === filter,
   );
+
+  const assistantStats = useMemo(() => {
+    return assistants.map((p) => {
+      const providerAnswers = data.answers.filter((a) => a.provider === p);
+      const valid = providerAnswers.filter((a) => !a.errorMessage && a.analysis);
+      const pMentions = valid.filter((a) => a.analysis?.brandMentioned).length;
+      const pRecommended = valid.filter((a) => a.analysis?.recommended).length;
+      const recRate = valid.length ? Math.round((pRecommended / valid.length) * 100) : 0;
+      const sampleModel = providerAnswers[0]?.model || data.providers.find((pr) => pr.provider === p)?.model;
+      const name = providerName(p, sampleModel);
+      return {
+        provider: p,
+        name,
+        model: sampleModel,
+        total: providerAnswers.length,
+        valid: valid.length,
+        mentions: pMentions,
+        recommended: pRecommended,
+        recRate,
+      };
+    });
+  }, [assistants, data.answers, data.providers]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="Answers measured"
@@ -223,6 +247,164 @@ export function AnswerResults({ data }: { data: VisibilityJourneyResponse }) {
           sub="Of successfully classified answers"
         />
       </div>
+
+      {/* ── MULTI-LLM HEAD-TO-HEAD BREAKDOWN ── */}
+      {assistantStats.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-brand-400">
+            AI Assistant Performance Breakdown
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {assistantStats.map((item) => (
+              <div
+                key={item.provider}
+                className="rounded-xl border border-line bg-surface p-4 shadow-xs"
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-surface-2 font-bold text-brand-950">
+                      <Bot size={15} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-brand-950">{item.name}</p>
+                      <p className="max-w-[120px] truncate font-mono text-[10px] text-brand-400">
+                        {item.model || item.provider}
+                      </p>
+                    </div>
+                  </div>
+                  {item.valid > 0 ? (
+                    item.recRate >= 50 ? (
+                      <span className="inline-flex items-center gap-0.5 rounded border border-success-500/20 bg-success-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-success-700">
+                        Strong
+                      </span>
+                    ) : item.recRate > 0 || item.mentions > 0 ? (
+                      <span className="inline-flex items-center gap-0.5 rounded border border-warning-500/20 bg-warning-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning-700">
+                        Moderate
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-brand-500">
+                        Gap
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-[10px] font-medium text-brand-400">Pending</span>
+                  )}
+                </div>
+
+                <div className="mt-3">
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className="font-medium text-brand-500">Recommendation Rate</span>
+                    <span className="font-mono font-bold text-brand-950">
+                      {item.valid > 0 ? `${item.recRate}%` : "—"}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        item.recRate >= 50
+                          ? "bg-success-500"
+                          : item.recRate > 0
+                            ? "bg-warning-500"
+                            : "bg-brand-300"
+                      }`}
+                      style={{ width: `${item.recRate}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between font-mono text-[10.5px] text-brand-400">
+                    <span>
+                      {item.recommended}/{item.valid} recommended
+                    </span>
+                    <span>{item.mentions} mentioned</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── GEO OPTIMIZATION PLAYBOOK ── */}
+      <Panel
+        title="Generative Engine Optimization (GEO) Playbook"
+        subtitle="Actionable engineering patterns to get recommended by ChatGPT, Google Gemini, Perplexity, and Claude."
+        padded
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+            <div className="flex items-center gap-2 text-primary-700">
+              <Zap size={16} aria-hidden="true" />
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
+                Direct Answer Geometry
+              </h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-brand-600">
+              Place direct, 40-50 word factual answers immediately below H2 question headings.
+              Generative models extract these verbatim for synthesis snippets.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+            <div className="flex items-center gap-2 text-brand-700">
+              <Code2 size={16} aria-hidden="true" />
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
+                Entity Schema Grounding
+              </h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-brand-600">
+              Deploy{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                Organization
+              </code>{" "}
+              and{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                SameAs
+              </code>{" "}
+              schema linking official profiles to anchor your entity in LLM memory.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+            <div className="flex items-center gap-2 text-success-700">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
+                AI Crawler Access
+              </h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-brand-600">
+              Ensure your{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                robots.txt
+              </code>{" "}
+              allows{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                GPTBot
+              </code>
+              ,{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                PerplexityBot
+              </code>
+              , and{" "}
+              <code className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px]">
+                ClaudeBot
+              </code>{" "}
+              without blocking rules.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+            <div className="flex items-center gap-2 text-warning-700">
+              <Layers size={16} aria-hidden="true" />
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">
+                Third-Party Consensus
+              </h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-brand-600">
+              LLMs weight unbiased third-party citations. Build verified profiles on industry
+              directories, software review portals, and high-domain authority roundups.
+            </p>
+          </div>
+        </div>
+      </Panel>
       <Panel
         title="What did each assistant actually say?"
         subtitle="Saved API answers to your reviewed buyer questions. Consumer apps and Google AI Overviews are not measured here."
