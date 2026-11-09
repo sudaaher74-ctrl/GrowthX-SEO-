@@ -138,10 +138,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       />
 
       {/* ── EXECUTIVE BACKLINK & AUTHORITY TELEMETRY RIBBON ── */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-card">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -224,6 +221,12 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
                 <span className="font-mono text-brand-800">
                   {data.queue.available ? `${data.queue.waiting} waiting` : "Paused"}
                 </span>
+              </div>
+              <span className="text-brand-300">·</span>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-success-500" />
+                <span className="text-brand-500 font-medium">Spam Shield:</span>
+                <span className="font-mono font-bold text-success-700">Protected</span>
               </div>
             </div>
           )}

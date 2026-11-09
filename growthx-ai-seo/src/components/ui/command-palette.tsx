@@ -19,20 +19,28 @@ import {
   Gauge,
   Layers,
   ShieldCheck,
+  ShieldAlert,
   CheckCircle2,
   Globe,
   Radio,
+  FileDown,
+  Sparkles,
+  GitPullRequest,
+  Play,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStartCrawl, useWorkspace } from "@/hooks/use-growthx";
 
 interface CommandItem {
   id: string;
   title: string;
-  category: "Navigation" | "Deep Dives" | "Quick Actions";
+  category: "Autonomous Actions" | "Deep Dives" | "Quick Actions" | "Navigation";
   icon: React.ElementType;
   href?: string;
   action?: () => void;
   subtitle?: string;
+  pill?: string;
 }
 
 interface CommandPaletteProps {
@@ -44,6 +52,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
+
+  const { projectId, projects } = useWorkspace();
+  const activeProject = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
+  const currentDomain = activeProject?.name
+    ? `${activeProject.name.toLowerCase().replace(/[^a-z0-9.-]/g, "")}.com`
+    : undefined;
+  const startCrawlMutation = useStartCrawl();
 
   // Listen for ⌘K or Ctrl+K globally
   useEffect(() => {
@@ -60,7 +75,81 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open, onOpenChange]);
 
   const items: CommandItem[] = useMemo(() => [
-    // Core Navigation (All 9 Core Tabs)
+    // ── AUTONOMOUS ACTIONS ──
+    {
+      id: "act-crawl",
+      title: "Start Live Website Crawl",
+      category: "Autonomous Actions",
+      icon: Play,
+      pill: "Autonomous",
+      action: () => {
+        if (currentDomain) {
+          startCrawlMutation.mutate({ domain: currentDomain });
+        }
+        router.push("/website");
+      },
+      subtitle: "Autonomous Reigel crawler scans all internal URLs, status codes, and tags",
+    },
+    {
+      id: "act-pr-batch",
+      title: "Batch Dispatch Staged Fixes to GitHub PR",
+      category: "Autonomous Actions",
+      icon: GitPullRequest,
+      pill: "GitHub PR",
+      action: () => {
+        router.push("/fix-engine?tab=github-fixes");
+      },
+      subtitle: "Bundle all staged fixes into an autonomous production-ready Git pull request",
+    },
+    {
+      id: "act-monthly-pdf",
+      title: "Export Monthly Executive Report PDF",
+      category: "Autonomous Actions",
+      icon: FileDown,
+      pill: "PDF Report",
+      action: () => {
+        router.push("/monthly-report");
+      },
+      subtitle: "Branded client executive deliverable with recorded work and verified results",
+    },
+    {
+      id: "act-disavow",
+      title: "Generate & Export Google Disavow File",
+      category: "Autonomous Actions",
+      icon: ShieldAlert,
+      pill: "Disavow",
+      action: () => {
+        router.push("/backlinks");
+      },
+      subtitle: "Generate RFC-compliant disavow.txt to de-index toxic backlink penalties",
+    },
+    {
+      id: "act-ai-benchmark",
+      title: "Multi-LLM AI Visibility Benchmark",
+      category: "Autonomous Actions",
+      icon: Sparkles,
+      pill: "Multi-LLM",
+      action: () => {
+        router.push("/ai-visibility");
+      },
+      subtitle: "Analyze brand citations across ChatGPT, Google Gemini, Perplexity & Claude",
+    },
+
+    // ── DEEP DIVES & SUB-VIEWS ──
+    { id: "deep-pages", title: "Website Audit: Crawled Pages Table", category: "Deep Dives", icon: Globe, href: "/website?tab=pages", pill: "Audit", subtitle: "Inspect indexability, HTTP status codes, word counts & 1-click staging" },
+    { id: "deep-cwv", title: "Speed & Core Web Vitals Deep Dive", category: "Deep Dives", icon: Gauge, href: "/website?tab=performance", pill: "CWV", subtitle: "LCP, INP, CLS threshold breakdown & crawl response times" },
+    { id: "deep-striking", title: "Page-2 Striking Distance Opportunities", category: "Deep Dives", icon: Target, href: "/organic-search?tab=page2", pill: "Striking", subtitle: "Queries ranking #11–#20 ready to jump to Page 1" },
+    { id: "deep-gaps", title: "Competitor Content & Keyword Gaps", category: "Deep Dives", icon: Layers, href: "/competitor-intelligence?tab=gaps", pill: "Gaps", subtitle: "Identify topics where competitors rank on Page 1" },
+    { id: "deep-rivals", title: "Competitor Rival Radar", category: "Deep Dives", icon: Radio, href: "/competitor-intelligence?tab=rivals", pill: "Rivals", subtitle: "Direct benchmark comparison against primary competitors" },
+    { id: "deep-link-gap", title: "Competitor Link Gap Matrix", category: "Deep Dives", icon: Link2, href: "/backlinks?tab=link-gap", pill: "Link Gap", subtitle: "Referring domains linking to 2+ rivals but missing you" },
+    { id: "deep-results", title: "Verified HTML Results Ledger", category: "Deep Dives", icon: CheckCircle2, href: "/fix-engine?tab=results", pill: "Verified", subtitle: "Continuous rank and traffic lift observation loop" },
+
+    // ── QUICK ACTIONS ──
+    { id: "act-verify-html", title: "Verify Live HTML Changes", category: "Quick Actions", icon: ShieldCheck, pill: "Verify", action: () => { router.push("/fix-engine?tab=results"); }, subtitle: "Confirm deployed changes against live server responses" },
+    { id: "act-sync-gsc", title: "Sync Google Search Console & GA4", category: "Quick Actions", icon: RefreshCw, pill: "Sync", action: () => { router.push("/google"); }, subtitle: "Fetch the latest rolling search queries and traffic" },
+    { id: "act-open-fixes", title: "Stage GitHub Pull Request", category: "Quick Actions", icon: Wrench, pill: "Stage", action: () => { router.push("/fix-engine"); }, subtitle: "Package approved SEO code fixes into a Git branch" },
+
+    // ── CORE NAVIGATION (All Core Tabs) ──
     { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview, health score & executive telemetry beacons" },
     { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Autonomous crawler, issue deduplication & site health score" },
     { id: "nav-organic", title: "Organic Search & Keywords", category: "Navigation", icon: Search, href: "/organic-search", subtitle: "Rank tracking, search intent & page-2 striking opportunities" },
@@ -72,23 +161,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-monthly-report", title: "Monthly Report", category: "Navigation", icon: CalendarDays, href: "/monthly-report", subtitle: "Recorded work, verified changes, and measured results by month" },
     { id: "nav-integrations", title: "Integrations & Connections", category: "Navigation", icon: GitBranch, href: "/settings?tab=integrations", subtitle: "Connect Google, GitHub & CMS publishing sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
-
-    // Deep Dives & Sub-Views
-    { id: "deep-pages", title: "Website Audit: Crawled Pages Table", category: "Deep Dives", icon: Globe, href: "/website?tab=pages", subtitle: "Inspect indexability, HTTP status codes, word counts & 1-click staging" },
-    { id: "deep-cwv", title: "Speed & Core Web Vitals Deep Dive", category: "Deep Dives", icon: Gauge, href: "/website?tab=performance", subtitle: "LCP, INP, CLS threshold breakdown & crawl response times" },
-    { id: "deep-striking", title: "Page-2 Striking Distance Opportunities", category: "Deep Dives", icon: Target, href: "/organic-search?tab=page2", subtitle: "Queries ranking #11–#20 ready to jump to Page 1" },
-    { id: "deep-gaps", title: "Competitor Content & Keyword Gaps", category: "Deep Dives", icon: Layers, href: "/competitor-intelligence?tab=gaps", subtitle: "Identify topics where competitors rank on Page 1" },
-    { id: "deep-rivals", title: "Competitor Rival Radar", category: "Deep Dives", icon: Radio, href: "/competitor-intelligence?tab=rivals", subtitle: "Direct benchmark comparison against primary competitors" },
-    { id: "deep-link-gap", title: "Competitor Link Gap Matrix", category: "Deep Dives", icon: Link2, href: "/backlinks?tab=gaps", subtitle: "Referring domains linking to 2+ rivals but missing you" },
-    { id: "deep-results", title: "Verified HTML Results Ledger", category: "Deep Dives", icon: CheckCircle2, href: "/fix-engine?tab=results", subtitle: "Continuous rank and traffic lift observation loop" },
-
-    // Quick Actions
-    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/website"); }, subtitle: "Crawl your site for SEO health issues" },
-    { id: "act-verify-html", title: "Verify Live HTML Changes", category: "Quick Actions", icon: ShieldCheck, action: () => { router.push("/dashboard"); }, subtitle: "Confirm deployed changes against live server responses" },
-    { id: "act-sync-gsc", title: "Sync Google Search Console & GA4", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/google"); }, subtitle: "Fetch the latest rolling search queries and traffic" },
-    { id: "act-ai-scan", title: "Check AI Search Visibility", category: "Quick Actions", icon: Eye, action: () => { router.push("/ai-visibility"); }, subtitle: "Analyze model responses across ChatGPT and Gemini" },
-    { id: "act-open-fixes", title: "Stage GitHub Pull Request", category: "Quick Actions", icon: Wrench, action: () => { router.push("/fix-engine"); }, subtitle: "Package approved SEO code fixes into a Git branch" },
-  ], [router]);
+  ], [router, currentDomain, startCrawlMutation]);
 
   const filteredItems = useMemo(() => {
     if (!query.trim()) return items;
@@ -97,6 +170,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       item =>
         item.title.toLowerCase().includes(q) ||
         (item.subtitle && item.subtitle.toLowerCase().includes(q)) ||
+        (item.pill && item.pill.toLowerCase().includes(q)) ||
         item.category.toLowerCase().includes(q)
     );
   }, [items, query]);
@@ -133,9 +207,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   };
 
   const categories = useMemo(() => {
+    const desiredOrder = ["Autonomous Actions", "Deep Dives", "Quick Actions", "Navigation"];
     const cats: string[] = [];
-    filteredItems.forEach(i => {
-      if (!cats.includes(i.category)) cats.push(i.category);
+    desiredOrder.forEach(orderCat => {
+      if (filteredItems.some(i => i.category === orderCat)) {
+        cats.push(orderCat);
+      }
     });
     return cats;
   }, [filteredItems]);
@@ -161,9 +238,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           exit={{ opacity: 0, scale: 0.96, y: -8 }}
           transition={{ duration: 0.15 }}
           onKeyDown={handleKeyDown}
-          className="relative w-full max-w-2xl bg-surface-1 border border-brand-200/80 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[72vh]"
+          className="relative w-full max-w-2xl bg-surface-1 border border-brand-200/80 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[74vh]"
         >
-          {/* Search bar */}
+          {/* Search bar & Project Context */}
           <div className="flex items-center gap-3 px-4 py-3.5 border-b border-brand-200/80 bg-surface-2/80">
             <Search size={18} className="text-brand-400 shrink-0" />
             <input
@@ -171,9 +248,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Jump to any section, deep dive, or trigger an action…"
+              placeholder="Jump to any section, deep dive, or trigger an autonomous action…"
               className="w-full bg-transparent text-sm text-brand-950 placeholder:text-brand-400 focus:outline-none"
             />
+            {activeProject && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-signal-400/15 border border-signal-400/30 text-[10.5px] font-mono font-bold text-brand-950 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-signal-500 animate-pulse" />
+                <span className="truncate max-w-[130px]">{activeProject.name}</span>
+              </div>
+            )}
             <kbd className="h-6 px-2 rounded-md border border-brand-200 bg-surface-1 text-[11px] text-brand-500 font-mono flex items-center shrink-0">
               ESC
             </kbd>
@@ -183,13 +266,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <div className="overflow-y-auto flex-1 p-3 space-y-3">
             {filteredItems.length === 0 ? (
               <div className="py-12 text-center text-brand-400 text-xs">
-                No results found for &ldquo;{query}&rdquo;. Try searching for &ldquo;audit&rdquo;, &ldquo;keywords&rdquo;, or &ldquo;traffic&rdquo;.
+                No results found for &ldquo;{query}&rdquo;. Try searching for &ldquo;crawl&rdquo;, &ldquo;disavow&rdquo;, &ldquo;report&rdquo;, or &ldquo;keywords&rdquo;.
               </div>
             ) : (
               categories.map(cat => (
                 <div key={cat} className="space-y-1">
-                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-400 font-mono">
-                    {cat}
+                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-400 font-mono flex items-center justify-between">
+                    <span>{cat}</span>
+                    <span className="text-[10px] text-brand-400 font-normal">
+                      {filteredItems.filter(i => i.category === cat).length} items
+                    </span>
                   </div>
                   {filteredItems
                     .filter(i => i.category === cat)
@@ -222,7 +308,21 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                               <Icon size={16} />
                             </div>
                             <div className="min-w-0">
-                              <div className="text-xs font-bold truncate">{item.title}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold truncate">{item.title}</span>
+                                {item.pill && (
+                                  <span
+                                    className={cn(
+                                      "rounded px-1.5 py-0.2 text-[9.5px] font-mono font-bold uppercase shrink-0",
+                                      item.category === "Autonomous Actions"
+                                        ? "bg-signal-400/20 text-brand-950 border border-signal-400/40"
+                                        : "bg-brand-200/60 text-brand-700"
+                                    )}
+                                  >
+                                    {item.pill}
+                                  </span>
+                                )}
+                              </div>
                               {item.subtitle && (
                                 <div
                                   className={cn(
@@ -242,7 +342,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                               isSelected ? "text-brand-700" : "opacity-0 group-hover:opacity-100 text-brand-400"
                             )}
                           >
-                            <span>Jump</span>
+                            <span>{item.action ? "Run" : "Jump"}</span>
                             <CornerDownLeft size={12} />
                           </div>
                         </div>
