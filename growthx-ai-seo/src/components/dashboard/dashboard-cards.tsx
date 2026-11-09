@@ -29,9 +29,90 @@ export function CardHead({ title, subtitle, aside }: { title: string; subtitle?:
 export function LoadingLine({ text }: { text: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-6 text-[12.5px] text-brand-400">
-      <Loader2 size={14} className="animate-spin" />
+      <Loader2 size={14} className="animate-spin text-signal-400" />
       {text}
     </div>
+  );
+}
+
+export function CardSkeletonShimmer() {
+  return (
+    <div className="space-y-4 py-2 animate-pulse">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="h-20 w-20 rounded-full bg-brand-200/50" />
+          <div className="space-y-2">
+            <div className="h-4 w-28 rounded bg-brand-200/60" />
+            <div className="h-3 w-40 rounded bg-brand-200/40" />
+          </div>
+        </div>
+        <div className="flex gap-4">
+          <div className="space-y-1.5">
+            <div className="h-3 w-16 rounded bg-brand-200/40" />
+            <div className="h-6 w-10 rounded bg-brand-200/60" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="h-3 w-16 rounded bg-brand-200/40" />
+            <div className="h-6 w-10 rounded bg-brand-200/60" />
+          </div>
+        </div>
+      </div>
+      <div className="h-2 w-full rounded-full bg-brand-200/40" />
+      <div className="grid grid-cols-4 gap-2 pt-1">
+        <div className="h-3 rounded bg-brand-200/30" />
+        <div className="h-3 rounded bg-brand-200/30" />
+        <div className="h-3 rounded bg-brand-200/30" />
+        <div className="h-3 rounded bg-brand-200/30" />
+      </div>
+    </div>
+  );
+}
+
+export function ChartSkeletonShimmer() {
+  return (
+    <div className="space-y-4 py-2 animate-pulse">
+      <div className="h-8 w-24 rounded bg-brand-200/60" />
+      <div className="h-28 w-full rounded-xl bg-brand-200/20 flex items-end gap-1.5 p-2 border border-brand-200/40">
+        {[40, 65, 30, 85, 50, 95, 60, 45, 70, 55, 80, 40, 90, 75].map((h, i) => (
+          <div key={i} className="flex-1 rounded-t bg-brand-200/60" style={{ height: `${h}%` }} />
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-brand-300">
+        <div className="h-2.5 w-12 rounded bg-brand-200/40" />
+        <div className="h-2.5 w-12 rounded bg-brand-200/40" />
+      </div>
+    </div>
+  );
+}
+
+export function MicroSparkline({
+  points,
+  className,
+  color = "var(--color-signal-400)",
+}: {
+  points: number[];
+  className?: string;
+  color?: string;
+}) {
+  if (!points || points.length < 2) return null;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const height = 22;
+  const width = 58;
+
+  const path = points
+    .map((val, idx) => {
+      const x = (idx / (points.length - 1)) * width;
+      const y = height - ((val - min) / range) * (height - 4) - 2;
+      return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg className={cn("overflow-visible shrink-0", className)} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

@@ -8,7 +8,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bot,
+  CalendarDays,
   Check,
+  Crosshair,
   Globe,
   Layers,
   Plus,
@@ -31,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { SEVERITY_ORDER, SEVERITY_PLAIN } from "@/lib/plain-language";
 import { Ga4Overview } from "@/components/ga4/ga4-panels";
 import { useGa4Report } from "@/hooks/use-ga4-report";
-import { Card, CardHead, EmptyPrompt, LoadingLine } from "@/components/dashboard/dashboard-cards";
+import { Card, CardHead, EmptyPrompt, LoadingLine, CardSkeletonShimmer, ChartSkeletonShimmer, MicroSparkline } from "@/components/dashboard/dashboard-cards";
 import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary";
 import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
 import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
@@ -343,6 +345,75 @@ export default function UnifiedDashboardPage() {
 
       {/* One step to everything: website in, competitors and full report out. */}
 
+      {/* Executive Quick Actions Dock */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <button
+          type="button"
+          onClick={runAudit}
+          disabled={auditBusy || !currentDomain}
+          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal-400/20 text-signal-ink font-bold group-hover:bg-signal-400 transition shrink-0">
+              <RefreshCw size={14} className={auditBusy ? "animate-spin" : undefined} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[12px] font-bold text-brand-950 truncate">Verify Live HTML</p>
+              <p className="text-[10px] text-brand-500 truncate">Run crawler re-scan</p>
+            </div>
+          </div>
+          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
+        </button>
+
+        <Link
+          href="/ai-visibility"
+          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
+              <Bot size={14} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[12px] font-bold text-brand-950 truncate">AI Visibility Scan</p>
+              <p className="text-[10px] text-brand-500 truncate">Check LLM citations</p>
+            </div>
+          </div>
+          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
+        </Link>
+
+        <Link
+          href="/competitor-intelligence?tab=gaps"
+          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
+              <Crosshair size={14} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[12px] font-bold text-brand-950 truncate">Competitor Gaps</p>
+              <p className="text-[10px] text-brand-500 truncate">Review rival schema</p>
+            </div>
+          </div>
+          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
+        </Link>
+
+        <Link
+          href="/monthly-report"
+          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
+              <CalendarDays size={14} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[12px] font-bold text-brand-950 truncate">Executive Report</p>
+              <p className="text-[10px] text-brand-500 truncate">13-fix lift ledger</p>
+            </div>
+          </div>
+          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
+        </Link>
+      </div>
+
       {/* Row 1: how is my website doing / are people finding me */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">
         <Card id="health" className="flex flex-col justify-between gap-4">
@@ -365,7 +436,7 @@ export default function UnifiedDashboardPage() {
             }
           />
           {(portfolio.isLoading || crawl.isLoading) && !crawl.data ? (
-            <LoadingLine text="Loading your website's health…" />
+            <CardSkeletonShimmer />
           ) : !crawlCompleted ? (
             <EmptyPrompt
               icon={Globe}
@@ -409,7 +480,7 @@ export default function UnifiedDashboardPage() {
             }
           />
           {executive.isLoading ? (
-            <LoadingLine text="Loading your visitors…" />
+            <ChartSkeletonShimmer />
           ) : !hasGsc && !hasGa ? (
             <EmptyPrompt
               icon={PlugZap}
@@ -420,7 +491,15 @@ export default function UnifiedDashboardPage() {
           ) : (
             <>
               <div className="flex flex-col gap-3.5 min-w-0">
-                <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
+                <div className="flex items-center justify-between gap-3">
+                  <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
+                  {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      <MicroSparkline points={activeSeriesPoints.map((p) => p.value ?? 0)} />
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-brand-400">Velocity</span>
+                    </div>
+                  )}
+                </div>
 
                 {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
                   <DailyCandles

@@ -58,6 +58,27 @@ interface AdaptiveResultsHubProps {
   compact?: boolean;
 }
 
+function TableShimmerSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xs animate-pulse">
+      <div className="h-10 border-b border-brand-200/80 bg-surface-2/60" />
+      <div className="divide-y divide-brand-200/60 p-2 space-y-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex items-center justify-between p-3 gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="h-4 w-1/3 rounded-md bg-brand-200/60" />
+              <div className="h-3 w-1/4 rounded-md bg-brand-200/40" />
+            </div>
+            <div className="h-5 w-28 rounded-md bg-brand-200/50" />
+            <div className="h-6 w-24 rounded-lg bg-brand-200/40" />
+            <div className="h-6 w-20 rounded-lg bg-brand-200/50" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: AdaptiveResultsHubProps) {
   const { projectId } = useWorkspace();
   const queryClient = useQueryClient();
@@ -296,12 +317,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
 
       {/* 4. Main Experiment Ledger Feed */}
       {isInitialLoading ? (
-        <Panel padded>
-          <div className="py-8 text-center text-sm text-brand-500">
-            <RefreshCw size={20} className="mx-auto mb-2 animate-spin text-brand-400" />
-            Syncing Live Search Console Results…
-          </div>
-        </Panel>
+        <TableShimmerSkeleton />
       ) : filteredCards.length === 0 ? (
         <Panel padded>
           <div className="py-8 text-center">
