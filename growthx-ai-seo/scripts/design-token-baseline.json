@@ -20,7 +20,5 @@
   "components/website/pages/pages-distributions.tsx": 34,
   "components/website/pages/pages-kpis.tsx": 74,
   "components/website/pages/pages-table.tsx": 6,
-  "components/website/tabs/content-tab.tsx": 110,
-  "components/website/tabs/issues-tab.tsx": 82,
   "components/website/tabs/pages-tab.tsx": 22
 }
