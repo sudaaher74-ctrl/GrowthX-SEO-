@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, ExternalLink, ShieldCheck, Layers, Zap } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, ExternalLink, ShieldCheck, Layers, Zap } from "lucide-react";
 import { ActionButton, Kpi, Panel, Pill, StatusNote, Table, Td, Th, Tr } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { api } from "@/lib/api-client";
+import { stagingEngine } from "@/lib/staging-engine";
 import type { BacklinkReport } from "@/lib/backlinks";
 import type { BacklinkOverviewResponse } from "@/lib/backlink-intelligence";
 
@@ -22,6 +24,7 @@ export function BacklinkOverview({
   onSources: () => void;
   onOpportunities: () => void;
 }) {
+  const [stagedDomains, setStagedDomains] = useState<Record<string, boolean>>({});
   const client = useQueryClient();
   const overview = useQuery({
     queryKey: ["backlink-intelligence", projectId],
@@ -35,6 +38,20 @@ export function BacklinkOverview({
     },
   });
   const snapshot = overview.data as BacklinkOverviewResponse | null | undefined;
+
+  const handleStageReferringDomain = (domain: string, rank?: number, backlinks?: number) => {
+    stagingEngine.stage(projectId, {
+      title: `Protect High-Authority Backlinks: ${domain}`,
+      category: "Backlink Monitoring",
+      source: "AUTHORITY_GAP",
+      priority: (rank ?? 0) >= 70 ? "HIGH" : "MEDIUM",
+      impact: `Referring domain rank #${rank ?? 0} with ${backlinks ?? 1} backlinks in index. Monitor against link drift or anchor drop.`,
+      effortHours: 1,
+      deliverable: `Configure automated weekly link destination check and reciprocal content asset reinforcement.`,
+      evidence: `Top referring domain from DataForSEO backlink snapshot.`,
+    });
+    setStagedDomains((prev) => ({ ...prev, [domain]: true }));
+  };
 
   const totalFollow = snapshot ? (snapshot.metrics.dofollow || 0) + (snapshot.metrics.nofollow || 0) : 0;
   const dofollowPct = totalFollow > 0 && snapshot ? Math.round(((snapshot.metrics.dofollow || 0) / totalFollow) * 100) : 0;
@@ -105,7 +122,7 @@ export function BacklinkOverview({
 
             {/* Dofollow / Nofollow Quality Meter Bar */}
             {totalFollow > 0 && (
-              <div className="rounded-xl border border-line bg-surface-2/40 p-3">
+              <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3.5 shadow-2xs">
                 <div className="flex items-center justify-between text-xs text-brand-600 mb-1.5">
                   <span className="font-semibold text-brand-950 flex items-center gap-1.5">
                     <ShieldCheck size={14} className="text-success-600" /> Link Profile Natural Balance
@@ -193,6 +210,7 @@ export function BacklinkOverview({
                   <Th align="right">Indexed Links</Th>
                   <Th align="right">Domain Rank</Th>
                   <Th align="right">First Seen</Th>
+                  <Th align="right">Action</Th>
                 </tr>
               </thead>
               <tbody>
@@ -224,7 +242,7 @@ export function BacklinkOverview({
                             Established
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-brand-500">
+                          <span className="inline-flex items-center rounded border border-brand-200/70 bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-brand-500">
                             Niche
                           </span>
                         )}
@@ -237,6 +255,24 @@ export function BacklinkOverview({
                       </Td>
                       <Td align="right">
                         <span className="text-xs text-brand-500">{time(item.firstSeen)}</span>
+                      </Td>
+                      <Td align="right">
+                        {stagedDomains[item.domain] ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-700">
+                            <CheckCircle2 size={12} className="text-success-600" />
+                            <span>Protected</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleStageReferringDomain(item.domain, item.rank, item.backlinks)}
+                            className="inline-flex items-center gap-1 rounded-md border border-brand-200/80 bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+                            title="Stage link monitoring & expansion action in Fix Engine"
+                          >
+                            <Zap size={10} className="text-signal-500" />
+                            <span>Protect</span>
+                          </button>
+                        )}
                       </Td>
                     </Tr>
                   );
@@ -254,7 +290,7 @@ export function BacklinkOverview({
         padded
       >
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-primary-700">
               <Zap size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">Unlinked Mentions</h4>
@@ -264,7 +300,7 @@ export function BacklinkOverview({
             </p>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-warning-700">
               <Layers size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">Broken Link Interception</h4>
@@ -274,7 +310,7 @@ export function BacklinkOverview({
             </p>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface-2/30 p-3.5">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs transition-all hover:border-brand-300 hover:shadow-card">
             <div className="flex items-center gap-2 text-success-700">
               <ShieldCheck size={16} aria-hidden="true" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-950">Competitor Gap Outreach</h4>

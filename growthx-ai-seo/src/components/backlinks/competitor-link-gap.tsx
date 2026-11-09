@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, CheckCircle2, Zap } from "lucide-react";
 import {
   ActionButton,
   Kpi,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { api } from "@/lib/api-client";
+import { stagingEngine } from "@/lib/staging-engine";
 import type { CompetitorLinkGapItem } from "@/lib/backlink-intelligence";
 import type { EnrichedRecommendationReport, PublisherOutreachState } from "@/lib/backlink-recommendations";
 import { errorMessage } from "@/lib/error-message";
@@ -52,6 +54,7 @@ export function CompetitorLinkGap({
   onOpenOpportunities?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [stagedGapDomains, setStagedGapDomains] = useState<Record<string, boolean>>({});
   const [competitorFilter, setCompetitorFilter] = useState<string>("ALL");
   const [overlapOnly, setOverlapOnly] = useState(false);
   const [search, setSearch] = useState("");
@@ -123,6 +126,44 @@ export function CompetitorLinkGap({
   });
 
   const data = gapQuery.data;
+
+  const multiOverlapItems = useMemo(() => {
+    return (data?.items || []).filter((item) => item.competitorOverlapCount >= 2);
+  }, [data?.items]);
+
+  const handleQuickStageGap = (item: CompetitorLinkGapItem) => {
+    stagingEngine.stage(projectId, {
+      title: `Acquire Backlink from ${item.referringDomain} (Competitor Gap)`,
+      category: "Backlink Acquisition",
+      source: "AUTHORITY_GAP",
+      priority: item.competitorOverlapCount >= 2 ? "HIGH" : "MEDIUM",
+      impact: `Competitor overlap: links to ${item.competitorsLinked.map((c) => c.competitorDomain).join(", ")} with 0 links to your site.`,
+      effortHours: 2,
+      deliverable: `Publisher outreach to ${item.referringDomain} for editorial inclusion or resource link placement.`,
+      evidence: `DataForSEO & Reigel Crawl: ${item.totalCompetitorLinks} links observed across ${item.competitorOverlapCount} competitors.`,
+    });
+    setStagedGapDomains((prev) => ({ ...prev, [item.referringDomain]: true }));
+  };
+
+  const handleStageAllOverlap = () => {
+    if (!multiOverlapItems.length) return;
+    const batch = multiOverlapItems.map((item) => ({
+      title: `Acquire Backlink from ${item.referringDomain} (Competitor Gap)`,
+      category: "Backlink Acquisition",
+      source: "AUTHORITY_GAP" as const,
+      priority: "HIGH" as const,
+      impact: `Multi-competitor overlap: links to ${item.competitorsLinked.map((c) => c.competitorDomain).join(", ")} with 0 links to your site.`,
+      effortHours: 2,
+      deliverable: `Publisher outreach to ${item.referringDomain} for editorial inclusion or resource link placement.`,
+      evidence: `DataForSEO & Reigel Crawl: ${item.totalCompetitorLinks} links observed across ${item.competitorOverlapCount} competitors.`,
+    }));
+    stagingEngine.stageBatch(projectId, batch);
+    setStagedGapDomains((prev) => {
+      const next = { ...prev };
+      for (const item of multiOverlapItems) next[item.referringDomain] = true;
+      return next;
+    });
+  };
 
   const filteredItems = useMemo(() => {
     if (!data?.items) return [];
@@ -197,7 +238,17 @@ export function CompetitorLinkGap({
         title="Competitor Backlink Intersect (Link Gap Finder)"
         subtitle="Finds third-party websites that link to your tracked competitors but do not yet link to your website — combining DataForSEO snapshots, Reigel crawl evidence, and the public archive index."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {multiOverlapItems.length > 0 && (
+              <button
+                type="button"
+                onClick={handleStageAllOverlap}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-signal-400/60 bg-signal-400/10 px-3 py-1.5 text-xs font-bold text-brand-950 transition-all hover:bg-signal-400 hover:text-signal-ink active:scale-95 shadow-2xs"
+              >
+                <Zap size={12} className="text-signal-500" />
+                <span>Stage All Overlaps ({multiOverlapItems.length}) in Fix Engine</span>
+              </button>
+            )}
             {onOpenOpportunities && (
               <ActionButton onClick={onOpenOpportunities}>
                 Open Outreach Opportunities
@@ -422,15 +473,34 @@ export function CompetitorLinkGap({
                     </Td>
 
                     <Td>
-                      <ActionButton
-                        variant="primary"
-                        disabled={analyzeSourceMutation.isPending}
-                        onClick={() => analyzeSourceMutation.mutate(item)}
-                      >
-                        {isAnalyzingThis
-                          ? "Analyzing HTML…"
-                          : "Analyze & Draft Outreach"}
-                      </ActionButton>
+                      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                        <ActionButton
+                          variant="primary"
+                          disabled={analyzeSourceMutation.isPending}
+                          onClick={() => analyzeSourceMutation.mutate(item)}
+                        >
+                          {isAnalyzingThis
+                            ? "Analyzing HTML…"
+                            : "Analyze & Draft Outreach"}
+                        </ActionButton>
+                        {stagedGapDomains[item.referringDomain] ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-700 px-2 py-1">
+                            <CheckCircle2 size={13} className="text-success-600" />
+                            <span>Staged ✓</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickStageGap(item)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-800 transition-all hover:bg-brand-50 hover:text-brand-950 active:scale-95 shadow-2xs whitespace-nowrap"
+                            title="Stage outreach campaign directly in Fix Engine"
+                          >
+                            <Zap size={11} className="text-signal-500" />
+                            <span>Stage Fix</span>
+                            <ArrowRight size={11} />
+                          </button>
+                        )}
+                      </div>
                     </Td>
                   </Tr>
                 );
