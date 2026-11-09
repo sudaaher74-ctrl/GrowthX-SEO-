@@ -41,10 +41,7 @@ export function TechnicalAuditInsights({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
       {/* Card 1: Issue Distribution (Clean 2x2 grid, NO TRUNCATION!) */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-[13px] font-bold text-brand-950">Issue Distribution</h3>
@@ -63,14 +60,13 @@ export function TechnicalAuditInsights({
         </div>
 
         {/* Full labels without truncation */}
-        <div className="grid grid-cols-2 gap-1.5 pt-2 border-t text-[11px]" style={{ borderColor: "var(--border-color)" }}>
+        <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-brand-200/60 text-[11px]">
           {donutData.map((d) => {
             const pct = issues.length > 0 ? Math.round((d.value / issues.length) * 100) : 0;
             return (
               <div
                 key={d.label}
-                className="flex items-center justify-between rounded-lg bg-surface-2 px-2 py-1 border"
-                style={{ borderColor: "var(--border-color)" }}
+                className="flex items-center justify-between rounded-lg bg-surface-2 px-2 py-1 border border-brand-200/60"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
@@ -86,10 +82,7 @@ export function TechnicalAuditInsights({
       </div>
 
       {/* Card 2: Issue by Category */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[13px] font-bold text-brand-950">Issue by Category</h3>
@@ -110,9 +103,8 @@ export function TechnicalAuditInsights({
                       "group flex flex-col gap-1 p-2 rounded-xl border transition-all cursor-pointer",
                       isSelected
                         ? "bg-brand-100 border-signal-400/50 shadow-xs"
-                        : "bg-surface-2 hover:bg-brand-100/50 hover:border-brand-300/40"
+                        : "bg-surface-2 hover:bg-brand-100/50 hover:border-brand-300/40 border-brand-200/60"
                     )}
-                    style={{ borderColor: isSelected ? undefined : "var(--border-color)" }}
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 min-w-0">
@@ -138,10 +130,7 @@ export function TechnicalAuditInsights({
       </div>
 
       {/* Card 3: Crawl Status */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[13px] font-bold text-brand-950">Crawl Status</h3>
@@ -182,12 +171,11 @@ export function TechnicalAuditInsights({
           </div>
         </div>
 
-        <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-color)" }}>
+        <div className="mt-3 pt-2.5 border-t border-brand-200/60">
           <button
             type="button"
             onClick={onOpenLogs}
-            className="w-full rounded-xl border bg-surface-2 hover:bg-brand-100 py-1.5 text-xs font-bold text-brand-950 transition-all inline-flex items-center justify-center gap-1.5 shadow-2xs"
-            style={{ borderColor: "var(--border-color)" }}
+            className="w-full rounded-xl border border-brand-200/80 bg-surface-2 hover:bg-brand-100 py-1.5 text-xs font-bold text-brand-950 transition-all inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
           >
             <span>View Crawl Logs</span>
             <ArrowRight size={12} className="text-brand-400" />
@@ -196,10 +184,7 @@ export function TechnicalAuditInsights({
       </div>
 
       {/* Card 4: Top Opportunities */}
-      <div
-        className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
@@ -216,8 +201,7 @@ export function TechnicalAuditInsights({
               {topOpportunities.map((opp, i) => (
                 <div
                   key={opp.id}
-                  className="flex items-start gap-2 text-xs rounded-xl bg-surface-2 p-2.5 border"
-                  style={{ borderColor: "var(--border-color)" }}
+                  className="flex items-start gap-2 text-xs rounded-xl bg-surface-2 p-2.5 border border-brand-200/60"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink font-bold font-mono text-[10px] mt-0.5">
                     {i + 1}
@@ -231,11 +215,11 @@ export function TechnicalAuditInsights({
           )}
         </div>
 
-        <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-color)" }}>
+        <div className="mt-3 pt-2.5 border-t border-brand-200/60">
           <button
             type="button"
             onClick={onOpenRecommendations}
-            className="w-full rounded-xl bg-signal-400 hover:bg-signal-500 py-1.5 text-xs font-bold text-signal-ink transition-all inline-flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full rounded-xl bg-signal-400 hover:bg-signal-500 py-1.5 text-xs font-bold text-signal-ink transition-all inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Lightbulb size={12} className="text-signal-ink" />
             <span>View AI Recommendations</span>

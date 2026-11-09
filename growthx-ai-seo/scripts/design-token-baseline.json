@@ -16,7 +16,6 @@
   "components/website/donut-chart.tsx": 5,
   "components/website/gauge-score.tsx": 30,
   "components/website/pages/discovered-not-crawled-panel.tsx": 41,
-  "components/website/pages/pages-distributions.tsx": 34,
   "components/website/pages/pages-kpis.tsx": 4,
   "components/website/tabs/pages-tab.tsx": 22
 }

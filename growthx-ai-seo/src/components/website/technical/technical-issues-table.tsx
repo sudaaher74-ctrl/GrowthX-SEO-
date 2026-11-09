@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
-import { ExternalLink, Search, X } from "lucide-react";
+import React, { useState } from "react";
+import { CheckCircle2, ExternalLink, Search, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue } from "@/lib/api-client";
 import { severityTone } from "./technical-seo-helpers";
+import { useWorkspace } from "@/hooks/use-growthx";
+import { stagingEngine } from "@/lib/staging-engine";
 
 export interface TechnicalIssuesTableProps {
   totalIssuesCount: number;
@@ -49,14 +51,52 @@ export function TechnicalIssuesTable({
   onToggleSelectAll,
   onToggleSelectIssue,
 }: TechnicalIssuesTableProps) {
+  const { projectId } = useWorkspace();
+  const [stagedIssueIds, setStagedIssueIds] = useState<Set<string>>(() => {
+    if (!projectId) return new Set();
+    const existing = stagingEngine.getStaged(projectId);
+    const set = new Set<string>();
+    existing.forEach((item) => {
+      if (item.evidence && item.evidence.includes("issue_id:")) {
+        const match = item.evidence.match(/issue_id:([^\s]+)/);
+        if (match?.[1]) set.add(match[1]);
+      }
+    });
+    return set;
+  });
+
+  const handleStageSingleIssue = (issue: CrawlIssue) => {
+    if (!projectId) return;
+    const title = `Resolve Technical Issue: ${issue.issueType.replace(/_/g, " ")}`;
+    stagingEngine.stage(projectId, {
+      title,
+      category: issue.category?.replace(/_/g, " ") || "Technical SEO",
+      source: "TECHNICAL_AUDIT",
+      priority: issue.severity,
+      impact: `Fixes ${issue.description} on ${issue.affectedUrl}`,
+      effortHours: issue.severity === "CRITICAL" ? 3 : issue.severity === "HIGH" ? 2 : 1,
+      deliverable: `1. Inspect ${issue.affectedUrl} for ${issue.issueType}.\n2. Apply recommended technical fix.\n3. Verify HTTP response and meta tags via live crawler.\n4. Confirm zero regressions on indexability.`,
+      evidence: `issue_id:${issue.id} affected_url:${issue.affectedUrl}`,
+      affectedUrl: issue.affectedUrl,
+    });
+    setStagedIssueIds((prev) => new Set(prev).add(issue.id));
+  };
+
+  const handleStageSelectedIssues = () => {
+    if (!projectId || selectedIssueIds.size === 0) return;
+    const selected = filteredIssues.filter((i) => selectedIssueIds.has(i.id));
+    for (const issue of selected) {
+      handleStageSingleIssue(issue);
+    }
+  };
+
   return (
     <div
       id="technical-issues-table"
-      className="rounded-2xl border bg-surface-1 shadow-card overflow-hidden scroll-mt-16"
-      style={{ borderColor: "var(--border-color)" }}
+      className="rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xs overflow-hidden scroll-mt-16"
     >
       {/* Table Header */}
-      <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style={{ borderColor: "var(--border-color)" }}>
+      <div className="p-4 border-b border-brand-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h3 className="text-base font-bold text-brand-950">Technical SEO Issues</h3>
           <p className="text-xs text-brand-400 mt-0.5">
@@ -69,10 +109,7 @@ export function TechnicalIssuesTable({
       </div>
 
       {/* Filter Toolbar */}
-      <div
-        className="p-3 border-b bg-surface-2 flex flex-wrap items-center justify-between gap-2.5"
-        style={{ borderColor: "var(--border-color)" }}
-      >
+      <div className="p-3 border-b border-brand-200/80 bg-surface-2 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           {/* Search Input */}
           <div className="relative">
@@ -82,14 +119,13 @@ export function TechnicalIssuesTable({
               placeholder="Search issues or URLs..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="h-8 w-48 sm:w-60 rounded-xl border bg-surface-1 pl-8 pr-3 text-xs text-brand-950 placeholder:text-brand-400 focus:outline-none focus:ring-1 focus:ring-signal-400"
-              style={{ borderColor: "var(--border-color)" }}
+              className="h-8 w-48 sm:w-60 rounded-xl border border-brand-200/80 bg-surface-1 pl-8 pr-3 text-xs text-brand-950 placeholder:text-brand-400 focus:outline-none focus:ring-1 focus:ring-signal-400"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => onSearchChange("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-950"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-950 cursor-pointer"
               >
                 <X size={12} />
               </button>
@@ -100,8 +136,7 @@ export function TechnicalIssuesTable({
           <select
             value={selectedSeverity}
             onChange={(e) => onSeverityChange(e.target.value)}
-            className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
-            style={{ borderColor: "var(--border-color)" }}
+            className="h-8 rounded-xl border border-brand-200/80 bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400 cursor-pointer"
           >
             <option value="ALL">All Severities</option>
             <option value="CRITICAL">Critical ({severityCounts.CRITICAL})</option>
@@ -114,8 +149,7 @@ export function TechnicalIssuesTable({
           <select
             value={selectedCategory}
             onChange={(e) => onCategoryChange(e.target.value)}
-            className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
-            style={{ borderColor: "var(--border-color)" }}
+            className="h-8 rounded-xl border border-brand-200/80 bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400 cursor-pointer"
           >
             <option value="ALL">All Categories</option>
             {categoryCounts.map(([cat, count]) => (
@@ -130,8 +164,7 @@ export function TechnicalIssuesTable({
             <select
               value={selectedPageUrl}
               onChange={(e) => onPageUrlChange(e.target.value)}
-              className="h-8 max-w-[180px] truncate rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
-              style={{ borderColor: "var(--border-color)" }}
+              className="h-8 max-w-[180px] truncate rounded-xl border border-brand-200/80 bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400 cursor-pointer"
             >
               <option value="ALL">All Pages</option>
               {uniquePageUrls.map((url) => (
@@ -146,14 +179,33 @@ export function TechnicalIssuesTable({
           <select
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value as typeof sortBy)}
-            className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
-            style={{ borderColor: "var(--border-color)" }}
+            className="h-8 rounded-xl border border-brand-200/80 bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400 cursor-pointer"
           >
             <option value="impact">Sort by: Impact</option>
             <option value="severity">Sort by: Severity</option>
           </select>
         </div>
       </div>
+
+      {/* Bulk Staging Action Bar */}
+      {selectedIssueIds.size > 0 && (
+        <div className="flex items-center justify-between bg-brand-50 border-b border-brand-200/80 px-4 py-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-brand-950 font-mono">
+              {selectedIssueIds.size} issue{selectedIssueIds.size === 1 ? "" : "s"} selected
+            </span>
+            <span className="text-brand-500">· Ready for autonomous dispatch</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStageSelectedIssues}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
+          >
+            <Zap size={12} className="text-signal-ink" />
+            <span>Stage Selected into Fix Engine ({selectedIssueIds.size})</span>
+          </button>
+        </div>
+      )}
 
       {/* Table Content */}
       {filteredIssues.length === 0 ? (
@@ -166,10 +218,7 @@ export function TechnicalIssuesTable({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className="border-b text-[10.5px] font-bold uppercase tracking-wider text-brand-400 bg-surface-2"
-                style={{ borderColor: "var(--border-color)" }}
-              >
+              <tr className="border-b border-brand-200/80 text-[10.5px] font-bold uppercase tracking-wider text-brand-400 bg-surface-2">
                 <th className="p-3 pl-4 w-8">
                   <input
                     type="checkbox"
@@ -184,9 +233,10 @@ export function TechnicalIssuesTable({
                 <th className="p-3 text-center">PAGES</th>
                 <th className="p-3">EXAMPLE URL</th>
                 <th className="p-3 text-center">IMPACT</th>
+                <th className="p-3 text-right pr-4">ACTION</th>
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
+            <tbody className="divide-y divide-brand-200/60">
               {filteredIssues.map((issue) => {
                 const isSelected = selectedIssueIds.has(issue.id);
                 return (
@@ -259,6 +309,23 @@ export function TechnicalIssuesTable({
                           ? "Medium"
                           : "Low"}
                       </span>
+                    </td>
+                    <td className="p-3 pr-4 text-right">
+                      {stagedIssueIds.has(issue.id) ? (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-bold text-success-700 font-mono">
+                          <CheckCircle2 size={10} className="text-success-600" />
+                          <span>Staged</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleStageSingleIssue(issue)}
+                          className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-2 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-surface-3 hover:text-brand-950 transition cursor-pointer shadow-2xs"
+                        >
+                          <Zap size={10} className="text-signal-400" />
+                          <span>Stage Fix</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

@@ -42,13 +42,13 @@ export function PagesDistributions({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
       {/* 1. Page Type Distribution (10 Types) */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-bold text-brand-950">
               Page Type Distribution
             </h3>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            <span className="text-[11px] font-mono text-brand-400">
               10 Types
             </span>
           </div>
@@ -62,24 +62,24 @@ export function PagesDistributions({
             />
           </div>
         </div>
-        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+        <div className="mt-2 pt-2 border-t border-brand-200/60 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
           {pageTypeCounts.slice(0, 5).map((item) => (
             <span key={item.label} className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-slate-600 dark:text-slate-400">{item.label}:</span>
-              <b className="text-slate-900 dark:text-white">{item.value}</b>
+              <span className="text-brand-600">{item.label}:</span>
+              <b className="text-brand-950 font-mono">{item.value}</b>
             </span>
           ))}
           {pageTypeCounts.length > 5 && (
-            <span className="text-slate-400">+{pageTypeCounts.length - 5} more</span>
+            <span className="text-brand-400">+{pageTypeCounts.length - 5} more</span>
           )}
         </div>
       </div>
 
       {/* 2. Status Code Distribution */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
+          <h3 className="text-sm font-bold text-brand-950 mb-2">
             Status Code Distribution
           </h3>
           <div className="flex items-center justify-center py-2">
@@ -92,25 +92,25 @@ export function PagesDistributions({
             />
           </div>
         </div>
-        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+        <div className="mt-2 pt-2 border-t border-brand-200/60 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
           {statusCodeCounts.map((item) => (
             <span key={item.label} className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-slate-600 dark:text-slate-400">{item.label}:</span>
-              <b className="text-slate-900 dark:text-white">{item.value}</b>
+              <span className="text-brand-600">{item.label}:</span>
+              <b className="text-brand-950 font-mono">{item.value}</b>
             </span>
           ))}
         </div>
       </div>
 
       {/* 3. Crawl-Source Breakdown */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-bold text-brand-950">
               Crawl-Source Breakdown
             </h3>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            <span className="text-[11px] font-mono text-brand-400">
               {multiSourceUrls > 0
                 ? `${multiSourceUrls} multi-source`
                 : "Unique URLs"}
@@ -120,19 +120,19 @@ export function PagesDistributions({
             {discoverySourceList.map((src) => (
               <div key={src.key} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                  <span className="flex items-center gap-1.5 font-medium text-brand-700">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: src.color }} />
                     {src.label}
                   </span>
                   {src.scanned ? (
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                      <b className="text-slate-900 dark:text-white">{src.count}</b> ({src.percentage}%)
+                    <span className="text-brand-500 font-mono text-[11px]">
+                      <b className="text-brand-950">{src.count}</b> ({src.percentage}%)
                     </span>
                   ) : (
                     <span className="text-[11px] italic text-brand-400">Not scanned</span>
                   )}
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-brand-100 rounded-full overflow-hidden">
                   {src.scanned && (
                     <div
                       className="h-full rounded-full transition-all duration-500"
