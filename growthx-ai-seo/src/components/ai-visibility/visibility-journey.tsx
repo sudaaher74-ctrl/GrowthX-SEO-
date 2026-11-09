@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -19,6 +20,7 @@ import {
   Radar,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Target,
   Trash2,
   Zap,
@@ -40,6 +42,7 @@ import { ActionButton, PageHeader, Panel, Pill, StatusNote, Table, Th, Tr, Td } 
 import { QueryState } from "@/components/ui/query-state";
 import { EvidenceLinks, AnswerResults, GapResults } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
+import { AiSerpVisualizer } from "./ai-serp-visualizer";
 
 export function VisibilityJourneyPage() {
   const workspace = useWorkspace();
@@ -50,6 +53,29 @@ export function VisibilityJourneyPage() {
 
 function Journey({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
+  const { projects } = useWorkspace();
+  const currentProject = projects.find((p) => p.id === projectId);
+  const currentDomain = currentProject?.name || null;
+
+  const searchParams = useSearchParams();
+  const rawTab = searchParams?.get("tab");
+  const [activeTab, setActiveTab] = useState<"prompts" | "simulator" | "answers">(() => {
+    if (rawTab === "simulator") return "simulator";
+    if (rawTab === "answers") return "answers";
+    return "prompts";
+  });
+
+  const handleSelectTab = (tab: "prompts" | "simulator" | "answers") => {
+    setActiveTab(tab);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", tab);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    } catch {
+      // ignore
+    }
+  };
+
   const key = ["visibility-journey", projectId];
   const query = useQuery({ queryKey: key, queryFn: () => visibilityJourneyApi.read(projectId), retry: false,
     refetchInterval: (q) => journeyRunning(q.state.data?.journey?.status) ? 4000 : false });
@@ -334,6 +360,70 @@ function Journey({ projectId }: { projectId: string }) {
         </div>
       </div>
     </div>
+
+    {/* ── HIGH-LEVEL NAVIGATION TABS: MATRIX vs SERP SIMULATOR vs RAW RESPONSES ── */}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-200/80 pb-3">
+      <div className="flex flex-wrap items-center gap-2 p-1 rounded-2xl bg-surface-2 border border-brand-200/80 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => handleSelectTab("prompts")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            activeTab === "prompts"
+              ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
+              : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
+          )}
+        >
+          <LayoutGrid size={14} className={activeTab === "prompts" ? "text-signal-500" : "text-brand-400"} />
+          <span>Tracked Prompts &amp; Gap Matrix</span>
+          <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
+            {run?.brief?.questions?.length ?? 0}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectTab("simulator")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            activeTab === "simulator"
+              ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
+              : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
+          )}
+        >
+          <Sparkles size={14} className={activeTab === "simulator" ? "text-signal-500" : "text-brand-400"} />
+          <span>AI Overviews &amp; SearchGPT SERP Visualizer</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/20 px-2 py-0.2 text-[10px] font-mono text-brand-900 border border-brand-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-signal-500 animate-pulse" />
+            Live
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectTab("answers")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            activeTab === "answers"
+              ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
+              : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
+          )}
+        >
+          <Bot size={14} className={activeTab === "answers" ? "text-signal-500" : "text-brand-400"} />
+          <span>Model Responses &amp; Citations</span>
+          <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
+            {data?.answers?.length ?? 0}
+          </span>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-brand-500">
+          Target Domain: <strong className="font-mono text-brand-950">{currentDomain || "Workspace Domain"}</strong>
+        </span>
+      </div>
+    </div>
+
     <QueryState isLoading={query.isLoading} error={query.error}>
       {error && <StatusNote tone="bad">{error.message}</StatusNote>}
       {data && !configured.length && <StatusNote tone="bad">AI checks are temporarily unavailable. Please contact support.</StatusNote>}
@@ -420,28 +510,69 @@ function Journey({ projectId }: { projectId: string }) {
           </Panel>
         )}
         {run.status === "FAILED" && <StatusNote tone="bad">This analysis did not complete. Start a new analysis to try again.</StatusNote>}
-        {run.brief ? (
-          <PromptsSection
+
+        {/* TAB 1: SERP SIMULATOR */}
+        {activeTab === "simulator" && (
+          <AiSerpVisualizer
             projectId={projectId}
-            key={`${run.id}-${run.updatedAt}`}
-            brief={run.brief}
-            locked={busy || !!run.scanId}
-            checks={configured.length * run.brief.questions.length}
-            pending={check.isPending}
-            onRun={(brief) => check.mutate({ id: run.id, brief })}
+            businessName={run.brief?.businessName || currentProject?.name || "Your Business"}
+            domain={currentDomain}
+            prompts={run.brief?.questions ?? []}
             answers={data?.answers ?? []}
-            providers={data?.providers ?? []}
-            hasScan={!!run.scanId}
+            configuredEngines={data?.providers ?? []}
           />
-        ) : (
-          <Panel title="Review before you run" subtitle="Check your products, service areas and buyer prompts. Then confirm to start the AI checks." padded>
-            <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
-          </Panel>
         )}
-        {data && data.answers.length > 0 && <>
-          <AnswerResults data={data} projectId={projectId} />
-          <GapResults data={data} projectId={projectId} />
-        </>}
+
+        {/* TAB 2: PROMPTS & GAP MATRIX */}
+        {activeTab === "prompts" && (
+          run.brief ? (
+            <PromptsSection
+              projectId={projectId}
+              key={`${run.id}-${run.updatedAt}`}
+              brief={run.brief}
+              locked={busy || !!run.scanId}
+              checks={configured.length * run.brief.questions.length}
+              pending={check.isPending}
+              onRun={(brief) => check.mutate({ id: run.id, brief })}
+              answers={data?.answers ?? []}
+              providers={data?.providers ?? []}
+              hasScan={!!run.scanId}
+              onViewResults={() => handleSelectTab("answers")}
+              onOpenSimulator={() => handleSelectTab("simulator")}
+            />
+          ) : (
+            <Panel title="Review before you run" subtitle="Check your products, service areas and buyer prompts. Then confirm to start the AI checks." padded>
+              <p className="text-sm text-brand-500">{busy ? "Your business details and prompts will appear here when ready." : "Your business details are not ready. Start a new analysis to retry."}</p>
+            </Panel>
+          )
+        )}
+
+        {/* TAB 3: MODEL RESPONSES & CITATIONS */}
+        {activeTab === "answers" && (
+          data && data.answers.length > 0 ? (
+            <div className="space-y-6">
+              <AnswerResults data={data} projectId={projectId} />
+              <GapResults data={data} projectId={projectId} />
+            </div>
+          ) : (
+            <Panel padded>
+              <div className="mx-auto max-w-md space-y-3 py-8 text-center">
+                <Bot className="mx-auto text-brand-400" size={24} />
+                <h3 className="text-base font-bold text-brand-950">No Model Responses Saved Yet</h3>
+                <p className="text-xs text-brand-500">
+                  Confirm your buyer prompts in the &quot;Tracked Prompts&quot; tab to trigger multi-LLM checks across ChatGPT, Google Gemini, and Perplexity.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTab("prompts")}
+                  className="rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
+                >
+                  Go to Tracked Prompts &rarr;
+                </button>
+              </div>
+            </Panel>
+          )
+        )}
       </>}
     </QueryState>
   </div>;
@@ -873,6 +1004,7 @@ function PromptsSection({
   providers = [],
   hasScan,
   onViewResults,
+  onOpenSimulator,
 }: {
   projectId: string;
   brief: VisibilityBrief;
@@ -884,6 +1016,7 @@ function PromptsSection({
   providers?: { provider: string; configured: boolean; model: string | null }[];
   hasScan?: boolean;
   onViewResults?: () => void;
+  onOpenSimulator?: () => void;
 }) {
   const [draft, setDraft] = useState(brief);
   const queryClient = useQueryClient();
@@ -1263,11 +1396,21 @@ function PromptsSection({
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs transition-colors hover:bg-surface-2 hover:text-brand-950"
+                  className="flex items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs transition-colors hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
                 >
                   <Pencil size={13} />
                   Edit
                 </button>
+                {onOpenSimulator && (
+                  <button
+                    type="button"
+                    onClick={onOpenSimulator}
+                    className="flex items-center gap-1.5 rounded-lg border border-signal-400 bg-signal-400/10 hover:bg-signal-400/20 px-3 py-1.5 text-xs font-bold text-brand-950 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <Sparkles size={13} className="text-signal-500" />
+                    <span>SERP Simulator</span>
+                  </button>
+                )}
                 {hasScan && onViewResults && (
                   <ActionButton
                     variant="secondary"
