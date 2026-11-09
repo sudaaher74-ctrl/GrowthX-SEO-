@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,6 +28,8 @@ import {
 import { ActionButton, Kpi, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { PlanBPreviewModal } from "@/components/fix-engine/plan-b-preview-modal";
 import { ResultsTrajectoryChart } from "@/components/fix-engine/results-trajectory-chart";
+import { VisualCodeDiff } from "@/components/fix-engine/visual-code-diff";
+import { MilestoneStepper } from "@/components/fix-engine/milestone-stepper";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type { ProofOfImpactCard, FixChangeReport } from "@/lib/api-types";
@@ -213,7 +215,10 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
         pivotedCount={metrics.pivoted}
       />
 
-      {/* 2. Filter Ribbon with View Switcher */}
+      {/* 2. 21-Day Multi-Pillar Observation Pipeline Stepper */}
+      <MilestoneStepper day={1} totalDays={21} />
+
+      {/* 3. Filter Ribbon with View Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
         <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filter results">
           {(
@@ -326,64 +331,78 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                     : 1;
 
                   return (
-                    <tr key={card.runId} className="hover:bg-surface-2/40 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          <p className="font-bold text-brand-950 truncate max-w-xs">{card.title}</p>
-                          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
-                            <span className="truncate max-w-[160px] text-brand-500 font-mono">{card.url || card.file}</span>
-                            <span>·</span>
-                            <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-brand-700 text-[10px]">
-                              {FIELD_LABELS[card.field] || card.field}
-                            </span>
-                            <span className="rounded bg-signal-400/20 text-signal-ink border border-signal-400/30 px-1.5 py-0.2 text-[9.5px] font-bold">
-                              {card.field.includes("SCHEMA")
-                                ? "AI + Competitors"
-                                : card.field.includes("TITLE") || card.field.includes("DESCRIPTION")
-                                  ? "GSC + AI Visibility"
-                                  : "Audit + GSC"}
-                            </span>
+                    <Fragment key={card.runId}>
+                      <tr className="hover:bg-surface-2/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <p className="font-bold text-brand-950 truncate max-w-xs">{card.title}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+                              <span className="truncate max-w-[160px] text-brand-500 font-mono">{card.url || card.file}</span>
+                              <span>·</span>
+                              <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-brand-700 text-[10px]">
+                                {FIELD_LABELS[card.field] || card.field}
+                              </span>
+                              <span className="rounded bg-signal-400/20 text-signal-ink border border-signal-400/30 px-1.5 py-0.2 text-[9.5px] font-bold">
+                                {card.field.includes("SCHEMA")
+                                  ? "AI + Competitors"
+                                  : card.field.includes("TITLE") || card.field.includes("DESCRIPTION")
+                                    ? "GSC + AI Visibility"
+                                    : "Audit + GSC"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1 w-36">
-                          <div className="flex items-center justify-between text-[10.5px]">
-                            <span className="font-bold text-brand-950">Day {daysObserved} of 21</span>
-                            <span className="text-brand-500">{21 - daysObserved}d left</span>
-                          </div>
-                          <div className="h-1.5 w-full rounded-full bg-brand-200/60 overflow-hidden">
-                            <div
-                              className="h-full bg-signal-400 rounded-full"
-                              style={{ width: `${Math.min(100, Math.round((daysObserved / 21) * 100))}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-50 text-success-700 border border-success-200 px-2 py-0.5 text-[10.5px] font-bold">
-                          ● Live on Website
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-800">
-                            <Compass size={12} className="text-accent-700" />
-                            FAQ Schema Prepared
+                        </td>
+                        <td className="px-4 py-3">
+                          <MilestoneStepper day={daysObserved} compact />
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success-50 text-success-700 border border-success-200 px-2 py-0.5 text-[10.5px] font-bold">
+                            ● Live on Website
                           </span>
-                          <p className="text-[10px] text-brand-500">Auto-stages if lift requires depth</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleLaunchPlanB(card)}
-                          className="rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
-                        >
-                          Review Next Step →
-                        </button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-800">
+                              <Compass size={12} className="text-accent-700" />
+                              FAQ Schema Prepared
+                            </span>
+                            <p className="text-[10px] text-brand-500">Auto-stages if lift requires depth</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedCardId(expandedCardId === card.runId ? null : card.runId)}
+                              className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:text-brand-950 hover:bg-surface-1 transition cursor-pointer"
+                            >
+                              {expandedCardId === card.runId ? "Hide Diff" : "Inspect Diff"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchPlanB(card)}
+                              className="rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
+                            >
+                              Review Next Step →
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedCardId === card.runId && (
+                        <tr className="bg-surface-2/30">
+                          <td colSpan={5} className="p-3">
+                            <VisualCodeDiff
+                              title={card.title}
+                              field={FIELD_LABELS[card.field] || card.field}
+                              file={card.url || card.file}
+                              beforeText={card.before?.text || null}
+                              afterText={card.after?.text || null}
+                              verifiedLive={card.after?.verificationStatus === "VERIFIED" || card.after?.verificationStatus === "VERIFIED_LIVE"}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -473,26 +492,15 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                   </div>
                 </div>
 
-                {/* Compact Before & After Pill Diff */}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 text-xs">
-                  <div className="rounded-xl border border-brand-200/80 bg-surface-2/50 p-2.5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-500">
-                      Baseline Content Before Fix:
-                    </span>
-                    <p className="font-mono text-[11px] text-brand-700 truncate">
-                      {card.before?.text || "Saved audit baseline"}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-success-200/80 bg-success-50/20 p-2.5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-success-800">
-                      Verified Live on Website (HTML Matched):
-                    </span>
-                    <p className="font-mono text-[11px] text-brand-950 font-semibold truncate">
-                      {card.after?.text || "Deployed live update"}
-                    </p>
-                  </div>
-                </div>
+                {/* Visual Side-by-Side Code Diff */}
+                <VisualCodeDiff
+                  title={card.title}
+                  field={FIELD_LABELS[card.field] || card.field}
+                  file={card.url || card.file}
+                  beforeText={card.before?.text || null}
+                  afterText={card.after?.text || null}
+                  verifiedLive={card.after?.verificationStatus === "VERIFIED" || card.after?.verificationStatus === "VERIFIED_LIVE"}
+                />
 
                 {/* Follow-up Strategy Strip */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/90 bg-surface-2 p-3">

@@ -41,15 +41,7 @@ function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<IssueSeve
 }
 
 /**
- * One line saying why the score is what it is.
- *
- * The audit showed 89/100 labelled Good next to a hundred open findings. Both
- * numbers were right — the scorer caps each page's penalty and discounts
- * low-confidence findings, so many small problems barely move it — but nothing
- * said so, and a client who cannot reconcile two numbers stops trusting both.
- *
- * The per-page cap mirrors MAX_PENALTY_PER_URL in the crawler's
- * health-score.util.ts. Everything else here is read off the counts.
+ * Explain health score based on penalties.
  */
 const PENALTY_CAP_PER_PAGE = 20;
 
@@ -72,6 +64,63 @@ function explainHealthScore(
   );
 }
 
+/** Circular SVG Radial Progress Gauge */
+function CircularScoreGauge({ score }: { score: number | null }) {
+  const safeScore = score != null ? Math.max(0, Math.min(score, 100)) : 0;
+  const radius = 38;
+  const stroke = 6;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (safeScore / 100) * circumference;
+
+  const strokeColor =
+    safeScore >= 90
+      ? "var(--color-signal-400)"
+      : safeScore >= 80
+        ? "var(--color-brand-400)"
+        : safeScore >= 50
+          ? "var(--color-warning-500)"
+          : "var(--color-error-500)";
+
+  return (
+    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
+      <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 96 96">
+        {/* Background track */}
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          stroke="var(--color-brand-200)"
+          strokeWidth={stroke}
+          fill="transparent"
+          opacity={0.35}
+        />
+        {/* Active progress */}
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          stroke={strokeColor}
+          strokeWidth={stroke}
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      {/* Center text */}
+      <div className="absolute flex flex-col items-center justify-center text-center">
+        <span className="font-mono text-2xl font-black tracking-tight text-brand-950">
+          {score != null ? score : "—"}
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-brand-400">
+          out of 100
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function HealthSummary({
   score,
   counts,
@@ -84,35 +133,57 @@ export function HealthSummary({
   const grade = score != null ? gradeScore(score) : null;
 
   return (
-    <div className="space-y-3.5">
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-0.5">
-        <div>
-          <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Health score</p>
-          <p className="mt-1 flex items-baseline gap-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">
-            {score != null ? score : "—"}
-            <span className="text-[12px] font-medium text-brand-400 tracking-normal">/100</span>
-          </p>
+    <div className="space-y-4">
+      {/* Visual Radial Gauge + Quick Stats Row */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* Circular Gauge */}
+        <div className="flex items-center gap-3.5">
+          <CircularScoreGauge score={score} />
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-brand-950 text-sm">Crawl Health Score</span>
+              {grade && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                    grade.tone === "good"
+                      ? "bg-success-50 text-success-700 border-success-200"
+                      : grade.tone === "warn"
+                        ? "bg-warning-50 text-warning-700 border-warning-200"
+                        : "bg-error-50 text-error-700 border-error-200",
+                  )}
+                >
+                  {grade.label}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-brand-500 mt-0.5">
+              {grade ? grade.line : "We checked your website but could not compute a score."}
+            </p>
+          </div>
         </div>
-        {counts && (
-          <div>
-            <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Problems to fix</p>
-            <p className="mt-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">{counts.openGroups}</p>
-          </div>
-        )}
-        {pagesChecked != null && (
-          <div>
-            <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Pages checked</p>
-            <p className="mt-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">{pagesChecked}</p>
-          </div>
-        )}
+
+        {/* Quick Numbers */}
+        <div className="flex items-center gap-4 sm:gap-6 border-t sm:border-t-0 sm:border-l border-brand-200/80 pt-3 sm:pt-0 sm:pl-5 shrink-0 text-xs">
+          {counts && (
+            <div>
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-brand-400">Problems to fix</p>
+              <p className="mt-0.5 text-[20px] font-bold text-brand-950">{counts.openGroups}</p>
+              <p className="text-[10px] text-brand-400">Open groups</p>
+            </div>
+          )}
+          {pagesChecked != null && (
+            <div>
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-brand-400">Pages checked</p>
+              <p className="mt-0.5 text-[20px] font-bold text-brand-950">{pagesChecked}</p>
+              <p className="text-[10px] text-brand-400">Scanned routes</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-2 pt-2 border-t border-brand-200/30">
-        {grade ? (
-          <p className="text-[12px] text-brand-400">{grade.line}</p>
-        ) : (
-          <p className="text-[12px] text-brand-400">We checked your website but couldn&apos;t work out a score this time.</p>
-        )}
+      {/* Severity Breakdown Bar */}
+      <div className="space-y-2 pt-2 border-t border-brand-200/60">
         {counts && (
           <p className="text-[12px] text-brand-700 leading-snug">
             {counts.openFindings === 0 ? (

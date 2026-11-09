@@ -15,6 +15,11 @@ import {
   Tooltip,
   CartesianGrid,
   Cell,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from "recharts";
 import {
   Activity,
@@ -129,6 +134,14 @@ export function ResultsTrajectoryChart({
       fill: "var(--color-series-3)",
     },
   ];
+
+  // Polar radar representation for multi-engine footprint
+  const aiRadarData = aiEngineData.map((d) => ({
+    engine: d.engine,
+    share: d.share,
+    benchmark: 50,
+    fullMark: 100,
+  }));
 
   // 4. Website Audit crawl data
   const crawlQuery = useLatestCrawl(auditDomain);
@@ -578,50 +591,118 @@ export function ResultsTrajectoryChart({
             </div>
           </div>
 
-          {/* Dedicated AI Engine Citation BarChart */}
-          <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="font-bold text-brand-950">Generative Engine Citation Share (%)</span>
-              <span className="font-mono text-[11px] text-brand-500">Baseline Target: 40% – 60% Citation Share</span>
+          {/* Dual Visual Charts: AI Radar Footprint + Citation BarChart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 1. Radar Chart: Multi-Engine Citation Coverage */}
+            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-brand-950 flex items-center gap-1.5">
+                  <Activity size={12} className="text-signal-400" />
+                  AI Citation Coverage Radar
+                </span>
+                <span className="font-mono text-[11px] text-brand-500">4-Engine Footprint</span>
+              </div>
+
+              <div className="h-60 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="68%" data={aiRadarData}>
+                    <PolarGrid stroke="var(--color-brand-200)" opacity={0.5} />
+                    <PolarAngleAxis dataKey="engine" stroke="var(--color-brand-400)" fontSize={10.5} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="var(--color-brand-300)" fontSize={9} />
+                    <Radar
+                      name="Benchmark Target"
+                      dataKey="benchmark"
+                      stroke="var(--color-brand-300)"
+                      strokeDasharray="3 3"
+                      fill="var(--color-brand-200)"
+                      fillOpacity={0.12}
+                    />
+                    <Radar
+                      name="Citation Share"
+                      dataKey="share"
+                      stroke="var(--color-signal-400)"
+                      fill="var(--color-signal-400)"
+                      fillOpacity={0.35}
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const d = payload[0].payload;
+                          return (
+                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
+                              <p className="font-bold text-brand-950">{d.engine}</p>
+                              <p className="text-signal-400 font-bold">Brand Citation: {d.share}%</p>
+                              <p className="text-brand-500">Target Benchmark: {d.benchmark}%</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 text-[10.5px] border-t border-brand-200/60 pt-2 text-brand-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-signal-400" />
+                  <span className="font-bold text-brand-950">Brand Share</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full border border-dashed border-brand-400" />
+                  <span>Target Benchmark (50%)</span>
+                </span>
+              </div>
             </div>
 
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={aiEngineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="engine" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                  <YAxis domain={[0, 100]} stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const d = payload[0].payload;
-                        return (
-                          <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                            <p className="font-bold text-brand-950">{d.engine}</p>
-                            <p className="text-signal-400 font-bold">Citation Share: {d.share}%</p>
-                            <p className="text-brand-500">Prompts Cited: {d.cited} / {d.checked}</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Bar dataKey="share" radius={[6, 6, 0, 0]}>
-                    {aiEngineData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {/* 2. Bar Chart: Comparative Citation Share % */}
+            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-brand-950 flex items-center gap-1.5">
+                  <BarChart3 size={12} className="text-signal-400" />
+                  Generative Engine Citation Share (%)
+                </span>
+                <span className="font-mono text-[11px] text-brand-500">Target: 40%–60%</span>
+              </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-brand-200/60 text-center">
-              {aiEngineData.map((d) => (
-                <div key={d.engine} className="p-1.5 rounded-lg bg-surface-1/80 border border-brand-200/70">
-                  <span className="block text-[10.5px] font-bold text-brand-800">{d.engine}</span>
-                  <span className="font-mono text-xs font-bold text-brand-950">{d.share}%</span>
-                </div>
-              ))}
+              <div className="h-60 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={aiEngineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
+                    <XAxis dataKey="engine" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
+                    <YAxis domain={[0, 100]} stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const d = payload[0].payload;
+                          return (
+                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
+                              <p className="font-bold text-brand-950">{d.engine}</p>
+                              <p className="text-signal-400 font-bold">Citation Share: {d.share}%</p>
+                              <p className="text-brand-500">Prompts Cited: {d.cited} / {d.checked}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar dataKey="share" radius={[6, 6, 0, 0]}>
+                      {aiEngineData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-brand-200/60 pt-2 text-center">
+                {aiEngineData.map((d) => (
+                  <div key={d.engine} className="p-1 rounded-lg bg-surface-1/80 border border-brand-200/70">
+                    <span className="block text-[10px] font-bold text-brand-700 truncate">{d.engine}</span>
+                    <span className="font-mono text-[11px] font-bold text-brand-950">{d.share}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
