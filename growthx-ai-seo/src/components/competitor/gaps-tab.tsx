@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,6 +19,8 @@ import {
   Building2,
   SlidersHorizontal,
   Globe,
+  ArrowUpRight,
+  CheckCircle2,
 } from "lucide-react";
 import { useProgrammaticMatrix } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
@@ -168,9 +172,18 @@ export function GapsTab({
   competitors: TrackedCompetitor[];
   onOpenCounterMoves: () => void;
 }) {
-  const [rivalFilter, setRivalFilter] = useState<string>("all");
+  const searchParams = useSearchParams();
+  const initialRival = searchParams.get("rival") || "all";
+  const [rivalFilter, setRivalFilter] = useState<string>(initialRival);
   const [expanded, setExpanded] = useState<Set<GapKind>>(new Set());
   const [planFor, setPlanFor] = useState<GapItem | null>(null);
+
+  const [stagedGapIds, setStagedGapIds] = useState<Set<string>>(() => {
+    const staged = stagingEngine.getStaged(projectId);
+    const set = new Set<string>();
+    staged.forEach((s) => set.add(s.title));
+    return set;
+  });
 
   const facts = useQuery({
     queryKey: ["rival-advantages", projectId],
@@ -189,6 +202,41 @@ export function GapsTab({
   const topicsMissing = rivals
     .filter((r) => rivalFilter === "all" || r.domain === rivalFilter)
     .reduce((n, r) => n + (r.advantages?.missingTopics.length ?? 0), 0);
+
+  const handleQuickStage = (item: GapItem) => {
+    stagingEngine.stage(projectId, {
+      title: item.headline,
+      category: "Competitor Intelligence",
+      source: "COMPETITOR_CONTENT",
+      priority: item.kind === "topic" || item.kind === "pageType" ? "HIGH" : "MEDIUM",
+      impact: item.why,
+      effortHours: 2,
+      deliverable: buildGapPlan(item, { domain }),
+      evidence: `${item.rival} · counted from both websites`,
+    });
+    setStagedGapIds((prev) => new Set(prev).add(item.headline));
+  };
+
+  const handleStageAllTopics = () => {
+    const topics = shown.filter((i) => i.kind === "topic" && !stagedGapIds.has(i.headline));
+    for (const item of topics) {
+      stagingEngine.stage(projectId, {
+        title: item.headline,
+        category: "Competitor Intelligence",
+        source: "COMPETITOR_CONTENT",
+        priority: "HIGH",
+        impact: item.why,
+        effortHours: 2,
+        deliverable: buildGapPlan(item, { domain }),
+        evidence: `${item.rival} · counted from both websites`,
+      });
+    }
+    setStagedGapIds((prev) => {
+      const next = new Set(prev);
+      topics.forEach((t) => next.add(t.headline));
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -255,6 +303,58 @@ export function GapsTab({
         </div>
       ) : (
         <>
+          {/* ── EXECUTIVE OPPORTUNITY SUMMARY RIBBON ── */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[14.5px] font-bold text-brand-950">
+                      Competitor Opportunity Radar
+                    </h2>
+                    <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                      {shown.length} opportunities detected
+                    </span>
+                    {stagedGapIds.size > 0 && (
+                      <span className="rounded-full bg-success-500/15 border border-success-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
+                        {stagedGapIds.size} staged in Fix Engine
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] text-brand-400">
+                    Turn competitor structural advantages into direct fixes staged for autonomous implementation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {topicsMissing > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleStageAllTopics}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+                  >
+                    <Zap size={12} className="text-signal-400" />
+                    <span>Stage All Missing Topics ({topicsMissing})</span>
+                  </button>
+                )}
+                <Link
+                  href="/fix-engine"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+                >
+                  <span>Fix Engine</span>
+                  <ArrowUpRight size={12} />
+                </Link>
+              </div>
+            </div>
+          </div>
+
           {/* ── KPI HIGHLIGHT CARDS ── */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <GapMetricCard
@@ -361,6 +461,8 @@ export function GapsTab({
                         item={item}
                         showRival={rivalFilter === "all"}
                         accentBarClass={theme.accentBar}
+                        isStaged={stagedGapIds.has(item.headline)}
+                        onQuickStage={() => handleQuickStage(item)}
                         onPlan={() => setPlanFor(item)}
                       />
                     ))}
@@ -407,6 +509,7 @@ export function GapsTab({
               deliverable: plan,
               evidence: `${planFor.rival} · counted from both websites`,
             });
+            setStagedGapIds((prev) => new Set(prev).add(planFor.headline));
             setPlanFor(null);
             onOpenCounterMoves();
           }}
@@ -420,11 +523,15 @@ function GapRow({
   item,
   showRival,
   accentBarClass,
+  isStaged,
+  onQuickStage,
   onPlan,
 }: {
   item: GapItem;
   showRival: boolean;
   accentBarClass: string;
+  isStaged: boolean;
+  onQuickStage: () => void;
   onPlan: () => void;
 }) {
   const href = item.example ? safeUrl(item.example.url) : undefined;
@@ -448,7 +555,7 @@ function GapRow({
         </div>
         <p className="mt-1 text-[11.5px] text-brand-400 leading-relaxed">{item.why}</p>
       </div>
-      <div className="flex shrink-0 items-center gap-2.5 pt-1 md:pt-0">
+      <div className="flex shrink-0 items-center gap-2 pt-1 md:pt-0">
         {href && (
           <a
             href={href}
@@ -460,6 +567,21 @@ function GapRow({
             <span>{item.example!.label}</span>
             <ExternalLink size={10} />
           </a>
+        )}
+        {isStaged ? (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/60 bg-success-50/60 px-3 py-1.5 text-[11.5px] font-bold text-success-700 shadow-2xs">
+            <CheckCircle2 size={12} className="text-success-600" />
+            <span>Staged ✓</span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onQuickStage}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs active:scale-[0.98]"
+          >
+            <CheckCircle2 size={12} className="text-signal-400" />
+            <span>Stage Fix</span>
+          </button>
         )}
         <button
           type="button"

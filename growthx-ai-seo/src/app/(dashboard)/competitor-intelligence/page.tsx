@@ -4,7 +4,22 @@ import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, CheckCircle2, Swords, Layers, Loader2, Radar, Trash2, X, Home, FileText, RotateCw, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  CheckCircle2,
+  Swords,
+  Layers,
+  Loader2,
+  Radar,
+  Trash2,
+  X,
+  Home,
+  FileText,
+  RotateCw,
+  AlertTriangle,
+  ArrowUpRight,
+  Zap,
+} from "lucide-react";
 import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
@@ -392,18 +407,44 @@ function CompetitorIntelligenceClient() {
   return (
     <div className="space-y-6 pb-12">
       <div className="space-y-4">
-        <div className="flex items-center gap-2 text-xs font-semibold text-brand-400">
-          <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
-            <Home className="h-3.5 w-3.5" />
-            <span>Dashboard</span>
-          </Link>
-          <span>/</span>
-          <Link href="/competitor-intelligence" className="hover:text-brand-950 transition">
-            Competitor Intelligence
-          </Link>
-          <span>/</span>
-          <span className="text-brand-950 font-bold">{currentTabObj.label}</span>
-          <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-brand-400">
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
+              <Home className="h-3.5 w-3.5" />
+              <span>Dashboard</span>
+            </Link>
+            <span>/</span>
+            <Link href="/competitor-intelligence" className="hover:text-brand-950 transition">
+              Competitor Intelligence
+            </Link>
+            <span>/</span>
+            <span className="text-brand-950 font-bold">{currentTabObj.label}</span>
+          </div>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {competitorsList.some(isReading) ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/40 bg-signal-400/10 px-3 py-1 text-[11px] font-semibold text-brand-950">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-400" />
+                </span>
+                <span>Reading sites…</span>
+              </div>
+            ) : competitorsList.length > 0 ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-success-200/60 bg-success-50/60 px-2.5 py-1 text-[11px] font-semibold text-success-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                <span>{competitorsList.length} monitored</span>
+              </div>
+            ) : null}
+
+            <Link
+              href="/fix-engine"
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+            >
+              <Zap size={12} className="text-signal-400" />
+              <span>Fix Engine</span>
+            </Link>
+
             <button
               type="button"
               onClick={openAddModal}
@@ -433,6 +474,11 @@ function CompetitorIntelligenceClient() {
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
+            const countLabel =
+              tab.id === "battleground"
+                ? competitorsList.length > 0 ? competitorsList.length : undefined
+                : undefined;
+
             return (
               <button
                 key={tab.id}
@@ -448,6 +494,15 @@ function CompetitorIntelligenceClient() {
               >
                 <Icon size={13.5} className={isActive ? "text-signal-ink" : "text-brand-400"} />
                 <span>{tab.label}</span>
+                {countLabel != null && (
+                  <span
+                    className={`ml-0.5 rounded-full px-1.5 py-0.2 font-mono text-[9.5px] ${
+                      isActive ? "bg-signal-ink/15 text-signal-ink font-bold" : "bg-brand-200/60 text-brand-600"
+                    }`}
+                  >
+                    {countLabel}
+                  </span>
+                )}
               </button>
             );
           })}

@@ -1,8 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, ExternalLink, Loader2, RotateCw } from "lucide-react";
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardList,
+  ExternalLink,
+  Loader2,
+  Radar,
+  RotateCw,
+  Zap,
+} from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { ActionButton, Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { api, type RivalMove, type TrackedCompetitor } from "@/lib/api-client";
@@ -41,6 +51,27 @@ export function RivalRadarTab({
   const [planFor, setPlanFor] = useState<RadarItem | null>(null);
   const [recrawlingDomain, setRecrawlingDomain] = useState<string | null>(null);
   const [recrawlNote, setRecrawlNote] = useState<string | null>(null);
+
+  const [stagedRadarIds, setStagedRadarIds] = useState<Set<string>>(() => {
+    const staged = stagingEngine.getStaged(projectId);
+    const set = new Set<string>();
+    staged.forEach((s) => set.add(s.title));
+    return set;
+  });
+
+  const handleQuickStage = (item: RadarItem) => {
+    stagingEngine.stage(projectId, {
+      title: item.headline,
+      category: "Competitor Intelligence",
+      source: "COMPETITOR_CONTENT",
+      priority: item.kind === "NEW_PAGE" || item.kind === "AI_NAMED" ? "HIGH" : "MEDIUM",
+      impact: item.why,
+      effortHours: 2,
+      deliverable: buildRadarPlan(item, { domain }),
+      evidence: `${item.rival} · ${item.seenBy}`,
+    });
+    setStagedRadarIds((prev) => new Set(prev).add(item.headline));
+  };
 
   const feed = useQuery({
     queryKey: ["rival-moves", projectId],
@@ -187,6 +218,46 @@ export function RivalRadarTab({
         </Panel>
       ) : (
         <>
+          {/* ── EXECUTIVE RIVAL RADAR SUMMARY RIBBON ── */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
+                  <Radar size={18} />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[14.5px] font-bold text-brand-950">
+                      Rival Move Barometer
+                    </h2>
+                    <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                      {items.length} moves detected in {period}
+                    </span>
+                    {stagedRadarIds.size > 0 && (
+                      <span className="rounded-full bg-success-500/15 border border-success-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
+                        {stagedRadarIds.size} staged counter-actions
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] text-brand-400">
+                    Live changes detected across rival sites. Stage responsive counter-moves directly into Fix Engine.
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href="/fix-engine"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+              >
+                <span>Fix Engine</span>
+                <ArrowUpRight size={12} />
+              </Link>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi label={`Changes in ${period}`} value={String(items.length)} sub={focus ? focus.name : "across all competitors"} />
             <Kpi label="New pages" value={String(countOf("NEW_PAGE"))} sub="they started targeting new searches" />
@@ -242,10 +313,26 @@ export function RivalRadarTab({
                         href={item.example.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[12px] text-brand-600 hover:text-brand-950 hover:underline"
+                        className="inline-flex items-center gap-1 text-[11px] font-mono text-brand-500 hover:text-signal-400 hover:underline transition-colors"
                       >
-                        See their page <ExternalLink size={11} />
+                        <span>See page</span>
+                        <ExternalLink size={10} />
                       </a>
+                    )}
+                    {stagedRadarIds.has(item.headline) ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/60 bg-success-50/60 px-2.5 py-1.5 text-[11px] font-bold text-success-700 shadow-2xs">
+                        <CheckCircle2 size={12} className="text-success-600" />
+                        <span>Staged ✓</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickStage(item)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1.5 text-[11px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs active:scale-[0.98]"
+                      >
+                        <Zap size={11} className="text-signal-400" />
+                        <span>Stage Move</span>
+                      </button>
                     )}
                     <ActionButton icon={<ClipboardList size={13} />} onClick={() => setPlanFor(item)}>
                       Get a plan
@@ -276,6 +363,7 @@ export function RivalRadarTab({
               deliverable: plan,
               evidence: `${planFor.rival} · ${planFor.seenBy}`,
             });
+            setStagedRadarIds((prev) => new Set(prev).add(planFor.headline));
             setPlanFor(null);
             onOpenCounterMoves();
           }}
