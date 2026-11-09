@@ -203,7 +203,7 @@ export function CompetitorWebsitesPanel({
 function SiteCard({
   site,
   yourPages,
-  yourHealth: _yourHealth,
+  yourHealth,
   onRecrawl,
   isRecrawling,
   onCancel,
@@ -321,14 +321,18 @@ function SiteCard({
             </div>
             <div className="text-[10px] text-brand-400 truncate">
               {you ? (
-                <span className="text-brand-500 font-medium">Benchmark</span>
+                <span className="text-brand-500 font-medium">Your site baseline</span>
               ) : diffPages != null ? (
                 diffPages > 0 ? (
-                  <span className="text-brand-400 font-mono">+{diffPages.toLocaleString()} vs you</span>
+                  <span className="text-warning-700 font-medium font-mono">
+                    +{diffPages.toLocaleString()} more pages (Rival gap)
+                  </span>
                 ) : diffPages < 0 ? (
-                  <span className="text-brand-400 font-mono">{diffPages.toLocaleString()} vs you</span>
+                  <span className="text-success-700 font-medium font-mono">
+                    You have +{Math.abs(diffPages).toLocaleString()} more pages
+                  </span>
                 ) : (
-                  <span className="text-brand-400 font-mono">Same as you</span>
+                  <span className="text-brand-500 font-mono">Equal footprint</span>
                 )
               ) : (
                 <span>Indexed pages</span>
@@ -352,12 +356,28 @@ function SiteCard({
             <div className="text-[10px]">
               {site.healthScore == null ? (
                 <span className="text-brand-400">No score</span>
-              ) : site.healthScore >= 90 ? (
-                <span className="text-signal-400 font-semibold">Optimal</span>
-              ) : site.healthScore >= 75 ? (
-                <span className="text-primary-700 font-semibold">Good</span>
+              ) : you ? (
+                site.healthScore >= 90 ? (
+                  <span className="text-success-700 font-semibold">Optimal</span>
+                ) : site.healthScore >= 75 ? (
+                  <span className="text-primary-700 font-semibold">Good</span>
+                ) : (
+                  <span className="text-warning-700 font-semibold">Issues</span>
+                )
+              ) : yourHealth != null ? (
+                site.healthScore < yourHealth ? (
+                  <span className="inline-flex items-center gap-0.5 text-success-700 font-semibold">
+                    <CheckCircle2 size={10} /> You lead by +{yourHealth - site.healthScore} pts
+                  </span>
+                ) : site.healthScore > yourHealth ? (
+                  <span className="inline-flex items-center gap-0.5 text-warning-700 font-semibold">
+                    <AlertTriangle size={10} /> Rival leads by +{site.healthScore - yourHealth} pts
+                  </span>
+                ) : (
+                  <span className="text-brand-500 font-medium">Tied in health</span>
+                )
               ) : (
-                <span className="text-warning-700 font-semibold">Issues</span>
+                <span className="text-brand-400">Score recorded</span>
               )}
             </div>
           </div>

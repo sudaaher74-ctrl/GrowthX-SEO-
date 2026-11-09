@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus, RotateCw, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Layers, Loader2, Plus, RotateCw, ShieldCheck, Swords, X } from "lucide-react";
 import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
 import { ActionButton, Panel, relativeTime } from "@/components/ui/console";
 import { type TrackedCompetitor } from "@/lib/api-client";
@@ -70,6 +71,67 @@ export function BattlegroundTab({
 
   return (
     <div className="space-y-4">
+      {/* ── BATTLEGROUND EXECUTIVE STRIP ── */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Swords size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-brand-400">Tracked Rivals</p>
+              <p className="font-mono text-xl font-bold text-brand-950">
+                {competitors.length} <span className="text-xs font-normal text-brand-500 font-sans">competitors</span>
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[10.5px] font-mono text-brand-600 font-medium">
+            {selectedIds.length}/{MAX_RIVALS} active
+          </span>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
+              <ShieldCheck size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-brand-400">Your Technical Health</p>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-xl font-bold text-brand-950">
+                  {ourFigures?.healthScore != null ? Math.round(ourFigures.healthScore) : "—"}
+                </span>
+                {ourFigures?.healthScore != null && (
+                  <span className="text-xs text-brand-400 font-sans">/100</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <span className="rounded-full bg-success-500/10 text-success-700 border border-success-500/20 px-2 py-0.5 text-[10.5px] font-medium">
+            Your Baseline
+          </span>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
+              <Layers size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-brand-400">Competitive Gaps</p>
+              <p className="text-xs font-bold text-brand-950">Actionable Opportunities</p>
+            </div>
+          </div>
+          <Link
+            href="/competitor-intelligence?tab=gaps"
+            className="inline-flex items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
+          >
+            <span>View Gaps</span>
+            <ArrowUpRight size={12} />
+          </Link>
+        </div>
+      </div>
+
       {/* Competitor pick-list: toggle tracked competitors on or off */}
       <div className="flex flex-wrap items-center gap-2">
         {competitors.map((c) => {

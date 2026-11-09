@@ -1,10 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpDown, BarChart2, Download, Hash, MousePointerClick, Search, TrendingUp } from "lucide-react";
+import { ArrowUpDown, BarChart2, Download, Hash, MousePointerClick, Search, TrendingUp, Target } from "lucide-react";
 import { Panel } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
-import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable } from "@/components/google/view-kit";
+import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable, detectSearchIntent, type SearchIntent } from "@/components/google/view-kit";
 import { Table, Td, Th, Tr } from "@/components/ui/console";
 import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
@@ -40,6 +40,7 @@ export function KeywordsView() {
 
   const [search, setSearch] = useState("");
   const [positionRange, setPositionRange] = useState<"ALL" | "PAGE_1" | "PAGE_2" | "PAGE_3_PLUS">("ALL");
+  const [intentFilter, setIntentFilter] = useState<"ALL" | SearchIntent>("ALL");
   const [sortBy, setSortBy] = useState<"clicks" | "impressions" | "position" | "ctr">("clicks");
   const top = useGscQueries(projectId, 100);
   const striking = useGscStriking(projectId);
@@ -61,6 +62,13 @@ export function KeywordsView() {
   const page1Count = useMemo(() => allQueries.filter((r) => r.position <= 10).length, [allQueries]);
   const page2Count = useMemo(() => allQueries.filter((r) => r.position > 10 && r.position <= 20).length, [allQueries]);
   const page3Count = useMemo(() => allQueries.filter((r) => r.position > 20).length, [allQueries]);
+
+  const strikingQueries = useMemo(() => allQueries.filter((r) => r.position > 10 && r.position <= 20), [allQueries]);
+  const strikingImpressions = useMemo(() => strikingQueries.reduce((acc, r) => acc + (r.impressions || 0), 0), [strikingQueries]);
+
+  const transactionalCount = useMemo(() => allQueries.filter((r) => detectSearchIntent(r.key) === "transactional").length, [allQueries]);
+  const commercialCount = useMemo(() => allQueries.filter((r) => detectSearchIntent(r.key) === "commercial").length, [allQueries]);
+  const informationalCount = useMemo(() => allQueries.filter((r) => detectSearchIntent(r.key) === "informational").length, [allQueries]);
 
   const qLower = search.toLowerCase().trim();
 
@@ -94,8 +102,11 @@ export function KeywordsView() {
     } else if (positionRange === "PAGE_3_PLUS") {
       list = list.filter((r) => r.position > 20);
     }
+    if (intentFilter !== "ALL") {
+      list = list.filter((r) => detectSearchIntent(r.key) === intentFilter);
+    }
     return sortRows(list, sortBy);
-  }, [allQueries, qLower, positionRange, sortBy]);
+  }, [allQueries, qLower, positionRange, intentFilter, sortBy]);
 
   const filteredPage2Rows = useMemo(() => {
     let list = striking.query.data ?? [];
@@ -193,12 +204,13 @@ export function KeywordsView() {
 
     if (!rowsToExport.length) return;
 
-    const headers = ["Query", "Clicks", "Impressions", "CTR", "Position"];
+    const headers = ["Query", "Intent", "Clicks", "Impressions", "CTR", "Position"];
     const csvContent = [
       headers.join(","),
       ...rowsToExport.map((r) =>
         [
           `"${(r.key || "").replace(/"/g, '""')}"`,
+          `"${detectSearchIntent(r.key || "")}"`,
           r.clicks ?? 0,
           r.impressions ?? 0,
           `${((r.ctr ?? 0) * 100).toFixed(2)}%`,
@@ -350,54 +362,113 @@ export function KeywordsView() {
 
       {/* ── SORT & POSITION SUB-BAR ── */}
       {(tab === "top" || tab === "page2" || tab === "ctr" || tab === "declining" || tab === "new") && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-brand-200 bg-surface-1 px-4 py-2.5 text-xs shadow-2xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tab === "top" ? (
-              <>
-                <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
-                {[
-                  { id: "ALL", label: `All (${totalKeywords})` },
-                  { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
-                  { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
-                  { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
-                ].map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPositionRange(p.id as any)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
-                      positionRange === p.id
-                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                        : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </>
-            ) : (
-              <span className="text-xs text-brand-500 font-medium">
-                {tab === "page2" && "Queries ranking on page 2 (#11–#20) with high striking distance potential"}
-                {tab === "ctr" && "Queries getting fewer clicks than expected for their position"}
-                {tab === "declining" && "Queries that dropped in position compared to the previous period"}
-                {tab === "new" && "Queries that gained impressions this period and had none previously"}
-              </span>
-            )}
+        <div className="flex flex-col gap-2.5 rounded-2xl border border-brand-200 bg-surface-1 px-4 py-2.5 text-xs shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {tab === "top" ? (
+                <>
+                  <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
+                  {[
+                    { id: "ALL", label: `All (${totalKeywords})` },
+                    { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
+                    { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
+                    { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPositionRange(p.id as any)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                        positionRange === p.id
+                          ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                          : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <span className="text-xs text-brand-500 font-medium">
+                  {tab === "page2" && "Queries ranking on page 2 (#11–#20) with high striking distance potential"}
+                  {tab === "ctr" && "Queries getting fewer clicks than expected for their position"}
+                  {tab === "declining" && "Queries that dropped in position compared to the previous period"}
+                  {tab === "new" && "Queries that gained impressions this period and had none previously"}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[11px] font-semibold text-brand-400">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none focus:border-brand-400 cursor-pointer"
+              >
+                <option value="clicks">Clicks (Highest first)</option>
+                <option value="impressions">Impressions (Highest first)</option>
+                <option value="position">Position (Best rank first)</option>
+                <option value="ctr">CTR (Highest first)</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[11px] font-semibold text-brand-400">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none focus:border-brand-400 cursor-pointer"
-            >
-              <option value="clicks">Clicks (Highest first)</option>
-              <option value="impressions">Impressions (Highest first)</option>
-              <option value="position">Position (Best rank first)</option>
-              <option value="ctr">CTR (Highest first)</option>
-            </select>
+          {tab === "top" && (
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-200/60 pt-2">
+              <span className="mr-1 text-[11px] font-semibold text-brand-400">Search Intent:</span>
+              {[
+                { id: "ALL", label: `All Intents (${totalKeywords})` },
+                { id: "transactional", label: `Transactional (${transactionalCount})` },
+                { id: "commercial", label: `Commercial (${commercialCount})` },
+                { id: "informational", label: `Informational (${informationalCount})` },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setIntentFilter(item.id as any)}
+                  className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition cursor-pointer ${
+                    intentFilter === item.id
+                      ? "bg-brand-950 text-white font-bold shadow-xs"
+                      : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STRIKING DISTANCE OPPORTUNITY DOCK ── */}
+      {tab === "top" && strikingQueries.length > 0 && positionRange !== "PAGE_2" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning-500/30 bg-warning-500/5 p-4 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning-500/15 text-warning-700">
+              <Target size={18} aria-hidden="true" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-brand-950">
+                  {strikingQueries.length} High-ROI Striking Distance Queries
+                </span>
+                <span className="rounded-md border border-warning-500/30 bg-warning-500/20 px-1.5 py-0.2 font-mono text-[10px] font-bold text-warning-800">
+                  Positions #11–#20
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11.5px] text-brand-600">
+                These queries are sitting on Page 2 and already generated {count(strikingImpressions)} search impressions. Minor on-page title and schema optimizations can push them to Page 1 for high organic click lift.
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setPositionRange("PAGE_2")}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-warning-500/40 bg-surface px-3 py-1.5 text-xs font-semibold text-warning-800 hover:bg-warning-500/10 transition shadow-2xs cursor-pointer shrink-0"
+          >
+            <span>Filter Striking Queries</span>
+            <ArrowUpDown size={12} />
+          </button>
         </div>
       )}
 
