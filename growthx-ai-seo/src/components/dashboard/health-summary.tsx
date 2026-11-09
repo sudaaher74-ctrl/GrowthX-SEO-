@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { ArrowRight, Zap } from "lucide-react";
 import { type IssueCounts, type IssueSeverity } from "@/lib/api-client";
 import { SEVERITY_ORDER, SEVERITY_PLAIN } from "@/lib/plain-language";
 import { cn } from "@/lib/utils";
@@ -208,6 +210,28 @@ export function HealthSummary({
           <p className="text-[11px] leading-relaxed text-brand-400">
             {explainHealthScore(score, counts.openFindings, counts.bySeverity)}
           </p>
+        )}
+        {counts && counts.openGroups > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-brand-200/60 text-xs">
+            <div className="flex items-center gap-2 text-brand-600">
+              <span className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-2 py-0.5 text-[10.5px] font-semibold text-brand-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                Audit Verified
+              </span>
+              <span className="text-[11px] text-brand-400">·</span>
+              <span className="text-[11px] text-brand-500">
+                Auto-fixable in Fix Engine
+              </span>
+            </div>
+            <Link
+              href="/fix-engine"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-2xs"
+            >
+              <Zap size={11} className="text-signal-ink" />
+              <span>Fix {counts.openGroups} issues in Fix Engine</span>
+              <ArrowRight size={11} />
+            </Link>
+          </div>
         )}
       </div>
     </div>

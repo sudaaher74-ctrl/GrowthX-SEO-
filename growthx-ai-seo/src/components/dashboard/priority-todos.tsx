@@ -321,19 +321,46 @@ export function ProblemDetail({ group }: { group: IssueGroup }) {
         </div>
       )}
 
+      {/* Deterministic AI Fix Opportunity Strip */}
+      {isAiReady && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-signal-400/40 bg-signal-400/10 p-3 text-xs">
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-signal-400 shrink-0" />
+            <div>
+              <span className="font-bold text-brand-950">Deterministic Auto-Fix Ready:</span>
+              <span className="text-brand-600 ml-1">Reigel can generate the exact code/tag diff and stage an isolated pull request.</span>
+            </div>
+          </div>
+          <Link
+            href="/fix-engine"
+            className="inline-flex items-center gap-1 shrink-0 font-bold text-brand-950 underline hover:opacity-80"
+          >
+            Stage in Fix Engine <ArrowRight size={11} />
+          </Link>
+        </div>
+      )}
+
       {/* Bottom CTA Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-brand-200/60">
         <p className="text-[11px] text-brand-500 leading-snug max-w-sm">
           {fix.note}
         </p>
-        <Link
-          href={fix.href}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
-        >
-          {isAiReady && <Zap size={13} className="text-signal-ink" />}
-          {fix.cta}
-          <ArrowRight size={13} />
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/website?tab=issues"
+            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-brand-200 bg-brand-100 px-3.5 py-2 text-[11.5px] font-semibold text-brand-700 transition hover:bg-brand-200/60"
+          >
+            Audit detail
+          </Link>
+          <Link
+            href={fix.href}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
+          >
+            {isAiReady && <Zap size={13} className="text-signal-ink" />}
+            {fix.cta}
+            <ArrowRight size={13} />
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -147,7 +147,7 @@ export function ClosedLoopResultsCard() {
   }
 
   return (
-    <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 sm:p-5 text-brand-950 shadow-2xs space-y-4">
+    <section id="closed-loop" className="scroll-mt-4 rounded-2xl border border-brand-200 bg-surface-1 p-4 sm:p-5 text-brand-950 shadow-2xs space-y-4">
       {/* Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
@@ -186,7 +186,10 @@ export function ClosedLoopResultsCard() {
       {/* 4 Metric Badges */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="rounded-xl border border-success-200/80 bg-surface-2/60 p-3 shadow-2xs">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500">Proven Wins</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500">Proven Wins</p>
+            <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+          </div>
           <p className="text-[16px] font-bold text-success-800 leading-tight mt-0.5">
             {stats.provenWins} {stats.provenWins === 1 ? "win" : "wins"}
           </p>
@@ -194,7 +197,10 @@ export function ClosedLoopResultsCard() {
         </div>
 
         <div className="rounded-xl border border-brand-200/80 bg-surface-2/60 p-3 shadow-2xs">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500">In Observation</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500">In Observation</p>
+            <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
+          </div>
           <p className="text-[16px] font-bold text-brand-950 leading-tight mt-0.5">
             {stats.evaluatingCount} in flight
           </p>

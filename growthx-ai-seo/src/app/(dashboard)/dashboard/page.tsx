@@ -76,6 +76,7 @@ export default function UnifiedDashboardPage() {
   const [severityTab, setSeverityTab] = useState<"ALL" | IssueSeverity>("ALL");
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
   const [auditActionError, setAuditActionError] = useState<string | null>(null);
+  const [activeHash, setActiveHash] = useState("#health");
   const portfolio = usePortfolio(orgId);
   const activeProject = projects.find((p) => p.id === projectId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
@@ -268,32 +269,45 @@ export default function UnifiedDashboardPage() {
   return (
     <div className="space-y-3.5 pb-10">
       {/* Jump links */}
-      <nav aria-label="On this page" className="inline-flex items-center gap-1 rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold">
+      <nav aria-label="On this page" className="inline-flex flex-wrap items-center gap-1 rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold">
         {[
           ["#health", "Overview"],
           ["#visitors", "Visitors"],
+          ["#closed-loop", "Results Ledger"],
           ["#todo", "To-do list"],
-          ["#reviews", "Reviews"],
-        ].map(([href, label], i) => (
-          <a
-            key={href}
-            href={href}
-            className={cn(
-              "rounded-full px-3 py-1.5 transition-colors",
-              i === 0 ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-950",
-            )}
-          >
-            {label}
-          </a>
-        ))}
+          ["#telemetry", "GA4 Telemetry"],
+        ].map(([href, label]) => {
+          const isActive = activeHash === href;
+          return (
+            <a
+              key={href}
+              href={href}
+              onClick={() => setActiveHash(href)}
+              className={cn(
+                "rounded-full px-3 py-1.5 transition-colors cursor-pointer",
+                isActive
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                  : "text-brand-400 hover:text-brand-950",
+              )}
+            >
+              {label}
+            </a>
+          );
+        })}
       </nav>
 
       {/* Title */}
       <div className="flex flex-col justify-between gap-3 pt-1 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-[26px] sm:text-[30px] font-bold leading-none tracking-tight text-brand-950">
-            Dashboard
-          </h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-[26px] sm:text-[30px] font-bold leading-none tracking-tight text-brand-950">
+              Dashboard
+            </h1>
+            <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-[10.5px] font-semibold text-success-700 border border-success-200/60 shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+              SEO Engine Active
+            </span>
+          </div>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-medium text-brand-400">
             {currentDomain ? (
               <>
@@ -311,7 +325,18 @@ export default function UnifiedDashboardPage() {
             )}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-brand-50 px-3 py-1.5 text-[12px] font-semibold text-brand-700 transition hover:bg-brand-100 hover:text-brand-950 cursor-pointer shadow-2xs"
+            title="Open Command Palette (⌘K)"
+          >
+            <kbd className="font-mono text-[10px] font-bold bg-surface-1 px-1.5 py-0.5 rounded border border-brand-200">⌘K</kbd>
+            <span>Quick Actions</span>
+          </button>
           <Link
             href="/fix-engine"
             className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100"
@@ -322,7 +347,7 @@ export default function UnifiedDashboardPage() {
             type="button"
             onClick={runAudit}
             disabled={auditBusy || !currentDomain}
-            className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm cursor-pointer"
           >
             <RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />
             {auditBusy ? "Checking…" : "Check my website again"}
@@ -358,7 +383,10 @@ export default function UnifiedDashboardPage() {
               <RefreshCw size={14} className={auditBusy ? "animate-spin" : undefined} />
             </div>
             <div className="min-w-0">
-              <p className="text-[12px] font-bold text-brand-950 truncate">Verify Live HTML</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[12px] font-bold text-brand-950 truncate">Verify Live HTML</p>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Re-scan</span>
+              </div>
               <p className="text-[10px] text-brand-500 truncate">Run crawler re-scan</p>
             </div>
           </div>
@@ -374,7 +402,10 @@ export default function UnifiedDashboardPage() {
               <Bot size={14} />
             </div>
             <div className="min-w-0">
-              <p className="text-[12px] font-bold text-brand-950 truncate">AI Visibility Scan</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[12px] font-bold text-brand-950 truncate">AI Visibility Scan</p>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">3 LLMs</span>
+              </div>
               <p className="text-[10px] text-brand-500 truncate">Check LLM citations</p>
             </div>
           </div>
@@ -390,7 +421,10 @@ export default function UnifiedDashboardPage() {
               <Crosshair size={14} />
             </div>
             <div className="min-w-0">
-              <p className="text-[12px] font-bold text-brand-950 truncate">Competitor Gaps</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[12px] font-bold text-brand-950 truncate">Competitor Gaps</p>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Rivals</span>
+              </div>
               <p className="text-[10px] text-brand-500 truncate">Review rival schema</p>
             </div>
           </div>
@@ -406,7 +440,10 @@ export default function UnifiedDashboardPage() {
               <CalendarDays size={14} />
             </div>
             <div className="min-w-0">
-              <p className="text-[12px] font-bold text-brand-950 truncate">Executive Report</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[12px] font-bold text-brand-950 truncate">Executive Report</p>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Ledger</span>
+              </div>
               <p className="text-[10px] text-brand-500 truncate">13-fix lift ledger</p>
             </div>
           </div>
@@ -416,7 +453,7 @@ export default function UnifiedDashboardPage() {
 
       {/* Row 1: how is my website doing / are people finding me */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">
-        <Card id="health" className="flex flex-col justify-between gap-4">
+        <Card id="health" className="scroll-mt-4 flex flex-col justify-between gap-4">
           <CardHead
             title="How healthy is your website?"
             subtitle="A score out of 100 for how easily Google can find, read and show your pages. Higher is better."
@@ -459,7 +496,7 @@ export default function UnifiedDashboardPage() {
           )}
         </Card>
 
-        <Card id="visitors" className="flex flex-col justify-between gap-4 overflow-hidden">
+        <Card id="visitors" className="scroll-mt-4 flex flex-col justify-between gap-4 overflow-hidden">
           <CardHead
             title="Visitors from Google"
             subtitle={
@@ -585,7 +622,7 @@ export default function UnifiedDashboardPage() {
       <ClosedLoopResultsCard />
 
       {/* Row 3: what should I fix first? */}
-      <section id="todo" className="flex flex-col gap-4 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
+      <section id="todo" className="scroll-mt-4 flex flex-col gap-4 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
         <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
             <div className="flex items-center gap-2">
@@ -701,7 +738,9 @@ export default function UnifiedDashboardPage() {
 
 
       {/* GA4 traffic — real figures from the customer's own property, or the reason there are none. */}
-      <Ga4Overview projectId={projectId} />
+      <section id="telemetry" className="scroll-mt-4">
+        <Ga4Overview projectId={projectId} />
+      </section>
     </div>
   );
 }
