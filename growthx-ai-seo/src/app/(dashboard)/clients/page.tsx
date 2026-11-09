@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
-import { useSubscription } from "@/lib/subscription-engine";
+import { useSubscription, DEFAULT_SUBSCRIPTION_LIMITS } from "@/lib/subscription-engine";
 import { cn } from "@/lib/utils";
 import type { PortfolioClient } from "@/lib/api-types";
 
@@ -63,7 +63,7 @@ export default function ClientsPage() {
   const { orgId, projectId, setProjectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const { subscription, plan } = useSubscription(orgId);
-  const websiteCap = subscription?.limits.websites ?? 1;
+  const websiteCap = subscription ? subscription.limits.websites : DEFAULT_SUBSCRIPTION_LIMITS.websites;
   const isAgencyPlan = subscription?.tierId === "agency";
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -173,6 +173,34 @@ export default function ClientsPage() {
           </div>
         }
       />
+
+      {/* ── CLIENT WEBSITES CAPACITY LIMIT BANNER ── */}
+      {clients.length >= websiteCap && (
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Globe size={16} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-brand-950">
+                Client website limit reached ({clients.length} of {websiteCap} sites active on {plan?.name || "Active Tier"})
+              </p>
+              <p className="text-[11px] text-brand-500">
+                {websiteCap <= 1
+                  ? "Upgrade to Growth for 3 client websites or Agency for 10 websites with white-label portals."
+                  : "Upgrade to Agency to manage up to 10 client websites with dedicated executive reporting."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/settings?tab=subscription"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
+          >
+            <span>Upgrade Website Limit</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       {/* ── PORTFOLIO TELEMETRY RIBBON ── */}
       <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-card">

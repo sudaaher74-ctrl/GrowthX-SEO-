@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { allCrawlRows } from "@/lib/all-crawl-rows";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, Square, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronRight, Gauge, Home, Loader2, RefreshCw, Square, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -328,6 +328,36 @@ function WebsiteAuditClient() {
           </div>
         </div>
       </div>
+
+      {/* ── CRAWL CAPACITY LIMIT BANNER ── */}
+      {totalPages >= Math.floor(crawlCap * 0.8) && (
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Gauge size={16} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-brand-950">
+                {totalPages >= crawlCap
+                  ? `Crawl capacity limit reached (${totalPages.toLocaleString()} / ${crawlCap.toLocaleString()} URLs on ${plan?.name || "Active Tier"})`
+                  : `Approaching crawl capacity limit (${totalPages.toLocaleString()} of ${crawlCap.toLocaleString()} URLs crawled)`}
+              </p>
+              <p className="text-[11px] text-brand-500">
+                {crawlCap <= 5000
+                  ? "Upgrade to Growth to audit up to 25,000 URLs per cycle with deeper technical SEO checks."
+                  : "Upgrade to Agency to audit up to 100,000 URLs per cycle across all client websites."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/settings?tab=subscription"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
+          >
+            <span>Upgrade Crawl Limit</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       {/* Navigation Sub-tabs Bar */}
       <div

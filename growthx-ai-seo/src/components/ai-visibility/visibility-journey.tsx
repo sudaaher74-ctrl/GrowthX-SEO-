@@ -430,11 +430,37 @@ function Journey({ projectId }: { projectId: string }) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
-          <span>Plan Allowance: <strong>1 of {aiCyclesGranted}</strong> Monthly AI Cycles Used</span>
+          <span>Plan Allowance: <strong>{run ? 1 : 0} of {aiCyclesGranted}</strong> Monthly AI Cycles Used</span>
           <ArrowRight size={11} className="text-brand-400" />
         </Link>
       </div>
     </div>
+
+    {/* ── AI VISIBILITY CYCLE LIMIT WARNING BANNER ── */}
+    {run && aiCyclesGranted <= 1 && (
+      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+            <Bot size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-brand-950">
+              Monthly AI Visibility cycle limit reached (1/{aiCyclesGranted} cycle used on {plan?.name || "Starter"})
+            </p>
+            <p className="text-[11px] text-brand-500">
+              Upgrade to Growth for 10 monthly cycles or Agency for 50 cycles across ChatGPT, Gemini, Claude, and Perplexity.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/settings?tab=subscription"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
+        >
+          <span>Upgrade Monthly Cycles</span>
+          <ArrowRight size={12} />
+        </Link>
+      </div>
+    )}
 
     <QueryState isLoading={query.isLoading} error={query.error}>
       {error && <StatusNote tone="bad">{error.message}</StatusNote>}

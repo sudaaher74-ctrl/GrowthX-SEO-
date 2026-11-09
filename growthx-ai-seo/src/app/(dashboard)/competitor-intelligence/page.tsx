@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   Plus,
   CheckCircle2,
+  Crown,
   Swords,
   Layers,
   Loader2,
@@ -17,10 +18,12 @@ import {
   FileText,
   RotateCw,
   AlertTriangle,
+  ArrowRight,
   ArrowUpRight,
   Zap,
 } from "lucide-react";
 import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
+import { useSubscription, DEFAULT_SUBSCRIPTION_LIMITS } from "@/lib/subscription-engine";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
@@ -318,6 +321,9 @@ function CompetitorIntelligenceClient() {
   });
 
   const competitorsList = competitorsQuery.data ?? [];
+  const { subscription, plan } = useSubscription(orgId);
+  const competitorsCap = subscription ? subscription.limits.competitors : DEFAULT_SUBSCRIPTION_LIMITS.competitors;
+  const isAtCompetitorsLimit = competitorsList.length >= competitorsCap;
   const crawlRevision = competitorsList.map((c) => `${c.id}:${c.crawlStatus}:${c.lastAnalyzedAt}`).join("|");
   useEffect(() => {
     if (!projectId) return;
@@ -445,14 +451,25 @@ function CompetitorIntelligenceClient() {
               <span>Fix Engine</span>
             </Link>
 
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
-            >
-              <Plus size={13} />
-              <span>Add competitor</span>
-            </button>
+            {isAtCompetitorsLimit ? (
+              <Link
+                href="/settings?tab=subscription"
+                className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/50 bg-signal-400/10 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-signal-400/20 transition shadow-2xs"
+              >
+                <Crown size={12} className="text-signal-400" />
+                <span>{competitorsList.length}/{competitorsCap} Rivals (Upgrade)</span>
+                <ArrowRight size={11} className="text-brand-400" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+              >
+                <Plus size={13} />
+                <span>Add competitor</span>
+              </button>
+            )}
             {activeTab !== "report" && (
               <button
                 type="button"
@@ -508,6 +525,34 @@ function CompetitorIntelligenceClient() {
           })}
         </div>
       </div>
+
+      {/* ── COMPETITOR CAPACITY LIMIT BANNER ── */}
+      {isAtCompetitorsLimit && (
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Swords size={16} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-brand-950">
+                Tracked competitor limit reached ({competitorsList.length} of {competitorsCap} rivals on {plan?.name || "Active Tier"})
+              </p>
+              <p className="text-[11px] text-brand-500">
+                {competitorsCap <= 3
+                  ? "Upgrade to Growth to track up to 10 rivals with daily AI battleground sweeps."
+                  : "Upgrade to Agency to track up to 25 rivals across all your markets and brands."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/settings?tab=subscription"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
+          >
+            <span>Upgrade Rival Limit</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       {projectId && clientRow && competitorsQuery.isSuccess && competitorsList.length === 0 && <CompetitorSuggestions key={projectId} projectId={projectId} auditedAt={clientRow.lastCrawledAt} tracked={competitorsList} />}
 
@@ -598,60 +643,91 @@ function CompetitorIntelligenceClient() {
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-brand-950 mb-1">
-                  Competitor Domain *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. competitor.com"
-                  value={competitorDomain}
-                  onChange={(e) => setCompetitorDomain(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-brand-950 mb-1">
-                  Brand / Company Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Acme Corp"
-                  value={competitorName}
-                  onChange={(e) => setCompetitorName(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-
-              {formError && (
-                <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs font-medium">
-                  {formError}
+            {isAtCompetitorsLimit ? (
+              <div className="space-y-4 py-2">
+                <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-4 text-center space-y-2">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+                    <Crown size={20} />
+                  </div>
+                  <h4 className="text-sm font-bold text-brand-950">Rival Limit Reached</h4>
+                  <p className="text-xs text-brand-500 max-w-xs mx-auto">
+                    Your {plan?.name || "current"} plan allows up to {competitorsCap} tracked competitor{competitorsCap === 1 ? "" : "s"}. Upgrade to add more competitors and unlock continuous gap intelligence.
+                  </p>
                 </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border bg-surface-2 text-brand-400 text-xs font-semibold hover:bg-brand-100 hover:text-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addCompetitorMutation.isPending}
-                  className="px-5 py-2 rounded-xl bg-signal-400 hover:bg-signal-500 text-signal-ink text-xs font-bold transition shadow-xs disabled:opacity-60"
-                >
-                  {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
-                </button>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 rounded-xl border bg-surface-2 text-brand-400 text-xs font-semibold hover:bg-brand-100 hover:text-brand-950"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    Close
+                  </button>
+                  <Link
+                    href="/settings?tab=subscription"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-signal-400 text-signal-ink text-xs font-bold hover:bg-signal-500 transition shadow-2xs"
+                  >
+                    <span>Upgrade Plan</span>
+                    <ArrowRight size={12} />
+                  </Link>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleAddSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-brand-950 mb-1">
+                    Competitor Domain *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. competitor.com"
+                    value={competitorDomain}
+                    onChange={(e) => setCompetitorDomain(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
+                    style={{ borderColor: "var(--border-color)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-950 mb-1">
+                    Brand / Company Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Acme Corp"
+                    value={competitorName}
+                    onChange={(e) => setCompetitorName(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
+                    style={{ borderColor: "var(--border-color)" }}
+                  />
+                </div>
+
+                {formError && (
+                  <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs font-medium">
+                    {formError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 rounded-xl border bg-surface-2 text-brand-400 text-xs font-semibold hover:bg-brand-100 hover:text-brand-950"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={addCompetitorMutation.isPending}
+                    className="px-5 py-2 rounded-xl bg-signal-400 hover:bg-signal-500 text-signal-ink text-xs font-bold transition shadow-xs disabled:opacity-60"
+                  >
+                    {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
