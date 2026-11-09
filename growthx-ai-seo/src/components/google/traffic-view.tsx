@@ -452,6 +452,45 @@ function TrafficViewClient() {
       {report.isError && <Panel padded title="Historical GA4 report unavailable"><p role="alert" className="text-sm text-error-700">{report.error.message}</p></Panel>}
       {report.data?.lastError && <p role="alert" className="text-sm text-error-700">Latest historical refresh failed: {report.data.lastError}. Showing the last saved report.</p>}
 
+      {/* ── EXECUTIVE ATTRIBUTION & HEALTH RIBBON ── */}
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 border border-primary-100 shadow-2xs">
+              <Compass className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-bold text-brand-950">Search Telemetry &amp; Audience Footprint</h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-[10px] font-semibold text-success-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
+                  Live Sync Active
+                </span>
+              </div>
+              <p className="text-xs text-brand-500 mt-0.5">
+                Multi-channel acquisition telemetry, search engagement velocity, and international user footprint.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/organic-search"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-2 transition shadow-2xs"
+            >
+              <Search size={12} className="text-brand-500" />
+              <span>Keyword Positions</span>
+            </Link>
+            <Link
+              href="/fix-engine"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 hover:bg-signal-500 text-signal-ink px-3 py-1.5 text-xs font-bold transition shadow-2xs"
+            >
+              <span>Fix Traffic Gaps</span>
+              <ArrowUpRight size={12} />
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* ── 4 KPI METRIC CARDS ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Visitors */}
@@ -788,94 +827,229 @@ function TrafficViewClient() {
         </div>
       </div>
 
-      {/* ── ROW 2: CITY BREAKDOWN ── */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Top Cities Box */}
-        <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-brand-500" />
-                <h2 className="text-sm font-bold text-brand-950">Top cities</h2>
+      {/* ── ROW 2: GEOGRAPHY & REGIONAL REACH ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+        {/* Interactive World Map & Country Breakdown */}
+        <div className="lg:col-span-7 rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-brand-500" />
+                  <h2 className="text-sm font-bold text-brand-950">Global geography &amp; visitor map</h2>
+                </div>
+                <p className="mt-1 text-xs text-brand-400">
+                  Visitor distribution mapped by international coordinates
+                </p>
               </div>
-              <p className="mt-1 text-xs text-brand-400">
-                Visitor distribution by metropolitan area
-              </p>
+              {countriesBreakdown.length > 0 && (
+                <span className="rounded-full bg-brand-100 px-3 py-1 font-mono text-xs font-semibold text-brand-700">
+                  {countriesBreakdown.length} {countriesBreakdown.length === 1 ? "country" : "countries"}
+                </span>
+              )}
             </div>
-            {citiesBreakdown.length > 0 && (
-              <span className="rounded-full bg-brand-100 px-3 py-1 font-mono text-xs font-semibold text-brand-700">
-                {citiesBreakdown.length} cities
-              </span>
-            )}
+
+            {/* SVG Interactive Map */}
+            <div className="mt-4 relative rounded-xl border border-brand-200/50 bg-surface-1 p-3 overflow-hidden shadow-2xs">
+              <svg viewBox="0 0 800 360" className="w-full h-auto max-h-[220px]">
+                {/* Continents */}
+                {MAP_CONTINENTS.map((path, i) => (
+                  <path
+                    key={i}
+                    d={path}
+                    fill="var(--color-brand-200)"
+                    opacity={0.45}
+                    stroke="var(--color-brand-300)"
+                    strokeWidth={0.5}
+                  />
+                ))}
+
+                {/* Country Hotspot Pins */}
+                {countriesBreakdown.map((item) => {
+                  if (!item.coords) return null;
+                  const isHovered = hoveredCountry === item.code;
+                  return (
+                    <g
+                      key={item.code}
+                      className="cursor-pointer transition-all"
+                      onMouseEnter={() => setHoveredCountry(item.code)}
+                      onMouseLeave={() => setHoveredCountry(null)}
+                    >
+                      <circle
+                        cx={item.coords.x}
+                        cy={item.coords.y}
+                        r={isHovered ? 12 : 7}
+                        fill="var(--color-primary-500)"
+                        opacity={isHovered ? 0.35 : 0.2}
+                        className={isHovered ? "animate-pulse" : ""}
+                      />
+                      <circle
+                        cx={item.coords.x}
+                        cy={item.coords.y}
+                        r={isHovered ? 5 : 3.5}
+                        fill={isHovered ? "var(--color-primary-600)" : "var(--color-primary-500)"}
+                        stroke="var(--color-surface-1)"
+                        strokeWidth={1}
+                      />
+                    </g>
+                  );
+                })}
+              </svg>
+
+              {/* Hover Tooltip Badge */}
+              {hoveredCountry && (
+                <div className="absolute bottom-2 left-3 rounded-lg bg-brand-950 px-2.5 py-1 text-[11px] font-medium text-brand-50 shadow-md">
+                  {(() => {
+                    const found = countriesBreakdown.find((c) => c.code === hoveredCountry);
+                    return found ? `${found.flag} ${found.country}: ${count(found.count)} visitors (${percent(found.share)})` : hoveredCountry;
+                  })()}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
-            {citiesBreakdown.length > 0 ? (
+          {/* Quick Country Micro-table */}
+          <div className="mt-4 overflow-x-auto max-h-48 overflow-y-auto">
+            {countriesBreakdown.length > 0 ? (
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-brand-200/60 text-brand-400">
-                    <th className="pb-2.5 font-medium">City</th>
-                    <th className="pb-2.5 font-medium">Share</th>
-                    <th className="pb-2.5 text-right font-medium">Visitors</th>
+                    <th className="pb-2 font-medium">Country</th>
+                    <th className="pb-2 font-medium">Share</th>
+                    <th className="pb-2 text-right font-medium">Visitors</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-100">
-                  {citiesBreakdown.map((row: CityBreakdownItem, idx: number) => (
-                    <tr key={`${row.city}-${idx}`} className="hover:bg-brand-100/40 transition">
-                      <td className="py-2.5 font-semibold text-brand-950">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[10px] font-bold text-brand-600">
-                            #{idx + 1}
-                          </span>
-                          <div>
-                            <p className="font-semibold text-brand-950">{row.city}</p>
-                            <p className="text-[10px] text-brand-400">
-                              {row.flag} {row.country}
-                            </p>
-                          </div>
+                  {countriesBreakdown.slice(0, 6).map((item) => (
+                    <tr
+                      key={item.code}
+                      onMouseEnter={() => setHoveredCountry(item.code)}
+                      onMouseLeave={() => setHoveredCountry(null)}
+                      className={cn(
+                        "transition cursor-pointer",
+                        hoveredCountry === item.code ? "bg-brand-100/70" : "hover:bg-brand-100/40"
+                      )}
+                    >
+                      <td className="py-2 font-semibold text-brand-950">
+                        <div className="flex items-center gap-1.5">
+                          <span>{item.flag}</span>
+                          <span>{item.country}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 pr-2">
+                      <td className="py-2 pr-3">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-200/50">
                             <div
-                              className="h-full rounded-full bg-accent-500"
-                              style={{ width: `${Math.max(row.share * 100, 4)}%` }}
+                              className="h-full rounded-full bg-primary-500"
+                              style={{ width: `${Math.max(item.share * 100, 4)}%` }}
                             />
                           </div>
-                          <span className="font-mono text-[11px] text-brand-500">
-                            {percent(row.share)}
-                          </span>
+                          <span className="font-mono text-[11px] text-brand-500">{percent(item.share)}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 text-right font-mono font-bold text-brand-950">
-                        {count(row.count)}
+                      <td className="py-2 text-right font-mono font-bold text-brand-950">
+                        {count(item.count)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-500">
-                  <MapPin className="h-5 w-5" />
-                </div>
-                <p className="mt-3 text-xs font-semibold text-brand-950">
-                  No city-level clicks or visitors recorded for this period yet
-                </p>
-                <p className="mt-1 max-w-[260px] text-[11px] text-brand-400">
-                  Open the Report tab to analyze where your business operates (from Website Audit) and plan local traffic acquisition for your target cities.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => selectTab("report")}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800 transition"
-                >
-                  <FileText size={12} />
-                  <span>Plan Target City Traffic in Report →</span>
-                </button>
-              </div>
+              <p className="py-3 text-center text-xs text-brand-400">
+                No international country data recorded yet.
+              </p>
             )}
+          </div>
+        </div>
+
+        {/* Top Cities Box */}
+        <div className="lg:col-span-5 rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-brand-500" />
+                  <h2 className="text-sm font-bold text-brand-950">Top cities</h2>
+                </div>
+                <p className="mt-1 text-xs text-brand-400">
+                  Visitor distribution by metropolitan area
+                </p>
+              </div>
+              {citiesBreakdown.length > 0 && (
+                <span className="rounded-full bg-brand-100 px-3 py-1 font-mono text-xs font-semibold text-brand-700">
+                  {citiesBreakdown.length} cities
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 overflow-x-auto max-h-[340px] overflow-y-auto">
+              {citiesBreakdown.length > 0 ? (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-brand-200/60 text-brand-400">
+                      <th className="pb-2.5 font-medium">City</th>
+                      <th className="pb-2.5 font-medium">Share</th>
+                      <th className="pb-2.5 text-right font-medium">Visitors</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-100">
+                    {citiesBreakdown.map((row: CityBreakdownItem, idx: number) => (
+                      <tr key={`${row.city}-${idx}`} className="hover:bg-brand-100/40 transition">
+                        <td className="py-2.5 font-semibold text-brand-950">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[10px] font-bold text-brand-600">
+                              #{idx + 1}
+                            </span>
+                            <div>
+                              <p className="font-semibold text-brand-950">{row.city}</p>
+                              <p className="text-[10px] text-brand-400">
+                                {row.flag} {row.country}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-200/50">
+                              <div
+                                className="h-full rounded-full bg-accent-500"
+                                style={{ width: `${Math.max(row.share * 100, 4)}%` }}
+                              />
+                            </div>
+                            <span className="font-mono text-[11px] text-brand-500">
+                              {percent(row.share)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-right font-mono font-bold text-brand-950">
+                          {count(row.count)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-500">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 text-xs font-semibold text-brand-950">
+                    No city-level clicks or visitors recorded for this period yet
+                  </p>
+                  <p className="mt-1 max-w-[260px] text-[11px] text-brand-400">
+                    Open the Report tab to analyze where your business operates (from Website Audit) and plan local traffic acquisition for your target cities.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => selectTab("report")}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800 transition cursor-pointer"
+                  >
+                    <FileText size={12} />
+                    <span>Plan Target City Traffic in Report →</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
