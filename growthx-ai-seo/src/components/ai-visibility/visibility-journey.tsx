@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { stagingEngine } from "@/lib/staging-engine";
 import { api, visibilityJourneyApi } from "@/lib/api-client";
 import {
   journeyRunning,
@@ -68,6 +69,71 @@ function Journey({ projectId }: { projectId: string }) {
   const recommended = measured.filter((a) => a.analysis?.recommended).length;
   const recommendationRate = measured.length ? Math.round((recommended / measured.length) * 100) : 0;
 
+  const chatGptAnswers = measured.filter((a) => answerMatchesEngine(a, "ChatGPT"));
+  const chatGptRec = chatGptAnswers.filter((a) => a.analysis?.recommended).length;
+  const chatGptPct = chatGptAnswers.length ? Math.round((chatGptRec / chatGptAnswers.length) * 100) : null;
+
+  const googleAiAnswers = measured.filter((a) => answerMatchesEngine(a, "Google AI"));
+  const googleAiRec = googleAiAnswers.filter((a) => a.analysis?.recommended).length;
+  const googleAiPct = googleAiAnswers.length ? Math.round((googleAiRec / googleAiAnswers.length) * 100) : null;
+
+  const claudeAnswers = measured.filter((a) => answerMatchesEngine(a, "Claude"));
+  const claudeRec = claudeAnswers.filter((a) => a.analysis?.recommended).length;
+  const claudePct = claudeAnswers.length ? Math.round((claudeRec / claudeAnswers.length) * 100) : null;
+
+  const perplexityAnswers = measured.filter((a) => answerMatchesEngine(a, "Perplexity"));
+  const perplexityRec = perplexityAnswers.filter((a) => a.analysis?.recommended).length;
+  const perplexityPct = perplexityAnswers.length ? Math.round((perplexityRec / perplexityAnswers.length) * 100) : null;
+
+  const competitorIntercepts = measured.filter((a) => {
+    const rival = a.mentions?.find((m) => !m.isCustomer)?.brandName;
+    return Boolean(rival) && !a.analysis?.recommended;
+  });
+
+  const [stagedDefense, setStagedDefense] = useState<Set<string>>(() => {
+    if (!projectId) return new Set();
+    const existing = stagingEngine.getStaged(projectId);
+    return new Set(existing.map((item) => item.title));
+  });
+
+  const handleStageKnowledgeGraphDefense = () => {
+    const title = "Deploy High-Authority Organization & Product JSON-LD Knowledge Graph";
+    stagingEngine.stage(projectId, {
+      title,
+      category: "AI Visibility & GEO",
+      source: "AI_VISIBILITY",
+      priority: "CRITICAL",
+      impact: "Embed structured entity schema with sameAs social profiles and product taxonomy to anchor brand facts in LLM pre-training datasets and search retrieval engines.",
+      effortHours: 2,
+      deliverable: [
+        "1. Author Organization and WebSite schema with verified sameAs Wikidata/Crunchbase references.",
+        "2. Add Product and Service JSON-LD with aggregateRating and official feature specs.",
+        "3. Validate via Google Rich Results and Schema Validator.",
+      ].join("\n"),
+      evidence: `Active monitoring across ${configured.length} generative AI engines`,
+    });
+    setStagedDefense((prev) => new Set(prev).add(title));
+  };
+
+  const handleStageCounterHallucination = () => {
+    const title = "Targeted FAQPage & Comparative Schema for Anti-Hallucination Retrieval";
+    stagingEngine.stage(projectId, {
+      title,
+      category: "AI Visibility & GEO",
+      source: "AI_VISIBILITY",
+      priority: "HIGH",
+      impact: "Publish verified factual comparison tables and structured Q&A to counteract LLM hallucination and competitor misattribution.",
+      effortHours: 2,
+      deliverable: [
+        "1. Write clear, unambiguous factual answers for top customer decision queries.",
+        "2. Embed FAQPage schema markup on high-traffic comparison landing pages.",
+        "3. Ensure semantic clarity so RAG crawlers (PerplexityBot, GPTBot) extract authoritative text.",
+      ].join("\n"),
+      evidence: `${competitorIntercepts.length} competitor intercepts recorded in AI search prompts`,
+    });
+    setStagedDefense((prev) => new Set(prev).add(title));
+  };
+
   return <div className="space-y-5 pb-12">
     <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
       {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Bot size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
@@ -75,10 +141,7 @@ function Journey({ projectId }: { projectId: string }) {
     </>} />
 
     {/* ── EXECUTIVE AI VISIBILITY TELEMETRY RIBBON ── */}
-    <div
-      className="rounded-2xl border bg-surface-1 p-4 shadow-card"
-      style={{ borderColor: "var(--border-color)" }}
-    >
+    <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -137,6 +200,122 @@ function Journey({ projectId }: { projectId: string }) {
               <span>Competitor Gaps</span>
               <ArrowRight size={12} />
             </Link>
+          </div>
+        </div>
+
+        {/* ── GEO CITATION INDEX MULTI-LLM BREAKDOWN ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          {/* ChatGPT */}
+          <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">ChatGPT Engine</span>
+              <span className="text-base font-extrabold text-brand-950 font-mono">
+                {chatGptPct != null ? `${chatGptPct}%` : "Monitored"}
+              </span>
+              <span className="text-[10px] text-brand-500 block truncate font-mono">
+                {chatGptAnswers.length ? `${chatGptRec}/${chatGptAnswers.length} cited` : "Ready"}
+              </span>
+            </div>
+            <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+              <ChatGptIcon className="h-3.5 w-3.5 text-brand-800" />
+            </div>
+          </div>
+
+          {/* Google AI / Gemini */}
+          <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Google Gemini</span>
+              <span className="text-base font-extrabold text-brand-950 font-mono">
+                {googleAiPct != null ? `${googleAiPct}%` : "Monitored"}
+              </span>
+              <span className="text-[10px] text-brand-500 block truncate font-mono">
+                {googleAiAnswers.length ? `${googleAiRec}/${googleAiAnswers.length} cited` : "Ready"}
+              </span>
+            </div>
+            <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+              <GoogleAiIcon className="h-3.5 w-3.5" />
+            </div>
+          </div>
+
+          {/* Perplexity */}
+          <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Perplexity GEO</span>
+              <span className="text-base font-extrabold text-brand-950 font-mono">
+                {perplexityPct != null ? `${perplexityPct}%` : "Monitored"}
+              </span>
+              <span className="text-[10px] text-brand-500 block truncate font-mono">
+                {perplexityAnswers.length ? `${perplexityRec}/${perplexityAnswers.length} cited` : "Ready"}
+              </span>
+            </div>
+            <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+              <PerplexityIcon className="h-3.5 w-3.5" />
+            </div>
+          </div>
+
+          {/* Claude */}
+          <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Claude Engine</span>
+              <span className="text-base font-extrabold text-brand-950 font-mono">
+                {claudePct != null ? `${claudePct}%` : "Monitored"}
+              </span>
+              <span className="text-[10px] text-brand-500 block truncate font-mono">
+                {claudeAnswers.length ? `${claudeRec}/${claudeAnswers.length} cited` : "Ready"}
+              </span>
+            </div>
+            <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+              <ClaudeIcon className="h-3.5 w-3.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── AUTONOMOUS ENTITY & SENTIMENT DEFENSE TRAY ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/60 bg-brand-50/40 p-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={14} className="text-signal-400 shrink-0" />
+            <span className="font-semibold text-brand-950 text-[11.5px]">
+              Autonomous Entity &amp; Sentiment Defense:
+            </span>
+            <span className="text-brand-500 text-[11px]">
+              {competitorIntercepts.length > 0
+                ? `${competitorIntercepts.length} prompts cited competitors instead of your brand.`
+                : "Brand citations stable across connected generative engines."}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {stagedDefense.has("Deploy High-Authority Organization & Product JSON-LD Knowledge Graph") ? (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-success-200 bg-success-50 px-2.5 py-1 text-[11px] font-bold text-success-700 font-mono">
+                <Check size={11} className="text-success-600" />
+                <span>Knowledge Graph Staged</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStageKnowledgeGraphDefense}
+                className="inline-flex items-center gap-1 rounded-lg bg-signal-400 hover:bg-signal-500 text-signal-ink px-2.5 py-1 text-[11px] font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Zap size={11} className="text-signal-ink" />
+                <span>Stage Knowledge Graph Defense</span>
+              </button>
+            )}
+
+            {stagedDefense.has("Targeted FAQPage & Comparative Schema for Anti-Hallucination Retrieval") ? (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-success-200 bg-success-50 px-2.5 py-1 text-[11px] font-bold text-success-700 font-mono">
+                <Check size={11} className="text-success-600" />
+                <span>Anti-Hallucination Staged</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStageCounterHallucination}
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 hover:bg-surface-2 text-brand-950 px-2.5 py-1 text-[11px] font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Zap size={11} className="text-signal-400" />
+                <span>Stage Anti-Hallucination FAQs</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -523,6 +702,26 @@ function matchPrompt(textA: string, textB: string): boolean {
 
 export type SupportedEngine = "ChatGPT" | "Google AI" | "Claude" | "Perplexity";
 
+export type BuyerPersona = "ALL" | "CTO" | "CMO" | "DEV" | "BUYER";
+
+export function matchBuyerPersona(questionText: string, persona: BuyerPersona): boolean {
+  if (persona === "ALL") return true;
+  const q = (questionText || "").toLowerCase();
+  if (persona === "CTO") {
+    return q.includes("security") || q.includes("architecture") || q.includes("scale") || q.includes("compliance") || q.includes("reliable") || q.includes("enterprise") || q.includes("performance") || q.includes("uptime") || q.includes("glass bottle") || q.includes("a2");
+  }
+  if (persona === "CMO") {
+    return q.includes("best") || q.includes("compare") || q.includes("vs") || q.includes("alternative") || q.includes("brand") || q.includes("review") || q.includes("market") || q.includes("leader") || q.includes("recommend");
+  }
+  if (persona === "DEV") {
+    return q.includes("how to") || q.includes("setup") || q.includes("code") || q.includes("api") || q.includes("integrate") || q.includes("tool") || q.includes("steps") || q.includes("how do");
+  }
+  if (persona === "BUYER") {
+    return q.includes("cost") || q.includes("price") || q.includes("plan") || q.includes("subscription") || q.includes("pricing") || q.includes("cheap") || q.includes("affordable") || q.includes("contract") || q.includes("supplier") || q.includes("delivery");
+  }
+  return true;
+}
+
 interface EngineCitation {
   engine: SupportedEngine;
   status: "recommended" | "competitor" | "not_cited" | "pending";
@@ -692,6 +891,7 @@ function PromptsSection({
   const [expandedPrompt, setExpandedPrompt] = useState<number | null>(0);
   const [expandedGap, setExpandedGap] = useState<number | null>(0);
   const [filterCategory, setFilterCategory] = useState<PromptCategory | "ALL">("ALL");
+  const [filterPersona, setFilterPersona] = useState<BuyerPersona>("ALL");
   const [cmoToast, setCmoToast] = useState<string | null>(null);
   const [activePlanGap, setActivePlanGap] = useState<{
     id: string;
@@ -702,6 +902,11 @@ function PromptsSection({
 
   const inputClass =
     "w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm text-brand-950 focus:border-primary-500 focus:outline-none";
+
+  const ctoCount = draft.questions.filter((q) => matchBuyerPersona(q.text, "CTO")).length;
+  const cmoCount = draft.questions.filter((q) => matchBuyerPersona(q.text, "CMO")).length;
+  const devCount = draft.questions.filter((q) => matchBuyerPersona(q.text, "DEV")).length;
+  const buyerCount = draft.questions.filter((q) => matchBuyerPersona(q.text, "BUYER")).length;
 
   // 1. Calculate stats for the 4 Okara category cards
   const categories: { key: PromptCategory; label: string; cardTone: "error" | "warning" | "success" }[] = [
@@ -758,7 +963,9 @@ function PromptsSection({
   const displayedPrompts = draft.questions
     .map(buildPromptItem)
     .filter(
-      (item) => filterCategory === "ALL" || item.category === filterCategory,
+      (item) =>
+        (filterCategory === "ALL" || item.category === filterCategory) &&
+        (filterPersona === "ALL" || matchBuyerPersona(item.q.text, filterPersona)),
     );
 
   const promptsToDisplay = isEditing
@@ -969,6 +1176,51 @@ function PromptsSection({
           </button>
         </div>
       )}
+
+      {/* ── BUYER PERSONA INTENT FRAMING DOCK ── */}
+      <div className="flex flex-col gap-2 rounded-2xl border border-brand-200/80 bg-surface-1 p-3.5 shadow-2xs text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Radar size={14} className="text-signal-400" />
+            <span className="font-bold text-brand-950 text-xs">
+              Buyer Persona Intent Framing:
+            </span>
+            <span className="text-brand-500 text-[11px]">
+              Simulate AI query formulation across decision-maker roles.
+            </span>
+          </div>
+          <span className="text-[10.5px] font-mono text-brand-400">
+            {promptsToDisplay.length} matching prompts
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          {[
+            { id: "ALL", label: `All Roles (${draft.questions.length})` },
+            { id: "CTO", label: `Enterprise CTO (${ctoCount})` },
+            { id: "CMO", label: `Growth CMO (${cmoCount})` },
+            { id: "DEV", label: `Product Engineer (${devCount})` },
+            { id: "BUYER", label: `Procurement Lead (${buyerCount})` },
+          ].map((persona) => {
+            const isSelected = filterPersona === persona.id;
+            return (
+              <button
+                key={persona.id}
+                type="button"
+                onClick={() => setFilterPersona(persona.id as BuyerPersona)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium transition cursor-pointer",
+                  isSelected
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "border border-brand-200 bg-surface-2 text-brand-700 hover:text-brand-950 hover:bg-surface-3"
+                )}
+              >
+                <span>{persona.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Section 1: Tracked Prompts Panel (Okara style, Screenshot 1 & 2) */}
       <div className="overflow-hidden rounded-xl border border-line bg-surface-1 shadow-card">
