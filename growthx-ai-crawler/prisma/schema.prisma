@@ -448,6 +448,13 @@ model Organization {
   /// spend on models with no published rate cannot be counted, and the service
   /// reports how many such calls it had to ignore rather than guessing.
   aiMonthlyBudgetUsd Float?
+  /// Agency white-labeling configuration (Agency plan only)
+  whiteLabelEnabled  Boolean              @default(false)
+  agencyName         String?
+  logoUrl            String?
+  brandColor         String?
+  contactLine        String?
+  footerText         String?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   auditLogs          AuditLog[]

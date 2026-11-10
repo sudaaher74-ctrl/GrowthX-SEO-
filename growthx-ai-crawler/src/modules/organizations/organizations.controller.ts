@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Request, UseGuards } from '@nestjs/common';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService, UpdateWhiteLabelDto } from './organizations.service';
+import { SubscriptionQuotaService } from './subscription-quota.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AllowWithoutOrganization } from '../auth/allow-without-organization.decorator';
 import { Role } from '@prisma/client';
@@ -11,7 +12,10 @@ import { Role } from '@prisma/client';
 @UseGuards(JwtAuthGuard)
 @AllowWithoutOrganization()
 export class OrganizationsController {
-  constructor(private organizationsService: OrganizationsService) {}
+  constructor(
+    private organizationsService: OrganizationsService,
+    private quotaService: SubscriptionQuotaService,
+  ) {}
 
   @Post()
   async createOrganization(@Request() req: any, @Body() body: { name?: string; slug?: string }) {
@@ -47,6 +51,21 @@ export class OrganizationsController {
   async removeMember(@Request() req: any, @Param('id') id: string, @Param('memberId') memberId: string) {
     await this.organizationsService.removeMember(id, req.user.userId, memberId);
     return { success: true };
+  }
+
+  @Get(':id/white-label')
+  async getWhiteLabel(@Param('id') id: string) {
+    return this.organizationsService.getWhiteLabel(id);
+  }
+
+  @Patch(':id/white-label')
+  async updateWhiteLabel(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: UpdateWhiteLabelDto,
+  ) {
+    const tier = this.quotaService.resolveTier(req);
+    return this.organizationsService.updateWhiteLabel(id, req.user.userId, tier, body);
   }
 }
 

@@ -7,6 +7,8 @@ import { api, type WebsiteAuditReport } from "@/lib/api-client";
 import { auditReportFilename, auditToCsv, auditToMarkdown, pageRows, severityWord } from "@/lib/audit-report";
 import { download, markdownToPrintableHtml, themeColours } from "@/lib/competitor-report";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
+import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 
 const PRIORITY_TONE = { high: "bad", medium: "warn", low: "default" } as const;
 
@@ -16,6 +18,11 @@ const PRIORITY_TONE = { high: "bad", medium: "warn", low: "default" } as const;
  * the crawl, and downloadable.
  */
 export function AuditReportTab({ projectId }: { projectId: string }) {
+  const { orgId } = useWorkspace();
+  const { subscription } = useSubscription(orgId);
+  const { data: whiteLabel } = useWhiteLabel(orgId);
+  const isWhiteLabeled = subscription?.tierId === "agency" && Boolean(whiteLabel?.whiteLabelEnabled);
+
   // A query rather than a mutation so the report survives switching tabs.
   // Never fetched on its own: each run spends model tokens.
   const report = useQuery({
@@ -38,7 +45,15 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
   const printReport = (r: WebsiteAuditReport) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(markdownToPrintableHtml(auditToMarkdown(r), auditReportFilename(r, "pdf"), themeColours()));
+    const whiteLabelOpts = isWhiteLabeled ? {
+      enabled: true,
+      agencyName: whiteLabel?.agencyName,
+      logoUrl: whiteLabel?.logoUrl,
+      brandColor: whiteLabel?.brandColor,
+      contactLine: whiteLabel?.contactLine,
+      footerText: whiteLabel?.footerText,
+    } : undefined;
+    w.document.write(markdownToPrintableHtml(auditToMarkdown(r), auditReportFilename(r, "pdf"), themeColours(), whiteLabelOpts));
     w.document.close();
     w.focus();
     w.print();

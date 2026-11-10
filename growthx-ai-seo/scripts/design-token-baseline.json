@@ -8,6 +8,7 @@
   "app/opengraph-image.tsx": 3,
   "components/settings/ai-configuration-tab.tsx": 15,
   "components/settings/integration-logos.tsx": 9,
+  "components/settings/white-label-settings-card.tsx": 11,
   "components/ui/badge.tsx": 41,
   "components/ui/button.tsx": 26,
   "components/ui/query-state.tsx": 1,

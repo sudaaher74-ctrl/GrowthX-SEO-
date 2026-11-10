@@ -102,4 +102,73 @@ describe('OrganizationsService', () => {
       await expect(service.updateMemberRole('org_1', 'u1', 'm2', 'SUPERUSER' as Role)).rejects.toThrow('Role must be one of');
     });
   });
+
+  describe('White-Label Settings', () => {
+    it('retrieves white label settings', async () => {
+      prisma.organization.findUnique.mockResolvedValue({
+        whiteLabelEnabled: true,
+        agencyName: 'Apex Growth Agency',
+        logoUrl: 'https://apex.com/logo.png',
+        brandColor: '#4F46E5',
+        contactLine: 'support@apex.com',
+        footerText: 'Prepared by Apex',
+      });
+
+      const res = await service.getWhiteLabel('org_1');
+      expect(res.agencyName).toBe('Apex Growth Agency');
+      expect(res.whiteLabelEnabled).toBe(true);
+    });
+
+    it('rejects enabling white-label on Starter or Growth plans', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.OWNER });
+
+      await expect(
+        service.updateWhiteLabel('org_1', 'u1', 'growth', {
+          whiteLabelEnabled: true,
+          agencyName: 'Apex Agency',
+        }),
+      ).rejects.toThrow('White-labeling is exclusive to the Agency plan');
+    });
+
+    it('permits enabling white-label on the Agency plan', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.OWNER });
+      prisma.organization.update = jest.fn().mockResolvedValue({
+        whiteLabelEnabled: true,
+        agencyName: 'Apex Agency',
+        logoUrl: 'https://apex.com/logo.png',
+        brandColor: '#4F46E5',
+        contactLine: 'support@apex.com',
+        footerText: 'Prepared by Apex',
+      });
+
+      const res = await service.updateWhiteLabel('org_1', 'u1', 'agency', {
+        whiteLabelEnabled: true,
+        agencyName: 'Apex Agency',
+        brandColor: '#4F46E5',
+      });
+
+      expect(res.whiteLabelEnabled).toBe(true);
+      expect(res.agencyName).toBe('Apex Agency');
+      expect(prisma.organization.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'org_1' },
+          data: expect.objectContaining({
+            whiteLabelEnabled: true,
+            agencyName: 'Apex Agency',
+            brandColor: '#4F46E5',
+          }),
+        }),
+      );
+    });
+
+    it('rejects invalid hex brand color format', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.OWNER });
+
+      await expect(
+        service.updateWhiteLabel('org_1', 'u1', 'agency', {
+          brandColor: 'not-a-color',
+        }),
+      ).rejects.toThrow('Brand color must be a valid hex color code');
+    });
+  });
 });

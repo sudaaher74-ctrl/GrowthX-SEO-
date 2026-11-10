@@ -42,7 +42,9 @@ import {
   Terminal,
   Trash2,
   Zap,
+  Sparkles,
 } from "lucide-react";
+import { WhiteLabelSettingsCard } from "@/components/settings/white-label-settings-card";
 import {
   GoogleSearchConsoleLogo,
   GoogleAnalyticsLogo,
@@ -100,7 +102,8 @@ type SettingsTab =
   | "account"
   | "devices"
   | "subscription"
-  | "automation";
+  | "automation"
+  | "whitelabel";
 
 const HIDDEN_SETTINGS_TABS = new Set(["skills", "team", "devices", "personalization"]);
 const VISIBLE_SETTINGS_TABS = new Set<SettingsTab>([
@@ -111,6 +114,7 @@ const VISIBLE_SETTINGS_TABS = new Set<SettingsTab>([
   "automation",
   "account",
   "subscription",
+  "whitelabel",
 ]);
 
 function normalizeSettingsTab(value: string | null): SettingsTab {
@@ -329,6 +333,22 @@ function SettingsClient() {
               </button>
             </nav>
           </div>
+
+          {/* AGENCY Category */}
+          <div>
+            <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+              Agency
+            </p>
+            <nav className="space-y-0.5">
+              <SidebarItem
+                label="White-Label Reports"
+                icon={<Sparkles size={15} />}
+                hasDot
+                active={activeTab === "whitelabel"}
+                onClick={() => setTab("whitelabel")}
+              />
+            </nav>
+          </div>
         </aside>
 
         {/* Right Content Area */}
@@ -339,6 +359,9 @@ function SettingsClient() {
           {activeTab === "credits" && <CreditsView />}
           {activeTab === "agents" && <AgentsView />}
           {activeTab === "skills" && <SkillsMcpView />}
+          {activeTab === "whitelabel" && (
+            <WhiteLabelSettingsCard onNavigateSubscription={() => setTab("subscription")} />
+          )}
           {activeTab === "team" && <TeamSettingsView />}
           {activeTab === "personalization" && <PersonalizationView />}
           {activeTab === "account" && <AccountSecurityView />}

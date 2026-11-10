@@ -5,6 +5,8 @@ import { Bot, ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Pri
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
+import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 import {
   aiMentionText,
   download,
@@ -24,6 +26,11 @@ const PRIORITY_TONE: Record<IntelPriority, "bad" | "warn" | "default"> = { high:
  * measured, to read here and take away.
  */
 export function CompetitorReportTab({ projectId, rivalCount }: { projectId: string; rivalCount: number }) {
+  const { orgId } = useWorkspace();
+  const { subscription } = useSubscription(orgId);
+  const { data: whiteLabel } = useWhiteLabel(orgId);
+  const isWhiteLabeled = subscription?.tierId === "agency" && Boolean(whiteLabel?.whiteLabelEnabled);
+
   // A query rather than a mutation so the report survives switching tabs.
   // Never fetched on its own: each run spends model tokens.
   const report = useQuery({
@@ -48,7 +55,15 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
   const printReport = (r: CompetitorIntelReport) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(toPrintableHtml(r, themeColours()));
+    const whiteLabelOpts = isWhiteLabeled ? {
+      enabled: true,
+      agencyName: whiteLabel?.agencyName,
+      logoUrl: whiteLabel?.logoUrl,
+      brandColor: whiteLabel?.brandColor,
+      contactLine: whiteLabel?.contactLine,
+      footerText: whiteLabel?.footerText,
+    } : undefined;
+    w.document.write(toPrintableHtml(r, themeColours(), whiteLabelOpts));
     w.document.close();
     w.focus();
     w.print();

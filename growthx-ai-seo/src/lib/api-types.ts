@@ -2604,3 +2604,22 @@ export interface FixImpactReportData {
   evidenceLimitations: string[];
 }
 
+export interface WhiteLabelSettings {
+  whiteLabelEnabled: boolean;
+  agencyName: string | null;
+  logoUrl: string | null;
+  brandColor: string | null;
+  contactLine: string | null;
+  footerText: string | null;
+}
+
+export interface UpdateWhiteLabelInput {
+  whiteLabelEnabled?: boolean;
+  agencyName?: string | null;
+  logoUrl?: string | null;
+  brandColor?: string | null;
+  contactLine?: string | null;
+  footerText?: string | null;
+}
+
+

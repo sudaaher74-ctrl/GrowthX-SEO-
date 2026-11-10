@@ -178,7 +178,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, AiVisibilitySettings, AiReferralEngineItem, AiReferralsReport, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, AiVisibilitySettings, AiReferralEngineItem, AiReferralsReport, WhiteLabelSettings, UpdateWhiteLabelInput, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -1015,6 +1015,12 @@ export const api = {
     request<OrgMember>(`/organizations/${orgId}/members/${memberId}`, { method: "PATCH", body: JSON.stringify({ role }) }),
   removeMember: (orgId: string, memberId: string) =>
     request<{ success: boolean }>(`/organizations/${orgId}/members/${memberId}`, { method: "DELETE" }),
+  getWhiteLabel: (orgId: string) => get<WhiteLabelSettings>(`/organizations/${orgId}/white-label`),
+  updateWhiteLabel: (orgId: string, data: UpdateWhiteLabelInput) =>
+    request<WhiteLabelSettings>(`/organizations/${orgId}/white-label`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   createProject: (name: string, organizationId: string) =>
     post<{ id: string; name: string }>("/projects", { name, organizationId }),
   deleteProject: (projectId: string) => del<{ success: boolean }>(`/projects/${projectId}`),

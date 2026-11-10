@@ -1,7 +1,7 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
+import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters, type UpdateWhiteLabelInput } from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -219,6 +219,25 @@ export function usePortfolio(orgId: string | null, days?: number) {
     queryFn: () => api.getPortfolio(orgId!, window),
     enabled: Boolean(orgId),
     retry: false,
+  });
+}
+
+export function useWhiteLabel(orgId: string | null) {
+  return useQuery({
+    queryKey: ["whiteLabel", orgId],
+    queryFn: () => api.getWhiteLabel(orgId!),
+    enabled: Boolean(orgId),
+    retry: false,
+  });
+}
+
+export function useUpdateWhiteLabel(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateWhiteLabelInput) => api.updateWhiteLabel(orgId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["whiteLabel", orgId] });
+    },
   });
 }
 

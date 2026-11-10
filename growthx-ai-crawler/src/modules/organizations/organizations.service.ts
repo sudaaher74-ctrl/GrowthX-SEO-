@@ -1,6 +1,25 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Organization, Role } from '@prisma/client';
+import { SubscriptionTier } from './subscription-quota.service';
+
+export interface WhiteLabelSettings {
+  whiteLabelEnabled: boolean;
+  agencyName: string | null;
+  logoUrl: string | null;
+  brandColor: string | null;
+  contactLine: string | null;
+  footerText: string | null;
+}
+
+export interface UpdateWhiteLabelDto {
+  whiteLabelEnabled?: boolean;
+  agencyName?: string | null;
+  logoUrl?: string | null;
+  brandColor?: string | null;
+  contactLine?: string | null;
+  footerText?: string | null;
+}
 
 /** Roles that can manage other members — everyone else can only view. */
 const MANAGER_ROLES: ReadonlySet<Role> = new Set([Role.OWNER, Role.ADMIN]);
@@ -137,6 +156,89 @@ export class OrganizationsService {
     }
 
     await this.prisma.organizationMember.delete({ where: { id: memberId } });
+  }
+
+  async getWhiteLabel(organizationId: string): Promise<WhiteLabelSettings> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        whiteLabelEnabled: true,
+        agencyName: true,
+        logoUrl: true,
+        brandColor: true,
+        contactLine: true,
+        footerText: true,
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    return org;
+  }
+
+  async updateWhiteLabel(
+    organizationId: string,
+    requesterId: string,
+    tier: SubscriptionTier,
+    dto: UpdateWhiteLabelDto,
+  ): Promise<WhiteLabelSettings> {
+    await this.assertManager(organizationId, requesterId);
+
+    // Enforce tier gating: White-labeling is exclusive to the Agency plan
+    if (dto.whiteLabelEnabled && tier !== 'agency') {
+      throw new HttpException(
+        {
+          error: 'TIER_UPGRADE_REQUIRED',
+          metric: 'whiteLabel',
+          tier,
+          message: 'White-labeling is exclusive to the Agency plan. Upgrade your subscription to add custom agency branding and remove Reigel badges.',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
+    // Input validations
+    if (dto.agencyName !== undefined && dto.agencyName !== null) {
+      if (typeof dto.agencyName !== 'string' || dto.agencyName.trim().length > 100) {
+        throw new BadRequestException('Agency name must be 100 characters or fewer.');
+      }
+    }
+
+    if (dto.brandColor !== undefined && dto.brandColor !== null && dto.brandColor !== '') {
+      if (typeof dto.brandColor !== 'string' || !/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(dto.brandColor.trim())) {
+        throw new BadRequestException('Brand color must be a valid hex color code (e.g. #4F46E5).');
+      }
+    }
+
+    if (dto.contactLine !== undefined && dto.contactLine !== null) {
+      if (typeof dto.contactLine !== 'string' || dto.contactLine.trim().length > 200) {
+        throw new BadRequestException('Contact line must be 200 characters or fewer.');
+      }
+    }
+
+    if (dto.footerText !== undefined && dto.footerText !== null) {
+      if (typeof dto.footerText !== 'string' || dto.footerText.trim().length > 500) {
+        throw new BadRequestException('Footer text must be 500 characters or fewer.');
+      }
+    }
+
+    return this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        ...(dto.whiteLabelEnabled !== undefined ? { whiteLabelEnabled: Boolean(dto.whiteLabelEnabled) } : {}),
+        ...(dto.agencyName !== undefined ? { agencyName: dto.agencyName ? dto.agencyName.trim() : null } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl ? dto.logoUrl.trim() : null } : {}),
+        ...(dto.brandColor !== undefined ? { brandColor: dto.brandColor ? dto.brandColor.trim() : null } : {}),
+        ...(dto.contactLine !== undefined ? { contactLine: dto.contactLine ? dto.contactLine.trim() : null } : {}),
+        ...(dto.footerText !== undefined ? { footerText: dto.footerText ? dto.footerText.trim() : null } : {}),
+      },
+      select: {
+        whiteLabelEnabled: true,
+        agencyName: true,
+        logoUrl: true,
+        brandColor: true,
+        contactLine: true,
+        footerText: true,
+      },
+    });
   }
 
   private async requireMember(organizationId: string, memberId: string) {

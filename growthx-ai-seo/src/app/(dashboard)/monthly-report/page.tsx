@@ -40,7 +40,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { assistantLabel } from "@/lib/ai-assistants";
-import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { usePortfolio, useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 import { ActionButton, Panel } from "@/components/ui/console";
 import { cn } from "@/lib/utils";
 import type { Ga4Point, GscPoint } from "@/lib/api-types";
@@ -104,6 +105,14 @@ export default function MonthlyReport() {
   const portfolio = usePortfolio(orgId);
   const project = projects.find((item) => item.id === projectId);
   const domain = project?.name ?? portfolio.data?.clients.find((item) => item.projectId === projectId)?.domain;
+  const { subscription } = useSubscription(orgId);
+  const { data: whiteLabel } = useWhiteLabel(orgId);
+  const isWhiteLabeled = Boolean(subscription?.tierId === "agency" && whiteLabel?.whiteLabelEnabled);
+  const agencyName = whiteLabel?.agencyName || "Agency Client Deliverable";
+  const brandColor = whiteLabel?.brandColor || "var(--color-brand-950)";
+  const logoUrl = whiteLabel?.logoUrl;
+  const contactLine = whiteLabel?.contactLine;
+  const footerText = whiteLabel?.footerText;
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"ALL" | "TRAFFIC" | "AI" | "FIXES" | "AUDIT">("ALL");
@@ -412,21 +421,43 @@ export default function MonthlyReport() {
   return (
     <main id="report-root" className="space-y-6 pb-16">
       {/* ── PRINT-ONLY EXECUTIVE COVER & AUDIT CERTIFICATION ── */}
-      <div className="hidden print:block mb-8 pb-6 border-b-2 border-brand-900">
+      <div
+        className="hidden print:block mb-8 pb-6 border-b-2"
+        style={{ borderColor: isWhiteLabeled ? brandColor : "var(--color-brand-900)" }}
+      >
         <div className="flex items-start justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-brand-500 font-mono">
-              GrowthX SEO · Executive Client Deliverable
-            </span>
-            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-brand-950 font-sans">
-              Monthly SEO Performance &amp; Verification Report
-            </h1>
-            <p className="mt-1 text-xs font-semibold text-brand-700 font-mono">
-              Target Property: <span className="text-brand-950 font-bold">{domain || project?.name || "Target Website"}</span> · Reporting Period: <span className="text-brand-950 font-bold">{title}</span>
-            </p>
+          <div className="flex items-start gap-4">
+            {isWhiteLabeled && logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={agencyName}
+                className="h-12 max-w-[160px] object-contain rounded"
+              />
+            ) : null}
+            <div>
+              <span
+                className="text-[10px] font-black uppercase tracking-widest font-mono"
+                style={{ color: isWhiteLabeled ? brandColor : "var(--color-brand-500)" }}
+              >
+                {isWhiteLabeled
+                  ? `${agencyName} · Executive Client Deliverable`
+                  : "GrowthX SEO · Executive Client Deliverable"}
+              </span>
+              <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-brand-950 font-sans">
+                Monthly SEO Performance &amp; Verification Report
+              </h1>
+              <p className="mt-1 text-xs font-semibold text-brand-700 font-mono">
+                Target Property: <span className="text-brand-950 font-bold">{domain || project?.name || "Target Website"}</span> · Reporting Period: <span className="text-brand-950 font-bold">{title}</span>
+              </p>
+              {isWhiteLabeled && contactLine && (
+                <p className="mt-1 text-[11px] font-mono text-brand-600">
+                  {contactLine}
+                </p>
+              )}
+            </div>
           </div>
           <div className="text-right font-mono text-xs text-brand-600">
-            <p className="font-bold text-brand-950 uppercase">REP-{month}-{projectId?.slice(0, 6) || "GROWTHX"}</p>
+            <p className="font-bold text-brand-950 uppercase">REP-{month}-{projectId?.slice(0, 6) || (isWhiteLabeled ? "AGENCY" : "GROWTHX")}</p>
             <p className="mt-0.5 text-[11px]">Period: {title}</p>
             <p className="mt-0.5 text-[10px] text-success-700 font-bold">Status: Formally Verified &amp; Merged</p>
           </div>
@@ -1874,26 +1905,38 @@ export default function MonthlyReport() {
           )}
 
           {/* ── PRINT-ONLY EXECUTIVE SIGN-OFF & CERTIFICATION FOOTER ── */}
-          <div className="hidden print:block mt-12 pt-6 border-t-2 border-brand-900 text-xs text-brand-700">
+          <div
+            className="hidden print:block mt-12 pt-6 border-t-2 text-xs text-brand-700"
+            style={{ borderColor: isWhiteLabeled ? brandColor : "var(--color-brand-900)" }}
+          >
             <div className="grid grid-cols-2 gap-8 items-end">
               <div>
                 <p className="font-bold text-brand-950 uppercase tracking-wider text-[11px] font-mono">
-                  Autonomous Verification Stamp
+                  {isWhiteLabeled ? `${agencyName} Verification Stamp` : "Autonomous Verification Stamp"}
                 </p>
                 <p className="mt-1 text-[11px] leading-relaxed text-brand-600">
-                  This deliverable is programmatically certified by Reigel AI SEO Autonomous Engine.
-                  All telemetry points are synced via verified OAuth APIs and confirmed live server DOM state.
+                  {isWhiteLabeled && footerText
+                    ? footerText
+                    : isWhiteLabeled
+                      ? `This deliverable is programmatically certified by ${agencyName}. All telemetry points are synced via verified OAuth APIs and confirmed live server DOM state.`
+                      : "This deliverable is programmatically certified by Reigel AI SEO Autonomous Engine. All telemetry points are synced via verified OAuth APIs and confirmed live server DOM state."}
                 </p>
                 <div className="mt-4 flex items-center gap-2 font-mono text-[10px] text-brand-500">
                   <span>SHA256: {projectId?.slice(0, 16) || "9f8e7d6c5b4a3210"}</span>
                   <span>·</span>
                   <span>Environment: Production Stable</span>
+                  {isWhiteLabeled && contactLine && (
+                    <>
+                      <span>·</span>
+                      <span>{contactLine}</span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="text-right">
                 <div className="inline-block text-left w-56">
                   <div className="border-b border-brand-950 pb-1 mb-1 text-[11px] font-bold text-brand-950">
-                    Executive Reviewer / Account Lead
+                    {isWhiteLabeled ? `${agencyName} Reviewer / Account Lead` : "Executive Reviewer / Account Lead"}
                   </div>
                   <div className="flex justify-between text-[10px] text-brand-600 font-mono">
                     <span>Date: {new Date().toLocaleDateString()}</span>

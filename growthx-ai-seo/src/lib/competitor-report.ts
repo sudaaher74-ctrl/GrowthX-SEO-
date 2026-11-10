@@ -168,15 +168,59 @@ export function themeColours(): PrintColours {
   };
 }
 
+export interface WhiteLabelReportOptions {
+  enabled?: boolean;
+  agencyName?: string | null;
+  logoUrl?: string | null;
+  brandColor?: string | null;
+  contactLine?: string | null;
+  footerText?: string | null;
+}
+
 /** Minimal Markdown → HTML for the print view. Everything is escaped first. */
-export function toPrintableHtml(report: CompetitorIntelReport, colours: PrintColours): string {
-  return markdownToPrintableHtml(toMarkdown(report), reportFilename(report, "pdf"), colours);
+export function toPrintableHtml(
+  report: CompetitorIntelReport,
+  colours: PrintColours,
+  whiteLabel?: WhiteLabelReportOptions,
+): string {
+  return markdownToPrintableHtml(toMarkdown(report), reportFilename(report, "pdf"), colours, whiteLabel);
 }
 
 /** Any report's Markdown as a printable page. Shared by every downloadable report. */
-export function markdownToPrintableHtml(markdown: string, title: string, colours: PrintColours): string {
+export function markdownToPrintableHtml(
+  markdown: string,
+  title: string,
+  colours: PrintColours,
+  whiteLabel?: WhiteLabelReportOptions,
+): string {
+  const isWl = Boolean(whiteLabel?.enabled);
+  const agencyName = whiteLabel?.agencyName || "Agency Client Deliverable";
+  const brandColor = whiteLabel?.brandColor || colours.text;
+  const logoUrl = whiteLabel?.logoUrl;
+  const contactLine = whiteLabel?.contactLine;
+  const footerText = whiteLabel?.footerText;
+
   const lines = escapeHtml(markdown).split("\n");
   const body: string[] = [];
+
+  if (isWl) {
+    body.push(`<div class="agency-header" style="border-bottom: 2px solid ${escapeHtml(brandColor)}; padding-bottom: 14px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">`);
+    body.push(`<div style="display: flex; align-items: center; gap: 14px;">`);
+    if (logoUrl) {
+      body.push(`<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(agencyName)}" style="height: 44px; max-width: 150px; object-contain: contain;" />`);
+    } else {
+      body.push(`<div style="background: ${escapeHtml(brandColor)}; color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-family: monospace; font-size: 14px;">${escapeHtml(agencyName.slice(0, 3).toUpperCase())}</div>`);
+    }
+    body.push(`<div>`);
+    body.push(`<div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: ${escapeHtml(brandColor)}; font-family: monospace;">${escapeHtml(agencyName)} · Competitive Intelligence</div>`);
+    if (contactLine) {
+      body.push(`<div style="font-size: 11px; opacity: 0.75; font-family: monospace; margin-top: 2px;">${escapeHtml(contactLine)}</div>`);
+    }
+    body.push(`</div></div>`);
+    body.push(`<div style="text-align: right; font-family: monospace; font-size: 10px; opacity: 0.75;"><div>STATUS: VERIFIED</div><div>DELIVERABLE: CONFIDENTIAL</div></div>`);
+    body.push(`</div>`);
+  }
+
   let list: "ul" | "ol" | null = null;
   const close = () => {
     if (list) body.push(`</${list}>`);
@@ -189,7 +233,8 @@ export function markdownToPrintableHtml(markdown: string, title: string, colours
     const ol = /^\d+\. (.*)$/.exec(line);
     if (h) {
       close();
-      body.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+      const style = isWl && h[1].length === 2 ? ` style="border-color: ${escapeHtml(brandColor)};"` : "";
+      body.push(`<h${h[1].length}${style}>${inline(h[2])}</h${h[1].length}>`);
     } else if (ul || ol) {
       const kind = ul ? "ul" : "ol";
       if (list !== kind) {
@@ -208,9 +253,18 @@ export function markdownToPrintableHtml(markdown: string, title: string, colours
     }
   }
   close();
+
+  // White-label custom footer
+  if (isWl) {
+    body.push(`<div style="margin-top: 36px; padding-top: 14px; border-top: 2px solid ${escapeHtml(brandColor)}; display: flex; justify-content: space-between; font-size: 11px; opacity: 0.75; font-family: monospace;">`);
+    body.push(`<div>${escapeHtml(footerText || `Prepared exclusively for client review by ${agencyName}.`)}</div>`);
+    body.push(`<div>Accepted ✓ · ${new Date().toLocaleDateString("en-IN")}</div>`);
+    body.push(`</div>`);
+  }
+
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>body{font:13px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:${colours.text};max-width:820px;margin:32px auto;padding:0 20px}
-h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-bottom:1px solid ${colours.rule};padding-bottom:4px}h3{font-size:14px;margin-top:18px}
+h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-bottom:1px solid ${isWl ? brandColor : colours.rule};padding-bottom:4px}h3{font-size:14px;margin-top:18px}
 .row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;border-bottom:1px solid ${colours.faint};padding:3px 0}
 @media print{body{margin:0}h2{break-after:avoid}}</style></head><body>${body.join("\n")}</body></html>`;
 }
