@@ -43,6 +43,7 @@ import { ActionButton, PageHeader, Panel, Pill, StatusNote, Table, Th, Tr, Td } 
 import { QueryState } from "@/components/ui/query-state";
 import { EvidenceLinks, AnswerResults, GapResults } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
+import { GscSuggestedPromptsSection } from "./gsc-suggested-prompts";
 import { AiSerpVisualizer } from "./ai-serp-visualizer";
 
 export function VisibilityJourneyPage() {
@@ -1392,6 +1393,15 @@ function PromptsSection({
           })}
         </div>
       </div>
+
+      {/* ── GSC-TO-PROMPTS AI VISIBILITY SUGGESTIONS ── */}
+      <GscSuggestedPromptsSection
+        projectId={projectId}
+        onPromptAdded={() => {
+          queryClient.invalidateQueries({ queryKey: ["visibility-journey", projectId] });
+          queryClient.invalidateQueries({ queryKey: ["ai-visibility", projectId] });
+        }}
+      />
 
       {/* Section 1: Tracked Prompts Panel (Okara style, Screenshot 1 & 2) */}
       <div className="overflow-hidden rounded-xl border border-line bg-surface-1 shadow-card">

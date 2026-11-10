@@ -77,7 +77,11 @@ describe('AI visibility dashboard contract', () => {
   it('waits for the scan and forwards its result through the controller', async () => {
     const result = { checksRun: 5, checksFailed: 0, citations: 0, skippedAssistants: [] };
     const service: any = { runScanForProject: jest.fn().mockResolvedValue(result) };
-    const controller = new AiVisibilityController(service, {} as any, {} as any, {} as any);
-    await expect(controller.runSweep('project')).resolves.toEqual(result);
+    const quotaService: any = {
+      resolveTier: jest.fn().mockReturnValue('agency'),
+      assertAiVisibilityQuota: jest.fn().mockResolvedValue(undefined),
+    };
+    const controller = new AiVisibilityController(service, {} as any, {} as any, {} as any, quotaService);
+    await expect(controller.runSweep({} as any, 'project')).resolves.toEqual(result);
   });
 });

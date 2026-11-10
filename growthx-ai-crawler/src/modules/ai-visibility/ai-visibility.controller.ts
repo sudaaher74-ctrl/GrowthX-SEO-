@@ -137,11 +137,36 @@ export class AiVisibilityController {
         category: p.category,
         cluster: p.category,
         intent: p.journeyStage || null,
+        sourceQuery: p.sourceQuery || null,
         estimatedVolume: null,
         isActive: p.isActive,
         latestChecks,
       };
     });
+  }
+
+  @Get('suggested-prompts-from-gsc')
+  async getSuggestedPromptsFromGsc(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    const tier = this.quotaService.resolveTier(req);
+    return this.promptEngineService.suggestPromptsFromGsc(projectId, tier);
+  }
+
+  @Post('prompts/from-suggestions')
+  async addPromptsFromSuggestions(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body('prompts') prompts: Array<{
+      text: string;
+      category?: string;
+      journeyStage?: string;
+      sourceQuery?: string;
+    }>,
+  ) {
+    const tier = this.quotaService.resolveTier(req);
+    return this.promptEngineService.addPromptsFromSuggestions(projectId, prompts, tier);
   }
 
   @Get('questions')
@@ -156,16 +181,20 @@ export class AiVisibilityController {
 
   @Post('prompts')
   async addPrompts(
+    @Req() req: any,
     @Param('projectId') projectId: string,
-    @Body('prompts') prompts: { text: string; cluster?: string; category?: string }[],
+    @Body('prompts') prompts: { text: string; cluster?: string; category?: string; sourceQuery?: string }[],
   ) {
     if (!Array.isArray(prompts)) return { added: 0 };
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertPromptQuota(projectId, tier, prompts.length);
     for (const p of prompts) {
       await this.prisma.aiVisibilityPrompt.create({
         data: {
           projectId,
           text: p.text,
           category: p.category || p.cluster || 'Custom',
+          sourceQuery: p.sourceQuery?.trim() || null,
         },
       });
     }

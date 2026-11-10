@@ -253,12 +253,40 @@ export interface QuestionSuggestion {
   competitorDomain: string | null;
 }
 
+export interface GscPromptSuggestionItem {
+  sourceQuery: string;
+  suggestedPrompt: string;
+  category: string;
+  journeyStage: string;
+  impressions: number;
+  clicks: number;
+  avgPosition: number | null;
+  isAlreadyTracked: boolean;
+}
+
+export interface GscPromptSuggestionsResponse {
+  connected: boolean;
+  reason?: string;
+  message?: string;
+  queryCount: number;
+  totalImpressions: number;
+  totalClicks: number;
+  suggestions: GscPromptSuggestionItem[];
+  quota: {
+    current: number;
+    limit: number;
+    remaining: number;
+  };
+}
+
 export interface TrackedPromptRow {
   id: string;
   text: string;
+  category?: string;
   group?: QuestionGroup;
   intent: string | null;
   cluster: string | null;
+  sourceQuery?: string | null;
   estimatedVolume: number | null;
   isActive: boolean;
   latestChecks: {

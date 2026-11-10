@@ -4304,6 +4304,7 @@ model AiVisibilityPrompt {
   category       String                      @default("Discovery")
   journeyStage   String                      @default("DISCOVERY")
   isActive       Boolean                     @default(true)
+  sourceQuery    String?
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   project        Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)

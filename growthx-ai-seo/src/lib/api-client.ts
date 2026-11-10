@@ -178,7 +178,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -1104,7 +1104,14 @@ export const api = {
     get<VisibilityReport>(`/api/projects/${projectId}/ai-visibility?days=${days}`),
   listTrackedPrompts: (projectId: string) =>
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
-  addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
+  getSuggestedPromptsFromGsc: (projectId: string) =>
+    get<GscPromptSuggestionsResponse>(`/api/projects/${projectId}/ai-visibility/suggested-prompts-from-gsc`),
+  addPromptsFromSuggestions: (
+    projectId: string,
+    prompts: { text: string; category?: string; journeyStage?: string; sourceQuery?: string }[],
+  ) =>
+    post<{ added: number; prompts: any[] }>(`/api/projects/${projectId}/ai-visibility/prompts/from-suggestions`, { prompts }),
+  addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string; sourceQuery?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   getQuestionAnalysis: (projectId: string) =>
     get<QuestionAnalysisReport>(`/api/projects/${projectId}/ai-visibility/questions`),

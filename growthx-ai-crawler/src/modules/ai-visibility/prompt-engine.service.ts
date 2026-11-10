@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { SubscriptionQuotaService, SubscriptionTier } from '../organizations/subscription-quota.service';
 
 export const PROMPT_CATEGORIES_CONFIG = [
   { name: 'General Discovery', stage: 'DISCOVERY', targetCount: 4 },
@@ -19,6 +20,7 @@ export class PromptEngineService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiRouter: MultiAiRouterService,
+    private readonly quotaService: SubscriptionQuotaService,
   ) {}
 
   /**
@@ -209,6 +211,312 @@ NEVER insert the customer's brand name ("${project.name}") into generic discover
     return this.prisma.aiVisibilityPrompt.delete({
       where: { id: promptId },
     });
+  }
+
+  /**
+   * Suggests high-intent conversational buyer prompts from the project's real GSC queries (last 28 days).
+   * Converts raw search queries (e.g. "best X in Panvel", "X vs Y", "X price") into natural buyer questions.
+   */
+  async suggestPromptsFromGsc(projectId: string, tier: SubscriptionTier = 'founder_free'): Promise<{
+    connected: boolean;
+    reason?: string;
+    message?: string;
+    queryCount: number;
+    totalImpressions: number;
+    totalClicks: number;
+    suggestions: Array<{
+      sourceQuery: string;
+      suggestedPrompt: string;
+      category: string;
+      journeyStage: string;
+      impressions: number;
+      clicks: number;
+      avgPosition: number | null;
+      isAlreadyTracked: boolean;
+    }>;
+    quota: {
+      current: number;
+      limit: number;
+      remaining: number;
+    };
+  }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        websites: { where: { scope: 'own' } },
+        competitors: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project ${projectId} not found`);
+    }
+
+    const limits = this.quotaService.getLimits(tier);
+    const existingPrompts = await this.prisma.aiVisibilityPrompt.findMany({
+      where: { projectId, isActive: true },
+      select: { id: true, text: true, sourceQuery: true },
+    });
+    const existingTexts = new Set(existingPrompts.map((p) => p.text.toLowerCase().trim()));
+    const quotaInfo = {
+      current: existingPrompts.length,
+      limit: limits.promptsQuota,
+      remaining: Math.max(0, limits.promptsQuota - existingPrompts.length),
+    };
+
+    const since28Days = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
+    const gscRows = await this.prisma.gscDailyMetric.groupBy({
+      by: ['query'],
+      where: {
+        projectId,
+        grain: 'QUERY',
+        date: { gte: since28Days },
+        query: { not: null },
+      },
+      _sum: { impressions: true, clicks: true },
+      _avg: { position: true },
+      orderBy: { _sum: { impressions: 'desc' } },
+      take: 30,
+    });
+
+    if (!gscRows || gscRows.length === 0) {
+      return {
+        connected: false,
+        reason: 'NO_GSC_DATA',
+        message: 'No Google Search Console query metrics found for the last 28 days. Connect Google Search Console to auto-discover buyer prompts from your real search traffic.',
+        queryCount: 0,
+        totalImpressions: 0,
+        totalClicks: 0,
+        suggestions: [],
+        quota: quotaInfo,
+      };
+    }
+
+    const validQueries = gscRows.filter((r) => r.query && r.query.trim().length >= 3).slice(0, 20);
+
+    if (validQueries.length === 0) {
+      return {
+        connected: true,
+        reason: 'INSUFFICIENT_QUERIES',
+        message: 'Google Search Console is connected, but recorded queries were anonymised or too short.',
+        queryCount: 0,
+        totalImpressions: 0,
+        totalClicks: 0,
+        suggestions: [],
+        quota: quotaInfo,
+      };
+    }
+
+    const ownWebsite = project.websites[0];
+    const domain = ownWebsite?.domain || project.name;
+    const competitorNames = project.competitors.map((c) => c.label || c.domain).join(', ');
+
+    const queryListText = validQueries
+      .map((q, idx) => `${idx + 1}. Query: "${q.query}" (Impressions: ${q._sum.impressions || 0}, Clicks: ${q._sum.clicks || 0})`)
+      .join('\n');
+
+    const systemPrompt = `You are a neutral AI Search and Search Intent intelligence expert.
+Convert raw Google Search queries from actual visitors into natural, high-intent conversational buyer questions that users ask AI assistants (ChatGPT, Perplexity, Gemini, Claude).
+
+Example conversions:
+- "best digital marketing agency mumbai" -> "What is the best digital marketing agency in Mumbai for local businesses?"
+- "iphone 16 vs pixel 9 price" -> "How does the iPhone 16 compare to the Pixel 9 in price and camera quality?"
+- "root canal cost bandra" -> "What is the average cost of a root canal treatment in Bandra?"
+- "web development company pune" -> "Which web development companies in Pune have the best track record for startups?"
+
+CRITICAL REQUIREMENTS:
+1. Every item must correspond directly to one of the provided visitor search queries.
+2. Turn each search phrase into a clear, natural question that a customer would type into ChatGPT or Perplexity.
+3. Assign each a category:
+   - "General Discovery"
+   - "Product/Service Discovery"
+   - "Local Search Intent"
+   - "Competitor Comparison"
+   - "Trust and Purchase Decisions"
+4. Assign journeyStage: "DISCOVERY", "CONSIDERATION", or "RECOMMENDATION".
+5. Never invent fictional or hallucinated topics. Preserve the city, service, or comparison from the source query.
+`;
+
+    try {
+      const completion = await this.aiRouter.generate({
+        prompt: `Convert these actual search queries for website ${domain} (competitors: ${competitorNames || 'leading brands'}) into conversational buyer prompts:\n${queryListText}`,
+        systemInstruction: systemPrompt,
+        task: AiTask.FAST,
+        provider: AiProvider.GEMINI,
+        model: 'gemini-2.5-flash-lite',
+        organizationId: project.organizationId,
+        projectId,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  sourceQuery: { type: 'string' },
+                  suggestedPrompt: { type: 'string' },
+                  category: {
+                    type: 'string',
+                    enum: [
+                      'General Discovery',
+                      'Product/Service Discovery',
+                      'Local Search Intent',
+                      'Competitor Comparison',
+                      'Trust and Purchase Decisions',
+                    ],
+                  },
+                  journeyStage: {
+                    type: 'string',
+                    enum: ['DISCOVERY', 'CONSIDERATION', 'RECOMMENDATION'],
+                  },
+                },
+                required: ['sourceQuery', 'suggestedPrompt', 'category', 'journeyStage'],
+              },
+            },
+          },
+          required: ['items'],
+        },
+      });
+
+      const parsed = JSON.parse(completion.text || '{}');
+      const items: Array<{
+        sourceQuery: string;
+        suggestedPrompt: string;
+        category: string;
+        journeyStage: string;
+      }> = parsed.items || [];
+
+      const queryMap = new Map<string, (typeof validQueries)[number]>();
+      for (const q of validQueries) {
+        if (q.query) queryMap.set(q.query.toLowerCase().trim(), q);
+      }
+
+      const suggestions = items
+        .filter((item) => item.suggestedPrompt && item.suggestedPrompt.trim().length > 0)
+        .map((item) => {
+          const matchedGsc = queryMap.get(item.sourceQuery?.toLowerCase().trim()) ||
+            validQueries.find((q) => q.query && item.sourceQuery && item.sourceQuery.toLowerCase().includes(q.query.toLowerCase()));
+
+          const impressions = matchedGsc?._sum.impressions ?? 0;
+          const clicks = matchedGsc?._sum.clicks ?? 0;
+          const avgPosition = matchedGsc?._avg.position ? Number(matchedGsc._avg.position.toFixed(1)) : null;
+          const isAlreadyTracked = existingTexts.has(item.suggestedPrompt.toLowerCase().trim());
+
+          return {
+            sourceQuery: item.sourceQuery || matchedGsc?.query || '',
+            suggestedPrompt: item.suggestedPrompt.trim(),
+            category: item.category || 'Product/Service Discovery',
+            journeyStage: item.journeyStage || 'DISCOVERY',
+            impressions,
+            clicks,
+            avgPosition,
+            isAlreadyTracked,
+          };
+        });
+
+      // Sort by impressions descending
+      suggestions.sort((a, b) => b.impressions - a.impressions);
+
+      const totalImpressions = validQueries.reduce((acc, q) => acc + (q._sum.impressions || 0), 0);
+      const totalClicks = validQueries.reduce((acc, q) => acc + (q._sum.clicks || 0), 0);
+
+      return {
+        connected: true,
+        queryCount: validQueries.length,
+        totalImpressions,
+        totalClicks,
+        suggestions,
+        quota: quotaInfo,
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to convert GSC queries to prompts: ${error.message}`, error.stack);
+      // Fallback: If AI provider is unavailable, format queries directly as natural questions without failing
+      const fallbackSuggestions = validQueries.map((q) => {
+        const rawQ = q.query!.trim();
+        const question = rawQ.toLowerCase().startsWith('how') || rawQ.toLowerCase().startsWith('what') || rawQ.toLowerCase().startsWith('where') || rawQ.toLowerCase().startsWith('why')
+          ? `${rawQ.charAt(0).toUpperCase() + rawQ.slice(1)}?`
+          : `What are the best options for ${rawQ}?`;
+
+        return {
+          sourceQuery: rawQ,
+          suggestedPrompt: question,
+          category: 'General Discovery',
+          journeyStage: 'DISCOVERY',
+          impressions: q._sum.impressions || 0,
+          clicks: q._sum.clicks || 0,
+          avgPosition: q._avg.position ? Number(q._avg.position.toFixed(1)) : null,
+          isAlreadyTracked: existingTexts.has(question.toLowerCase().trim()),
+        };
+      });
+
+      return {
+        connected: true,
+        reason: 'FALLBACK_FORMATTING',
+        queryCount: validQueries.length,
+        totalImpressions: validQueries.reduce((acc, q) => acc + (q._sum.impressions || 0), 0),
+        totalClicks: validQueries.reduce((acc, q) => acc + (q._sum.clicks || 0), 0),
+        suggestions: fallbackSuggestions,
+        quota: quotaInfo,
+      };
+    }
+  }
+
+  /**
+   * Adds selected suggested prompts to active tracking, respecting plan quota limits.
+   */
+  async addPromptsFromSuggestions(
+    projectId: string,
+    prompts: Array<{
+      text: string;
+      category?: string;
+      journeyStage?: string;
+      sourceQuery?: string;
+    }>,
+    tier: SubscriptionTier = 'founder_free',
+  ): Promise<{ added: number; prompts: any[] }> {
+    if (!Array.isArray(prompts) || prompts.length === 0) {
+      return { added: 0, prompts: [] };
+    }
+
+    // Enforce plan quota
+    await this.quotaService.assertPromptQuota(projectId, tier, prompts.length);
+
+    const created = [];
+    for (const item of prompts) {
+      const text = item.text?.trim();
+      if (!text) continue;
+
+      // Check if already active
+      const exists = await this.prisma.aiVisibilityPrompt.findFirst({
+        where: { projectId, text, isActive: true },
+      });
+      if (exists) continue;
+
+      const newPrompt = await this.prisma.aiVisibilityPrompt.create({
+        data: {
+          projectId,
+          text,
+          category: item.category || 'Product/Service Discovery',
+          journeyStage: item.journeyStage || 'DISCOVERY',
+          sourceQuery: item.sourceQuery?.trim() || null,
+          isActive: true,
+        },
+      });
+
+      await this.prisma.aiVisibilityPromptVersion.create({
+        data: {
+          promptId: newPrompt.id,
+          text,
+          version: 1,
+        },
+      });
+
+      created.push(newPrompt);
+    }
+
+    this.logger.log(`Added ${created.length} prompts from GSC suggestions for project ${projectId}`);
+    return { added: created.length, prompts: created };
   }
 }
 

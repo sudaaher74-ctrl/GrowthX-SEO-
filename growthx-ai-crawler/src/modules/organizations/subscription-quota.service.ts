@@ -9,13 +9,14 @@ export interface PlanLimits {
   crawlPages: number;
   aiCyclesMonthly: number;
   competitors: number;
+  promptsQuota: number;
 }
 
 export const PLAN_LIMITS: Record<SubscriptionTier, PlanLimits> = {
-  founder_free: { websites: 1, crawlPages: 5000, aiCyclesMonthly: 2, competitors: 5 },
-  starter: { websites: 1, crawlPages: 5000, aiCyclesMonthly: 2, competitors: 5 },
-  growth: { websites: 5, crawlPages: 25000, aiCyclesMonthly: 10, competitors: 15 },
-  agency: { websites: 20, crawlPages: 100000, aiCyclesMonthly: 50, competitors: 50 },
+  founder_free: { websites: 1, crawlPages: 5000, aiCyclesMonthly: 2, competitors: 5, promptsQuota: 10 },
+  starter: { websites: 1, crawlPages: 5000, aiCyclesMonthly: 2, competitors: 5, promptsQuota: 10 },
+  growth: { websites: 5, crawlPages: 25000, aiCyclesMonthly: 10, competitors: 15, promptsQuota: 25 },
+  agency: { websites: 20, crawlPages: 100000, aiCyclesMonthly: 50, competitors: 50, promptsQuota: 100 },
 };
 
 @Injectable()
@@ -144,6 +145,31 @@ export class SubscriptionQuotaService {
           limit: limits.aiCyclesMonthly,
           tier,
           message: `Monthly AI Visibility cycle limit reached (${cyclesUsed}/${limits.aiCyclesMonthly} cycles used this month). Upgrade your subscription for more monthly audit cycles.`,
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+  }
+
+  /**
+   * Enforces prompt quota when adding tracked prompts to a project.
+   */
+  async assertPromptQuota(projectId: string, tier: SubscriptionTier, additionalCount = 1) {
+    const limits = this.getLimits(tier);
+    const current = await this.prisma.aiVisibilityPrompt.count({
+      where: { projectId, isActive: true },
+    });
+
+    if (current + additionalCount > limits.promptsQuota) {
+      throw new HttpException(
+        {
+          error: 'QUOTA_EXCEEDED',
+          metric: 'promptsQuota',
+          current,
+          requested: additionalCount,
+          limit: limits.promptsQuota,
+          tier,
+          message: `Tracked prompt limit reached (${current}/${limits.promptsQuota} active prompts on your plan). Upgrade your subscription to track more buyer prompts.`,
         },
         HttpStatus.PAYMENT_REQUIRED,
       );
