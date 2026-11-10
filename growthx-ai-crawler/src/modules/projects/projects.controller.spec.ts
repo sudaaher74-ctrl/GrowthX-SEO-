@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 import { PrismaService } from '../../database/prisma.service';
 
 describe('ProjectsController', () => {
@@ -28,6 +29,13 @@ describe('ProjectsController', () => {
       providers: [
         { provide: ProjectsService, useValue: projects },
         { provide: OrgContextService, useValue: orgContext },
+        {
+          provide: SubscriptionQuotaService,
+          useValue: {
+            resolveTier: jest.fn().mockReturnValue('founder_free'),
+            assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: PrismaService, useValue: {} },
       ],
     }).compile();

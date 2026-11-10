@@ -13,6 +13,7 @@ import { FixPreviewService } from '../ai/fix-preview.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 const REQ = { user: { userId: 'user_1' }, organizationId: 'org_1' };
 
@@ -67,6 +68,14 @@ describe('CrawlController — cross-tenant access', () => {
         { provide: SchedulerService, useValue: {} },
         { provide: OrgContextService, useValue: orgContext },
         { provide: VerificationEngineService, useValue: verification },
+        {
+          provide: SubscriptionQuotaService,
+          useValue: {
+            resolveTier: jest.fn().mockReturnValue('founder_free'),
+            assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
+            clampCrawlPageLimit: jest.fn().mockImplementation((limit: number) => limit ?? 5000),
+          },
+        },
         { provide: FixPreviewService, useValue: fixPreview },
         { provide: UrlInventoryService, useValue: {} },
       ],

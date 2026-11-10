@@ -1103,22 +1103,3 @@ function TrafficViewClient() {
   );
 }
 
-/**
- * Legacy export preserved for analytics-view.tsx
- */
-export function buildTraffic(data: Ga4ReportData) {
-  const total = data.channels.reduce((s, c) => s + c.sessions, 0) || data.totals.sessions;
-  const groups = [
-    {
-      group: "Organic Search",
-      sessions: data.organicSearchSessions || 0,
-      users: 0,
-      channels: ["Organic Search"],
-      share: total > 0 ? (data.organicSearchSessions || 0) / total : null,
-      engagementRate: null,
-      keyEvents: null,
-    },
-  ];
-  const pages = [...data.landingPages].sort((a, b) => b.sessions - a.sessions).slice(0, 25);
-  return { data, groups, total, organic: data.organicSearchSessions || 0, organicShare: total > 0 ? (data.organicSearchSessions || 0) / total : null, pages };
-}

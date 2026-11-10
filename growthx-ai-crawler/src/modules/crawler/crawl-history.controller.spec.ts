@@ -14,6 +14,7 @@ import { FixPreviewService } from '../ai/fix-preview.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 const ORG = 'org_1';
 const REQ = { user: { userId: 'user_1' } };
@@ -59,6 +60,7 @@ describe('CrawlController — crawl history', () => {
         // DI error rather than an assertion — which is how VerificationEngine
         // went unnoticed: CI does not run the backend suite.
         { provide: VerificationEngineService, useValue: {} },
+        { provide: SubscriptionQuotaService, useValue: { checkWebsiteQuota: jest.fn().mockResolvedValue(undefined), checkCrawlCapacity: jest.fn().mockResolvedValue(undefined) } },
         { provide: FixPreviewService, useValue: {} },
         { provide: UrlInventoryService, useValue: {} },
       ],

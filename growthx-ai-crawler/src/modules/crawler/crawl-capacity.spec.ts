@@ -13,6 +13,7 @@ import { FixPreviewService } from '../ai/fix-preview.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 const REQ = { user: { userId: 'user_1' }, organizationId: 'org_1' };
 
@@ -44,6 +45,14 @@ describe('crawl capacity', () => {
           { provide: SchedulerService, useValue: {} },
           { provide: OrgContextService, useValue: { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined), assertManager: jest.fn().mockResolvedValue(undefined) } },
           { provide: VerificationEngineService, useValue: {} },
+          {
+            provide: SubscriptionQuotaService,
+            useValue: {
+              resolveTier: jest.fn().mockReturnValue('founder_free'),
+              assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
+              clampCrawlPageLimit: jest.fn().mockImplementation((limit: number) => limit ?? 5000),
+            },
+          },
           { provide: FixPreviewService, useValue: {} },
           { provide: UrlInventoryService, useValue: {} },
         ],
