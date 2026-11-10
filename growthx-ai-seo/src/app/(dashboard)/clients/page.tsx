@@ -132,8 +132,8 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Agency Client Directory"
-        subtitle="Multi-client portfolio oversight, cross-account SEO health beacons, and white-label branding controls."
+        title="Clients"
+        subtitle="Manage client websites, health scores, and executive report portals."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button

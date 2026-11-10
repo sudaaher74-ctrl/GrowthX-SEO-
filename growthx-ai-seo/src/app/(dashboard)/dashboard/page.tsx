@@ -341,7 +341,7 @@ export default function UnifiedDashboardPage() {
             href="/fix-engine"
             className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100"
           >
-            See my improvement plan
+            Improvement plan
           </Link>
           <button
             type="button"
@@ -350,7 +350,7 @@ export default function UnifiedDashboardPage() {
             className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm cursor-pointer"
           >
             <RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />
-            {auditBusy ? "Checking…" : "Check my website again"}
+            {auditBusy ? "Checking…" : "Run audit"}
           </button>
         </div>
       </div>
