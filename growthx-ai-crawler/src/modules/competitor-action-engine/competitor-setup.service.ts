@@ -53,16 +53,16 @@ export class CompetitorSetupService {
     };
   }
 
-  async create(organizationId: string, projectId: string, input: CompetitorInput) {
+  async create(organizationId: string, projectId: string, input: CompetitorInput, maxCompetitors: number = MAX_COMPETITORS) {
     const domain = normalizeDomain(input.websiteUrl || '');
     if (!domain || !domain.includes('.')) {
       throw new BadRequestException('A valid competitor website URL is required.');
     }
 
     const existing = await this.prisma.competitorDomain.count({ where: { projectId } });
-    if (existing >= MAX_COMPETITORS) {
+    if (existing >= maxCompetitors) {
       throw new BadRequestException(
-        `This project already tracks ${MAX_COMPETITORS} competitors. Remove one before adding another.`,
+        `This project already tracks ${existing} of ${maxCompetitors} competitors allowed on your plan. Upgrade your plan to track more rivals.`,
       );
     }
 

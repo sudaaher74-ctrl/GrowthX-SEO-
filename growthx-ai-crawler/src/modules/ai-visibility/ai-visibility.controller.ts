@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { PromptEngineService } from './prompt-engine.service';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { VisibilityWorkflowService } from './visibility-workflow.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 @Controller(['api/projects/:projectId/ai-visibility', 'projects/:projectId/ai-visibility'])
 @UseGuards(JwtAuthGuard)
@@ -24,6 +26,7 @@ export class AiVisibilityController {
     private readonly promptEngineService: PromptEngineService,
     private readonly prisma: PrismaService,
     private readonly workflow: VisibilityWorkflowService,
+    private readonly quotaService: SubscriptionQuotaService,
   ) {}
 
   @Get('journey')
@@ -32,12 +35,16 @@ export class AiVisibilityController {
   }
 
   @Post('journey')
-  prepareJourney(@Param('projectId') projectId: string) {
+  async prepareJourney(@Req() req: any, @Param('projectId') projectId: string) {
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.workflow.prepare(projectId);
   }
 
   @Post('journey/:journeyId/check')
-  checkJourney(@Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
+  async checkJourney(@Req() req: any, @Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.workflow.check(projectId, journeyId, brief);
   }
 
@@ -51,7 +58,9 @@ export class AiVisibilityController {
   }
 
   @Post('sweep')
-  async runSweep(@Param('projectId') projectId: string) {
+  async runSweep(@Req() req: any, @Param('projectId') projectId: string) {
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.aiVisibilityService.runScanForProject(projectId);
   }
 

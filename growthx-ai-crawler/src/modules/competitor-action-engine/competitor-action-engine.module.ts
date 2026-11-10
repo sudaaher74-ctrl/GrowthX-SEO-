@@ -16,6 +16,7 @@ import { ProgrammaticDecompilerService } from './programmatic-decompiler.service
 import { RivalMovesService } from './rival-moves.service';
 import { SiteProfileLoader } from './site-profile.loader';
 import { LocalSeoModule } from '../local-seo/local-seo.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 
 /**
  * The Competitor-to-Action Engine.
@@ -26,7 +27,7 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
  * unavailable produces a stated coverage gap rather than a broken import.
  */
 @Module({
-  imports: [DatabaseModule, LocalSeoModule, AiSearchModule, ContentIdeasModule],
+  imports: [DatabaseModule, LocalSeoModule, AiSearchModule, ContentIdeasModule, OrganizationsModule],
   controllers: [CompetitorActionEngineController],
   providers: [
     FindingsCollectorService,

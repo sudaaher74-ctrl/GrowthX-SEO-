@@ -6,6 +6,7 @@
  */
 
 import type { StagedFixItem } from "@/lib/staging-engine";
+import { subscriptionEngine } from "@/lib/subscription-engine";
 import type { BacklinkHistory, BacklinkMutationResult, BacklinkReport } from './backlinks';
 import type { BacklinkChanges, BacklinkExplorer, BacklinkExport, BacklinkFilters, BacklinkProfile } from './backlink-analysis';
 import type { VisibilityBrief, VisibilityJourneyResponse } from './visibility-workflow';
@@ -221,6 +222,10 @@ export class ApiError extends Error {
     const error = (this.body as { error?: string } | undefined)?.error;
     return this.status === 402 && error === "INSUFFICIENT_TOKENS";
   }
+  get isQuotaExceeded(): boolean {
+    const error = (this.body as { error?: string } | undefined)?.error;
+    return this.status === 402 || error === "QUOTA_EXCEEDED";
+  }
   get isUnauthorized(): boolean {
     return this.status === 401;
   }
@@ -305,7 +310,13 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     ...((init.headers as Record<string, string>) || {}),
   };
   headers["x-auth-mode"] = "cookie";
-  if (orgId) headers["x-organization-id"] = orgId;
+  if (orgId) {
+    headers["x-organization-id"] = orgId;
+    const sub = subscriptionEngine.getClaimedSubscription(orgId);
+    if (sub?.tierId) {
+      headers["x-subscription-tier"] = sub.tierId;
+    }
+  }
   if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
   const baseUrl = getApiBase();

@@ -3,6 +3,7 @@ import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-valid
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 /**
  * The body used to accept `Prisma.ProjectCreateInput` directly, which meant the
@@ -32,6 +33,7 @@ export class ProjectsController {
   constructor(
     private projectsService: ProjectsService,
     private readonly orgContext: OrgContextService,
+    private readonly quotaService: SubscriptionQuotaService,
   ) {}
 
   @Post()
@@ -39,6 +41,9 @@ export class ProjectsController {
     // Without this the caller could create a project inside any organization
     // id they cared to type, including one they have never been a member of.
     await this.orgContext.assertCanWrite(req.user.userId, body.organizationId);
+
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertWebsiteQuota(body.organizationId, tier);
 
     return this.projectsService.createProject({
       name: body.name,

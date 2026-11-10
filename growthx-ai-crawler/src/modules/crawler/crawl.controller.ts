@@ -14,6 +14,7 @@ import { SchedulerService } from '../scheduler/scheduler.service';
 import { HealthScoreCalculator } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
@@ -37,6 +38,7 @@ export class CrawlController {
     private readonly fixPreviewService: FixPreviewService,
     private readonly schedulerService: SchedulerService,
     private readonly orgContext: OrgContextService,
+    private readonly quotaService: SubscriptionQuotaService,
     private readonly verificationEngine: VerificationEngineService,
     private readonly urlInventory: UrlInventoryService,
   ) {}
@@ -146,6 +148,9 @@ export class CrawlController {
     const domain = normalizeWebsiteDomain(body.domain || body.url);
     if (!domain) throw new BadRequestException('URL or domain is required.');
     await this.orgContext.assertCanWrite(req.user?.userId, organizationId);
+
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertWebsiteQuota(organizationId, tier, domain);
 
     const existing = await this.prisma.website.findUnique({
       where: websiteKey(domain, OWN_SCOPE),
@@ -259,7 +264,7 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
-  async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
+  async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean; pageLimit?: number }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
 
     // resolved an organization for the *caller*, but nothing
@@ -271,7 +276,9 @@ export class CrawlController {
       : await this.websiteForCaller(req, { domain: body.domain as string }, 'write');
 
     await this.assertCrawlCapacity(website.id, website.project!.organizationId);
-    const jobId = await this.crawlerService.startCrawlJob(website.id, body);
+    const tier = this.quotaService.resolveTier(req);
+    const pageLimit = this.quotaService.clampCrawlPageLimit(body.pageLimit, tier);
+    const jobId = await this.crawlerService.startCrawlJob(website.id, { ...body, pageLimit });
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }
 

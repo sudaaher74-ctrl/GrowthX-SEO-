@@ -13,6 +13,7 @@ import { AiVisibilityAdapter } from './ai-visibility.adapter';
 import { AiVisibilityController } from './ai-visibility.controller';
 import { VisibilityContextService } from './visibility-context.service';
 import { VisibilityWorkflowService } from './visibility-workflow.service';
+import { OrganizationsModule } from '../organizations/organizations.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { VisibilityWorkflowService } from './visibility-workflow.service';
     AiSearchModule,
     SearchIntelligenceModule,
     CompetitorActionEngineModule,
+    OrganizationsModule,
     forwardRef(() => OpportunitiesModule),
   ],
   controllers: [AiVisibilityController],

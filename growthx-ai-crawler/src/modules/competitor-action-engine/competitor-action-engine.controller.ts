@@ -13,6 +13,7 @@ import { WebsiteComparisonService } from './website-comparison.service';
 import { CompetitorSeoReportService } from './competitor-seo-report.service';
 import { CompetitorIntelReportService } from './competitor-intel-report.service';
 import { CompetitorInterceptService } from './competitor-intercept.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 import { ProgrammaticDecompilerService } from './programmatic-decompiler.service';
 import { RivalMovesService } from './rival-moves.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -158,6 +159,7 @@ export class CompetitorActionEngineController {
     private readonly movesFeed: RivalMovesService,
     private readonly prisma: PrismaService,
     private readonly intelReport: CompetitorIntelReportService,
+    private readonly quotaService: SubscriptionQuotaService,
   ) {}
 
   @Get('website-comparison')
@@ -221,13 +223,16 @@ export class CompetitorActionEngineController {
   }
 
   @Post('competitors')
-  @ApiOperation({ summary: 'Track a competitor', description: 'Up to five per project.' })
-  addCompetitor(
+  @ApiOperation({ summary: 'Track a competitor', description: 'Subject to subscription plan competitor limits.' })
+  async addCompetitor(
     @Req() req: any,
     @Param('projectId') projectId: string,
     @Body() body: CompetitorDto,
   ) {
-    return this.setup.create(req.user?.organizationId || req.organizationId, projectId, body);
+    const tier = this.quotaService.resolveTier(req);
+    await this.quotaService.assertCompetitorQuota(projectId, tier);
+    const limits = this.quotaService.getLimits(tier);
+    return this.setup.create(req.user?.organizationId || req.organizationId, projectId, body, limits.competitors);
   }
 
   @Patch('competitors/:competitorId')
