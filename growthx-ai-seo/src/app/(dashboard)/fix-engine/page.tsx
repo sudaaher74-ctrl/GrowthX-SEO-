@@ -80,7 +80,7 @@ function FixEngineClient() {
     <div className="space-y-6 pb-16">
       <PageHeader
         title="Fix Engine"
-        subtitle="Your complete fix and improvement plan across Website Audit, Traffic, Competitor Intelligence, Backlinks, and AI Visibility — apply updates via GitHub, WordPress, Shopify, Webflow, or Manual CMS with Before & After proof and a complete Improvement Log."
+        subtitle="Automated SEO remediations, staged code pull requests, and live CMS updates."
         actions={
           <div className="flex items-center gap-2">
             <a href="/reports/plan" className="text-[12px] font-semibold text-accent-700 hover:underline">Complete plan report →</a>
@@ -99,12 +99,12 @@ function FixEngineClient() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-[14.5px] font-bold text-brand-950">
-                    Fix Engine Autonomous Orchestrator
+                    Remediation Pipeline
                   </h2>
                   {stagedTasksCount > 0 ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-signal-400/40 bg-signal-400/15 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-brand-950">
                       <Zap size={11} className="text-signal-500" />
-                      {stagedTasksCount} Staged from Intelligence Tabs
+                      {stagedTasksCount} Staged
                     </span>
                   ) : (
                     <span className="rounded-full bg-surface-2 border border-brand-200/70 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
@@ -119,7 +119,7 @@ function FixEngineClient() {
                   )}
                 </div>
                 <p className="mt-0.5 text-[11.5px] text-brand-400">
-                  Consolidated 30-day autonomous action plan uniting Website Audit, Traffic, Competitor Radar, SERP Striking Distance, and AI Visibility gaps.
+                  Consolidated action plan from technical audit, search, and AI visibility findings.
                 </p>
               </div>
             </div>
