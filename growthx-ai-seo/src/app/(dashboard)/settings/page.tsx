@@ -256,94 +256,6 @@ function SettingsClient() {
         </button>
       </div>
 
-      {/* Executive Integrations & Environment Health Ribbon */}
-      <div className="mb-6 rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-950 border border-brand-200 shadow-2xs">
-              <Plug className="h-5 w-5 text-signal-400" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-brand-950 font-mono">
-                  {currentProject?.name || "Global Workspace"}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10px] font-bold font-mono text-success-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-                  {totalConnectedServices} Service{totalConnectedServices === 1 ? "" : "s"} Connected
-                </span>
-              </div>
-              <p className="text-xs text-brand-500">
-                Live search telemetry, repository staging guard, and CMS publishing endpoints.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Integration Status Badges */}
-        <div className="mt-3.5 pt-3 border-t border-brand-200/60 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
-            <span className="font-semibold text-brand-950">Search Console</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
-                isGscConnected
-                  ? "bg-success-50 text-success-700 border border-success-200"
-                  : "bg-brand-100 text-brand-600 border border-brand-200"
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", isGscConnected ? "bg-success-500" : "bg-brand-400")} />
-              {isGscConnected ? "Active" : "Ready"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
-            <span className="font-semibold text-brand-950">Analytics 4</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
-                isGa4Connected
-                  ? "bg-success-50 text-success-700 border border-success-200"
-                  : "bg-brand-100 text-brand-600 border border-brand-200"
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", isGa4Connected ? "bg-success-500" : "bg-brand-400")} />
-              {isGa4Connected ? "Active" : "Ready"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
-            <span className="font-semibold text-brand-950">GitHub Agent</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
-                isGitHubConnected
-                  ? "bg-success-50 text-success-700 border border-success-200"
-                  : "bg-brand-100 text-brand-600 border border-brand-200"
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", isGitHubConnected ? "bg-success-500" : "bg-brand-400")} />
-              {isGitHubConnected ? "Branch PR" : "Manual"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-surface-2 p-2.5 border border-brand-200/60">
-            <span className="font-semibold text-brand-950">CMS Endpoints</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
-                isCmsConnected
-                  ? "bg-success-50 text-success-700 border border-success-200"
-                  : "bg-brand-100 text-brand-600 border border-brand-200"
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", isCmsConnected ? "bg-success-500" : "bg-brand-400")} />
-              {cmsLabel}
-            </span>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-12">
         {/* Left Sidebar Navigation */}
         <aside className="space-y-6 md:col-span-3">
@@ -704,62 +616,19 @@ function IntegrationsView() {
         </div>
       )}
 
-      {/* Integration Health & Pipeline Safety Banner */}
-      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 border border-primary-100 shadow-2xs">
-              <Plug className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-bold text-brand-950">Integration Health &amp; Pipeline Safety</h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-                  {totalConnected > 0 ? `${totalConnected} Service${totalConnected === 1 ? "" : "s"} Connected` : "Ready to Connect"}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-brand-500">
-                Live search telemetry ingestion, verified analytics synchronization, and protected isolated pull-request workflows.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-success-200 bg-success-50/50 px-3 py-1.5 text-xs font-semibold text-success-800">
-              <ShieldCheck className="h-3.5 w-3.5 text-success-600" />
-              <span>Isolated Branch Guard</span>
-            </div>
-          </div>
+      {/* Integrations Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-brand-950">Integrations</h2>
+          <p className="text-xs text-brand-500">Connect search telemetry, GitHub, and CMS platforms</p>
         </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 border-t border-brand-100 pt-3 text-xs">
-          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
-            <span className="text-brand-500">Telemetry Ingestion</span>
-            <span className="font-semibold text-brand-800">
-              {isGscConnected && isGa4Connected ? "GSC + GA4 Active" : isGscConnected ? "GSC Active" : isGa4Connected ? "GA4 Active" : "Read-only Ready"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
-            <span className="text-brand-500">Code Execution Path</span>
-            <span className="font-semibold text-brand-800">
-              {isGitHubConnected ? "Branch PR Staging" : "Manual Export Only"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between rounded-xl bg-brand-50/40 p-2.5 border border-brand-100">
-            <span className="text-brand-500">CMS Staging Hook</span>
-            <span className="font-semibold text-brand-800">
-              {wpQuery.data?.connected ? "WordPress Drafts" : shopifyQuery.data?.connected ? "Shopify Staged" : webflowQuery.data?.connected ? "Webflow Staged" : "Draft / Staging Safe"}
-            </span>
-          </div>
-        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-semibold text-brand-800">
+          <span className={cn("h-1.5 w-1.5 rounded-full", totalConnected > 0 ? "bg-success-500" : "bg-brand-400")} />
+          <span>{totalConnected} {totalConnected === 1 ? "Service" : "Services"} Connected</span>
+        </span>
       </div>
 
       <div>
-        <div className="mb-3">
-          <h2 className="text-base font-bold text-brand-950">Connected services</h2>
-          <p className="text-xs text-brand-500">Connect the tools you want Reigel to use.</p>
-        </div>
-
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Google Search Console */}
           <section className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs transition hover:border-brand-300">
@@ -2144,13 +2013,6 @@ function WebsitesView() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-brand-200 bg-surface-2 p-3.5 text-xs text-brand-700">
-        <p className="font-semibold text-brand-950">Active Subscription Allocation ({plan?.name || "Founder Early Access Pass"}):</p>
-        <p className="mt-0.5 text-brand-500">
-          Your workspace tier entitles you to monitor <strong>{websiteCap} website{websiteCap === 1 ? "" : "s"}</strong> with up to <strong>{crawlCap.toLocaleString()} pages crawl capacity</strong> and <strong>{aiCycles} AI Visibility audit cycles</strong> per month.
-        </p>
-      </div>
-
       <div className="space-y-3">
         {clients.map((c) => (
           <div
@@ -2204,14 +2066,13 @@ function CreditsView() {
 
   if (!data || !isActive(data)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-4xl">
         <div>
           <h2 className="text-base font-bold text-brand-950">Credits</h2>
-          <p className="text-xs text-brand-500">Monitor credit consumption, active allocations, and plan allowances</p>
+          <p className="text-xs text-brand-500">Workspace balance and monthly allowance</p>
         </div>
         <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
-          <p className="text-xs font-bold text-brand-950">Credits are switched off or loading…</p>
-          <p className="mt-1 text-xs text-brand-500">Nothing in this workspace is limited or billed.</p>
+          <p className="text-xs font-semibold text-brand-700">Credits are loading…</p>
         </div>
       </div>
     );
@@ -2222,64 +2083,75 @@ function CreditsView() {
   const pct = Math.round((data.allowance.remaining / Math.max(1, data.allowance.granted)) * 100);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="text-base font-bold text-brand-950">Credits</h2>
-        <p className="text-xs text-brand-500">Monitor credit consumption, active allocations, and plan allowances</p>
+        <p className="text-xs text-brand-500">Workspace balance and monthly allowance</p>
       </div>
 
       <div className="rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-brand-400">Available Credits</p>
-            <p className="mt-1 text-3xl font-extrabold text-brand-950">
-              {formatTokens(data.available)} <span className="text-lg font-semibold text-brand-500">credits</span>
-            </p>
-            <p className="mt-1 text-xs text-brand-500">
-              {formatTokensExact(data.available)} available · Refills on {refills}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                Available Balance
+              </span>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold border",
+                  standing === "out"
+                    ? "bg-error-50 text-error-700 border-error-200"
+                    : standing === "low"
+                      ? "bg-warning-50 text-warning-700 border-warning-200"
+                      : "bg-success-50 text-success-700 border-success-200"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    standing === "out" ? "bg-error-600" : standing === "low" ? "bg-warning-600" : "bg-success-600"
+                  )}
+                />
+                {standing === "out" ? "Exhausted" : standing === "low" ? "Low" : "Healthy"}
+              </span>
+            </div>
+            <h3 className="mt-1 text-2xl font-black text-brand-950">
+              {formatTokens(data.available)}{" "}
+              <span className="text-sm font-normal text-brand-500">credits</span>
+            </h3>
+            <p className="mt-0.5 text-xs text-brand-500">
+              {formatTokensExact(data.available)} credits · Refills on {refills}
             </p>
           </div>
+
           <button
             type="button"
             onClick={() => router.push("/tokens")}
-            className="rounded-xl bg-signal-400 px-4 py-2 text-xs font-extrabold text-signal-ink shadow-xs hover:bg-signal-500 active:scale-95 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 hover:bg-surface-3 px-3.5 py-2 text-xs font-bold text-brand-950 transition cursor-pointer self-start sm:self-auto shadow-2xs"
           >
-            View Full Credit Ledger &amp; Rates
+            <span>View credit ledger</span>
+            <ArrowRight size={13} className="text-brand-500" />
           </button>
         </div>
 
-        <div className="mt-6 border-t border-brand-200/80 pt-5">
+        <div className="mt-5 border-t border-brand-200/80 pt-4">
           <div className="flex items-center justify-between text-xs font-semibold text-brand-700">
-            <span>Monthly Allowance Left</span>
+            <span>Monthly allowance</span>
             <span className="font-mono text-brand-950">
               {formatTokens(data.allowance.remaining)} / {formatTokens(data.allowance.granted)} ({pct}%)
             </span>
           </div>
-          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-2 border border-brand-200">
             <div
               className="h-full rounded-full bg-signal-400 transition-all"
               style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
             />
           </div>
-          <div className="mt-4 flex items-center justify-between text-[11px] text-brand-500">
-            <span>
-              Bonus credits: <strong className="text-brand-800">{formatTokens(data.bonus)}</strong> (never expire)
-            </span>
-            <span>
-              Standing:{" "}
-              <strong
-                className={
-                  standing === "out"
-                    ? "text-error-600"
-                    : standing === "low"
-                      ? "text-warning-600"
-                      : "text-success-600"
-                }
-              >
-                {standing === "out" ? "Exhausted" : standing === "low" ? "Low" : "Healthy"}
-              </strong>
-            </span>
-          </div>
+          {data.bonus > 0 && (
+            <p className="mt-2 text-[11px] text-brand-400">
+              +{formatTokens(data.bonus)} bonus credits (never expire)
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -2404,7 +2276,7 @@ function AgentsView() {
             </span>
           </div>
           <p className="mt-0.5 text-xs text-brand-500">
-            Configure background crawling schedules, automated pull request remediation, and AI search monitoring
+            Configure automated crawling schedules and pull request remediation
           </p>
         </div>
 

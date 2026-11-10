@@ -209,28 +209,28 @@ function WebsiteAuditClient() {
   // Dynamic Header Titles and Subtitles based on Active Tab
   const headerContent = {
     "technical-seo": {
-      title: "Technical health",
-      subtitle: "Problems that stop Google from finding, reading or showing your pages, and how to fix each one.",
+      title: "Technical Health",
+      subtitle: "Crawl issues, indexability status, and technical blockers.",
     },
     performance: {
-      title: "Speed",
-      subtitle: "How fast your pages load for visitors, and what slows them down.",
+      title: "Speed & Vitals",
+      subtitle: "Page speed metrics, Core Web Vitals, and load times.",
     },
     pages: {
       title: "Pages",
-      subtitle: "Every page we read on your website, whether Google can show it, and which ones need work.",
+      subtitle: "Discovered pages, HTTP response status, and indexability.",
     },
     content: {
-      title: "Content",
-      subtitle: "Your page titles, the descriptions Google shows, headlines, and how much useful text each page has.",
+      title: "Content & Meta",
+      subtitle: "Titles, meta descriptions, headings, and page structure.",
     },
     issues: {
-      title: "Problems to fix",
-      subtitle: "Every problem the audit found, with what to do about each one and who can do it.",
+      title: "Problems to Fix",
+      subtitle: "Prioritized issues with automated and guided remediations.",
     },
     report: {
-      title: "Full report",
-      subtitle: "Everything the audit found in one plain-language report you can download, print or share.",
+      title: "Audit Report",
+      subtitle: "Executive summary and technical findings for this domain.",
     },
   }[activeTab];
 
