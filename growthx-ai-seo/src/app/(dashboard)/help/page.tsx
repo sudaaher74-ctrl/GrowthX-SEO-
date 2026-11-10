@@ -129,12 +129,12 @@ export default function HelpPage() {
             Help &amp; Knowledge Base
           </h1>
           <p className="mt-1 text-xs text-brand-500">
-            Answers, tutorials, and support channels for the Reigel autonomous SEO platform
+            Guides, FAQs, and support channels.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/20 px-3 py-1 font-mono text-xs font-bold text-brand-950 border border-brand-200">
           <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-          <span>Support Center Online</span>
+          <span>Online</span>
         </span>
       </div>
 
@@ -158,9 +158,9 @@ export default function HelpPage() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
               <Compass size={18} />
             </span>
-            <h3 className="mt-3 font-bold text-brand-950 text-sm">Interactive Product Tour</h3>
+            <h3 className="mt-3 font-bold text-brand-950 text-sm">Interactive Tour</h3>
             <p className="mt-1 text-xs text-brand-500 leading-relaxed">
-              Step-by-step walkthrough covering the site switcher, spider crawler, and AI visibility tracker.
+              Step-by-step walkthrough covering crawler, fix engine, and AI visibility.
             </p>
           </div>
           <button
@@ -181,14 +181,14 @@ export default function HelpPage() {
             </span>
             <h3 className="mt-3 font-bold text-brand-950 text-sm">Free Founder Access</h3>
             <p className="mt-1 text-xs text-brand-500 leading-relaxed">
-              100% Free through Dec 31, 2026. Includes 1 website, 5,000 crawl pages, and 2 AI audit cycles.
+              1 website, 5,000 crawl pages, and 2 monthly AI audit cycles through Dec 2026.
             </p>
           </div>
           <Link
             href="/settings?tab=subscription"
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-2 text-xs font-semibold text-brand-700 hover:bg-surface-3 hover:text-brand-950 transition"
           >
-            <span>View Subscription Quotas</span>
+            <span>View Quotas</span>
             <ArrowRight size={12} />
           </Link>
         </div>
@@ -201,7 +201,7 @@ export default function HelpPage() {
             </span>
             <h3 className="mt-3 font-bold text-brand-950 text-sm">Email Support</h3>
             <p className="mt-1 text-xs text-brand-500 leading-relaxed">
-              Reach our engineering and SEO team directly for technical assistance and onboarding help.
+              Direct technical assistance from our engineering team.
             </p>
           </div>
           <a
@@ -317,7 +317,7 @@ export default function HelpPage() {
           <div>
             <h3 className="text-xs font-bold text-brand-950">Autonomous SEO Playbook</h3>
             <p className="text-xs text-brand-500">
-              Learn how to connect autonomous agents, run technical spider audits, and verify search results.
+              Setup guide for spider crawls, GitHub PRs, and CMS publishing.
             </p>
           </div>
         </div>

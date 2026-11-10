@@ -164,7 +164,7 @@ function Journey({ projectId }: { projectId: string }) {
   };
 
   return <div className="space-y-5 pb-12">
-    <PageHeader title="AI Visibility" subtitle="Find out whether AI recommends your business — and what to improve next." actions={<>
+    <PageHeader title="AI Visibility" subtitle="Monitor AI recommendations and brand citations across LLMs." actions={<>
       {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Bot size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
       <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
     </>} />
@@ -180,7 +180,7 @@ function Journey({ projectId }: { projectId: string }) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-[14.5px] font-bold text-brand-950">
-                  AI Search Recommendation Health
+                  AI Recommendation Health
                 </h2>
                 {measured.length > 0 ? (
                   <span
@@ -193,7 +193,7 @@ function Journey({ projectId }: { projectId: string }) {
                           : "bg-error-50 text-error-700 border border-error-200/60",
                     )}
                   >
-                    {recommendationRate}% Recommendation Rate ({recommended}/{measured.length})
+                    {recommendationRate}% Cited ({recommended}/{measured.length})
                   </span>
                 ) : (
                   <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
@@ -208,7 +208,7 @@ function Journey({ projectId }: { projectId: string }) {
                 )}
               </div>
               <p className="mt-0.5 text-[11.5px] text-brand-400">
-                Measuring real LLM prompt synthesis across ChatGPT, Google Gemini, Claude, and Perplexity.
+                Live synthesis across ChatGPT, Gemini, Claude, and Perplexity.
               </p>
             </div>
           </div>
@@ -304,11 +304,11 @@ function Journey({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2">
             <ShieldCheck size={14} className="text-signal-400 shrink-0" />
             <span className="font-semibold text-brand-950 text-[11.5px]">
-              Autonomous Entity &amp; Sentiment Defense:
+              Entity Defense:
             </span>
             <span className="text-brand-500 text-[11px]">
               {competitorIntercepts.length > 0
-                ? `${competitorIntercepts.length} prompts cited competitors instead of your brand.`
+                ? `${competitorIntercepts.length} competitor intercepts recorded in prompts.`
                 : "Brand citations stable across connected generative engines."}
             </span>
           </div>
@@ -326,7 +326,7 @@ function Journey({ projectId }: { projectId: string }) {
                 className="inline-flex items-center gap-1 rounded-lg bg-signal-400 hover:bg-signal-500 text-signal-ink px-2.5 py-1 text-[11px] font-bold transition shadow-2xs cursor-pointer"
               >
                 <Zap size={11} className="text-signal-ink" />
-                <span>Stage Knowledge Graph Defense</span>
+                <span>Stage Knowledge Graph</span>
               </button>
             )}
 
@@ -342,7 +342,7 @@ function Journey({ projectId }: { projectId: string }) {
                 className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 hover:bg-surface-2 text-brand-950 px-2.5 py-1 text-[11px] font-bold transition shadow-2xs cursor-pointer"
               >
                 <Zap size={11} className="text-signal-400" />
-                <span>Stage Anti-Hallucination FAQs</span>
+                <span>Stage FAQ Defense</span>
               </button>
             )}
           </div>
@@ -378,7 +378,7 @@ function Journey({ projectId }: { projectId: string }) {
           )}
         >
           <LayoutGrid size={14} className={activeTab === "prompts" ? "text-signal-500" : "text-brand-400"} />
-          <span>Tracked Prompts &amp; Gap Matrix</span>
+          <span>Tracked Prompts</span>
           <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
             {run?.brief?.questions?.length ?? 0}
           </span>
@@ -395,7 +395,7 @@ function Journey({ projectId }: { projectId: string }) {
           )}
         >
           <Sparkles size={14} className={activeTab === "simulator" ? "text-signal-500" : "text-brand-400"} />
-          <span>AI Overviews &amp; SearchGPT SERP Visualizer</span>
+          <span>SERP Simulator</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/20 px-2 py-0.2 text-[10px] font-mono text-brand-900 border border-brand-200">
             <span className="h-1.5 w-1.5 rounded-full bg-signal-500 animate-pulse" />
             Live
@@ -413,7 +413,7 @@ function Journey({ projectId }: { projectId: string }) {
           )}
         >
           <Bot size={14} className={activeTab === "answers" ? "text-signal-500" : "text-brand-400"} />
-          <span>Model Responses &amp; Citations</span>
+          <span>Model Responses</span>
           <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
             {data?.answers?.length ?? 0}
           </span>
@@ -430,7 +430,7 @@ function Journey({ projectId }: { projectId: string }) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
-          <span>Plan Allowance: <strong>{run ? 1 : 0} of {aiCyclesGranted}</strong> Monthly AI Cycles Used</span>
+          <span><strong>{run ? 1 : 0} / {aiCyclesGranted}</strong> AI Cycles Used</span>
           <ArrowRight size={11} className="text-brand-400" />
         </Link>
       </div>
@@ -445,10 +445,10 @@ function Journey({ projectId }: { projectId: string }) {
           </div>
           <div>
             <p className="text-xs font-bold text-brand-950">
-              Monthly AI Visibility cycle limit reached (1/{aiCyclesGranted} cycle used on {plan?.name || "Starter"})
+              Monthly cycle limit reached (1/{aiCyclesGranted} used)
             </p>
             <p className="text-[11px] text-brand-500">
-              Upgrade to Growth for 10 monthly cycles or Agency for 50 cycles across ChatGPT, Gemini, Claude, and Perplexity.
+              Upgrade to Growth or Agency for up to 50 monthly cycles.
             </p>
           </div>
         </div>
@@ -456,7 +456,7 @@ function Journey({ projectId }: { projectId: string }) {
           href="/settings?tab=subscription"
           className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
         >
-          <span>Upgrade Monthly Cycles</span>
+          <span>Upgrade Cycles</span>
           <ArrowRight size={12} />
         </Link>
       </div>

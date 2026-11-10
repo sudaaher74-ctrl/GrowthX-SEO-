@@ -457,7 +457,7 @@ function CompetitorIntelligenceClient() {
                 className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/50 bg-signal-400/10 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-signal-400/20 transition shadow-2xs"
               >
                 <Crown size={12} className="text-signal-400" />
-                <span>{competitorsList.length}/{competitorsCap} Rivals (Upgrade)</span>
+                <span>{competitorsList.length}/{competitorsCap} Competitors</span>
                 <ArrowRight size={11} className="text-brand-400" />
               </Link>
             ) : (
@@ -535,12 +535,10 @@ function CompetitorIntelligenceClient() {
             </div>
             <div>
               <p className="text-xs font-bold text-brand-950">
-                Tracked competitor limit reached ({competitorsList.length} of {competitorsCap} rivals on {plan?.name || "Active Tier"})
+                Competitor limit reached ({competitorsList.length}/{competitorsCap} tracked)
               </p>
               <p className="text-[11px] text-brand-500">
-                {competitorsCap <= 3
-                  ? "Upgrade to Growth to track up to 10 rivals with daily AI battleground sweeps."
-                  : "Upgrade to Agency to track up to 25 rivals across all your markets and brands."}
+                Upgrade plan to track additional competitors across your markets.
               </p>
             </div>
           </div>
@@ -548,7 +546,7 @@ function CompetitorIntelligenceClient() {
             href="/settings?tab=subscription"
             className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
           >
-            <span>Upgrade Rival Limit</span>
+            <span>Upgrade Plan</span>
             <ArrowRight size={12} />
           </Link>
         </div>

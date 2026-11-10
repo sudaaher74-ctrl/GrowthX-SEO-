@@ -351,7 +351,7 @@ export function KeywordsView() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-[14.5px] font-bold text-brand-950">
-                    Organic Search Performance Barometer
+                    Search Performance
                   </h2>
                   <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
                     {totalKeywords} tracked queries
@@ -368,7 +368,7 @@ export function KeywordsView() {
                   )}
                 </div>
                 <p className="mt-0.5 text-[11.5px] text-brand-400">
-                  Search Console telemetry: monitor ranking distribution, striking distance lifts, and CTR optimization opportunities.
+                  Search Console telemetry: ranking distribution, striking distance, and CTR lifts.
                 </p>
               </div>
             </div>
