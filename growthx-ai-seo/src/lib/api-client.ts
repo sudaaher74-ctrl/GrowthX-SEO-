@@ -178,7 +178,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, AiVisibilitySettings, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -1102,6 +1102,19 @@ export const api = {
   // ── AI visibility
   getVisibility: (projectId: string, days = 28) =>
     get<VisibilityReport>(`/api/projects/${projectId}/ai-visibility?days=${days}`),
+  getAiVisibilitySettings: (projectId: string) =>
+    get<AiVisibilitySettings>(`/api/projects/${projectId}/ai-visibility/settings`),
+  updateAiVisibilitySettings: (
+    projectId: string,
+    settings: {
+      targetCountry?: string;
+      targetCity?: string | null;
+      targetLanguages?: string[];
+      enabledModels?: string[];
+      useOpenRouter?: boolean;
+    },
+  ) =>
+    patch<AiVisibilitySettings>(`/api/projects/${projectId}/ai-visibility/settings`, settings),
   listTrackedPrompts: (projectId: string) =>
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   getSuggestedPromptsFromGsc: (projectId: string) =>

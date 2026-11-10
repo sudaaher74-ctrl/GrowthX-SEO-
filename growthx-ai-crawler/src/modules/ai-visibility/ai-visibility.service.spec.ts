@@ -71,6 +71,9 @@ describe('AI visibility dashboard contract', () => {
       { assistant: 'GEMINI', model: 'gemini-model', checked: 2, cited: 1, citationSharePct: 50 },
       { assistant: 'OPENAI', model: 'openai-model', checked: 0, cited: 0, citationSharePct: 0 },
     ]);
+    expect(report.byLanguage).toBeDefined();
+    expect(report.locationSupport).toBeDefined();
+    expect(report.locationSupport.targetCountry).toBe('IN');
     expect(report.trend[0]).toMatchObject({ checked: 2, citationSharePct: 50 });
   });
 

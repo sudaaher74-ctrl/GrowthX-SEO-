@@ -57,6 +57,63 @@ export class AiVisibilityController {
     return this.aiVisibilityService.getReport(projectId, daysNum);
   }
 
+  @Get('settings')
+  async getSettings(@Param('projectId') projectId: string) {
+    let settings = await this.prisma.aiVisibilitySettings.findUnique({
+      where: { projectId },
+    });
+
+    if (!settings) {
+      settings = await this.prisma.aiVisibilitySettings.create({
+        data: {
+          projectId,
+          enabledModels: ['GEMINI', 'OPENAI', 'PERPLEXITY'],
+          targetCountry: 'IN',
+          targetCity: null,
+          targetLanguages: ['en'],
+        },
+      });
+    }
+
+    return settings;
+  }
+
+  @Patch('settings')
+  async updateSettings(
+    @Param('projectId') projectId: string,
+    @Body() body: {
+      targetCountry?: string;
+      targetCity?: string;
+      targetLanguages?: string[];
+      enabledModels?: string[];
+      useOpenRouter?: boolean;
+    },
+  ) {
+    const validLanguages = ['en', 'hi', 'hinglish', 'mr'];
+    const sanitizedLanguages = body.targetLanguages
+      ? body.targetLanguages.filter((l) => validLanguages.includes(l.toLowerCase()))
+      : undefined;
+
+    return this.prisma.aiVisibilitySettings.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        targetCountry: body.targetCountry?.trim() || 'IN',
+        targetCity: body.targetCity?.trim() || null,
+        targetLanguages: sanitizedLanguages && sanitizedLanguages.length > 0 ? sanitizedLanguages : ['en'],
+        enabledModels: body.enabledModels || ['GEMINI', 'OPENAI', 'PERPLEXITY'],
+        useOpenRouter: Boolean(body.useOpenRouter),
+      },
+      update: {
+        ...(body.targetCountry !== undefined ? { targetCountry: body.targetCountry.trim() } : {}),
+        ...(body.targetCity !== undefined ? { targetCity: body.targetCity ? body.targetCity.trim() : null } : {}),
+        ...(sanitizedLanguages ? { targetLanguages: sanitizedLanguages } : {}),
+        ...(body.enabledModels ? { enabledModels: body.enabledModels } : {}),
+        ...(body.useOpenRouter !== undefined ? { useOpenRouter: body.useOpenRouter } : {}),
+      },
+    });
+  }
+
   @Post('sweep')
   async runSweep(@Req() req: any, @Param('projectId') projectId: string) {
     const tier = this.quotaService.resolveTier(req);

@@ -200,4 +200,41 @@ describe('PromptEngineService', () => {
       ).rejects.toThrow('Tracked prompt limit reached');
     });
   });
+
+  describe('generateLanguageVariants', () => {
+    it('returns only english prompt when no non-english languages requested', async () => {
+      const variants = await service.generateLanguageVariants(
+        'What is the best SEO agency in Pune?',
+        ['en'],
+      );
+      expect(variants).toEqual([{ language: 'en', text: 'What is the best SEO agency in Pune?' }]);
+      expect(aiRouter.generate).not.toHaveBeenCalled();
+    });
+
+    it('generates Hindi, Hinglish, and Marathi variants for Indian market', async () => {
+      aiRouter.generate.mockResolvedValue({
+        text: JSON.stringify({
+          variants: [
+            { language: 'hi', text: 'पुणे में सबसे अच्छी एसईओ एजेंसी कौन सी है?' },
+            { language: 'hinglish', text: 'Pune mein best SEO agency kaun si hai?' },
+            { language: 'mr', text: 'पुण्यात सर्वात चांगली एसईओ एजन्सी कोणती आहे?' },
+          ],
+        }),
+      });
+
+      const variants = await service.generateLanguageVariants(
+        'What is the best SEO agency in Pune?',
+        ['en', 'hi', 'hinglish', 'mr'],
+        'Pune',
+        'proj-1',
+      );
+
+      expect(variants).toHaveLength(4);
+      expect(variants[0]).toEqual({ language: 'en', text: 'What is the best SEO agency in Pune?' });
+      expect(variants[1]).toEqual({ language: 'hi', text: 'पुणे में सबसे अच्छी एसईओ एजेंसी कौन सी है?' });
+      expect(variants[2]).toEqual({ language: 'hinglish', text: 'Pune mein best SEO agency kaun si hai?' });
+      expect(variants[3]).toEqual({ language: 'mr', text: 'पुण्यात सर्वात चांगली एसईओ एजन्सी कोणती आहे?' });
+    });
+  });
 });
+

@@ -169,6 +169,31 @@ export class AiVisibilityService {
 
     const cycleId = this.getCycleId();
 
+    const targetCountry = settings?.targetCountry || 'IN';
+    const targetCity = settings?.targetCity || null;
+    const targetLanguages = (settings?.targetLanguages && settings.targetLanguages.length > 0)
+      ? settings.targetLanguages
+      : ['en'];
+
+    const isLocationSupportedForProvider = (provider: string) => {
+      const p = provider.toUpperCase();
+      return p.includes('GEMINI') || p.includes('GOOGLE') || p.includes('PERPLEXITY');
+    };
+
+    // Pre-generate language variants for prompts if multilingual is requested
+    const promptVariantsMap = new Map<string, Array<{ language: string; text: string }>>();
+    if (targetLanguages.length > 1) {
+      for (const prompt of prompts) {
+        const variants = await this.promptEngine.generateLanguageVariants(
+          prompt.text,
+          targetLanguages,
+          targetCity || undefined,
+          projectId,
+        );
+        promptVariantsMap.set(prompt.id, variants);
+      }
+    }
+
     // 3. Create a scan record
     const scan = await this.prisma.aiVisibilityScan.create({
       data: {
@@ -193,40 +218,52 @@ export class AiVisibilityService {
           },
         });
 
+        const isLocSupported = isLocationSupportedForProvider(config.provider);
+        const locationStr = isLocSupported
+          ? targetCity ? `${targetCity}, ${targetCountry}` : targetCountry
+          : null;
+
         for (const prompt of prompts) {
-          this.logger.debug(`Running prompt ${prompt.id} on ${config.label} (${config.model})`);
+          const variants = promptVariantsMap.get(prompt.id) || [{ language: 'en', text: prompt.text }];
 
-          const result = await this.providerAbstraction.runPrompt(
-            prompt.text,
-            config.provider,
-            project.organizationId,
-            projectId,
-            config.model,
-          );
+          for (const variant of variants) {
+            this.logger.debug(`Running prompt ${prompt.id} (${variant.language}) on ${config.label} (${config.model})`);
 
-          await this.prisma.aiVisibilityResponse.create({
-            data: {
-              scanRunId: scanRun.id,
-              promptId: prompt.id,
-              provider: config.provider,
-              model: result.model || config.model,
-              promptText: prompt.text,
-              promptVersion: 1,
-              rawResponse: result.text,
-              latencyMs: result.latencyMs,
-              inputTokens: result.inputTokens,
-              outputTokens: result.outputTokens,
-              totalTokens: result.inputTokens + result.outputTokens,
-              estimatedCost: result.costUsd || 0,
-              errorMessage: result.error || null,
-            },
-          });
+            const result = await this.providerAbstraction.runPrompt(
+              variant.text,
+              config.provider,
+              project.organizationId,
+              projectId,
+              config.model,
+            );
 
-          if (result.costUsd) {
-            totalCost += result.costUsd;
-          }
-          if (!result.error && result.text) {
-            completedCount++;
+            await this.prisma.aiVisibilityResponse.create({
+              data: {
+                scanRunId: scanRun.id,
+                promptId: prompt.id,
+                provider: config.provider,
+                model: result.model || config.model,
+                promptText: variant.text,
+                promptVersion: 1,
+                language: variant.language,
+                location: locationStr,
+                locationSupported: isLocSupported,
+                rawResponse: result.text,
+                latencyMs: result.latencyMs,
+                inputTokens: result.inputTokens,
+                outputTokens: result.outputTokens,
+                totalTokens: (result.inputTokens || 0) + (result.outputTokens || 0),
+                estimatedCost: result.costUsd || 0,
+                errorMessage: result.error || null,
+              },
+            });
+
+            if (result.costUsd) {
+              totalCost += result.costUsd;
+            }
+            if (!result.error && result.text) {
+              completedCount++;
+            }
           }
         }
 
@@ -322,6 +359,19 @@ export class AiVisibilityService {
           failedChecks: 0,
         },
         byAssistant: [] as any[],
+        byLanguage: [
+          { language: 'en', label: 'English', checked: 0, cited: 0, citationSharePct: 0 },
+        ],
+        locationSupport: {
+          targetCountry: 'IN',
+          targetCity: null,
+          engines: [
+            { assistant: 'GEMINI', name: 'Google Gemini', locationSupported: true, statusText: 'Targeted to India' },
+            { assistant: 'PERPLEXITY', name: 'Perplexity', locationSupported: true, statusText: 'Targeted to India' },
+            { assistant: 'OPENAI', name: 'ChatGPT', locationSupported: false, statusText: 'Not measured (city location context not supported by engine)' },
+            { assistant: 'ANTHROPIC', name: 'Claude', locationSupported: false, statusText: 'Not measured (city location context not supported by engine)' },
+          ],
+        },
         shareOfVoice: [] as any[],
         trend: [] as any[],
         measurableAssistants: this.providerAbstraction.configuredProviders(),
@@ -454,6 +504,77 @@ export class AiVisibilityService {
       mentions: s.mentions || 0,
     }));
 
+    const settings = await this.prisma.aiVisibilitySettings.findUnique({
+      where: { projectId },
+    });
+
+    // Calculate real visibility split by language (English, Hindi, Hinglish, Marathi)
+    const languageLabels: Record<string, string> = {
+      en: 'English',
+      hi: 'Hindi (हिंदी)',
+      hinglish: 'Hinglish',
+      mr: 'Marathi (मराठी)',
+    };
+
+    const byLanguageMap = new Map<string, { language: string; label: string; checked: number; cited: number; citationSharePct: number }>();
+    for (const resp of responses) {
+      if (resp.errorMessage || !resp.rawResponse) continue;
+      const lang = resp.language || 'en';
+      if (!byLanguageMap.has(lang)) {
+        byLanguageMap.set(lang, {
+          language: lang,
+          label: languageLabels[lang] || lang.toUpperCase(),
+          checked: 0,
+          cited: 0,
+          citationSharePct: 0,
+        });
+      }
+      const entry = byLanguageMap.get(lang)!;
+      entry.checked++;
+      if (resp.analysis?.brandMentioned) {
+        entry.cited++;
+      }
+    }
+
+    const byLanguage = Array.from(byLanguageMap.values()).map((item) => ({
+      ...item,
+      citationSharePct: item.checked > 0 ? Math.round((item.cited / item.checked) * 100) : 0,
+    }));
+
+    const targetCity = settings?.targetCity || null;
+    const targetCountry = settings?.targetCountry || 'IN';
+
+    const locationSupport = {
+      targetCountry,
+      targetCity,
+      engines: [
+        {
+          assistant: 'GEMINI',
+          name: 'Google Gemini',
+          locationSupported: true,
+          statusText: targetCity ? `Targeted to ${targetCity}, India via Google Grounding` : 'Targeted to India',
+        },
+        {
+          assistant: 'PERPLEXITY',
+          name: 'Perplexity',
+          locationSupported: true,
+          statusText: targetCity ? `Targeted to ${targetCity}, India via web retrieval` : 'Targeted to India',
+        },
+        {
+          assistant: 'OPENAI',
+          name: 'ChatGPT',
+          locationSupported: false,
+          statusText: 'Not measured (city location context not supported by engine)',
+        },
+        {
+          assistant: 'ANTHROPIC',
+          name: 'Claude',
+          locationSupported: false,
+          statusText: 'Not measured (city location context not supported by engine)',
+        },
+      ],
+    };
+
     return {
       periodStart,
       periodEnd,
@@ -467,6 +588,8 @@ export class AiVisibilityService {
         failedChecks,
       },
       byAssistant,
+      byLanguage,
+      locationSupport,
       shareOfVoice,
       trend,
       measurableAssistants,

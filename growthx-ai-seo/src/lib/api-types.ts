@@ -115,6 +115,36 @@ export interface VisibilityReport {
     discovery: { checked: number; cited: number; citationSharePct: number };
     recommendation: { checked: number; cited: number; citationSharePct: number };
   };
+  byLanguage?: {
+    language: string;
+    label: string;
+    checked: number;
+    cited: number;
+    citationSharePct: number;
+  }[];
+  locationSupport?: {
+    targetCountry: string;
+    targetCity: string | null;
+    engines: {
+      assistant: string;
+      name: string;
+      locationSupported: boolean;
+      statusText: string;
+    }[];
+  };
+}
+
+export interface AiVisibilitySettings {
+  id: string;
+  projectId: string;
+  enabledModels: string[];
+  useOpenRouter: boolean;
+  promptsQuota: number;
+  scansPerMonth: number;
+  targetCountry: string;
+  targetCity: string | null;
+  targetLanguages: string[];
+  updatedAt: string;
 }
 
 export interface AvAction {

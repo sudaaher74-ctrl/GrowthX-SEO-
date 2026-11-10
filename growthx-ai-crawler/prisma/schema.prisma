@@ -4305,6 +4305,8 @@ model AiVisibilityPrompt {
   journeyStage   String                      @default("DISCOVERY")
   isActive       Boolean                     @default(true)
   sourceQuery    String?
+  language       String                      @default("en")
+  parentPromptId String?
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   project        Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -4394,6 +4396,9 @@ model AiVisibilityResponse {
   estimatedCost  Float?
   status         String                        @default("SUCCESS")
   errorMessage   String?
+  language       String                        @default("en")
+  location       String?
+  locationSupported Boolean                    @default(true)
   createdAt      DateTime                      @default(now())
   
   scanRun        AiVisibilityScanRun           @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
@@ -4547,6 +4552,9 @@ model AiVisibilitySettings {
   useOpenRouter  Boolean              @default(false)
   promptsQuota   Int                  @default(10)
   scansPerMonth  Int                  @default(2)
+  targetCountry  String               @default("IN")
+  targetCity     String?
+  targetLanguages String[]            @default(["en"])
   updatedAt      DateTime             @updatedAt
 
   project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)

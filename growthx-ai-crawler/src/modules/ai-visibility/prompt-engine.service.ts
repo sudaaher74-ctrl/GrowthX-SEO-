@@ -518,5 +518,84 @@ CRITICAL REQUIREMENTS:
     this.logger.log(`Added ${created.length} prompts from GSC suggestions for project ${projectId}`);
     return { added: created.length, prompts: created };
   }
+
+  /**
+   * Generates natural language variants of a buyer prompt for the Indian market.
+   * Supported: 'en' (English), 'hi' (Hindi / हिंदी), 'hinglish' (Hinglish), 'mr' (Marathi / मराठी).
+   */
+  async generateLanguageVariants(
+    promptText: string,
+    targetLanguages: string[],
+    city?: string,
+    projectId?: string,
+  ): Promise<Array<{ language: string; text: string }>> {
+    const validLanguages = targetLanguages
+      .map((l) => l.toLowerCase().trim())
+      .filter((l) => ['en', 'hi', 'hinglish', 'mr'].includes(l));
+
+    if (validLanguages.length === 0) {
+      return [{ language: 'en', text: promptText }];
+    }
+
+    const nonEnglish = validLanguages.filter((l) => l !== 'en');
+    if (nonEnglish.length === 0) {
+      return [{ language: 'en', text: promptText }];
+    }
+
+    const systemPrompt = `You are a regional Indian search intent and multilingual prompt engineer.
+Adapt the following English buyer question into high-intent conversational questions for Indian users in the requested languages:
+- 'hi': Natural Hindi written in Devanagari script (e.g. "मुंबई में सबसे अच्छी डिजिटल मार्केटिंग एजेंसी कौन सी है?")
+- 'hinglish': Conversational Hinglish in Latin script as spoken and typed across India (e.g. "Mumbai mein best digital marketing agency kaun si hai?")
+- 'mr': Natural Marathi in Devanagari script (e.g. "मुंबईमध्ये सर्वात चांगली डिजिटल मार्केटिंग एजन्सी कोणती आहे?")
+
+CRITICAL RULES:
+1. Preserve the exact buyer intent, industry context, and city (${city || 'local market'}).
+2. Ensure colloquial authenticity — use phrasing actual Indian consumers type into ChatGPT, Gemini, or Perplexity.
+3. Keep brand names or technical terms untranslated when commonly referenced that way.
+`;
+
+    try {
+      const completion = await this.aiRouter.generate({
+        prompt: `Convert this buyer question into the following languages [${nonEnglish.join(', ')}]:\n"${promptText}"`,
+        systemInstruction: systemPrompt,
+        task: AiTask.FAST,
+        provider: AiProvider.GEMINI,
+        model: 'gemini-2.5-flash-lite',
+        projectId,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            variants: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  language: { type: 'string', enum: ['hi', 'hinglish', 'mr'] },
+                  text: { type: 'string' },
+                },
+                required: ['language', 'text'],
+              },
+            },
+          },
+          required: ['variants'],
+        },
+      });
+
+      const parsed = JSON.parse(completion.text || '{}');
+      const variants: Array<{ language: string; text: string }> = parsed.variants || [];
+
+      const results = [{ language: 'en', text: promptText }];
+      for (const lang of nonEnglish) {
+        const found = variants.find((v) => v.language.toLowerCase() === lang.toLowerCase());
+        if (found && found.text?.trim()) {
+          results.push({ language: lang.toLowerCase(), text: found.text.trim() });
+        }
+      }
+      return results;
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate language variants for prompt "${promptText}": ${err.message}`);
+      return [{ language: 'en', text: promptText }];
+    }
+  }
 }
 

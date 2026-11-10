@@ -44,6 +44,7 @@ import { QueryState } from "@/components/ui/query-state";
 import { EvidenceLinks, AnswerResults, GapResults } from "./visibility-journey-results";
 import { GapPlanModal } from "./gap-plan-modal";
 import { GscSuggestedPromptsSection } from "./gsc-suggested-prompts";
+import { IndiaLocalizationDock } from "./india-localization-dock";
 import { AiSerpVisualizer } from "./ai-serp-visualizer";
 
 export function VisibilityJourneyPage() {
@@ -549,6 +550,9 @@ function Journey({ projectId }: { projectId: string }) {
           </Panel>
         )}
         {run.status === "FAILED" && <StatusNote tone="bad">This analysis did not complete. Start a new analysis to try again.</StatusNote>}
+
+        {/* ── INDIA-AWARE LOCALIZATION DOCK & LANGUAGE SPLIT ── */}
+        <IndiaLocalizationDock projectId={projectId} />
 
         {/* TAB 1: SERP SIMULATOR */}
         {activeTab === "simulator" && (
