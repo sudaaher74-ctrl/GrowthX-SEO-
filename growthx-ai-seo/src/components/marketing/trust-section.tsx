@@ -21,24 +21,24 @@ const PAIN_CARDS = [
 
 export function TrustSection() {
   return (
-    <section className="py-20 sm:py-24 border-t border-brand-200 relative overflow-hidden">
+    <section className="py-14 sm:py-24 border-t border-brand-200 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-[1fr_400px] gap-12 lg:gap-16 items-start">
+        <div className="grid lg:grid-cols-[1fr_400px] gap-10 lg:gap-16 items-start">
           {/* LEFT: Problem & Pain Cards */}
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-brand-500 mb-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-500 mb-2 sm:mb-3">
               The Problem
             </p>
-            <h2 className="text-4xl sm:text-5xl font-extrabold text-brand-950 leading-tight tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-5xl font-extrabold text-brand-950 leading-tight tracking-tight mb-3 sm:mb-4">
               SEO got harder.<br />
               <span className="text-signal-400">Your tools didn&apos;t get smarter.</span>
             </h2>
-            <p className="text-base sm:text-lg text-brand-500 leading-relaxed mb-8 max-w-2xl">
+            <p className="text-sm sm:text-lg text-brand-500 leading-relaxed mb-6 sm:mb-8 max-w-2xl">
               Most businesses pay for three or four tools and still don&apos;t know what to do on Monday morning. Reports pile up. Competitors quietly add pages. ChatGPT and Google&apos;s AI answers recommend someone else. Nobody fixes anything.
             </p>
 
             {/* Three Pain Cards */}
-            <div className="grid sm:grid-cols-3 gap-3.5 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
               {PAIN_CARDS.map((card) => {
                 const Icon = card.icon;
                 return (

@@ -8,23 +8,23 @@ export function FeatureCards() {
     <section id="features" className="py-24 border-t border-brand-200 relative overflow-hidden scroll-mt-16">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-xs font-bold uppercase tracking-widest text-brand-500 mb-3">
+        <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-500 mb-2 sm:mb-3">
             One platform. Five jobs done.
           </p>
-          <h2 className="text-4xl sm:text-5xl font-extrabold text-brand-950 leading-tight tracking-tight">
+          <h2 className="text-3xl sm:text-5xl font-extrabold text-brand-950 leading-tight tracking-tight">
             Find what&apos;s costing you traffic.<br />
             <span className="text-signal-400">Approve it. We prepare the fix.</span>
           </h2>
-          <p className="mt-4 text-base sm:text-lg text-brand-500 leading-relaxed">
+          <p className="mt-3 sm:mt-4 text-sm sm:text-lg text-brand-500 leading-relaxed">
             From technical audits and rival tracking to AI citations and map rankings, in one ranked queue. Every fix is prepared for you and waits for your approval.
           </p>
         </div>
 
         {/* Top Row: 2 Flagship Foundation Engines (Audit & Fix Engine) */}
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <div className="grid md:grid-cols-2 gap-5 sm:gap-6 mb-6">
           {/* 1. Website Audit */}
-          <div className="group bg-surface-1 border border-brand-200 hover:border-brand-300 rounded-2xl p-6 sm:p-7 flex flex-col justify-between shadow-2xs transition-all duration-200">
+          <div className="group bg-surface-1 border border-brand-200 hover:border-brand-300 rounded-2xl p-5 sm:p-7 flex flex-col justify-between shadow-2xs transition-all duration-200">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="w-11 h-11 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center">
@@ -45,26 +45,29 @@ export function FeatureCards() {
               </div>
 
               {/* Visual Widget: Crawl Health & Diagnostics */}
-              <div className="bg-surface-2 rounded-xl border border-brand-200 p-3.5 space-y-2.5 text-xs">
+              <div className="bg-surface-2 rounded-xl border border-brand-200 p-3 sm:p-3.5 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between text-[11px]">
                   <div className="flex items-center gap-1.5 text-brand-700">
-                    <span className="w-2 h-2 rounded-full bg-success-500" />
-                    <span className="font-mono text-[10px]">Googlebot Mobile / 200 OK</span>
+                    <span className="w-2 h-2 rounded-full bg-success-500 shrink-0" />
+                    <span className="font-mono text-[9.5px] sm:text-[10px] truncate">Googlebot Mobile / 200 OK</span>
                   </div>
-                  <span className="font-mono font-bold text-brand-600 bg-surface-1 border border-brand-200 px-2 py-0.5 rounded text-[10px]">
+                  <span className="font-mono font-bold text-brand-600 bg-surface-1 border border-brand-200 px-2 py-0.5 rounded text-[9.5px] sm:text-[10px] shrink-0">
                     Example
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-200 text-center font-mono text-[10px]">
-                  <div className="bg-surface-1 rounded-lg p-2 border border-brand-200">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-2 border-t border-brand-200 text-center font-mono text-[10px]">
+                  <div className="bg-surface-1 rounded-lg p-1.5 sm:p-2 border border-brand-200">
                     <span className="text-brand-500 block text-[9px] mb-0.5">TTFB</span>
                     <span className="font-bold text-brand-950 text-xs">142ms</span>
                   </div>
-                  <div className="bg-surface-1 rounded-lg p-2 border border-brand-200">
-                    <span className="text-brand-500 block text-[9px] mb-0.5">Core Web Vitals</span>
+                  <div className="bg-surface-1 rounded-lg p-1.5 sm:p-2 border border-brand-200">
+                    <span className="text-brand-500 block text-[9px] mb-0.5">
+                      <span className="sm:hidden">CWV</span>
+                      <span className="hidden sm:inline">Core Web Vitals</span>
+                    </span>
                     <span className="font-bold text-success-500 text-xs">Pass</span>
                   </div>
-                  <div className="bg-surface-1 rounded-lg p-2 border border-brand-200">
+                  <div className="bg-surface-1 rounded-lg p-1.5 sm:p-2 border border-brand-200">
                     <span className="text-brand-500 block text-[9px] mb-0.5">Indexability</span>
                     <span className="font-bold text-brand-950 text-xs">100%</span>
                   </div>

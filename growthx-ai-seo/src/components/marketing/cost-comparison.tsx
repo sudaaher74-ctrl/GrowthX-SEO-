@@ -68,22 +68,22 @@ export function CostComparison() {
         {/* Header container */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
           {/* Pill Badge */}
-          <div className="inline-flex items-center gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-xs sm:text-sm font-medium px-4 py-1.5 rounded-full mb-5 shadow-2xs">
-            <span className="h-2 w-2 rounded-full bg-signal-400" />
-            <span>{badgeText}</span>
+          <div className="inline-flex items-center gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-full mb-4 sm:mb-5 shadow-2xs max-w-full">
+            <span className="h-2 w-2 rounded-full bg-signal-400 shrink-0" />
+            <span className="truncate">{badgeText}</span>
           </div>
 
           {/* Headline */}
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-950 tracking-tight leading-[1.15] mb-4">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black text-brand-950 tracking-tight leading-[1.15] mb-3 sm:mb-4">
             Five tools and a freelancer, from {starterPrice}/month.
           </h2>
 
-          <p className="text-sm sm:text-base text-brand-500 leading-relaxed max-w-2xl mx-auto mb-8">
+          <p className="text-sm sm:text-base text-brand-500 leading-relaxed max-w-2xl mx-auto mb-6 sm:mb-8">
             Most teams stitch together an agency and a pile of subscriptions. Reigel covers the same ground in one place, prepares the fixes, and checks they worked.
           </p>
 
           {/* Dual Controls: Billing Cycle + Currency Switcher */}
-          <div className="flex flex-wrap items-center justify-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4">
             {/* Monthly / Yearly Toggle */}
             <div className="inline-flex items-center bg-surface-2 p-1 rounded-full border border-brand-200">
               <button
@@ -142,22 +142,22 @@ export function CostComparison() {
         </div>
 
         {/* ROI Savings Callout Banner */}
-        <div className="mb-10 max-w-4xl mx-auto bg-surface-1 border border-brand-200 rounded-2xl p-5 sm:p-6 shadow-card relative overflow-hidden">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center shrink-0">
-                <Zap size={20} className="text-signal-400" />
+        <div className="mb-8 sm:mb-10 max-w-4xl mx-auto bg-surface-1 border border-brand-200 rounded-2xl p-4 sm:p-6 shadow-card relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-3.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center shrink-0">
+                <Zap size={18} className="text-signal-400" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-brand-950 leading-tight">
+                <h3 className="text-sm sm:text-lg font-bold text-brand-950 leading-tight">
                   If you replaced all five, you would save about {saving} a month
                 </h3>
-                <p className="text-xs sm:text-sm text-brand-500 mt-1 leading-snug">
+                <p className="text-xs sm:text-sm text-brand-500 mt-0.5 sm:mt-1 leading-snug">
                   Adds up the low end of each line in the table below. You may only need some of them.
                 </p>
               </div>
             </div>
-            <div className="shrink-0 bg-surface-2 border border-brand-200 text-brand-600 font-mono font-bold text-xs px-3.5 py-1.5 rounded-full">
+            <div className="shrink-0 bg-surface-2 border border-brand-200 text-brand-600 font-mono font-bold text-[10px] sm:text-xs px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full">
               Illustrative
             </div>
           </div>
@@ -186,7 +186,7 @@ export function CostComparison() {
               return (
                 <div
                   key={row.what}
-                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-0 py-4 sm:py-4.5 px-4 sm:px-8 hover:bg-surface-2/60 transition-colors"
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-0 py-3.5 sm:py-4.5 px-3.5 sm:px-8 hover:bg-surface-2/60 transition-colors"
                 >
                   <div className="sm:col-span-5 text-left text-sm text-brand-950 font-semibold pr-2">
                     {row.what}
@@ -206,7 +206,7 @@ export function CostComparison() {
           </div>
 
           {/* Total Footer Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-12 items-center gap-y-3 py-5 px-4 sm:px-8 bg-surface-2 border-t border-brand-200">
+          <div className="grid grid-cols-2 sm:grid-cols-12 items-center gap-y-2 sm:gap-y-3 py-4 sm:py-5 px-3.5 sm:px-8 bg-surface-2 border-t border-brand-200">
             <div className="col-span-2 sm:col-span-5 text-left text-sm sm:text-base font-bold text-brand-950">
               Total monthly cost
             </div>

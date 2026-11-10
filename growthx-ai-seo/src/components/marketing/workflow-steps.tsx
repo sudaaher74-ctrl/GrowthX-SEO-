@@ -120,19 +120,19 @@ function WorkflowAppPreview() {
             {/* Content Body */}
             <div className="p-4 space-y-3">
               {/* Status Banner */}
-              <div className="flex items-center justify-between gap-2 bg-surface-1 border border-brand-200 rounded-xl px-3.5 py-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <CheckCircle2 size={15} className="text-success-500 shrink-0" />
+              <div className="flex items-center justify-between gap-2 bg-surface-1 border border-brand-200 rounded-xl px-2.5 sm:px-3.5 py-2 sm:py-2.5">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                  <CheckCircle2 size={14} className="text-success-500 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-extrabold text-brand-950 leading-tight">
+                    <p className="text-[10.5px] sm:text-[11px] font-extrabold text-brand-950 leading-tight">
                       Website Analysis Complete
                     </p>
-                    <p className="text-[9.5px] text-brand-500 leading-tight truncate">
+                    <p className="text-[8.5px] sm:text-[9.5px] text-brand-500 leading-tight truncate">
                       Sample result: 38 opportunities ranked by impact.
                     </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-brand-800 shrink-0">
+                <span className="hidden xs:inline-block text-[10px] font-bold text-brand-800 shrink-0">
                   Full Report →
                 </span>
               </div>
@@ -271,16 +271,16 @@ export function WorkflowSteps() {
             </div>
 
             {/* 4 Step Cards with Vertical Dotted Line */}
-            <div className="relative pl-7 space-y-2.5">
+            <div className="relative pl-8 sm:pl-7 space-y-2.5">
               {/* Dotted Vertical Connector Line */}
-              <div className="absolute left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-brand-200 pointer-events-none" />
+              <div className="absolute left-3 sm:left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-brand-200 pointer-events-none" />
 
               {PIPELINE_STEPS.map((step) => {
                 const StepIcon = step.icon;
                 return (
                   <div key={step.num} className="relative flex items-center">
                     {/* Number Badge on the Line */}
-                    <div className="absolute -left-7 font-mono font-black text-xs text-brand-500 w-5 text-center">
+                    <div className="absolute -left-8 sm:-left-7 font-mono font-black text-xs text-brand-500 w-6 sm:w-5 text-center">
                       {step.num}
                     </div>
 

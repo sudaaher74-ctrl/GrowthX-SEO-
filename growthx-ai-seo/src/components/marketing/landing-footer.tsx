@@ -70,18 +70,18 @@ export function LandingFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="bg-surface-1 text-brand-500 pt-16 sm:pt-20 pb-12 border-t border-brand-200 relative overflow-hidden">
+    <footer className="bg-surface-1 text-brand-500 pt-12 sm:pt-20 pb-10 sm:pb-12 border-t border-brand-200 relative overflow-hidden">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 mb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 mb-12 sm:mb-16">
           {/* Brand Left Column */}
           <div className="lg:col-span-4 flex flex-col justify-between pr-0 lg:pr-8">
             <div>
               {/* Logo — Matches Dashboard Brand Identity */}
-              <Link href="/" className="inline-flex items-center gap-2.5 mb-6 group">
+              <Link href="/" className="inline-flex items-center gap-2.5 mb-5 sm:mb-6 group">
                 <div className="w-8 h-8 rounded-xl bg-signal-400 flex items-center justify-center text-signal-ink font-mono font-extrabold text-sm shadow-xs">
                   R
                 </div>
-                <span className="text-2xl font-black text-brand-950 tracking-tight">
+                <span className="text-xl sm:text-2xl font-black text-brand-950 tracking-tight">
                   Reigel
                 </span>
                 <span className="rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-brand-500">
@@ -90,7 +90,7 @@ export function LandingFooter() {
               </Link>
 
               {/* Bold Headline Tagline */}
-              <h3 className="text-2xl sm:text-3xl font-black text-brand-950 leading-tight tracking-tight mb-2 max-w-sm">
+              <h3 className="text-xl sm:text-3xl font-black text-brand-950 leading-tight tracking-tight mb-2 max-w-sm">
                 Find it. Fix it. Prove it.
               </h3>
               <p className="text-xs text-brand-500 mb-2 max-w-xs leading-relaxed">

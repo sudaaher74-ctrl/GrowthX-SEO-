@@ -33,26 +33,26 @@ function DashboardMockup() {
       {/* Main Window */}
       <div className="relative rounded-2xl sm:rounded-3xl border border-brand-200 bg-surface-1 shadow-2xl overflow-hidden">
         {/* macOS Window Chrome Top Bar */}
-        <div className="flex items-center justify-between px-3.5 sm:px-4 py-2.5 border-b border-brand-200 bg-surface-1">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-brand-200 bg-surface-1">
           {/* Window control dots */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="h-2.5 w-2.5 rounded-full bg-error-500/80 inline-block" />
             <span className="h-2.5 w-2.5 rounded-full bg-warning-500/80 inline-block" />
             <span className="h-2.5 w-2.5 rounded-full bg-success-500/80 inline-block" />
           </div>
 
-          {/* Breadcrumb / Workspace Pill */}
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-brand-500">
+          {/* Breadcrumb / Workspace Pill (compact on mobile) */}
+          <div className="hidden xs:flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-brand-500 truncate max-w-[130px] sm:max-w-none">
             <span className="font-bold text-brand-950">reigel.in</span>
             <span>/</span>
-            <span className="text-brand-700">yourwebsite.com</span>
+            <span className="text-brand-700 truncate">yourwebsite.com</span>
           </div>
 
           {/* Credits + Single Theme Toggle */}
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-mono font-bold text-brand-950">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9.5px] sm:text-[10px] font-mono font-bold text-brand-950">
               <Coins size={10} className="text-signal-400 shrink-0" />
-              <span>4.985M Credits</span>
+              <span>4.9M<span className="hidden sm:inline">85 Credits</span></span>
             </span>
             <span className="flex h-5 w-5 items-center justify-center rounded-md border border-brand-200 bg-surface-2 text-brand-500">
               <Sun size={10} />
@@ -63,7 +63,7 @@ function DashboardMockup() {
         {/* Dashboard Body: Sidebar + Workspace */}
         <div className="flex">
           {/* Streamlined Sidebar */}
-          <div className="w-12 sm:w-44 bg-surface-1 p-2 sm:p-3 shrink-0 flex flex-col justify-between border-r border-brand-200">
+          <div className="w-10 sm:w-44 bg-surface-1 p-1.5 sm:p-3 shrink-0 flex flex-col justify-between border-r border-brand-200">
             <div className="space-y-3">
               {/* Workspace Badge */}
               <div className="hidden sm:flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 p-2">
@@ -98,7 +98,7 @@ function DashboardMockup() {
                       type="button"
                       onClick={() => setActiveTab(item.id)}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer text-left",
+                        "w-full flex items-center gap-2 sm:gap-2.5 px-1.5 sm:px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer text-left justify-center sm:justify-start",
                         isCurrent
                           ? "bg-surface-2 text-brand-950 font-bold border border-brand-200/80 shadow-2xs"
                           : "text-brand-600 hover:bg-surface-2 hover:text-brand-950",
@@ -135,13 +135,13 @@ function DashboardMockup() {
             style={{ background: "var(--color-canvas)" }}
           >
             {/* Tab Controls & Time Filter */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 p-0.5 text-[10.5px]">
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+              <div className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-brand-200 bg-surface-2 p-0.5 text-[9.5px] sm:text-[10.5px]">
                 <button
                   type="button"
                   onClick={() => setActiveTab("overview")}
                   className={cn(
-                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    "px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-semibold transition-all cursor-pointer",
                     activeTab === "overview"
                       ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
@@ -153,7 +153,7 @@ function DashboardMockup() {
                   type="button"
                   onClick={() => setActiveTab("ai")}
                   className={cn(
-                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    "px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-semibold transition-all cursor-pointer",
                     activeTab === "ai"
                       ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
@@ -165,7 +165,7 @@ function DashboardMockup() {
                   type="button"
                   onClick={() => setActiveTab("fixes")}
                   className={cn(
-                    "px-3 py-1 rounded-full font-semibold transition-all cursor-pointer",
+                    "px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-semibold transition-all cursor-pointer",
                     activeTab === "fixes"
                       ? "bg-surface-1 text-brand-950 font-bold shadow-2xs"
                       : "text-brand-600 hover:text-brand-950",
@@ -222,18 +222,18 @@ function DashboardMockup() {
                       <div className="h-full w-[12%] bg-warning-500" />
                       <div className="h-full w-[6%] bg-brand-300" />
                     </div>
-                    <div className="mt-1.5 flex items-center justify-between text-[9px] text-brand-500">
+                    <div className="mt-1.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-1 text-[8.5px] sm:text-[9px] text-brand-500">
                       <span className="flex items-center gap-1 font-medium">
-                        <span className="h-1.5 w-1.5 rounded-full bg-signal-400 inline-block" />
-                        Healthy Pages (82%)
+                        <span className="h-1.5 w-1.5 rounded-full bg-signal-400 inline-block shrink-0" />
+                        <span>Healthy <span className="hidden sm:inline">Pages </span>(82%)</span>
                       </span>
                       <span className="flex items-center gap-1 font-medium">
-                        <span className="h-1.5 w-1.5 rounded-full bg-warning-500 inline-block" />
-                        Minor Fixes (12%)
+                        <span className="h-1.5 w-1.5 rounded-full bg-warning-500 inline-block shrink-0" />
+                        <span>Minor<span className="hidden sm:inline"> Fixes</span> (12%)</span>
                       </span>
                       <span className="flex items-center gap-1 font-medium">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-400 inline-block" />
-                        Notices (6%)
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-400 inline-block shrink-0" />
+                        <span>Notices (6%)</span>
                       </span>
                     </div>
                   </div>
@@ -449,25 +449,25 @@ export function HeroSection() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-4">
         <div className="grid lg:grid-cols-[45%_55%] gap-8 lg:gap-10 items-center">
           {/* LEFT COLUMN */}
-          <div className="space-y-5 lg:space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-2xs">
-              <div className="w-2 h-2 rounded-full bg-signal-400" />
-              SEO, AI SEARCH AND GOOGLE MAPS, IN ONE QUEUE
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-2xs max-w-full">
+              <div className="w-2 h-2 rounded-full bg-signal-400 shrink-0" />
+              <span className="truncate sm:overflow-visible">SEO, AI Search &amp; Google Maps, in one queue</span>
             </div>
 
             {/* Headline */}
             <div>
-              <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-extrabold text-brand-950 leading-[1.1] tracking-tight">
+              <h1 className="text-3xl sm:text-5xl lg:text-[46px] font-extrabold text-brand-950 leading-[1.15] tracking-tight">
                 Find what&apos;s costing you customers.
-                <span className="block text-signal-400 mt-1.5">
+                <span className="block text-signal-400 mt-1 sm:mt-1.5">
                   Fix it before your competitors do.
                 </span>
               </h1>
             </div>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg text-brand-500 leading-relaxed max-w-xl">
+            <p className="text-sm sm:text-base lg:text-lg text-brand-500 leading-relaxed max-w-xl">
               Reigel crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
             </p>
 
@@ -487,18 +487,18 @@ export function HeroSection() {
                     ? clean ? `/analyze?url=${clean}` : "/analyze"
                     : clean ? `/login?url=${clean}` : "/login";
                 }}
-                className="flex flex-col sm:flex-row items-stretch gap-2 bg-surface-1 border border-brand-200 focus-within:border-brand-400 p-1.5 rounded-2xl shadow-card transition-all max-w-md"
+                className="flex flex-col sm:flex-row items-stretch gap-2 bg-surface-1 border border-brand-200 focus-within:border-brand-400 p-1.5 rounded-2xl shadow-card transition-all w-full max-w-md"
               >
                 <input
                   name="url"
                   type="text"
                   placeholder="yourwebsite.com"
-                  className="flex-1 bg-transparent px-4 py-2.5 text-sm font-medium text-brand-950 placeholder-brand-400 outline-none focus:outline-none focus:ring-0"
+                  className="flex-1 bg-transparent px-3.5 sm:px-4 py-2.5 text-sm font-medium text-brand-950 placeholder-brand-400 outline-none focus:outline-none focus:ring-0"
                   style={{ outline: "none", boxShadow: "none" }}
                 />
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 bg-signal-400 hover:bg-signal-500 active:scale-[0.98] text-signal-ink font-extrabold text-sm px-6 py-2.5 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 bg-signal-400 hover:bg-signal-500 active:scale-[0.98] text-signal-ink font-extrabold text-sm px-5 sm:px-6 py-2.5 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
                 >
                   <span>Run free audit</span>
                   <ArrowRight size={14} />

@@ -85,14 +85,14 @@ export function LandingHeader() {
           </nav>
 
           {/* Right Controls: Day/Night Switcher + Auth CTAs */}
-          <div className="flex items-center gap-2.5">
-            {/* Theme Toggle (Exact match with Dashboard topnav) */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {/* Theme Toggle (Desktop only here, mobile has it inside mobile menu) */}
             <button
               type="button"
               onClick={toggleTheme}
               aria-label={isDark ? "Switch to Day mode" : "Switch to Night mode"}
               title={isDark ? "Switch to Day mode" : "Switch to Night mode"}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-brand-200 bg-surface-2 text-brand-600 transition-colors hover:bg-brand-100 hover:text-brand-950 cursor-pointer"
+              className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-brand-200 bg-surface-2 text-brand-600 transition-colors hover:bg-brand-100 hover:text-brand-950 cursor-pointer"
             >
               {isDark ? <Sun size={15} /> : <Moon size={15} />}
             </button>
@@ -100,16 +100,16 @@ export function LandingHeader() {
             {signedIn ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 bg-signal-400 hover:bg-signal-500 text-signal-ink text-[13px] font-bold px-4 py-2 rounded-full transition-all shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 bg-signal-400 hover:bg-signal-500 text-signal-ink text-xs sm:text-[13px] font-bold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all shadow-xs cursor-pointer"
               >
-                <span>Go to Dashboard</span>
-                <ArrowRight size={14} />
+                <span><span className="hidden sm:inline">Go to </span>Dashboard</span>
+                <ArrowRight size={13} />
               </Link>
             ) : (
               <>
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center rounded-full border border-brand-200 bg-surface-2 hover:bg-brand-100 text-brand-950 text-[13px] font-semibold px-4 py-2 transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center rounded-full border border-brand-200 bg-surface-2 hover:bg-brand-100 text-brand-950 text-xs sm:text-[13px] font-semibold px-3 sm:px-4 py-1.5 sm:py-2 transition-all cursor-pointer"
                 >
                   Log in
                 </Link>
@@ -126,7 +126,7 @@ export function LandingHeader() {
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileOpen((o) => !o)}
-              className="md:hidden p-2 rounded-lg text-brand-700 hover:bg-surface-2 transition-colors"
+              className="md:hidden p-1.5 rounded-lg text-brand-700 hover:bg-surface-2 transition-colors cursor-pointer"
               aria-label="Toggle menu"
             >
               {mobileOpen ? <X size={20} /> : <Menu size={20} />}
