@@ -630,8 +630,8 @@ function CompetitorIntelligenceClient() {
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-brand-950">Add Tracked Competitor</h3>
-                  <p className="text-[11px] text-brand-400">Initiate automated crawl and cross-signal gap audit</p>
+                  <h3 className="text-sm font-bold text-brand-950">Add Competitor</h3>
+                  <p className="text-[11px] text-brand-400">Track competitor keywords, schema, and content gaps.</p>
                 </div>
               </div>
               <button
@@ -649,9 +649,9 @@ function CompetitorIntelligenceClient() {
                   <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
                     <Crown size={20} />
                   </div>
-                  <h4 className="text-sm font-bold text-brand-950">Rival Limit Reached</h4>
+                  <h4 className="text-sm font-bold text-brand-950">Competitor Limit Reached</h4>
                   <p className="text-xs text-brand-500 max-w-xs mx-auto">
-                    Your {plan?.name || "current"} plan allows up to {competitorsCap} tracked competitor{competitorsCap === 1 ? "" : "s"}. Upgrade to add more competitors and unlock continuous gap intelligence.
+                    Your {plan?.name || "current"} plan limit ({competitorsCap}) has been reached. Upgrade to track additional competitors.
                   </p>
                 </div>
                 <div className="flex items-center justify-end gap-2.5 pt-2">

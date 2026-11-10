@@ -90,11 +90,11 @@ export function PlanBPreviewModal({
               <Bot size={15} />
             </span>
             <div>
-              <h2 className="text-[14.5px] font-bold text-brand-950 flex items-center gap-2">
-                Follow-up Optimization Strategy
+              <h2 className="text-sm font-bold text-brand-950 flex items-center gap-2">
+                Next Step Strategy
               </h2>
               <p className="text-[11px] text-brand-500">
-                Prepared if search engine rankings require deeper topical or schema coverage.
+                Secondary optimization staged for post-observation review.
               </p>
             </div>
           </div>

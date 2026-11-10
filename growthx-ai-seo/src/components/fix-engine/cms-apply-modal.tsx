@@ -253,9 +253,9 @@ export function CmsApplyModal({
               <Globe size={15} />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-brand-950">Deploy Fix to CMS</h2>
+              <h2 className="text-sm font-bold text-brand-950">Deploy to CMS</h2>
               <p className="text-[11px] text-brand-500 truncate max-w-xs sm:max-w-sm">
-                {finding?.title || "Publish SEO update directly or copy verified snippet"}
+                {finding?.title || "Direct 1-click update or verified snippet"}
               </p>
             </div>
           </div>
@@ -294,7 +294,7 @@ export function CmsApplyModal({
             )}
           >
             <Layers size={13} />
-            <span>Copy Snippet</span>
+            <span>Manual Copy</span>
           </button>
         </div>
 
@@ -608,13 +608,13 @@ export function CmsApplyModal({
               ))}
             </div>
 
-            {/* Ultra-minimal 2-step instruction */}
+            {/* Minimal instruction */}
             <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-3 space-y-1 text-xs">
               <p className="text-[11.5px] text-brand-950 font-medium">
-                1. Copy the snippet above into your {platform} SEO settings.
+                1. Paste the snippet above into your {platform} SEO settings.
               </p>
               <p className="text-[11.5px] text-brand-500">
-                2. Click <strong>Verify Live HTML</strong> below to inspect the published page and record verified proof.
+                2. Click <strong>Verify Live on Website</strong> to confirm the update.
               </p>
             </div>
 

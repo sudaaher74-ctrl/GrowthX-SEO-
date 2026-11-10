@@ -508,44 +508,44 @@ function WebsiteAuditClient() {
 
       {/* Crawl Logs Modal */}
       {showLogsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-brand-200/60 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Crawl Telemetry & Diagnostics</h3>
-                <p className="text-xs text-slate-500">Authoritative audit metrics from the crawler engine</p>
+                <h3 className="text-sm font-bold text-brand-950">Crawl Telemetry</h3>
+                <p className="text-[11px] text-brand-500">Live metrics and duration from the latest crawl.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowLogsModal(false)}
-                className="text-slate-400 hover:text-slate-600 rounded p-1"
+                className="text-brand-400 hover:text-brand-950 rounded-lg p-1 transition"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
-                <span className="text-slate-400 uppercase text-[10px] font-bold">Crawl Status</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div className="rounded-xl border border-brand-200/60 bg-surface-2 p-3">
+                <span className="text-brand-400 uppercase text-[10px] font-bold">Crawl Status</span>
+                <p className="font-mono font-bold text-brand-950 mt-0.5">
                   {crawl.data?.status || "—"}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
-                <span className="text-slate-400 uppercase text-[10px] font-bold">Duration</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+              <div className="rounded-xl border border-brand-200/60 bg-surface-2 p-3">
+                <span className="text-brand-400 uppercase text-[10px] font-bold">Duration</span>
+                <p className="font-mono font-bold text-brand-950 mt-0.5">
                   {crawlDuration || "—"}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
-                <span className="text-slate-400 uppercase text-[10px] font-bold">Discovered URLs</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+              <div className="rounded-xl border border-brand-200/60 bg-surface-2 p-3">
+                <span className="text-brand-400 uppercase text-[10px] font-bold">Discovered URLs</span>
+                <p className="font-mono font-bold text-brand-950 mt-0.5">
                   {qualityDiagnostics?.urlsDiscovered ?? allPages.length}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
-                <span className="text-slate-400 uppercase text-[10px] font-bold">Coverage</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+              <div className="rounded-xl border border-brand-200/60 bg-surface-2 p-3">
+                <span className="text-brand-400 uppercase text-[10px] font-bold">Coverage</span>
+                <p className="font-mono font-bold text-brand-950 mt-0.5">
                   {qualityDiagnostics?.crawlCoveragePercent != null
                     ? `${qualityDiagnostics.crawlCoveragePercent}%`
                     : "—"}
@@ -557,9 +557,9 @@ function WebsiteAuditClient() {
               <button
                 type="button"
                 onClick={() => setShowLogsModal(false)}
-                className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700"
+                className="rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs"
               >
-                Close Logs
+                Close
               </button>
             </div>
           </div>

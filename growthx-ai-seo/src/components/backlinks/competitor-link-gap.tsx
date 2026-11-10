@@ -586,14 +586,14 @@ function GapOutreachModal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-brand-950/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
     >
-      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-brand-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-brand-950">
-                Link Gap Analysis &amp; Outreach: {domain}
+              <h3 className="text-sm font-bold text-brand-950">
+                Link Gap Analysis: {domain}
               </h3>
               {report.readiness && (
                 <Pill

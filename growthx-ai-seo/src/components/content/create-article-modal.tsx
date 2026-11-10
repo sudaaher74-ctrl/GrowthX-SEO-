@@ -76,27 +76,27 @@ export function CreateArticleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="relative w-full max-w-lg rounded-xl border border-brand-200 bg-surface-1 shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-lg rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="border-b border-brand-200 px-5 py-4 flex items-center justify-between bg-surface-2">
+        <div className="border-b border-brand-200/80 px-5 py-4 flex items-center justify-between bg-surface-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-accent-50 text-accent-700">
-              <PenLine size={18} />
+            <div className="p-2 rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <PenLine size={16} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-brand-950">
-                Create GEO-Optimized Article
+              <h3 className="text-sm font-bold text-brand-950">
+                Create Article
               </h3>
-              <p className="text-xs text-brand-500 mt-0.5">
-                Target high-intent search queries and capture Google AI Overview citations.
+              <p className="text-[11px] text-brand-500 mt-0.5">
+                Draft content targeted at search queries and AI answers.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md text-brand-400 hover:text-brand-950 hover:bg-surface-3 transition"
+            className="p-1.5 rounded-lg text-brand-400 hover:text-brand-950 hover:bg-surface-3 transition"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
@@ -154,13 +154,13 @@ export function CreateArticleModal({
 
           <div>
             <label className="block text-xs font-semibold text-brand-700 mb-1">
-              Why This Page (Strategic Context & Target Audience)
+              Strategic Rationale
             </label>
             <textarea
               rows={2}
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
-              placeholder="e.g. Outrank competitor comparison pages by demonstrating verified benchmarks and pricing transparency."
+              placeholder="e.g. Outrank competitor comparison pages by demonstrating verified benchmarks."
               className="w-full rounded-lg border border-brand-200 bg-surface-2 p-2.5 text-xs text-brand-950 focus:outline-none focus:ring-1 focus:ring-accent-600"
             />
           </div>
@@ -175,7 +175,7 @@ export function CreateArticleModal({
               className="h-4 w-4 rounded border-brand-300 text-accent-600 focus:ring-accent-500"
             />
             <label htmlFor="autoDraftCheck" className="text-xs text-brand-700 font-medium">
-              Immediately draft full 2,000+ word article using multi-AI reasoning router
+              Auto-draft full article with multi-AI reasoning router
             </label>
           </div>
 
@@ -193,7 +193,7 @@ export function CreateArticleModal({
               icon={isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
               disabled={isSubmitting || !title.trim()}
             >
-              {isSubmitting ? (autoDraft ? "Generating Article…" : "Planning…") : (autoDraft ? "Generate Article Now" : "Save Plan")}
+              {isSubmitting ? (autoDraft ? "Generating…" : "Saving…") : (autoDraft ? "Generate Article" : "Save Plan")}
             </ActionButton>
           </div>
         </form>

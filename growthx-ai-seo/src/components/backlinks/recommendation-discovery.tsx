@@ -638,16 +638,16 @@ function OutreachModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="outreach-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
     >
-      <div className="w-full max-w-2xl rounded-xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-2xl">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h3 id="outreach-modal-title" className="text-base font-semibold text-brand-950">
-              Publisher Outreach Workspace
+            <h3 id="outreach-modal-title" className="text-sm font-bold text-brand-950">
+              Publisher Outreach
             </h3>
-            <p className="text-xs text-brand-500">
-              Review and approve your personalized pitch before reaching out.
+            <p className="text-[11px] text-brand-500">
+              Review personalized pitch before outreach.
             </p>
           </div>
           <button

@@ -39,10 +39,10 @@ export function PlanModal({
       role="dialog"
       aria-modal="true"
       aria-label="Plan"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
       onClick={onClose}
     >
-      <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <Panel
           title="Your plan"
           subtitle={subtitle}
@@ -66,8 +66,8 @@ export function PlanModal({
                 ))}
               </ol>
             </div>
-            <p className="text-[11px] text-brand-500">
-              Nothing is changed on your website. Do these steps yourself, or copy the plan and send it to whoever edits your website.
+            <p className="text-[11px] text-brand-400">
+              Safe preview · No live changes are applied to your website.
             </p>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-end gap-2">

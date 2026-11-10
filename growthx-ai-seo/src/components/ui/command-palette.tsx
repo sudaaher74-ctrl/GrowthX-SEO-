@@ -250,7 +250,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Jump to any section, deep dive, or trigger an autonomous action…"
+              placeholder="Search pages or type a command…"
               className="w-full bg-transparent text-sm text-brand-950 placeholder:text-brand-400 focus:outline-none"
             />
             {activeProject && (
@@ -356,19 +356,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-brand-200/80 bg-surface-2/80 flex items-center justify-between text-xs text-brand-500 font-mono">
+          <div className="px-4 py-2 border-t border-brand-200/80 bg-surface-2/80 flex items-center justify-between text-xs text-brand-500 font-mono">
             <div className="flex items-center gap-4 text-[11px]">
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↑</kbd>
                 <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↓</kbd>
-                <span>to navigate</span>
+                <span>navigate</span>
               </span>
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">↵</kbd>
-                <span>to select</span>
+                <span>select</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-1 border border-brand-200 text-brand-700">esc</kbd>
+                <span>close</span>
               </span>
             </div>
-            <span className="text-[11px] font-bold text-brand-600">Reigel Global Navigation</span>
+            <span className="text-[11px] text-brand-400">Reigel</span>
           </div>
         </motion.div>
       </div>

@@ -34,14 +34,14 @@ export function GapPlanModal({ businessName, competitor, promptText, priority, o
     finally { setSaving(false); }
   }
 
-  return <div role="dialog" aria-modal="true" aria-label={`AI Strategy Plan for ${name}`} className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/60 p-4" onClick={() => { if (!saving) onClose(); }}>
-    <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto" onClick={event => event.stopPropagation()}>
+  return <div role="dialog" aria-modal="true" aria-label={`AI Strategy Plan for ${name}`} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150" onClick={() => { if (!saving) onClose(); }}>
+    <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl shadow-2xl" onClick={event => event.stopPropagation()}>
       <Panel padded title={`Review plan: ${name}`} actions={<ActionButton aria-label="Close" disabled={saving} onClick={onClose} icon={<X size={14} />}>Close</ActionButton>}>
         <div className="space-y-4">
           <p className="text-sm text-brand-700">Prompt: {promptText}</p>
           <div className="flex flex-wrap gap-2"><Pill>{priority} priority</Pill><Pill>{competitor.count} saved references</Pill></div>
           <p className="text-xs text-brand-500">Website address: {competitor.domain || "Not verified"}</p>
-          <StatusNote>The saved references do not establish why an assistant chose this business or what performance improvement a change will produce. These are proposed review steps.</StatusNote>
+          <StatusNote>Proposed review steps based on saved competitor references.</StatusNote>
           <ol className="list-decimal space-y-3 pl-5 text-sm text-brand-700">{steps.map(step => <li key={step}>{step}</li>)}</ol>
           {error && <StatusNote tone="bad">{error}</StatusNote>}
           <div className="flex flex-wrap justify-end gap-2">
@@ -49,7 +49,7 @@ export function GapPlanModal({ businessName, competitor, promptText, priority, o
               try { await navigator.clipboard.writeText(plan); setCopied(true); }
               catch { setError("The plan could not be copied."); }
             }}>{copied ? "Plan copied" : "Copy plan"}</ActionButton>
-            <ActionButton disabled={saving} icon={<Wrench size={14} />} onClick={() => void save()}>{saving ? "Saving task…" : "Send review task to Fix Engine"}</ActionButton>
+            <ActionButton disabled={saving} icon={<Wrench size={14} />} onClick={() => void save()}>{saving ? "Saving task…" : "Save to Fix Engine"}</ActionButton>
           </div>
         </div>
       </Panel>

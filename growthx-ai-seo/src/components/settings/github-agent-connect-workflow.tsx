@@ -656,17 +656,15 @@ export function GitHubAgentConnectWorkflow({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base font-bold text-brand-950">
-                Connect GitHub to Reigel Coding Agent
+                Connect GitHub
               </h2>
               <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
                 <ShieldCheck size={11} />
-                Official GitHub.com OAuth
+                Official OAuth
               </span>
             </div>
             <p className="truncate text-xs text-brand-500">
-              {userEmail
-                ? `Signed in as ${userEmail} · Authenticate your GitHub account on github.com`
-                : "Authenticate directly on github.com and select the repository to connect"}
+              Authorize repository access for automated pull requests and fixes.
             </p>
           </div>
         </div>

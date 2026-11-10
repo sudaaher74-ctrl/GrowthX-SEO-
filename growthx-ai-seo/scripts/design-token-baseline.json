@@ -1,6 +1,6 @@
 {
   "app/(dashboard)/error.tsx": 11,
-  "app/(dashboard)/website/page.tsx": 27,
+  "app/(dashboard)/website/page.tsx": 2,
   "app/error.tsx": 12,
   "app/global-error.tsx": 9,
   "app/legal/privacy/page.tsx": 2,
