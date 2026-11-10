@@ -57,6 +57,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     });
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        toggleCollapsed();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // localStorage is unreadable during the server render. useSyncExternalStore
   // subscribes to reactive auth changes so logging out anywhere immediately triggers redirection.
   const signedIn = useSyncExternalStore(

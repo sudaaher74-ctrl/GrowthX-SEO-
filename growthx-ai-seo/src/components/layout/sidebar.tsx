@@ -9,7 +9,7 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
-  PanelLeftClose,
+  PanelLeft,
   Settings,
   Sun,
 } from "lucide-react";
@@ -78,16 +78,33 @@ export function Sidebar({
           )}
           style={{ borderColor: "var(--border-color)" }}
         >
-          <Link
-            href="/dashboard"
-            onClick={() => setMobileOpen?.(false)}
-            title="Reigel AI SEO"
-            className="flex min-w-0 items-center gap-2.5"
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs transition-transform hover:scale-105">
-              R
-            </span>
-            {!compact && (
+          {compact ? (
+            onToggleCollapse && (
+              <div className="relative group hidden md:block">
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  aria-label="Show sidebar (⌘B)"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-500 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+                >
+                  <PanelLeft size={16} />
+                </button>
+                <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <span>Show sidebar</span>
+                  <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
+                </div>
+              </div>
+            )
+          ) : (
+            <Link
+              href="/dashboard"
+              onClick={() => setMobileOpen?.(false)}
+              title="Reigel AI SEO"
+              className="flex min-w-0 items-center gap-2.5"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs transition-transform hover:scale-105">
+                R
+              </span>
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="truncate text-[14px] font-extrabold tracking-[-0.02em] text-brand-950">
                   Reigel
@@ -96,19 +113,24 @@ export function Sidebar({
                   AI SEO
                 </span>
               </div>
-            )}
-          </Link>
+            </Link>
+          )}
 
           {!compact && onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-              className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-400 transition hover:bg-surface-2 hover:text-brand-950 md:flex"
-            >
-              <PanelLeftClose size={14} />
-            </button>
+            <div className="relative group hidden md:block">
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Hide sidebar (⌘B)"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-400 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+              >
+                <PanelLeft size={15} />
+              </button>
+              <div className="pointer-events-none absolute right-0 top-full mt-1.5 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <span>Hide sidebar</span>
+                <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
+              </div>
+            </div>
           )}
         </div>
 

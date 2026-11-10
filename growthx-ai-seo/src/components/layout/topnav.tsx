@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, Moon, PanelLeft, Search, Sparkles, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useSubscription } from "@/lib/subscription-engine";
@@ -87,15 +87,42 @@ export function TopNav({
         <Menu size={18} className="text-brand-600" />
       </button>
 
-      {/* Desktop Collapse Toggle */}
-      <button
-        onClick={onToggleCollapse}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-500 transition hover:bg-brand-100 hover:text-brand-950 focus-visible:outline-2 focus-visible:outline-primary-600 md:flex"
-      >
-        {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-      </button>
+      {/* Desktop Collapse Toggle with tooltip */}
+      <div className="relative group hidden md:block">
+        <button
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-200/80 bg-surface-1 text-brand-600 transition hover:bg-surface-2 hover:text-brand-950 hover:border-brand-300 shadow-2xs cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-600"
+        >
+          <PanelLeft size={16} />
+        </button>
+        <div className="pointer-events-none absolute left-0 top-full mt-1.5 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <span>{collapsed ? "Show sidebar" : "Hide sidebar"}</span>
+          <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
+        </div>
+      </div>
+
+      {/* History navigation buttons (< >) matching modern UI */}
+      <div className="hidden items-center gap-0.5 md:flex">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Go back"
+          title="Back"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-400 hover:bg-surface-2 hover:text-brand-950 transition cursor-pointer"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => router.forward()}
+          aria-label="Go forward"
+          title="Forward"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-400 hover:bg-surface-2 hover:text-brand-950 transition cursor-pointer"
+        >
+          <ChevronRight size={15} />
+        </button>
+      </div>
 
       {/* Breadcrumb with persistent Selected Project */}
       <div className="flex min-w-0 shrink items-center gap-2 text-[13px]">
