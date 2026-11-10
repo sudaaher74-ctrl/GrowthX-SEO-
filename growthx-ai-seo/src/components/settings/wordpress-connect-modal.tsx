@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Globe, KeyRound, Lock, ShieldCheck, X } from "lucide-react";
-import { ActionButton, StatusNote } from "@/components/ui/console";
+import { ArrowRight, CheckCircle2, Globe, KeyRound, Lock, ShieldCheck, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
@@ -91,7 +90,7 @@ export function WordPressConnectModal({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["webflow-connection", projectId] });
       onConnected?.({
-        siteUrl: data.siteUrl,
+        siteUrl: data.siteUrl || data.siteId,
         username: data.siteName,
         seoPlugin: "webflow",
         platform: "webflow",
@@ -99,22 +98,20 @@ export function WordPressConnectModal({
     },
   });
 
+  const isPending =
+    connectWpMutation.isPending ||
+    connectShopifyMutation.isPending ||
+    connectWebflowMutation.isPending;
+
   const activeError =
-    platform === "wordpress"
-      ? connectWpMutation.error
-      : platform === "shopify"
-        ? connectShopifyMutation.error
-        : connectWebflowMutation.error;
+    connectWpMutation.error ||
+    connectShopifyMutation.error ||
+    connectWebflowMutation.error;
 
   const activeSuccess =
-    platform === "wordpress"
-      ? connectWpMutation.isSuccess
-      : platform === "shopify"
-        ? connectShopifyMutation.isSuccess
-        : connectWebflowMutation.isSuccess;
-
-  const isPending =
-    connectWpMutation.isPending || connectShopifyMutation.isPending || connectWebflowMutation.isPending;
+    connectWpMutation.isSuccess ||
+    connectShopifyMutation.isSuccess ||
+    connectWebflowMutation.isSuccess;
 
   return (
     <div
@@ -126,32 +123,31 @@ export function WordPressConnectModal({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-brand-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
-              <Globe className="h-5 w-5" />
+      <div className="w-full max-w-md rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-brand-200/60">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Globe size={15} />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-brand-950">
-                Connect CMS Platform (1-Click Publishing)
-              </h2>
-              <p className="text-[12px] text-brand-500">
-                Connect WordPress, Shopify, or Webflow to push SEO fixes via API without GitHub.
+              <h2 className="text-sm font-bold text-brand-950">Connect CMS</h2>
+              <p className="text-[11px] text-brand-500">
+                Enter API credentials to enable 1-click publishing
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-brand-400 hover:bg-brand-50 hover:text-brand-700"
+            className="rounded-lg p-1 text-brand-400 hover:bg-brand-50 hover:text-brand-950 transition"
           >
-            <X className="h-4 w-4" />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Platform Switcher */}
-        <div className="mt-4 grid grid-cols-3 gap-1.5 rounded-xl bg-brand-50 p-1 border border-brand-200/70">
+        {/* Minimal Platform Switcher */}
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-brand-50 border border-brand-200/60 p-1 text-xs">
           {(
             [
               { id: "wordpress", label: "WordPress" },
@@ -164,10 +160,10 @@ export function WordPressConnectModal({
               type="button"
               onClick={() => setPlatform(item.id)}
               className={cn(
-                "rounded-lg py-1.5 px-3 text-[12px] font-semibold transition-colors",
+                "rounded-lg py-1.5 px-2 text-center text-xs font-semibold transition",
                 platform === item.id
-                  ? "bg-surface-1 text-brand-950 shadow-xs"
-                  : "text-brand-600 hover:text-brand-900",
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                  : "text-brand-400 hover:text-brand-950"
               )}
             >
               {item.label}
@@ -177,77 +173,70 @@ export function WordPressConnectModal({
 
         {/* WORDPRESS TAB */}
         {platform === "wordpress" && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 text-[12px] text-brand-700">
-              <p className="font-semibold text-brand-900 flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5 text-accent-700" />
-                How to get your WordPress Application Password (takes 30 seconds):
-              </p>
-              <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
-                <li>Open your WordPress Admin Dashboard → <strong>Users → Profile</strong>.</li>
-                <li>Scroll down to the <strong>Application Passwords</strong> section (built into WordPress 5.6+).</li>
-                <li>Enter <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and click <strong>Add New Application Password</strong>.</li>
-              </ol>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-[11px] text-brand-500 flex items-center gap-2">
+              <KeyRound size={13} className="text-signal-400 shrink-0" />
+              <span>In WP Admin, open <strong>Users → Profile → Application Passwords</strong>.</span>
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-brand-800">
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
                 WordPress Site URL
               </label>
               <input
                 type="url"
                 value={siteUrl}
                 onChange={(e) => setSiteUrl(e.target.value)}
-                placeholder="https://your-site.com"
-                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                placeholder="https://example.com"
+                className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
-                <label className="block text-[12px] font-semibold text-brand-800">
-                  WordPress Username
+                <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                  Username
                 </label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin or editor username"
-                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="admin"
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-brand-800">
-                  SEO Plugin (Optional)
+                <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                  SEO Plugin
                 </label>
                 <select
                   value={seoPlugin}
                   onChange={(e) => setSeoPlugin(e.target.value as any)}
-                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-2.5 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 >
-                  <option value="">Auto-detect from WordPress</option>
-                  <option value="rankmath">Rank Math SEO</option>
+                  <option value="">Auto-detect</option>
+                  <option value="rankmath">Rank Math</option>
                   <option value="yoast">Yoast SEO</option>
-                  <option value="aioseo">All in One SEO (AIOSEO)</option>
-                  <option value="core">Standard WordPress (No plugin)</option>
+                  <option value="aioseo">AIOSEO</option>
+                  <option value="core">Core WP</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-brand-800">
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
                 Application Password
               </label>
-              <div className="relative mt-1">
+              <div className="relative">
                 <input
                   type="password"
                   value={appPassword}
                   onChange={(e) => setAppPassword(e.target.value)}
-                  placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="xxxx xxxx xxxx xxxx"
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 pr-8 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
-                <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
+                <Lock size={12} className="pointer-events-none absolute right-3 top-2.5 text-brand-400" />
               </div>
             </div>
           </div>
@@ -255,45 +244,38 @@ export function WordPressConnectModal({
 
         {/* SHOPIFY TAB */}
         {platform === "shopify" && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 text-[12px] text-brand-700">
-              <p className="font-semibold text-brand-900 flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5 text-accent-700" />
-                How to get your Shopify Admin API Access Token:
-              </p>
-              <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
-                <li>In Shopify Admin, open <strong>Settings → Apps and sales channels → Develop apps</strong>.</li>
-                <li>Create an app named <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">Reigel SEO</code> and grant <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">read_products</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">write_products</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">read_content</code>, and <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">write_content</code>.</li>
-                <li>Install the app and paste the <strong>Admin API access token</strong> (<code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">shpat_...</code>) below.</li>
-              </ol>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-[11px] text-brand-500 flex items-center gap-2">
+              <KeyRound size={13} className="text-signal-400 shrink-0" />
+              <span>In Shopify, open <strong>Settings → Apps → Develop apps</strong>.</span>
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-brand-800">
-                Shopify Store Domain
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                Store Domain
               </label>
               <input
                 type="text"
                 value={shopDomain}
                 onChange={(e) => setShopDomain(e.target.value)}
-                placeholder="your-store.myshopify.com"
-                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                placeholder="store.myshopify.com"
+                className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
               />
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-brand-800">
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
                 Admin API Access Token
               </label>
-              <div className="relative mt-1">
+              <div className="relative">
                 <input
                   type="password"
                   value={shopifyToken}
                   onChange={(e) => setShopifyToken(e.target.value)}
-                  placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="shpat_..."
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 pr-8 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
-                <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
+                <Lock size={12} className="pointer-events-none absolute right-3 top-2.5 text-brand-400" />
               </div>
             </div>
           </div>
@@ -301,119 +283,118 @@ export function WordPressConnectModal({
 
         {/* WEBFLOW TAB */}
         {platform === "webflow" && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 text-[12px] text-brand-700">
-              <p className="font-semibold text-brand-900 flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5 text-accent-700" />
-                How to get your Webflow Site ID &amp; API Token:
-              </p>
-              <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] text-brand-600">
-                <li>Open Webflow <strong>Site Settings → Apps &amp; Integrations → API Access</strong>.</li>
-                <li>Generate a V2 API Token with <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">sites:read</code>, <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">pages:read</code>, and <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px]">pages:write</code> permissions.</li>
-                <li>Copy your <strong>Site ID</strong> from Site Settings → General and paste both below.</li>
-              </ol>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-[11px] text-brand-500 flex items-center gap-2">
+              <KeyRound size={13} className="text-signal-400 shrink-0" />
+              <span>In Webflow, open <strong>Site Settings → Apps → API Access</strong>.</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
-                <label className="block text-[12px] font-semibold text-brand-800">
+                <label className="block text-[11px] font-bold text-brand-950 mb-1">
                   Webflow Site ID
                 </label>
                 <input
                   type="text"
                   value={webflowSiteId}
                   onChange={(e) => setWebflowSiteId(e.target.value)}
-                  placeholder="65f1a2b3c4d5e6f7a8b9c0d1"
-                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="Site ID"
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-brand-800">
-                  Public Site URL (Optional)
+                <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                  Site URL (Optional)
                 </label>
                 <input
                   type="url"
                   value={webflowSiteUrl}
                   onChange={(e) => setWebflowSiteUrl(e.target.value)}
-                  placeholder="https://your-site.com"
-                  className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="https://example.com"
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-brand-800">
-                Webflow Data API v2 Token
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                API Token
               </label>
-              <div className="relative mt-1">
+              <div className="relative">
                 <input
                   type="password"
                   value={webflowToken}
                   onChange={(e) => setWebflowToken(e.target.value)}
-                  placeholder="wf_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-2 font-mono text-[13px] text-brand-900 outline-none focus:border-accent-600"
+                  placeholder="wf_..."
+                  className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 pr-8 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 />
-                <Lock className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-brand-400" />
+                <Lock size={12} className="pointer-events-none absolute right-3 top-2.5 text-brand-400" />
               </div>
             </div>
           </div>
         )}
 
-        <p className="mt-3 flex items-center gap-1 text-[11px] text-brand-500">
-          <ShieldCheck className="h-3.5 w-3.5 text-good-600" />
-          Encrypted at rest with AES-256-GCM. Never exposed in API responses.
+        {/* Security badge */}
+        <p className="flex items-center gap-1.5 text-[10.5px] text-brand-400">
+          <ShieldCheck size={12} className="text-success-600" />
+          <span>Encrypted with AES-256-GCM. Stored securely.</span>
         </p>
 
         {activeError && (
-          <div className="mt-3">
-            <StatusNote tone="bad">{errorMessage(activeError)}</StatusNote>
+          <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs font-medium">
+            {errorMessage(activeError)}
           </div>
         )}
 
         {activeSuccess && (
-          <div className="mt-3">
-            <StatusNote tone="good">
-              <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />
-              {platform === "wordpress"
-                ? "WordPress connected and verified!"
-                : platform === "shopify"
-                  ? "Shopify store connected and verified!"
-                  : "Webflow site connected and verified!"}
-            </StatusNote>
+          <div className="p-3 rounded-xl border border-success-200 bg-success-50/60 text-success-800 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 size={13} className="text-success-600" />
+            <span>Connection verified successfully!</span>
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-end gap-2 border-t border-brand-100 pt-4">
-          <ActionButton variant="secondary" onClick={onClose}>
+        {/* Action Bar */}
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-200/60">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-brand-200/60 bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-brand-500 hover:bg-brand-100 hover:text-brand-950 transition"
+          >
             Cancel
-          </ActionButton>
+          </button>
           {platform === "wordpress" && (
-            <ActionButton
-              variant="primary"
+            <button
+              type="button"
               disabled={!siteUrl.trim() || !username.trim() || !appPassword.trim() || isPending}
               onClick={() => connectWpMutation.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs disabled:opacity-50"
             >
-              {connectWpMutation.isPending ? "Verifying WordPress REST API…" : "Verify & Connect WordPress"}
-            </ActionButton>
+              <span>{connectWpMutation.isPending ? "Verifying…" : "Connect WordPress"}</span>
+              <ArrowRight size={12} />
+            </button>
           )}
           {platform === "shopify" && (
-            <ActionButton
-              variant="primary"
+            <button
+              type="button"
               disabled={!shopDomain.trim() || !shopifyToken.trim() || isPending}
               onClick={() => connectShopifyMutation.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs disabled:opacity-50"
             >
-              {connectShopifyMutation.isPending ? "Verifying Shopify Admin API…" : "Verify & Connect Shopify"}
-            </ActionButton>
+              <span>{connectShopifyMutation.isPending ? "Verifying…" : "Connect Shopify"}</span>
+              <ArrowRight size={12} />
+            </button>
           )}
           {platform === "webflow" && (
-            <ActionButton
-              variant="primary"
+            <button
+              type="button"
               disabled={!webflowSiteId.trim() || !webflowToken.trim() || isPending}
               onClick={() => connectWebflowMutation.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs disabled:opacity-50"
             >
-              {connectWebflowMutation.isPending ? "Verifying Webflow API…" : "Verify & Connect Webflow"}
-            </ActionButton>
+              <span>{connectWebflowMutation.isPending ? "Verifying…" : "Connect Webflow"}</span>
+              <ArrowRight size={12} />
+            </button>
           )}
         </div>
       </div>

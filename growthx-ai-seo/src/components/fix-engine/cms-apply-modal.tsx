@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
   Check,
   CheckCircle2,
   ClipboardCopy,
@@ -13,7 +14,6 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { ActionButton, Pill, StatusNote } from "@/components/ui/console";
 import {
   WordPressConnectModal,
   type CmsConnectPlatform,
@@ -70,7 +70,7 @@ function inferDefaultProposal(
       2,
     );
   }
-  return finding.recommendedAction || finding.summary || finding.title;
+  return finding.recommendedAction || finding.summary || finding.title || "";
 }
 
 export function CmsApplyModal({
@@ -187,6 +187,7 @@ export function CmsApplyModal({
   });
 
   const handleCopy = async () => {
+    if (!afterValue) return;
     try {
       await navigator.clipboard.writeText(afterValue);
       setCopied(true);
@@ -220,140 +221,160 @@ export function CmsApplyModal({
     );
   }
 
+  const currentPlatformName =
+    apiPlatform === "wordpress"
+      ? "WordPress"
+      : apiPlatform === "shopify"
+        ? "Shopify"
+        : "Webflow";
+
+  const isCurrentPlatformConnected =
+    apiPlatform === "wordpress"
+      ? isWpConnected
+      : apiPlatform === "shopify"
+        ? isShopifyConnected
+        : isWebflowConnected;
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Apply Fix in WordPress, Shopify, Webflow or CMS"
+      aria-label="Deploy Fix to CMS"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-2xl rounded-2xl border border-brand-200 bg-surface-1 p-6 shadow-xl">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-brand-100 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50 text-accent-700">
-                <Globe className="h-4 w-4" />
-              </span>
-              <h2 className="text-[15px] font-bold text-brand-950">
-                Apply Without GitHub (WordPress, Shopify, Webflow &amp; CMS)
-              </h2>
-              <Pill tone="good">Tracked in Impact Ledger</Pill>
+      <div className="w-full max-w-lg rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-brand-200/60">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+              <Globe size={15} />
             </div>
-            <p className="mt-1 text-[12px] text-brand-500">
-              {finding
-                ? finding.title
-                : "Push SEO fixes directly via WordPress, Shopify, or Webflow API, or copy the snippet into any CMS and verify live HTML."}
-            </p>
+            <div>
+              <h2 className="text-sm font-bold text-brand-950">Deploy Fix to CMS</h2>
+              <p className="text-[11px] text-brand-500 truncate max-w-xs sm:max-w-sm">
+                {finding?.title || "Publish SEO update directly or copy verified snippet"}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-brand-400 hover:bg-brand-50 hover:text-brand-700"
+            className="rounded-lg p-1 text-brand-400 hover:bg-brand-50 hover:text-brand-950 transition"
           >
-            <X className="h-4 w-4" />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Mode Switcher */}
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-brand-50 p-1 border border-brand-200/70">
+        {/* Minimal Mode Switcher */}
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-brand-50 border border-brand-200/60 p-1 text-xs">
           <button
             type="button"
             onClick={() => setMode("DIRECT_CMS_API")}
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-[12px] font-semibold transition-colors",
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-3 text-xs font-semibold transition",
               mode === "DIRECT_CMS_API"
-                ? "bg-surface-1 text-brand-950 shadow-xs"
-                : "text-brand-600 hover:text-brand-900",
+                ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                : "text-brand-400 hover:text-brand-950"
             )}
           >
-            <Globe className="h-3.5 w-3.5 text-accent-700" />
-            1-Click CMS API (WordPress / Shopify / Webflow)
+            <Globe size={13} />
+            <span>Connected CMS</span>
           </button>
           <button
             type="button"
             onClick={() => setMode("GUIDED_COPY")}
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-[12px] font-semibold transition-colors",
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-3 text-xs font-semibold transition",
               mode === "GUIDED_COPY"
-                ? "bg-surface-1 text-brand-950 shadow-xs"
-                : "text-brand-600 hover:text-brand-900",
+                ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                : "text-brand-400 hover:text-brand-950"
             )}
           >
-            <Layers className="h-3.5 w-3.5 text-accent-700" />
-            Guided Copy &amp; Live HTML Check (Any CMS)
+            <Layers size={13} />
+            <span>Copy Snippet</span>
           </button>
         </div>
 
-        {/* Common Target URL & Field Inputs */}
-        <div className="mt-4 space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Page URL & Field Inputs */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
             <div className="sm:col-span-2">
-              <label className="block text-[11.5px] font-semibold text-brand-700">
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
                 Target Page URL
               </label>
               <input
                 type="url"
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="https://your-site.com/page-slug"
-                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-3 py-1.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
+                placeholder="https://example.com/page-slug"
+                className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-3 py-1.5 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400"
               />
             </div>
 
             <div>
-              <label className="block text-[11.5px] font-semibold text-brand-700">
-                Optimization Target
+              <label className="block text-[11px] font-bold text-brand-950 mb-1">
+                Field
               </label>
               <select
                 value={field}
                 onChange={(e) => setField(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1.5 text-[12px] text-brand-900 outline-none focus:border-accent-600"
+                className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-2.5 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
               >
-                <option value="META_TITLE">SEO Page Title</option>
+                <option value="META_TITLE">SEO Title</option>
                 <option value="META_DESCRIPTION">Meta Description</option>
-                <option value="FAQ_SCHEMA">FAQ / Local Schema (JSON-LD)</option>
-                <option value="CODE_AND_SEO_UPDATE">On-Page Heading / Copy</option>
+                <option value="FAQ_SCHEMA">FAQ Schema (JSON-LD)</option>
+                <option value="CODE_AND_SEO_UPDATE">On-Page Copy</option>
               </select>
             </div>
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-[11.5px] font-semibold text-brand-700">
-                Recommended SEO Content / Snippet (Editable)
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-bold text-brand-950">
+                SEO Snippet
               </label>
               <button
                 type="button"
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1 rounded border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 hover:bg-brand-100"
+                disabled={!afterValue}
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200/60 bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-brand-600 hover:bg-brand-100 hover:text-brand-950 transition disabled:opacity-40"
               >
-                {copied ? <Check className="h-3 w-3 text-good-600" /> : <ClipboardCopy className="h-3 w-3" />}
-                {copied ? "Copied!" : "Copy snippet"}
+                {copied ? <Check size={11} className="text-success-600" /> : <ClipboardCopy size={11} />}
+                <span>{copied ? "Copied" : "Copy"}</span>
               </button>
             </div>
             <textarea
-              rows={4}
+              rows={3}
               value={afterValue}
               onChange={(e) => setAfterValue(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-brand-200 bg-surface-2 p-2.5 font-mono text-[12px] text-brand-900 outline-none focus:border-accent-600"
+              placeholder={
+                field === "META_TITLE"
+                  ? "Enter optimized SEO page title..."
+                  : field === "META_DESCRIPTION"
+                    ? "Enter compelling meta description..."
+                    : field === "FAQ_SCHEMA"
+                      ? '{\n  "@context": "https://schema.org",\n  "@type": "FAQPage"...\n}'
+                      : "Enter recommended content..."
+              }
+              className="w-full rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 font-mono text-xs text-brand-950 focus:outline-none focus:border-signal-400 placeholder:text-brand-400"
             />
           </div>
         </div>
 
-        {/* MODE 1: DIRECT CMS API (WordPress, Shopify, Webflow) */}
+        {/* ── MODE 1: DIRECT CMS API ── */}
         {mode === "DIRECT_CMS_API" && (
-          <div className="mt-4 space-y-4 border-t border-brand-100 pt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11.5px] font-semibold text-brand-600">Select Connector:</span>
+          <div className="space-y-3 pt-1 border-t border-brand-200/60">
+            {/* Connector Pills */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-brand-400 font-semibold mr-1">Platform:</span>
               {(
                 [
-                  { id: "wordpress", label: "WordPress REST API", connected: isWpConnected },
-                  { id: "shopify", label: "Shopify Admin API", connected: isShopifyConnected },
-                  { id: "webflow", label: "Webflow API v2", connected: isWebflowConnected },
+                  { id: "wordpress", label: "WordPress", connected: isWpConnected },
+                  { id: "shopify", label: "Shopify", connected: isShopifyConnected },
+                  { id: "webflow", label: "Webflow", connected: isWebflowConnected },
                 ] as const
               ).map((item) => (
                 <button
@@ -361,330 +382,225 @@ export function CmsApplyModal({
                   type="button"
                   onClick={() => setApiPlatform(item.id)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition",
                     apiPlatform === item.id
-                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                      : "bg-surface-2 text-brand-600 hover:text-brand-950",
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                      : "border border-brand-200/60 bg-surface-2 text-brand-500 hover:text-brand-950"
                   )}
                 >
-                  {item.connected && <span className="h-1.5 w-1.5 rounded-full bg-good-500" />}
-                  {item.label}
+                  {item.connected && <span className="h-1.5 w-1.5 rounded-full bg-success-500" />}
+                  <span>{item.label}</span>
                 </button>
               ))}
             </div>
 
-            {/* WORDPRESS SUB-PANEL */}
-            {apiPlatform === "wordpress" && (
-              <>
-                {!isWpConnected ? (
-                  <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-brand-900">
-                        WordPress Site Not Connected Yet
-                      </h3>
-                      <p className="mt-0.5 text-[12px] text-brand-600">
-                        Connect with a WordPress Application Password so Reigel can stage revisions or update Yoast / Rank Math meta fields directly.
-                      </p>
-                    </div>
-                    <ActionButton variant="primary" onClick={() => setShowConnectModal(true)}>
-                      Connect WordPress →
-                    </ActionButton>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-good-200 bg-good-50/40 px-3.5 py-2.5 text-[12px]">
+            {/* When current platform is NOT connected */}
+            {!isCurrentPlatformConnected ? (
+              <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-3 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-brand-950">
+                    {currentPlatformName} Not Connected
+                  </p>
+                  <p className="text-[11px] text-brand-500">
+                    Connect credentials to publish fixes in 1 click.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConnectModal(true)}
+                  className="rounded-xl bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs shrink-0"
+                >
+                  Connect {currentPlatformName} →
+                </button>
+              </div>
+            ) : (
+              /* When connected */
+              <div className="space-y-2.5">
+                {apiPlatform === "wordpress" && (
+                  <>
+                    <div className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 px-3 py-2 text-xs">
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-good-600" />
-                        <span className="font-semibold text-brand-900">
+                        <CheckCircle2 size={13} className="text-success-600" />
+                        <span className="font-semibold text-brand-950">
                           Connected to {wpConnection.data?.siteUrl}
                         </span>
-                        <Pill tone="info">
+                        <span className="rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-mono font-bold text-success-800">
                           {(wpConnection.data?.seoPlugin || "core").toUpperCase()}
-                        </Pill>
+                        </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => setShowConnectModal(true)}
-                        className="text-[11px] font-semibold text-accent-700 hover:underline"
+                        className="text-[11px] font-semibold text-brand-400 hover:text-brand-950 underline"
                       >
-                        Change credentials
+                        Change
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <label
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setPublishMode("draft")}
                         className={cn(
-                          "flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-[12px]",
+                          "rounded-xl border p-2.5 text-left transition",
                           publishMode === "draft"
-                            ? "border-accent-600 bg-accent-50/30"
-                            : "border-brand-200 bg-surface-1",
+                            ? "border-signal-400 bg-signal-400/10"
+                            : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
                         )}
                       >
-                        <input
-                          type="radio"
-                          name="wpPublishMode"
-                          checked={publishMode === "draft"}
-                          onChange={() => setPublishMode("draft")}
-                          className="mt-0.5"
-                        />
-                        <div>
-                          <span className="font-semibold text-brand-900 block">
-                            Stage as WordPress Revision (Recommended)
-                          </span>
-                          <span className="text-[11px] text-brand-500">
-                            Saves a revision in WordPress so you can review and publish in WP Admin.
-                          </span>
-                        </div>
-                      </label>
-
-                      <label
+                        <span className="font-bold text-brand-950 block text-[11.5px]">Stage Revision</span>
+                        <span className="text-[10.5px] text-brand-400">Review in WP Admin before live</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPublishMode("publish")}
                         className={cn(
-                          "flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-[12px]",
+                          "rounded-xl border p-2.5 text-left transition",
                           publishMode === "publish"
-                            ? "border-accent-600 bg-accent-50/30"
-                            : "border-brand-200 bg-surface-1",
+                            ? "border-signal-400 bg-signal-400/10"
+                            : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
                         )}
                       >
-                        <input
-                          type="radio"
-                          name="wpPublishMode"
-                          checked={publishMode === "publish"}
-                          onChange={() => setPublishMode("publish")}
-                          className="mt-0.5"
-                        />
-                        <div>
-                          <span className="font-semibold text-brand-900 block">
-                            Publish Directly to WordPress
-                          </span>
-                          <span className="text-[11px] text-brand-500">
-                            Updates the live WordPress page/post and records verified Before &amp; After proof immediately.
-                          </span>
-                        </div>
-                      </label>
+                        <span className="font-bold text-brand-950 block text-[11.5px]">Publish Live</span>
+                        <span className="text-[10.5px] text-brand-400">Direct update & immediate verification</span>
+                      </button>
                     </div>
-                  </div>
+                  </>
                 )}
 
-                {stageWpMutation.error && (
-                  <StatusNote tone="bad">{errorMessage(stageWpMutation.error)}</StatusNote>
-                )}
-
-                {stageWpMutation.data && (
-                  <div className="rounded-xl border border-good-300 bg-good-50/50 p-3.5 text-[12px] text-good-950 flex flex-wrap items-center justify-between gap-2">
+                {apiPlatform === "shopify" && (
+                  <div className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-good-600 shrink-0" />
-                      <span>
-                        {stageWpMutation.data.publishMode === "publish"
-                          ? "Published to WordPress and recorded in the Impact Ledger!"
-                          : "Revision staged in WordPress and recorded in the Impact Ledger!"}
+                      <CheckCircle2 size={13} className="text-success-600" />
+                      <span className="font-semibold text-brand-950">
+                        Connected to {shopifyConnection.data?.shopName || shopifyConnection.data?.shopDomain}
                       </span>
                     </div>
-                    {stageWpMutation.data.wpAdminEditUrl && (
-                      <a
-                        href={stageWpMutation.data.wpAdminEditUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:underline"
-                      >
-                        Open in WordPress Admin
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowConnectModal(true)}
+                      className="text-[11px] font-semibold text-brand-400 hover:text-brand-950 underline"
+                    >
+                      Change
+                    </button>
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <ActionButton variant="secondary" onClick={onClose}>
-                    Close
-                  </ActionButton>
-                  {isWpConnected && (
-                    <ActionButton
-                      variant="primary"
-                      disabled={!targetUrl.trim() || !afterValue.trim() || stageWpMutation.isPending}
-                      onClick={() => stageWpMutation.mutate()}
+                {apiPlatform === "webflow" && (
+                  <div className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={13} className="text-success-600" />
+                      <span className="font-semibold text-brand-950">
+                        Connected to {webflowConnection.data?.siteName || webflowConnection.data?.siteId}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowConnectModal(true)}
+                      className="text-[11px] font-semibold text-brand-400 hover:text-brand-950 underline"
                     >
-                      {stageWpMutation.isPending
+                      Change
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error & Success States */}
+            {stageWpMutation.error && (
+              <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs">
+                {errorMessage(stageWpMutation.error)}
+              </div>
+            )}
+            {stageShopifyMutation.error && (
+              <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs">
+                {errorMessage(stageShopifyMutation.error)}
+              </div>
+            )}
+            {stageWebflowMutation.error && (
+              <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs">
+                {errorMessage(stageWebflowMutation.error)}
+              </div>
+            )}
+
+            {stageWpMutation.data && (
+              <div className="rounded-xl border border-success-200 bg-success-50/60 p-3 text-xs text-success-800 flex items-center justify-between">
+                <span>
+                  {stageWpMutation.data.publishMode === "publish"
+                    ? "Published to WordPress & logged in Impact Ledger."
+                    : "Revision staged in WordPress for review."}
+                </span>
+                {stageWpMutation.data.wpAdminEditUrl && (
+                  <a
+                    href={stageWpMutation.data.wpAdminEditUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold underline"
+                  >
+                    Open WP Admin <ExternalLink size={11} />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Action Bar */}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-brand-200/60 bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-brand-500 hover:bg-brand-100 hover:text-brand-950 transition"
+              >
+                Close
+              </button>
+              {isCurrentPlatformConnected && (
+                <button
+                  type="button"
+                  disabled={!targetUrl.trim() || !afterValue.trim() || stageWpMutation.isPending || stageShopifyMutation.isPending || stageWebflowMutation.isPending}
+                  onClick={() => {
+                    if (apiPlatform === "wordpress") stageWpMutation.mutate();
+                    else if (apiPlatform === "shopify") stageShopifyMutation.mutate();
+                    else if (apiPlatform === "webflow") stageWebflowMutation.mutate();
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs disabled:opacity-50"
+                >
+                  <span>
+                    {apiPlatform === "wordpress"
+                      ? stageWpMutation.isPending
                         ? "Sending to WordPress…"
                         : publishMode === "draft"
                           ? "Stage Revision in WordPress"
-                          : "Publish to WordPress"}
-                    </ActionButton>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* SHOPIFY SUB-PANEL */}
-            {apiPlatform === "shopify" && (
-              <>
-                {!isShopifyConnected ? (
-                  <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-brand-900">
-                        Shopify Store Not Connected Yet
-                      </h3>
-                      <p className="mt-0.5 text-[12px] text-brand-600">
-                        Connect your Shopify store with an Admin API token to update product and page SEO titles, descriptions, and JSON-LD schema in 1 click.
-                      </p>
-                    </div>
-                    <ActionButton variant="primary" onClick={() => setShowConnectModal(true)}>
-                      Connect Shopify →
-                    </ActionButton>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-good-200 bg-good-50/40 px-3.5 py-2.5 text-[12px]">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-good-600" />
-                      <span className="font-semibold text-brand-900">
-                        Connected to {shopifyConnection.data?.shopName || shopifyConnection.data?.shopDomain}
-                      </span>
-                      <Pill tone="info">SHOPIFY ADMIN API</Pill>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowConnectModal(true)}
-                      className="text-[11px] font-semibold text-accent-700 hover:underline"
-                    >
-                      Change credentials
-                    </button>
-                  </div>
-                )}
-
-                {stageShopifyMutation.error && (
-                  <StatusNote tone="bad">{errorMessage(stageShopifyMutation.error)}</StatusNote>
-                )}
-
-                {stageShopifyMutation.data && (
-                  <div className="rounded-xl border border-good-300 bg-good-50/50 p-3.5 text-[12px] text-good-950 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-good-600 shrink-0" />
-                      <span>Updated in Shopify and recorded in the Impact Ledger!</span>
-                    </div>
-                    {stageShopifyMutation.data.adminEditUrl && (
-                      <a
-                        href={stageShopifyMutation.data.adminEditUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:underline"
-                      >
-                        Open in Shopify Admin
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <ActionButton variant="secondary" onClick={onClose}>
-                    Close
-                  </ActionButton>
-                  {isShopifyConnected && (
-                    <ActionButton
-                      variant="primary"
-                      disabled={!targetUrl.trim() || !afterValue.trim() || stageShopifyMutation.isPending}
-                      onClick={() => stageShopifyMutation.mutate()}
-                    >
-                      {stageShopifyMutation.isPending ? "Updating Shopify…" : "Apply Fix in Shopify"}
-                    </ActionButton>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* WEBFLOW SUB-PANEL */}
-            {apiPlatform === "webflow" && (
-              <>
-                {!isWebflowConnected ? (
-                  <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-brand-900">
-                        Webflow Site Not Connected Yet
-                      </h3>
-                      <p className="mt-0.5 text-[12px] text-brand-600">
-                        Connect your Webflow Site ID and Data API v2 Token to push SEO title and meta description updates directly to Webflow pages.
-                      </p>
-                    </div>
-                    <ActionButton variant="primary" onClick={() => setShowConnectModal(true)}>
-                      Connect Webflow →
-                    </ActionButton>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-good-200 bg-good-50/40 px-3.5 py-2.5 text-[12px]">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-good-600" />
-                      <span className="font-semibold text-brand-900">
-                        Connected to {webflowConnection.data?.siteName || webflowConnection.data?.siteId}
-                      </span>
-                      <Pill tone="info">WEBFLOW API V2</Pill>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowConnectModal(true)}
-                      className="text-[11px] font-semibold text-accent-700 hover:underline"
-                    >
-                      Change credentials
-                    </button>
-                  </div>
-                )}
-
-                {stageWebflowMutation.error && (
-                  <StatusNote tone="bad">{errorMessage(stageWebflowMutation.error)}</StatusNote>
-                )}
-
-                {stageWebflowMutation.data && (
-                  <div className="rounded-xl border border-good-300 bg-good-50/50 p-3.5 text-[12px] text-good-950 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-good-600 shrink-0" />
-                      <span>Updated in Webflow and recorded in the Impact Ledger!</span>
-                    </div>
-                    {stageWebflowMutation.data.adminEditUrl && (
-                      <a
-                        href={stageWebflowMutation.data.adminEditUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:underline"
-                      >
-                        Open in Webflow Designer
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <ActionButton variant="secondary" onClick={onClose}>
-                    Close
-                  </ActionButton>
-                  {isWebflowConnected && (
-                    <ActionButton
-                      variant="primary"
-                      disabled={!targetUrl.trim() || !afterValue.trim() || stageWebflowMutation.isPending}
-                      onClick={() => stageWebflowMutation.mutate()}
-                    >
-                      {stageWebflowMutation.isPending ? "Updating Webflow…" : "Apply Fix in Webflow"}
-                    </ActionButton>
-                  )}
-                </div>
-              </>
-            )}
+                          : "Publish to WordPress"
+                      : apiPlatform === "shopify"
+                        ? stageShopifyMutation.isPending
+                          ? "Updating Shopify…"
+                          : "Apply in Shopify"
+                        : stageWebflowMutation.isPending
+                          ? "Updating Webflow…"
+                          : "Apply in Webflow"}
+                  </span>
+                  <ArrowRight size={12} />
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* MODE 2: GUIDED COPY & LIVE HTML VERIFICATION */}
+        {/* ── MODE 2: GUIDED COPY & LIVE HTML CHECK ── */}
         {mode === "GUIDED_COPY" && (
-          <div className="mt-4 space-y-4 border-t border-brand-100 pt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11.5px] font-semibold text-brand-600">Your Platform:</span>
+          <div className="space-y-3 pt-1 border-t border-brand-200/60">
+            {/* Platform Filter Pills */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-brand-400 font-semibold mr-1">Platform:</span>
               {(["WordPress", "Shopify", "Webflow", "Custom CMS"] as CmsPlatform[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPlatform(p)}
                   className={cn(
-                    "rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors",
+                    "rounded-full px-3 py-1 text-xs font-semibold transition",
                     platform === p
-                      ? "bg-brand-900 text-white"
-                      : "bg-brand-100 text-brand-600 hover:bg-brand-200",
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                      : "border border-brand-200/60 bg-surface-2 text-brand-500 hover:text-brand-950"
                   )}
                 >
                   {p}
@@ -692,73 +608,63 @@ export function CmsApplyModal({
               ))}
             </div>
 
-            <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 text-[12px] text-brand-700 space-y-1.5">
-              <p className="font-semibold text-brand-900 flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-accent-700" />
-                3-Step Guided Apply for {platform}:
+            {/* Ultra-minimal 2-step instruction */}
+            <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-3 space-y-1 text-xs">
+              <p className="text-[11.5px] text-brand-950 font-medium">
+                1. Copy the snippet above into your {platform} SEO settings.
               </p>
-              {platform === "WordPress" && (
-                <ol className="list-decimal pl-4 space-y-1 text-[11.5px] text-brand-600">
-                  <li>Click <strong>Copy snippet</strong> above.</li>
-                  <li>Open the page in WordPress Editor and paste it into your <strong>Rank Math / Yoast SEO</strong> box (or Custom HTML block for JSON-LD Schema).</li>
-                  <li>Click <strong>Update</strong> in WordPress, then click <strong>Verify Live on Website</strong> below to record 30d/90d proof.</li>
-                </ol>
-              )}
-              {platform === "Shopify" && (
-                <ol className="list-decimal pl-4 space-y-1 text-[11.5px] text-brand-600">
-                  <li>Click <strong>Copy snippet</strong> above.</li>
-                  <li>In Shopify Admin → <strong>Online Store → Pages / Products</strong>, scroll to <strong>Search engine listing</strong> and click <strong>Edit</strong>.</li>
-                  <li>Paste the updated value, click <strong>Save</strong>, then click <strong>Verify Live on Website</strong> below.</li>
-                </ol>
-              )}
-              {(platform === "Webflow" || platform === "Custom CMS") && (
-                <ol className="list-decimal pl-4 space-y-1 text-[11.5px] text-brand-600">
-                  <li>Click <strong>Copy snippet</strong> above.</li>
-                  <li>Paste into your page&apos;s SEO Title / Meta Description settings (or Custom Code head section for JSON-LD).</li>
-                  <li>Publish your page, then click <strong>Verify Live on Website</strong> below so Reigel scans your live HTML and logs the proof.</li>
-                </ol>
-              )}
+              <p className="text-[11.5px] text-brand-500">
+                2. Click <strong>Verify Live HTML</strong> below to inspect the published page and record verified proof.
+              </p>
             </div>
 
             {verifyManualMutation.error && (
-              <StatusNote tone="bad">{errorMessage(verifyManualMutation.error)}</StatusNote>
+              <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs">
+                {errorMessage(verifyManualMutation.error)}
+              </div>
             )}
 
             {verifyManualMutation.data && (
               <div
                 className={cn(
-                  "rounded-xl border p-3.5 text-[12px] flex items-start gap-2.5",
+                  "rounded-xl border p-3 text-xs flex items-start gap-2",
                   verifyManualMutation.data.verified
-                    ? "border-good-300 bg-good-50/60 text-good-950"
-                    : "border-warn-300 bg-warn-50/60 text-warn-950",
+                    ? "border-success-200 bg-success-50/60 text-success-800"
+                    : "border-warning-200 bg-warning-50/60 text-warning-800"
                 )}
               >
-                <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-good-600" />
+                <ShieldCheck size={14} className="shrink-0 mt-0.5 text-success-600" />
                 <div>
-                  <p className="font-semibold">{verifyManualMutation.data.message}</p>
+                  <p className="font-bold">{verifyManualMutation.data.message}</p>
                   {verifyManualMutation.data.detectedLiveValue && (
-                    <p className="mt-1 font-mono text-[11px] opacity-80">
-                      Detected on live HTML: {verifyManualMutation.data.detectedLiveValue}
+                    <p className="mt-0.5 font-mono text-[10.5px] opacity-80">
+                      Live HTML: {verifyManualMutation.data.detectedLiveValue}
                     </p>
                   )}
                 </div>
               </div>
             )}
 
+            {/* Action Bar */}
             <div className="flex items-center justify-end gap-2 pt-2">
-              <ActionButton variant="secondary" onClick={onClose}>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-brand-200/60 bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-brand-500 hover:bg-brand-100 hover:text-brand-950 transition"
+              >
                 Close
-              </ActionButton>
-              <ActionButton
-                variant="primary"
+              </button>
+              <button
+                type="button"
                 disabled={!targetUrl.trim() || !afterValue.trim() || verifyManualMutation.isPending}
                 onClick={() => verifyManualMutation.mutate()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs disabled:opacity-50"
               >
-                <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", verifyManualMutation.isPending && "animate-spin")} />
-                {verifyManualMutation.isPending
-                  ? "Scanning Live HTML…"
-                  : "Verify Live on Website & Record Proof"}
-              </ActionButton>
+                <RefreshCw size={12} className={cn(verifyManualMutation.isPending && "animate-spin")} />
+                <span>
+                  {verifyManualMutation.isPending ? "Scanning Live HTML…" : "Verify Live on Website"}
+                </span>
+              </button>
             </div>
           </div>
         )}
