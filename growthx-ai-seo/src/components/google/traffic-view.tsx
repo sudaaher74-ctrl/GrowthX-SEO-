@@ -38,6 +38,7 @@ import {
   useGscTimeseries,
 } from "@/hooks/use-google";
 import { usePeriodDays, useWorkspace } from "@/hooks/use-growthx";
+import { AiReferralsCard } from "@/components/analytics/ai-referrals-card";
 import type { Ga4ReportData } from "@/lib/api-client";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
@@ -666,6 +667,9 @@ function TrafficViewClient() {
           </ResponsiveContainer>}
         </div>
       </div>
+
+      {/* ── AI REFERRALS CARD & IMPACT LEDGER BEFORE/AFTER ── */}
+      <AiReferralsCard projectId={projectId || ""} range={(`${periodDays}d` as any)} />
 
       {/* ── ROW 1: WHERE TRAFFIC COMES FROM & TOP LANDING PAGES ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

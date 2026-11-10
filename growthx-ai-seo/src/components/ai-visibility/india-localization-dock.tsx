@@ -297,3 +297,4 @@ export function IndiaLocalizationDock({ projectId }: IndiaLocalizationDockProps)
     </div>
   );
 }
+

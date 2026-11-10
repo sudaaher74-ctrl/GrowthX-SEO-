@@ -9,3 +9,4 @@ ALTER TABLE "AiVisibilityPrompt" ADD COLUMN "parentPromptId" TEXT;
 ALTER TABLE "AiVisibilityResponse" ADD COLUMN "language" TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE "AiVisibilityResponse" ADD COLUMN "location" TEXT;
 ALTER TABLE "AiVisibilityResponse" ADD COLUMN "locationSupported" BOOLEAN NOT NULL DEFAULT true;
+

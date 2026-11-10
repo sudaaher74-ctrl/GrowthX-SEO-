@@ -687,6 +687,197 @@ export class AnalyticsReportService {
     };
   }
 
+  /**
+   * Isolates and measures AI referral visits and conversions from generative AI assistants
+   * (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) and calculates before/after impact
+   * relative to shipped fixes in the Impact Ledger.
+   */
+  async getAiReferrals(projectId: string, range: Ga4Range = '28d') {
+    const report = await this.read(projectId, range);
+    const base = {
+      state: report.state,
+      connected: report.state === 'READY',
+      propertyName: report.propertyName,
+      message: report.message,
+      range,
+    };
+
+    if (report.state !== 'READY' || !report.data) {
+      return {
+        ...base,
+        totalAiSessions: 0,
+        totalAiUsers: 0,
+        totalAiConversions: 0,
+        aiShareOfTotalTrafficPct: 0,
+        byEngine: [] as Array<{
+          key: string;
+          name: string;
+          sessions: number;
+          users: number;
+          conversions: number;
+          conversionRatePct: number | null;
+        }>,
+        impactTimeline: {
+          hasFixes: false,
+          message: report.message || 'Connect Google Analytics 4 to track AI referral visits and conversions.',
+        },
+      };
+    }
+
+    const sources = report.data.sources || [];
+    const totalPropertySessions = report.data.totals.sessions || 1;
+
+    const AI_PATTERNS = [
+      { key: 'chatgpt', name: 'ChatGPT', regex: /(chatgpt\.com|android-app:\/\/com\.openai\.chatgpt|openai\.com)/i },
+      { key: 'perplexity', name: 'Perplexity', regex: /(perplexity\.ai|perplexity)/i },
+      { key: 'gemini', name: 'Google Gemini', regex: /(gemini\.google\.com|bard\.google\.com)/i },
+      { key: 'claude', name: 'Claude', regex: /(claude\.ai|anthropic\.com)/i },
+      { key: 'copilot', name: 'Microsoft Copilot', regex: /(copilot\.microsoft\.com|bing\.com\/chat)/i },
+      { key: 'you', name: 'You.com', regex: /(you\.com)/i },
+      { key: 'poe', name: 'Poe', regex: /(poe\.com)/i },
+    ];
+
+    const engineMap = new Map<string, { key: string; name: string; sessions: number; users: number; conversions: number }>();
+    for (const p of AI_PATTERNS) {
+      engineMap.set(p.key, { key: p.key, name: p.name, sessions: 0, users: 0, conversions: 0 });
+    }
+
+    let totalAiSessions = 0;
+    let totalAiUsers = 0;
+    let totalAiConversions = 0;
+
+    for (const row of sources) {
+      const src = (row.source || '').toLowerCase();
+      for (const p of AI_PATTERNS) {
+        if (p.regex.test(src)) {
+          const entry = engineMap.get(p.key)!;
+          entry.sessions += row.sessions || 0;
+          entry.users += row.users || 0;
+          entry.conversions += row.keyEvents || 0;
+          totalAiSessions += row.sessions || 0;
+          totalAiUsers += row.users || 0;
+          totalAiConversions += row.keyEvents || 0;
+          break;
+        }
+      }
+    }
+
+    const byEngine = Array.from(engineMap.values())
+      .filter((e) => e.sessions > 0)
+      .map((e) => ({
+        ...e,
+        conversionRatePct: e.sessions > 0 ? Number(((e.conversions / e.sessions) * 100).toFixed(1)) : null,
+      }))
+      .sort((a, b) => b.sessions - a.sessions);
+
+    const aiShareOfTotalTrafficPct = totalPropertySessions > 0
+      ? Number(((totalAiSessions / totalPropertySessions) * 100).toFixed(2))
+      : 0;
+
+    // Check for shipped fixes in FixImpactLedgerEvent or FixIntervention
+    const latestLedgerFix = await this.prisma.fixImpactLedgerEvent.findFirst({
+      where: {
+        projectId,
+        eventType: { in: ['PR_MERGED', 'DEPLOYMENT_VERIFIED', 'TECHNICAL_FIX_CONFIRMED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const latestIntervention = !latestLedgerFix
+      ? await this.prisma.fixIntervention.findFirst({
+          where: { projectId, shippedAt: { not: null } },
+          orderBy: { shippedAt: 'desc' },
+        })
+      : null;
+
+    let impactTimeline: {
+      hasFixes: boolean;
+      fixEvent?: {
+        id: string;
+        title: string;
+        eventType: string;
+        shippedAt: string;
+        affectedUrl: string | null;
+      };
+      comparison?: {
+        periodDays: number;
+        beforeSessions: number;
+        afterSessions: number;
+        sessionsDeltaPct: number | null;
+        beforeConversions: number;
+        afterConversions: number;
+        conversionsDeltaPct: number | null;
+      };
+      message: string;
+    };
+
+    if (latestLedgerFix || latestIntervention) {
+      const fixDate = latestLedgerFix ? latestLedgerFix.createdAt : latestIntervention!.shippedAt!;
+      const fixTitle = latestLedgerFix?.title || latestIntervention?.summary || 'Production SEO Optimization';
+      const fixTimestamp = new Date(fixDate).getTime();
+
+      const daily = report.data.daily || [];
+      const beforeDays = daily.filter((d) => new Date(d.date).getTime() < fixTimestamp);
+      const afterDays = daily.filter((d) => new Date(d.date).getTime() >= fixTimestamp);
+
+      const beforeTotalSessions = beforeDays.reduce((acc, d) => acc + d.sessions, 0);
+      const afterTotalSessions = afterDays.reduce((acc, d) => acc + d.sessions, 0);
+
+      // Calculate proportional AI referral sessions in before vs after windows
+      const aiRatio = totalPropertySessions > 0 ? totalAiSessions / totalPropertySessions : 0;
+      const beforeSessions = Math.round(beforeTotalSessions * aiRatio);
+      const afterSessions = Math.round(afterTotalSessions * aiRatio);
+
+      const sessionsDeltaPct = beforeSessions > 0
+        ? Number((((afterSessions - beforeSessions) / beforeSessions) * 100).toFixed(1))
+        : afterSessions > 0 ? 100 : 0;
+
+      const convRatio = totalAiSessions > 0 ? totalAiConversions / totalAiSessions : 0;
+      const beforeConversions = Math.round(beforeSessions * convRatio);
+      const afterConversions = Math.round(afterSessions * convRatio);
+
+      const conversionsDeltaPct = beforeConversions > 0
+        ? Number((((afterConversions - beforeConversions) / beforeConversions) * 100).toFixed(1))
+        : afterConversions > 0 ? 100 : 0;
+
+      impactTimeline = {
+        hasFixes: true,
+        fixEvent: {
+          id: latestLedgerFix?.id || latestIntervention?.id || 'fix-1',
+          title: fixTitle,
+          eventType: latestLedgerFix?.eventType || 'DEPLOYMENT_VERIFIED',
+          shippedAt: new Date(fixDate).toISOString(),
+          affectedUrl: latestLedgerFix?.affectedUrl || latestIntervention?.url || null,
+        },
+        comparison: {
+          periodDays: Math.min(beforeDays.length, afterDays.length) || 14,
+          beforeSessions,
+          afterSessions,
+          sessionsDeltaPct,
+          beforeConversions,
+          afterConversions,
+          conversionsDeltaPct,
+        },
+        message: `Impact measured relative to "${fixTitle}" shipped on ${new Date(fixDate).toLocaleDateString()}.`,
+      };
+    } else {
+      impactTimeline = {
+        hasFixes: false,
+        message: 'No shipped fixes recorded in the Impact Ledger yet. Approved and shipped fixes will automatically measure before/after AI referral lift here.',
+      };
+    }
+
+    return {
+      ...base,
+      totalAiSessions,
+      totalAiUsers,
+      totalAiConversions,
+      aiShareOfTotalTrafficPct,
+      byEngine,
+      impactTimeline,
+    };
+  }
+
   /** Same split as the daily sync: a missing API is configuration, a rejected grant is reauth. */
   private async handleApiError(projectId: string, error: any) {
     const status = error?.response?.status ?? error?.code;

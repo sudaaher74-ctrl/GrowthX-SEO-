@@ -134,6 +134,48 @@ export interface VisibilityReport {
   };
 }
 
+export interface AiReferralEngineItem {
+  key: string;
+  name: string;
+  sessions: number;
+  users: number;
+  conversions: number;
+  conversionRatePct: number | null;
+}
+
+export interface AiReferralsReport {
+  state: "NOT_CONNECTED" | "NEEDS_SELECTION" | "NEEDS_REAUTH" | "ERROR" | "NEVER_SYNCED" | "EMPTY" | "READY";
+  connected: boolean;
+  propertyName: string | null;
+  message: string | null;
+  range: string;
+  totalAiSessions: number;
+  totalAiUsers: number;
+  totalAiConversions: number;
+  aiShareOfTotalTrafficPct: number;
+  byEngine: AiReferralEngineItem[];
+  impactTimeline: {
+    hasFixes: boolean;
+    fixEvent?: {
+      id: string;
+      title: string;
+      eventType: string;
+      shippedAt: string;
+      affectedUrl: string | null;
+    };
+    comparison?: {
+      periodDays: number;
+      beforeSessions: number;
+      afterSessions: number;
+      sessionsDeltaPct: number | null;
+      beforeConversions: number;
+      afterConversions: number;
+      conversionsDeltaPct: number | null;
+    };
+    message: string;
+  };
+}
+
 export interface AiVisibilitySettings {
   id: string;
   projectId: string;

@@ -178,7 +178,7 @@ export const auth = {
   },
 };
 
-import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, AiVisibilitySettings, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
+import type { Role, OrgMember, UserProfile, TokensOverview, TokenTransactionPage, VisibilityReport, VisibilityInsights, AvAction, AvUnifiedIntelligence, QuestionAnalysisReport, QuestionSuggestion, TrackedPromptRow, GscPromptSuggestionItem, GscPromptSuggestionsResponse, AiVisibilitySettings, AiReferralEngineItem, AiReferralsReport, PortfolioResponse, CrawlJob, CrawlHistoryPoint, CrawlPage, CrawlIssue, ContentPiece, GscSummary, GscPoint, GscRow, GscStrikingDistanceRow, GscCtrOpportunity, GscDecliningRow, GoogleConnectionStatus, GrowthOpportunity, FindingListResponse, OpportunityList, Ga4Summary, Ga4Point, Ga4RangeKey, Ga4Report, PageValue, GoogleOverview, GooglePages, GoogleKeywordMovement, GoogleBreakdown, GoogleReport, GoogleAlertsReport, GooglePageDetail, IssueCounts, IssueGroupList, IssueGroupFilters, ExecutiveSummary, SiteRepository, AutomationRun, QueueStat, LocalSeoData, GeoGridRunSummary, GeoGridScanRequest, GeoGridScanResult, LocalReview, PlacesCompetitorSearch, ApiCostStat, TenantStat, AdminSystemHealth, AdminUserItem, AdminUserModelUsage, TrackedCompetitor, WebsiteAuditReport, CompetitorIntelReport, CompetitorWebsite, TrackedCompetitorList, GeoSimulationResult, SimulateGeoBody, ProgrammaticMatrixResponse, RivalMovesResponse, GbpFixSuggestion, GbpFixProposal, AutopilotRun, VoiceAgentResult, VoiceChatRequest, CrawlQualityDiagnostics, MammouthConfig, MammouthAnalysisInput, MammouthTestResult } from "./api-types";
 
 export * from "./api-types";
 
@@ -1374,6 +1374,8 @@ export const api = {
   /** Cached exact GA4 report for one workspace and window. */
   ga4Report: (projectId: string, range: Ga4RangeKey) =>
     get<Ga4Report>(`/api/projects/${projectId}/analytics/report?range=${range}`),
+  aiReferrals: (projectId: string, range: Ga4RangeKey = "28d") =>
+    get<AiReferralsReport>(`/api/projects/${projectId}/analytics/ai-referrals?range=${range}`),
   ga4Realtime: (projectId: string) =>
     get<{
       state: "READY" | "NOT_CONNECTED" | "NEEDS_SELECTION" | "NEEDS_REAUTH";

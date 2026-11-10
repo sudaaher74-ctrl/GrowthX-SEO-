@@ -39,6 +39,12 @@ export class AnalyticsController {
     return this.reports.read(projectId, parseGa4Range(range));
   }
 
+  @Get('ai-referrals')
+  @ApiOperation({ summary: 'AI referral visits from ChatGPT, Perplexity, Gemini, Claude, and Copilot with before/after Impact Ledger lift' })
+  aiReferrals(@Param('projectId') projectId: string, @Query('range') range?: string) {
+    return this.reports.getAiReferrals(projectId, parseGa4Range(range));
+  }
+
   @Get('coverage')
   @ApiOperation({ summary: 'The date range of stored GA4 data' })
   coverage(@Param('projectId') projectId: string) {

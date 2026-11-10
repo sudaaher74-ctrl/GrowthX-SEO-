@@ -37,6 +37,7 @@ import { Card, CardHead, EmptyPrompt, LoadingLine, CardSkeletonShimmer, ChartSke
 import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary";
 import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
 import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
+import { AiReferralsCard } from "@/components/analytics/ai-referrals-card";
 import {
   DEFAULT_WINDOW_DAYS,
   BigMeasure,
@@ -617,6 +618,9 @@ export default function UnifiedDashboardPage() {
           )}
         </Card>
       )}
+
+      {/* AI Referral Traffic & Impact Ledger Correlation */}
+      <AiReferralsCard projectId={projectId || ""} />
 
       {/* Closed-Loop Adaptive Results Engine */}
       <ClosedLoopResultsCard />

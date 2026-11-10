@@ -22,6 +22,8 @@ describe('AnalyticsReportService', () => {
         upsert: jest.fn().mockImplementation((args) => args),
         deleteMany: jest.fn().mockReturnValue('deleted'),
       },
+      fixImpactLedgerEvent: { findFirst: jest.fn().mockResolvedValue(null) },
+      fixIntervention: { findFirst: jest.fn().mockResolvedValue(null) },
       dataSyncJob: { findFirst: jest.fn().mockResolvedValue(lastJob) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
@@ -360,6 +362,68 @@ describe('AnalyticsReportService', () => {
     it('refuses a workspace with no property selected', async () => {
       const { service } = build({ selectedResourceId: null, selectedResourceName: null });
       await expect(service.refresh('p1')).rejects.toThrow(/No Google Analytics property/);
+    });
+  });
+
+  describe('getAiReferrals', () => {
+    it('returns connected: false when integration is disconnected', async () => {
+      const { service } = build({ status: 'DISCONNECTED' });
+      const result = await service.getAiReferrals('p1', '28d');
+      expect(result.connected).toBe(false);
+      expect(result.totalAiSessions).toBe(0);
+      expect(result.byEngine).toEqual([]);
+    });
+
+    it('aggregates sessions from ChatGPT, Perplexity, and Gemini and checks Impact Ledger', async () => {
+      const { service, prisma } = build({
+        status: 'CONNECTED',
+        selectedResourceId: 'properties/12345',
+        selectedResourceName: 'Production GA4',
+      });
+
+      prisma.ga4ReportSnapshot.findUnique.mockResolvedValue({
+        data: {
+          empty: false,
+          totals: { sessions: 10000, users: 8000, engagementRate: 0.65, keyEvents: 250 },
+          sources: [
+            { source: 'chatgpt.com', medium: 'referral', channel: 'Referral', sessions: 240, users: 180, keyEvents: 12 },
+            { source: 'perplexity.ai', medium: 'referral', channel: 'Referral', sessions: 110, users: 95, keyEvents: 8 },
+            { source: 'gemini.google.com', medium: 'referral', channel: 'Referral', sessions: 50, users: 45, keyEvents: 3 },
+            { source: 'google', medium: 'organic', channel: 'Organic Search', sessions: 7000, users: 5500, keyEvents: 180 },
+          ],
+          daily: [
+            { date: '2026-10-01', sessions: 500, users: 400 },
+            { date: '2026-10-15', sessions: 600, users: 480 },
+            { date: '2026-10-20', sessions: 800, users: 650 },
+          ],
+        },
+        syncedAt: new Date(),
+        savedAt: new Date(),
+      });
+
+      prisma.fixImpactLedgerEvent.findFirst.mockResolvedValue({
+        id: 'fix-123',
+        title: 'Structured Schema & FAQ Fix',
+        eventType: 'DEPLOYMENT_VERIFIED',
+        createdAt: new Date('2026-10-10T00:00:00Z'),
+        affectedUrl: 'https://mysite.com/pricing',
+      });
+
+      const result = await service.getAiReferrals('p1', '28d');
+
+      expect(result.connected).toBe(true);
+      expect(result.totalAiSessions).toBe(400); // 240 + 110 + 50
+      expect(result.totalAiUsers).toBe(320); // 180 + 95 + 45
+      expect(result.totalAiConversions).toBe(23); // 12 + 8 + 3
+      expect(result.byEngine).toHaveLength(3);
+      expect(result.byEngine[0].name).toBe('ChatGPT');
+      expect(result.byEngine[0].sessions).toBe(240);
+      expect(result.byEngine[1].name).toBe('Perplexity');
+      expect(result.byEngine[1].sessions).toBe(110);
+      expect(result.byEngine[2].name).toBe('Google Gemini');
+      expect(result.byEngine[2].sessions).toBe(50);
+      expect(result.impactTimeline.hasFixes).toBe(true);
+      expect(result.impactTimeline.fixEvent?.title).toBe('Structured Schema & FAQ Fix');
     });
   });
 });
