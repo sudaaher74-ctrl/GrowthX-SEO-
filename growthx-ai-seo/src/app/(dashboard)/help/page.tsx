@@ -75,6 +75,11 @@ const FAQS: FaqItem[] = [
     a: "Your account will not be charged. You will be invited to choose whether you wish to stay on the standard single-site free tier or upgrade to Growth or Agency plans if you require multi-domain or higher crawl volume support.",
   },
   {
+    category: "billing",
+    q: "How do I upgrade or change my subscription plan?",
+    a: "Navigate to Settings > Subscription and click 'Change Plan'. You can select between Founder Early Access, Starter, Growth, or Agency tiers. Your workspace limits (websites, crawl capacity, competitors, and AI visibility cycles) update immediately.",
+  },
+  {
     category: "getting_started",
     q: "Can I replace or change my monitored website?",
     a: "Yes. Head to Settings > Websites to view your currently active domain. You can switch or manage your tracked website anytime.",
