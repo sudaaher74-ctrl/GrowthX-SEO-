@@ -28,6 +28,8 @@ function LoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlParam = (searchParams.get("url") || "").trim();
+  const planParam = searchParams.get("plan");
+  const cycleParam = searchParams.get("cycle");
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(searchParams.get("error") || null);
@@ -39,7 +41,17 @@ function LoginFormInner() {
         localStorage.setItem("growthx_pending_domain", urlParam);
       } catch {}
     }
-  }, [urlParam]);
+    if (planParam) {
+      try {
+        sessionStorage.setItem("growthx_pending_plan", planParam);
+      } catch {}
+    }
+    if (cycleParam) {
+      try {
+        sessionStorage.setItem("growthx_pending_cycle", cycleParam);
+      } catch {}
+    }
+  }, [urlParam, planParam, cycleParam]);
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));

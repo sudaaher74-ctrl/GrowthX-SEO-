@@ -262,7 +262,7 @@ export default function PricingPage() {
                         : "bg-surface-2 hover:bg-surface-3 hover:text-brand-950 text-brand-900 border border-brand-200"
                     }`}
                   >
-                    <span>Claim Free Early Access</span>
+                    <span>Get Started with {tier.name}</span>
                     <ArrowRight size={14} />
                   </Link>
 

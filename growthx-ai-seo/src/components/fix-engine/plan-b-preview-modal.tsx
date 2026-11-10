@@ -130,8 +130,8 @@ export function PlanBPreviewModal({
             </p>
           </div>
 
-          <div className="rounded-xl border border-accent-300/80 bg-accent-50/20 p-2.5 space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-accent-800 block">
+          <div className="rounded-xl border border-signal-400/40 bg-signal-400/10 p-2.5 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-950 block">
               Next Recommended Step
             </span>
             <p className="font-semibold text-brand-950 text-[11.5px]">FAQ Schema (JSON-LD)</p>
@@ -151,7 +151,7 @@ export function PlanBPreviewModal({
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-accent-700 hover:underline cursor-pointer"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-950 hover:underline cursor-pointer"
             >
               {copied ? (
                 <>

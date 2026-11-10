@@ -22,9 +22,23 @@ interface SubscriptionGateModalProps {
 }
 
 export function SubscriptionGateModal({ orgId, onClaimed }: SubscriptionGateModalProps) {
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTierId>("founder_free");
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTierId>(() => {
+    if (typeof window === "undefined") return "founder_free";
+    try {
+      const pending = sessionStorage.getItem("growthx_pending_plan");
+      if (pending === "starter" || pending === "growth" || pending === "agency") return pending;
+    } catch {}
+    return "founder_free";
+  });
   const [currency, setCurrency] = useState<Currency>("INR");
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const [cycle, setCycle] = useState<BillingCycle>(() => {
+    if (typeof window === "undefined") return "monthly";
+    try {
+      const pending = sessionStorage.getItem("growthx_pending_cycle");
+      if (pending === "yearly") return "yearly";
+    } catch {}
+    return "monthly";
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
