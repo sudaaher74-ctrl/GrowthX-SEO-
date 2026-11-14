@@ -79,7 +79,7 @@ export function TopNav({
     <header
       className={cn(
         "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-2 border-b bg-surface-1/95 backdrop-blur-md px-3 transition-all duration-300 ease-in-out md:px-4",
-        collapsed ? "md:left-[68px]" : "md:left-[232px]",
+        collapsed ? "md:left-0" : "md:left-[232px]",
       )}
       style={{ borderColor: "var(--border-color)" }}
     >
@@ -87,20 +87,22 @@ export function TopNav({
         <Menu size={18} className="text-brand-600" />
       </button>
 
-      {/* Desktop Collapse Toggle with tooltip */}
-      <div className="relative group hidden md:block">
-        <button
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-200/80 bg-surface-1 text-brand-600 transition hover:bg-surface-2 hover:text-brand-950 hover:border-brand-300 shadow-2xs cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-600"
-        >
-          <PanelLeft size={16} />
-        </button>
-        <div className="pointer-events-none absolute left-0 top-full mt-1.5 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-          <span>{collapsed ? "Show sidebar" : "Hide sidebar"}</span>
-          <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
+      {/* Desktop Collapse Toggle with tooltip (shown when sidebar is hidden) */}
+      {collapsed && (
+        <div className="relative group hidden md:block">
+          <button
+            onClick={onToggleCollapse}
+            aria-label="Show sidebar (⌘B)"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-200/80 bg-surface-1 text-brand-600 transition hover:bg-surface-2 hover:text-brand-950 hover:border-brand-300 shadow-2xs cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-600"
+          >
+            <PanelLeft size={16} />
+          </button>
+          <div className="pointer-events-none absolute left-0 top-full mt-1.5 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+            <span>Show sidebar</span>
+            <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* History navigation buttons (< >) matching modern UI */}
       <div className="hidden items-center gap-0.5 md:flex">

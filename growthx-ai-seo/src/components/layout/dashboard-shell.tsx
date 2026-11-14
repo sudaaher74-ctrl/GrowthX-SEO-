@@ -27,11 +27,15 @@ import { SubscriptionGateModal } from "@/components/subscription/subscription-ga
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return false;
     try {
-      return localStorage.getItem("growthx_sidebar_rail") !== "false";
+      const saved = localStorage.getItem("growthx_sidebar_collapsed");
+      if (saved !== null) return saved === "true";
+      // Clear legacy rail setting so users don't get trapped in rail mode
+      localStorage.removeItem("growthx_sidebar_rail");
+      return false;
     } catch {
-      return true;
+      return false;
     }
   });
   const router = useRouter();
@@ -51,7 +55,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     setCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("growthx_sidebar_rail", String(next));
+        localStorage.setItem("growthx_sidebar_collapsed", String(next));
       } catch {}
       return next;
     });
@@ -146,11 +150,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             />
           )}
         </Suspense>
-        {/* Compact navigation rail + 52px top bar */}
+        {/* Full-width workspace when collapsed, 232px sidebar offset when expanded */}
         <main
           className={cn(
             "min-h-screen transition-all duration-300 ease-in-out pt-[52px]",
-            isAdmin ? (collapsed ? "md:ml-[232px]" : "md:ml-0") : collapsed ? "md:ml-[68px]" : "md:ml-[232px]",
+            isAdmin ? (collapsed ? "md:ml-0" : "md:ml-[232px]") : collapsed ? "md:ml-0" : "md:ml-[232px]",
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">

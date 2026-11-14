@@ -10,7 +10,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
     <div
       className={cn(
         isDark ? "dash-dark dark" : "dash-light",
-        "min-h-screen text-brand-950 antialiased selection:bg-signal-400 selection:text-signal-ink transition-colors duration-200",
+        "min-h-screen w-full max-w-full overflow-x-clip text-brand-950 antialiased selection:bg-signal-400 selection:text-signal-ink transition-colors duration-200",
       )}
       style={{ background: "var(--color-canvas)" }}
     >

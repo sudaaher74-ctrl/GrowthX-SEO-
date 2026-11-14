@@ -47,7 +47,7 @@ export function Sidebar({
   const { theme, toggleTheme } = useTheme();
 
   const { mainNav } = useMainNav();
-  const compact = collapsed && !mobileOpen;
+  const compact = false;
 
   const stepItems = mainNav.filter((item) => item.step);
   const completedSteps = stepItems.filter((item) => item.step?.done).length;
@@ -63,66 +63,43 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r bg-surface-1 transition-all duration-300 ease-in-out",
-          "w-[232px]",
-          collapsed ? "md:w-[68px] md:translate-x-0" : "md:w-[232px] md:translate-x-0",
+          "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-surface-1 transition-all duration-300 ease-in-out",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
+          collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
         style={{ borderColor: "var(--border-color)" }}
       >
         {/* Brand Header */}
         <div
-          className={cn(
-            "flex h-[52px] shrink-0 items-center border-b",
-            compact ? "justify-center px-2" : "justify-between px-3",
-          )}
+          className="flex h-[52px] shrink-0 items-center justify-between px-3 border-b"
           style={{ borderColor: "var(--border-color)" }}
         >
-          {compact ? (
-            onToggleCollapse && (
-              <div className="relative group hidden md:block">
-                <button
-                  type="button"
-                  onClick={onToggleCollapse}
-                  aria-label="Show sidebar (⌘B)"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-500 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
-                >
-                  <PanelLeft size={16} />
-                </button>
-                <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[11px] font-medium text-brand-50 shadow-xl group-hover:flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <span>Show sidebar</span>
-                  <kbd className="rounded bg-brand-800 px-1 py-0.2 font-mono text-[9.5px] text-brand-300">⌘B</kbd>
-                </div>
-              </div>
-            )
-          ) : (
-            <Link
-              href="/dashboard"
-              onClick={() => setMobileOpen?.(false)}
-              title="Reigel AI SEO"
-              className="flex min-w-0 items-center gap-2.5"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs transition-transform hover:scale-105">
-                R
+          <Link
+            href="/dashboard"
+            onClick={() => setMobileOpen?.(false)}
+            title="Reigel AI SEO"
+            className="flex min-w-0 items-center gap-2.5"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-400 font-mono text-xs font-black text-signal-ink shadow-xs transition-transform hover:scale-105">
+              R
+            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate text-[14px] font-extrabold tracking-[-0.02em] text-brand-950">
+                Reigel
               </span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="truncate text-[14px] font-extrabold tracking-[-0.02em] text-brand-950">
-                  Reigel
-                </span>
-                <span className="shrink-0 rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-brand-500">
-                  AI SEO
-                </span>
-              </div>
-            </Link>
-          )}
+              <span className="shrink-0 rounded-md border border-brand-200 bg-surface-2 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-brand-500">
+                AI SEO
+              </span>
+            </div>
+          </Link>
 
-          {!compact && onToggleCollapse && (
+          {onToggleCollapse && (
             <div className="relative group hidden md:block">
               <button
                 type="button"
                 onClick={onToggleCollapse}
                 aria-label="Hide sidebar (⌘B)"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-400 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-400 transition hover:bg-surface-2 hover:text-brand-950 cursor-pointer"
               >
                 <PanelLeft size={15} />
               </button>

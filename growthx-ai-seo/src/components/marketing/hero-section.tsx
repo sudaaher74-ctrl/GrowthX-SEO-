@@ -50,20 +50,20 @@ function DashboardMockup() {
 
           {/* Credits + Single Theme Toggle */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9.5px] sm:text-[10px] font-mono font-bold text-brand-950">
+            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-bold text-brand-950">
               <Coins size={10} className="text-signal-400 shrink-0" />
               <span>4.9M<span className="hidden sm:inline">85 Credits</span></span>
             </span>
-            <span className="flex h-5 w-5 items-center justify-center rounded-md border border-brand-200 bg-surface-2 text-brand-500">
+            <span className="hidden xs:flex h-5 w-5 items-center justify-center rounded-md border border-brand-200 bg-surface-2 text-brand-500">
               <Sun size={10} />
             </span>
           </div>
         </div>
 
         {/* Dashboard Body: Sidebar + Workspace */}
-        <div className="flex">
-          {/* Streamlined Sidebar */}
-          <div className="w-10 sm:w-44 bg-surface-1 p-1.5 sm:p-3 shrink-0 flex flex-col justify-between border-r border-brand-200">
+        <div className="flex min-w-0 w-full overflow-hidden">
+          {/* Streamlined Sidebar — visible on sm+ screens to preserve mobile width */}
+          <div className="hidden sm:flex w-44 bg-surface-1 p-3 shrink-0 flex-col justify-between border-r border-brand-200">
             <div className="space-y-3">
               {/* Workspace Badge */}
               <div className="hidden sm:flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2 p-2">
@@ -445,11 +445,11 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative lg:min-h-[calc(100vh-4rem)] flex items-start lg:items-center pt-24 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-200 overflow-hidden">
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-4">
-        <div className="grid lg:grid-cols-[45%_55%] gap-8 lg:gap-10 items-center">
+    <section className="relative lg:min-h-[calc(100vh-4rem)] flex items-start lg:items-center pt-20 pb-12 sm:pt-24 sm:pb-16 lg:pt-28 lg:pb-20 border-b border-brand-200 overflow-x-clip w-full max-w-full">
+      <div className="relative max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 w-full py-2 sm:py-4 min-w-0">
+        <div className="grid lg:grid-cols-[45%_55%] gap-8 lg:gap-10 items-center min-w-0 w-full">
           {/* LEFT COLUMN */}
-          <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
             {/* Badge */}
             <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-2xs max-w-full">
               <div className="w-2 h-2 rounded-full bg-signal-400 shrink-0" />
@@ -458,7 +458,7 @@ export function HeroSection() {
 
             {/* Headline */}
             <div>
-              <h1 className="text-3xl sm:text-5xl lg:text-[46px] font-extrabold text-brand-950 leading-[1.15] tracking-tight">
+              <h1 className="text-2xl xs:text-3xl sm:text-5xl lg:text-[46px] font-extrabold text-brand-950 leading-[1.18] tracking-tight break-words">
                 Find what&apos;s costing you customers.
                 <span className="block text-signal-400 mt-1 sm:mt-1.5">
                   Fix it before your competitors do.
@@ -467,7 +467,7 @@ export function HeroSection() {
             </div>
 
             {/* Subtitle */}
-            <p className="text-sm sm:text-base lg:text-lg text-brand-500 leading-relaxed max-w-xl">
+            <p className="text-sm sm:text-base lg:text-lg text-brand-500 leading-relaxed max-w-xl break-words">
               Reigel crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
             </p>
 
