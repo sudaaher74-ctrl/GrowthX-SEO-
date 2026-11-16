@@ -209,6 +209,11 @@ export function parseAction(text: string): Action | null {
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
+const isTransientAiConnectionError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /connection error|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|fetch failed|socket hang up/i.test(message);
+};
+
 /** Require complete, usable tool arguments; never repair a truncated code edit. */
 export function isUsableAction(text: string): boolean {
   const action = parseAction(text);
@@ -551,7 +556,7 @@ export class EngineerAgentService {
         turnNotice,
       ].filter(Boolean).join('\n\n');
 
-      const completion = await this.router.generate({
+      const aiRequest = {
         prompt,
         systemInstruction: SYSTEM_PROMPT,
         task: AiTask.CODE_GEN,
@@ -561,7 +566,20 @@ export class EngineerAgentService {
         validateResponse: isUsableAction,
         maxTokens: 8000,
         timeoutMs: 45000,
-      });
+      };
+      let completion: Awaited<ReturnType<MultiAiRouterService['generate']>>;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          completion = await this.router.generate(aiRequest);
+          break;
+        } catch (error) {
+          if (attempt >= 3 || !isTransientAiConnectionError(error)) throw error;
+          const delayMs = attempt * 1000;
+          steps.push(this.step('ai_retry', `Temporary AI provider connection failure; retrying this response (${attempt}/2) in ${delayMs / 1000}s. No repository action was replayed.`, true));
+          await this.prisma.automationRun.update({ where: { id: runId }, data: { steps: steps as any } }).catch(() => undefined);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
 
       const action = completion.refused ? null : parseAction(completion.text);
       if (!action || !action.tool || !isUsableAction(completion.text) || completion.refused) {
