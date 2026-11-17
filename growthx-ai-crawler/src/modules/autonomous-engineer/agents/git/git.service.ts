@@ -50,25 +50,37 @@ export class GitService {
    * Clones a repository to a local temporary directory.
    */
   async cloneRepository(repoUrl: string, token: string, _repoName: string): Promise<string> {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
-
-    // GitHub's documented form for a token over HTTPS. The token is URL-encoded, so a
-    // character that is not valid in a URL cannot corrupt the address (git reports that
-    // as "URL using bad/illegal format").
+    // Retry only transient transport failures. Authentication, permission, and missing-repo
+    // errors should fail immediately so users can correct their GitHub connection.
+    const maxAttempts = 3;
     const url = new URL(repoUrl);
     url.username = 'x-access-token';
     url.password = token.trim();
     const git: SimpleGit = simpleGit({ timeout: { block: 120000 } });
 
-    this.logger.log(`Cloning ${repoUrl} to ${targetDir}...`);
-    try {
-      await git.clone(url.toString(), targetDir, ['--depth', '1', '--single-branch', '--no-tags']);
-    } catch (error) {
-      await this.cleanupRepository(targetDir);
-      throw error;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
+      this.logger.log(`Cloning ${repoUrl} to ${targetDir} (attempt ${attempt}/${maxAttempts})...`);
+      try {
+        await git.clone(url.toString(), targetDir, ['--depth', '1', '--single-branch', '--no-tags']);
+        return targetDir;
+      } catch (error) {
+        await this.cleanupRepository(targetDir);
+        const message = error instanceof Error ? error.message : String(error);
+        const transientNetworkFailure =
+          /Failed to connect|Could not resolve host|Couldn't connect to server|Connection timed out|Connection reset|Connection refused|Operation timed out|Recv failure|TLS connection was non-properly terminated|HTTP\/\/[12].*\b5\d\d\b|\bHTTP 5\d\d\b|early EOF/i.test(message);
+
+        if (!transientNetworkFailure || attempt === maxAttempts) {
+          throw error;
+        }
+
+        const delayMs = 1000 * (2 ** (attempt - 1));
+        this.logger.warn(`Transient GitHub network error while cloning (attempt ${attempt}/${maxAttempts}); retrying in ${delayMs}ms.`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
 
-    return targetDir;
+    throw new Error('Repository clone failed after retry attempts.');
   }
 
   /** Remove only workspaces this service created under the host temp directory. */
