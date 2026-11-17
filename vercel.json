@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build --workspace=growthx-ai-seo",
+  "outputDirectory": "growthx-ai-seo/.next",
   "installCommand": "npm install",
   "framework": "nextjs"
 }
