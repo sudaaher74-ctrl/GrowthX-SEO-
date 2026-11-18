@@ -118,7 +118,7 @@ jobs:
         working-directory: growthx-ai-crawler
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: node ./node_modules/typescript/bin/tsc --noEmit
 
       # lint:check, not lint: `npm run lint` passes --fix and would rewrite
       # files instead of failing on them.
