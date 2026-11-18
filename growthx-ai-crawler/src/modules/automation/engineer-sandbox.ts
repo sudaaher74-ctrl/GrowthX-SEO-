@@ -320,10 +320,24 @@ export class RepoSandbox {
     // snippet back to the file's newline convention before matching. This
     // keeps edits exact and unique without rewriting unrelated file lines.
     const eol = (text.match(/\r\n/g)?.length ?? 0) > 0 ? '\r\n' : '\n';
-    const oldForFile = oldText.replace(/\r\n|\n/g, eol);
+    let oldForFile = oldText.replace(/\r\n|\n/g, eol);
+    let first = text.indexOf(oldForFile);
+    if (first === -1) {
+      // The read tool prefixes every displayed source line with "N: ". If the
+      // model copies those labels into its edit request, remove them only when
+      // the complete snippet has consecutive line numbers. Matching remains
+      // exact and unique after the labels are removed.
+      const numberedLines = oldText.split(/\r\n|\n/).map((line) => line.match(/^(\d+): (.*)$/));
+      const hasSequentialLineNumbers =
+        numberedLines.length > 0 &&
+        numberedLines.every((line, index) => line && Number(line[1]) === Number(numberedLines[0]?.[1]) + index);
+      if (hasSequentialLineNumbers) {
+        oldForFile = numberedLines.map((line) => line![2]).join(eol);
+        first = text.indexOf(oldForFile);
+      }
+    }
     const newForFile = newText.replace(/\r\n|\n/g, eol);
-    const first = text.indexOf(oldForFile);
-    if (first === -1) throw new SandboxError(`That text was not found in ${p}. Read the file again and copy the exact lines, including punctuation and indentation.`);
+    if (first === -1) throw new SandboxError(`That text was not found in ${p}. Read the file again and copy the source text exactly; line-number labels are not part of the file.`);
     if (text.indexOf(oldForFile, first + 1) !== -1) throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
     const next = text.slice(0, first) + newForFile + text.slice(first + oldForFile.length);
     if (Buffer.byteLength(next) > LIMITS.maxWriteBytes * 2) throw new SandboxError('The file would become too large.');
