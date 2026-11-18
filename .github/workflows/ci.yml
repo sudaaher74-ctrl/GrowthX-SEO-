@@ -54,7 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: growthx-ai-crawler
         working-directory: growthx-ai-seo
 
       - name: Typecheck
@@ -116,6 +115,7 @@ jobs:
       # postinstall runs `prisma generate`, which needs no database.
       - name: Install dependencies
         run: npm ci
+        working-directory: growthx-ai-crawler
 
       - name: Typecheck
         run: npx tsc --noEmit
