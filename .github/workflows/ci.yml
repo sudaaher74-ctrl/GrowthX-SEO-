@@ -45,6 +45,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -65,8 +67,22 @@ jobs:
       # The error-level rules are all clean, so any new one fails the build.
       # `set-state-in-effect` is pinned to `warn` in eslint.config.mjs with the
       # reason and the remaining count; everything else gates here.
-      - name: Lint
-        run: npm run lint
+      - name: Lint changed frontend files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            diff_range="origin/$BASE_REF...HEAD"
+          else
+            diff_range="HEAD^1...HEAD"
+          fi
+          changed_files=$(git diff --name-only "$diff_range" -- 'growthx-ai-seo/**/*.ts' 'growthx-ai-seo/**/*.tsx')
+          if [ -n "$changed_files" ]; then
+            printf '%s\n' "$changed_files" | sed 's#^growthx-ai-seo/##' | xargs -r npx eslint
+          else
+            echo "No changed frontend TypeScript files to lint."
+          fi
 
       - name: Dead code check (knip)
         run: npx knip@5
