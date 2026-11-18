@@ -100,7 +100,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Route smoke test
-        run: npm run test:smoke
+        run: npx playwright test e2e/smoke.spec.ts
 
       - name: Upload smoke traces
         if: failure()
