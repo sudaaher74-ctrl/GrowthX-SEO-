@@ -58,8 +58,13 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
     setSwitcherError(null);
     try {
       await deleteProject.mutateAsync(id);
-      if (id === projectId) setProjectId("");
+      const remaining = portfolio.data?.clients.filter((c) => c.projectId !== id) ?? [];
+      if (id === projectId) {
+        setProjectId(remaining[0]?.projectId ?? "");
+      }
       queryClient.removeQueries({ predicate: (q) => q.queryKey.includes(id) });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
     } catch (err) {
       setSwitcherError(err instanceof Error ? err.message : "Could not delete the website.");
     }
@@ -180,7 +185,11 @@ export function SiteSwitcher({ variant = "block", onDone }: { variant?: "block" 
                 <Plus size={13} />
               </button>
             </form>
-            {switcherError && <p className="px-2 pb-1.5 text-[10.5px] text-error-600">{switcherError}</p>}
+            {switcherError && (
+              <div className="mx-1 my-1 rounded-md bg-error-50 px-2 py-1.5 text-[11px] font-medium text-error-700 border border-error-200">
+                {switcherError}
+              </div>
+            )}
           </div>
         </>
       )}

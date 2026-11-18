@@ -59,11 +59,14 @@ export class ProjectsService {
       this.logger.warn(`Failed reading integrations for project deletion: ${err.message}`);
     }
 
-    // 2. Mark any active/pending crawl jobs as CANCELLED
+    // 2. Mark any active/pending crawl jobs as CANCELLED (own site & competitor sites)
     try {
       await this.prisma.crawlJob.updateMany({
         where: {
-          website: { projectId: id },
+          OR: [
+            { website: { projectId: id } },
+            { website: { scope: `competitor:${id}` } },
+          ],
           status: { in: ['PENDING', 'RUNNING'] },
         },
         data: { status: 'CANCELLED' },
@@ -72,9 +75,34 @@ export class ProjectsService {
       // Best-effort job cancellation
     }
 
-    // 3. Atomically remove competitor websites and project
+    // 3. Clean up uncascaded auxiliary project records
+    try {
+      await Promise.allSettled([
+        this.prisma.autopilotRun.deleteMany({ where: { projectId: id } }),
+        this.prisma.auditReportSnapshot.deleteMany({ where: { projectId: id } }),
+        this.prisma.competitorReportSnapshot.deleteMany({ where: { projectId: id } }),
+        this.prisma.googleReportSnapshot.deleteMany({ where: { projectId: id } }),
+        this.prisma.businessStrategySnapshot.deleteMany({ where: { projectId: id } }),
+        this.prisma.savedPlan.deleteMany({ where: { projectId: id } }),
+        this.prisma.actionStepDone.deleteMany({ where: { projectId: id } }),
+        this.prisma.fixIntervention.deleteMany({ where: { projectId: id } }),
+      ]);
+    } catch (err: any) {
+      this.logger.warn(`Auxiliary project record cleanup warning: ${err.message}`);
+    }
+
+    // 4. Clean up Recommendation and Evidence explicitly to avoid ON DELETE RESTRICT foreign key violations
+    try {
+      await this.prisma.recommendation.deleteMany({ where: { projectId: id } });
+      await this.prisma.evidence.deleteMany({ where: { projectId: id } });
+    } catch (err: any) {
+      this.logger.warn(`Recommendation/Evidence cleanup warning: ${err.message}`);
+    }
+
+    // 5. Atomically remove competitor websites, client websites and project
     await this.prisma.$transaction([
       this.prisma.website.deleteMany({ where: { scope: `competitor:${id}` } }),
+      this.prisma.website.deleteMany({ where: { projectId: id } }),
       this.prisma.project.delete({ where: { id } }),
     ]);
   }

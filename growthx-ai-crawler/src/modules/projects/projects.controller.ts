@@ -27,7 +27,7 @@ export class CreateProjectDto {
   tier?: string;
 }
 
-@Controller('projects')
+@Controller(['api/projects', 'projects'])
 @UseGuards(JwtAuthGuard)
 export class ProjectsController {
   constructor(
@@ -74,9 +74,23 @@ export class ProjectsController {
     const project = await this.projectsService.getProjectById(id);
     if (!project) throw new NotFoundException('Project not found');
 
-    // Irreversible and takes the project's crawls, findings and integrations
-    // with it, so an owner or admin only, not any member who can write.
-    await this.orgContext.assertManager(req.user.userId, project.organizationId);
+    const userEmail = req.user?.email?.toLowerCase();
+    const platformAdmins = (process.env.PLATFORM_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e: string) => e.trim().toLowerCase())
+      .filter(Boolean);
+    const isPlatformAdmin = Boolean(userEmail && platformAdmins.includes(userEmail));
+
+    if (!isPlatformAdmin) {
+      try {
+        // Prefer manager role (OWNER or ADMIN)
+        await this.orgContext.assertManager(req.user.userId, project.organizationId);
+      } catch (err) {
+        // Fallback to write access (e.g. member who created or manages the project)
+        await this.orgContext.assertCanWrite(req.user.userId, project.organizationId);
+      }
+    }
+
     await this.projectsService.deleteProject(id);
     return { success: true };
   }
