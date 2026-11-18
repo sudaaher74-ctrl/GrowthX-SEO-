@@ -68,6 +68,11 @@ describe('RepoSandbox', () => {
     await expect(box.edit('src/dup.tsx', 'a', 'b')).rejects.toThrow(/more than once/);
   });
 
+  it('edits text copied with read-tool line number prefixes', async () => {
+    await expect(box.edit('src/page.tsx', '2: line two\n3: line three', 'LINE TWO\nline three')).resolves.toContain('Edited');
+    expect(await fs.readFile(path.join(root, 'src/page.tsx'), 'utf8')).toBe('line one\nLINE TWO\nline three\n');
+  });
+
   it('reads and edits CRLF files using logical lines while preserving their line endings', async () => {
     const file = path.join(root, 'src/windows-page.tsx');
     await fs.writeFile(file, 'first line\r\nsecond line\r\nthird line\r\n');
