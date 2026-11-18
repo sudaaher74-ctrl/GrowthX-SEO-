@@ -191,7 +191,10 @@ export class RepoSandbox {
     const text = await fs.readFile(abs, 'utf8');
     if (text.includes('\0')) throw new SandboxError(`${p} is a binary file.`);
 
-    const lines = text.split('\n');
+    // Present stable line text to the model regardless of the repository's
+    // checkout style. In particular, don't expose trailing `\r` characters
+    // from CRLF files in the numbered read output.
+    const lines = text.split(/\r?\n/);
     if (text.length === 0 || (lines.length === 1 && lines[0] === '')) {
       return `${p} (empty file, 0 lines)`;
     }
@@ -313,10 +316,16 @@ export class RepoSandbox {
     if (oldText === newText) throw new SandboxError('The replacement must change the file.');
     const abs = await this.inside(p, true);
     const text = await fs.readFile(abs, 'utf8');
-    const first = text.indexOf(oldText);
-    if (first === -1) throw new SandboxError(`That text was not found in ${p}. Read the file again and copy it exactly.`);
-    if (text.indexOf(oldText, first + 1) !== -1) throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
-    const next = text.slice(0, first) + newText + text.slice(first + oldText.length);
+    // The read tool presents logical lines with `\n`; translate that exact
+    // snippet back to the file's newline convention before matching. This
+    // keeps edits exact and unique without rewriting unrelated file lines.
+    const eol = (text.match(/\r\n/g)?.length ?? 0) > 0 ? '\r\n' : '\n';
+    const oldForFile = oldText.replace(/\r\n|\n/g, eol);
+    const newForFile = newText.replace(/\r\n|\n/g, eol);
+    const first = text.indexOf(oldForFile);
+    if (first === -1) throw new SandboxError(`That text was not found in ${p}. Read the file again and copy the exact lines, including punctuation and indentation.`);
+    if (text.indexOf(oldForFile, first + 1) !== -1) throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
+    const next = text.slice(0, first) + newForFile + text.slice(first + oldForFile.length);
     if (Buffer.byteLength(next) > LIMITS.maxWriteBytes * 2) throw new SandboxError('The file would become too large.');
     if (!this.originals.has(p)) this.originals.set(p, text);
     await fs.writeFile(abs, next, 'utf8');
@@ -341,3 +350,4 @@ export class RepoSandbox {
     return `Created ${p}.`;
   }
 }
+
