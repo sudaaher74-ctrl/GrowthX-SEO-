@@ -12,6 +12,7 @@ import { SiteSwitcher } from "@/components/layout/site-switcher";
 import {
   PERIOD_DAYS,
   setActivePeriod,
+  useLatestCrawl,
   usePeriodDays,
   useWorkspace,
 } from "@/hooks/use-growthx";
@@ -62,6 +63,9 @@ export function TopNav({
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const selectedProject = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
+  const currentDomain = selectedProject?.name ?? null;
+  const latestCrawl = useLatestCrawl(currentDomain);
+  const isCrawling = latestCrawl.data?.status === "RUNNING" || latestCrawl.data?.status === "PENDING";
 
   async function signOut() {
     await api.logout();
@@ -135,6 +139,22 @@ export function TopNav({
         )}
         <span className="shrink-0 text-brand-300">/</span>
         <span className="hidden truncate font-medium text-brand-600 sm:block" title={meta.title}>{meta.title}</span>
+
+        {isCrawling && (
+          <Link
+            href="/website"
+            title="Crawl audit in progress. Click to view live audit."
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-primary-300/80 bg-primary-50/80 px-2.5 py-0.5 text-xs font-semibold text-primary-900 transition hover:bg-primary-100 shadow-2xs"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary-600" />
+            </span>
+            <span className="font-mono text-[11px] font-bold">
+              Auditing {latestCrawl.data?.pagesCrawled ? `(${latestCrawl.data.pagesCrawled} pgs)` : "site..."}
+            </span>
+          </Link>
+        )}
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5 md:gap-2">

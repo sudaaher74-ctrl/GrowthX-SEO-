@@ -274,13 +274,15 @@ export function TechnicalHealthPillars({
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-brand-200/60 flex items-center justify-between text-right">
-            <span className="text-[10.5px] text-brand-400 font-mono">Performance measurements</span>
+            <span className="text-[10.5px] text-brand-400 font-mono">
+              {avgLcpMs == null && avgInpMs == null && avgCls == null ? "Audit CWV speed metrics" : "Performance measurements"}
+            </span>
             <button
               type="button"
               onClick={() => onSwitchTab("performance")}
               className="text-[11.5px] font-bold text-signal-400 hover:text-signal-500 inline-flex items-center gap-1 transition cursor-pointer"
             >
-              <span>View Details</span>
+              <span>{avgLcpMs == null && avgInpMs == null && avgCls == null ? "Audit Speed & CWV" : "View Details"}</span>
               <ArrowRight size={12} />
             </button>
           </div>

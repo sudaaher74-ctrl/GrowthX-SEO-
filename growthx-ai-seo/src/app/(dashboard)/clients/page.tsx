@@ -273,38 +273,102 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {/* ── CROSS-CLIENT ALERTS TICKER (If Any) ── */}
+      {/* ── CROSS-CLIENT ALERTS TICKER (Intelligently Grouped) ── */}
       {alerts.length > 0 && (
         <div className="space-y-2">
-          {alerts.slice(0, 3).map((alert, idx) => (
-            <div
-              key={`${alert.projectId}-${idx}`}
-              className={cn(
-                "flex items-center justify-between rounded-xl border p-3 text-xs shadow-2xs",
-                alert.severity === "critical"
-                  ? "border-error-200 bg-error-50/70 text-error-800"
-                  : "border-warning-200 bg-warning-50/70 text-warning-800"
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <ShieldAlert
-                  size={15}
-                  className={alert.severity === "critical" ? "text-error-600" : "text-warning-600"}
-                />
-                <div>
-                  <strong className="font-semibold">{alert.title}:</strong> {alert.detail}
+          {/* Group 1: Setup Alerts (e.g. multiple clients with no prompts) */}
+          {(() => {
+            const promptAlerts = alerts.filter(
+              (a) => a.tag === "SETUP" && a.detail.toLowerCase().includes("prompts"),
+            );
+            if (promptAlerts.length > 1) {
+              return (
+                <div className="rounded-xl border border-warning-200/90 bg-warning-50/80 p-3 text-xs shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                      <ShieldAlert size={16} className="text-warning-600 shrink-0 mt-0.5 sm:mt-0" />
+                      <div className="min-w-0">
+                        <span className="font-bold text-warning-950">
+                          {promptAlerts.length} client websites need tracked prompts:
+                        </span>{" "}
+                        <span className="text-warning-800">
+                          AI recommendation share cannot be calculated until target prompts are configured.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 pl-6 sm:pl-0">
+                      <span className="text-[11px] font-mono text-warning-700">Quick Switch:</span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {promptAlerts.slice(0, 4).map((a) => {
+                          const clientName = a.title.replace(/ has no prompts tracked$/i, "");
+                          return (
+                            <button
+                              key={a.projectId}
+                              type="button"
+                              onClick={() => handleSwitchClient(a.projectId)}
+                              className="inline-flex items-center gap-1 rounded-md bg-surface-1 border border-warning-300/80 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-900 hover:bg-brand-50 transition shadow-2xs cursor-pointer"
+                            >
+                              <span>{clientName}</span>
+                              <ArrowRight size={10} className="text-brand-400" />
+                            </button>
+                          );
+                        })}
+                        {promptAlerts.length > 4 && (
+                          <span className="text-[10px] text-warning-600 font-mono">
+                            +{promptAlerts.length - 4} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleSwitchClient(alert.projectId)}
-                className="inline-flex items-center gap-1 rounded-md bg-surface-1 border border-brand-200 px-2 py-1 text-[11px] font-bold text-brand-950 hover:bg-brand-50 transition shadow-2xs cursor-pointer"
+              );
+            }
+            return null;
+          })()}
+
+          {/* Group 2: Individual Other Alerts (e.g. Critical crawl issues, AI citation drops) */}
+          {alerts
+            .filter((a) => {
+              const isGroupedPrompt =
+                a.tag === "SETUP" &&
+                a.detail.toLowerCase().includes("prompts") &&
+                alerts.filter((x) => x.tag === "SETUP" && x.detail.toLowerCase().includes("prompts")).length > 1;
+              return !isGroupedPrompt;
+            })
+            .slice(0, 3)
+            .map((alert, idx) => (
+              <div
+                key={`${alert.projectId}-${idx}`}
+                className={cn(
+                  "flex items-center justify-between rounded-xl border p-3 text-xs shadow-2xs",
+                  alert.severity === "critical"
+                    ? "border-error-200 bg-error-50/70 text-error-800"
+                    : "border-warning-200 bg-warning-50/70 text-warning-800",
+                )}
               >
-                <span>Inspect Client</span>
-                <ArrowRight size={11} />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <ShieldAlert
+                    size={15}
+                    className={cn(
+                      "shrink-0",
+                      alert.severity === "critical" ? "text-error-600" : "text-warning-600",
+                    )}
+                  />
+                  <div className="truncate">
+                    <strong className="font-semibold">{alert.title}:</strong> {alert.detail}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchClient(alert.projectId)}
+                  className="inline-flex items-center gap-1 rounded-md bg-surface-1 border border-brand-200 px-2 py-1 text-[11px] font-bold text-brand-950 hover:bg-brand-50 transition shadow-2xs cursor-pointer shrink-0 ml-2"
+                >
+                  <span>Inspect Client</span>
+                  <ArrowRight size={11} />
+                </button>
+              </div>
+            ))}
         </div>
       )}
 
@@ -351,7 +415,117 @@ export default function ClientsPage() {
           emptyTitle="No clients found"
           emptyBody="Add your first client website under Settings > Websites to track accounts in your portfolio."
         >
-          <Table minWidth={900}>
+          {/* Mobile Responsive Cards View (< 768px) */}
+          <div className="block md:hidden divide-y divide-brand-200/60 bg-surface-1">
+            {filteredClients.map((client) => {
+              const isActive = client.projectId === projectId;
+              const health = client.health;
+              return (
+                <div key={client.projectId} className="p-3.5 space-y-3 bg-surface-1 hover:bg-surface-2/40 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 font-mono text-xs font-bold text-brand-800">
+                        {client.initials || client.name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-brand-950 text-xs truncate">{client.name}</span>
+                          {isActive && (
+                            <span className="rounded bg-signal-400/20 text-brand-950 border border-signal-400/40 px-1.5 py-0.2 text-[9px] font-mono font-bold uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        {client.domain ? (
+                          <a
+                            href={`https://${client.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-[11px] text-accent-700 hover:underline flex items-center gap-1 mt-0.5 truncate"
+                          >
+                            <span className="truncate">{client.domain}</span>
+                            <ExternalLink size={10} className="shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-brand-400">No domain configured</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
+                      {client.tier || "Standard"}
+                    </span>
+                  </div>
+
+                  {/* 3 Metric Capsules */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-brand-200/60 bg-surface-2/70 p-2 text-center">
+                      <span className="block text-[9.5px] font-mono text-brand-400 uppercase">Health</span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 font-mono text-xs font-bold mt-0.5",
+                          health == null
+                            ? "text-brand-400"
+                            : health >= 75
+                            ? "text-success-700"
+                            : health >= 50
+                            ? "text-warning-700"
+                            : "text-error-700",
+                        )}
+                      >
+                        <Shield size={10} />
+                        {health != null ? `${health}/100` : "—"}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg border border-brand-200/60 bg-surface-2/70 p-2 text-center">
+                      <span className="block text-[9.5px] font-mono text-brand-400 uppercase">AI Share</span>
+                      <span className="font-mono text-xs font-bold text-brand-950 block mt-0.5">
+                        {client.aiCitationSharePct != null ? `${client.aiCitationSharePct.toFixed(1)}%` : "—"}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg border border-brand-200/60 bg-surface-2/70 p-2 text-center">
+                      <span className="block text-[9.5px] font-mono text-brand-400 uppercase">Issues</span>
+                      <span
+                        className={cn(
+                          "font-mono text-xs font-bold block mt-0.5",
+                          client.criticalIssues > 0 ? "text-error-600" : "text-success-700",
+                        )}
+                      >
+                        {client.criticalIssues > 0 ? `${client.criticalIssues} crit` : "0 crit"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer with Retainer & Action */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="text-[11px] text-brand-500 font-mono">
+                      {currency(client.retainerMonthlyMinor, client.retainerCurrency)}
+                      <span className="text-brand-300 mx-1">•</span>
+                      {time(client.lastCrawledAt)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchClient(client.projectId)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-2xs cursor-pointer",
+                        isActive
+                          ? "bg-brand-100 text-brand-950 border border-brand-300"
+                          : "bg-signal-400 text-signal-ink hover:bg-signal-500 active:scale-[0.98]",
+                      )}
+                    >
+                      <span>{isActive ? "Active" : "Open Workspace"}</span>
+                      <ArrowRight size={11} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop High-Density Table (>= 768px) */}
+          <div className="hidden md:block">
+            <Table minWidth={900}>
             <thead>
               <tr>
                 <Th>Client &amp; Domain</Th>
@@ -499,6 +673,7 @@ export default function ClientsPage() {
               })}
             </tbody>
           </Table>
+        </div>
         </QueryState>
       </Panel>
 
