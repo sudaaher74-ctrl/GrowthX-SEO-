@@ -68,6 +68,17 @@ describe('RepoSandbox', () => {
     await expect(box.edit('src/dup.tsx', 'a', 'b')).rejects.toThrow(/more than once/);
   });
 
+  it('reads and edits CRLF files using logical lines while preserving their line endings', async () => {
+    const file = path.join(root, 'src/windows-page.tsx');
+    await fs.writeFile(file, 'first line\r\nsecond line\r\nthird line\r\n');
+
+    expect(await box.read('src/windows-page.tsx', 1, 3)).toContain('2: second line\n');
+    expect(await box.read('src/windows-page.tsx', 1, 3)).not.toContain('\r');
+
+    await box.edit('src/windows-page.tsx', 'second line\nthird line', 'updated line\nthird line');
+    expect(await fs.readFile(file, 'utf8')).toBe('first line\r\nupdated line\r\nthird line\r\n');
+  });
+
   it('creates new files under the repository, but never overwrites', async () => {
     await box.create('content/blog/new.md', '# Hello');
     expect(await fs.readFile(path.join(root, 'content/blog/new.md'), 'utf8')).toBe('# Hello');
@@ -124,3 +135,4 @@ describe('RepoSandbox', () => {
     );
   });
 });
+

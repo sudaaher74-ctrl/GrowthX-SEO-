@@ -197,6 +197,41 @@ RETRY EXECUTION GUIDANCE:
   return `${base.slice(0, 1950 - guidance.length)}\n${guidance}`;
 }
 
+function recoveryGuidance(run: AutomationRun) {
+  if (run.status !== "FAILED") return null;
+  const failureText = [run.error, ...run.steps.map((step) => step.detail ?? "")]
+    .filter(Boolean)
+    .join(" ");
+
+  if (/text was not found|repeated edit attempt|failed edits|recovery limit reached/i.test(failureText)) {
+    return "The requested text did not match the repository file exactly, so no change was pushed. Select Retry from Current Repository to start a fresh run that rereads the current file. If it fails again, narrow the request to one page and one specific change.";
+  }
+  if (/provider.*failed|connection error|timed? out|network/i.test(failureText)) {
+    return "The run could not get a reliable response from a connected service. No change was pushed. You can retry; the new run will start from the repository state currently on GitHub.";
+  }
+  if (/validation failed/i.test(failureText)) {
+    return "The proposed change did not pass validation, so no pull request was created. Review the validation details below, then retry after the underlying issue is addressed.";
+  }
+  return "No pull request was created, so your website was not changed. Select Retry from Current Repository to start a fresh run from the latest GitHub state.";
+}
+
+interface UnifiedLogEntry {
+  id: string;
+  timestamp: string;
+  category: "GITHUB_PR" | "CODE_DIFF" | "VERIFICATION" | "PLAN_ACTION";
+  moduleId: string;
+  moduleLabel: string;
+  title: string;
+  detail: string;
+  beforeText?: string | null;
+  afterText?: string | null;
+  url?: string | null;
+  file?: string | null;
+  prUrl?: string | null;
+  statusLabel: string;
+  statusTone: "good" | "warn" | "bad" | "info" | "default";
+}
+
 export function GitHubFixesLogView({
   initialFindingId,
   initialInstruction,
@@ -849,6 +884,7 @@ export function GitHubFixesLogView({
 
   const trackedRun = trackedRunId ? runs.find((r) => r.id === trackedRunId) ?? null : null;
   const trackedRunCtx = trackedRun ? resolveRunContext(trackedRun, allFindings) : null;
+  const trackedRecoveryGuidance = trackedRun ? recoveryGuidance(trackedRun) : null;
   const trackedReport = trackedRun ? changeReports.find((report) => report.id === trackedRun.id) : null;
   const trackedRunMerged = trackedReport?.reviewState === "MERGED" || trackedRun?.status === "MERGED";
   const trackedRunVerified = Boolean(trackedReport?.changes.length) && trackedReport!.changes.every((change) => change.verification === "MATCHED");
@@ -928,12 +964,7 @@ export function GitHubFixesLogView({
                   ? ` across ${trackedRun.filesChanged.length} file(s) (${trackedRun.filesChanged.join(", ")})`
                   : ""
               }. The PR is open; merge it to deploy. Reigel will verify the live page after GitHub confirms the merge.`
-            : `Task finished without opening a Pull Request (${
-                trackedRun.error ||
-                (trackedRunCtx?.inspectedFiles.length
-                  ? `Inspected ${trackedRunCtx.inspectedFiles.join(", ")} without committing changes`
-                  : "No file edits committed")
-              }). Click "Retry Fix with GitHub" below to apply a repository code/content update.`}
+            : trackedRecoveryGuidance ?? `Task finished without opening a Pull Request (${trackedRun.error || (trackedRunCtx?.inspectedFiles.length ? `Inspected ${trackedRunCtx.inspectedFiles.join(", ")} without committing changes` : "No file edits committed")}). Click "Retry Fix with GitHub" below to apply a repository code/content update.`}
         </StatusNote>
       ) : (
         actionBanner && <StatusNote tone={actionBanner.tone}>{actionBanner.text}</StatusNote>
@@ -1175,6 +1206,7 @@ export function GitHubFixesLogView({
                   const isRunning = ["PENDING", "RUNNING"].includes(run.status);
                   const isPlaceholder = run.filesChanged.length > 0 && run.filesChanged.every((file) => /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(file));
                   const isSuccess = run.status === "AWAITING_REVIEW" && !isPlaceholder;
+                  const runRecoveryGuidance = recoveryGuidance(run);
                   const unverifiedMatched = ctx.matchedFindings.filter(
                     (mf) => !["VERIFIED", "RESOLVED"].includes(mf.lifecycle ?? ""),
                   );
@@ -1248,7 +1280,7 @@ export function GitHubFixesLogView({
                             ? "This run added an audit message rather than changing the affected website pages. Its completion summary is not evidence of a fix."
                           : isSuccess
                             ? ctx.summaryAfter
-                            : run.error ||
+                            : runRecoveryGuidance || run.error ||
                               (ctx.inspectedFiles.length > 0
                                 ? `Inspected ${ctx.inspectedFiles.join(", ")} in ${connectedRepo ? `${connectedRepo.owner}/${connectedRepo.name}` : "repository"}, but finished without committing a file change. Click "Retry & Apply Repo Fix" to apply an on-site code/schema improvement.`
                                 : "Task finished without opening a Pull Request. Click Retry below to run again.")}
@@ -1377,7 +1409,7 @@ export function GitHubFixesLogView({
                                   runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
                                 }}
                               >
-                                Retry &amp; Apply Repo Fix
+                                {runRecoveryGuidance ? "Retry from Current Repository" : "Retry & Apply Repo Fix"}
                               </ActionButton>
                             )}
                           </div>
@@ -2440,3 +2472,4 @@ function FilterChip({
     </button>
   );
 }
+
