@@ -2194,6 +2194,7 @@ export function GitHubFixesLogView({
           ) : (
             <div className="divide-y divide-line">
               {failedTaskRuns.map(({ run, ctx }) => {
+                const runRecoveryGuidance = recoveryGuidance(run);
                 const targetUrlForRun =
                   ctx.matchedFindings[0]?.affectedPages?.[0] ||
                   (ctx.headline.toLowerCase().includes("sitemap") && domain
@@ -2239,6 +2240,16 @@ export function GitHubFixesLogView({
                   <p className="rounded-lg border border-error-200/70 bg-error-50/50 px-3 py-2 text-sm leading-5 text-error-700">
                     {run.error || "This run ended before it created a reviewable pull request."}
                   </p>
+
+                  {runRecoveryGuidance && (
+                    <div
+                      role="status"
+                      className="rounded-lg border border-warning-200 bg-warning-50/70 px-3.5 py-2.5 text-xs leading-5 text-warning-800"
+                    >
+                      <strong className="font-bold">Why it stopped and what retry does: </strong>
+                      {runRecoveryGuidance}
+                    </div>
+                  )}
 
                   {(ctx.isRepoDomainMismatch || ctx.isNoChangesNeeded || ctx.hasMetadataToolFailure) && (
                     <div className="rounded-lg border border-warning-200 bg-warning-50/60 px-3.5 py-2.5 text-xs leading-5 text-warning-700">
@@ -2344,7 +2355,7 @@ export function GitHubFixesLogView({
                           runEngineerMutation.mutate(buildDirectEditRetryInstruction(ctx));
                         }}
                       >
-                        Retry with GitHub
+                        {runRecoveryGuidance ? "Retry from Current Repository" : "Retry with GitHub"}
                       </ActionButton>
                       <ActionButton
                         icon={<CheckCircle2 size={12} />}
