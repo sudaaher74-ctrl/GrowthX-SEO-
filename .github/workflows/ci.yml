@@ -53,37 +53,37 @@ jobs:
           cache-dependency-path: growthx-ai-seo/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefix ./growthx-ai-seo
         working-directory: growthx-ai-seo
 
       - name: Typecheck
-        run: npm run typecheck
+        run: cd growthx-ai-seo && npm run typecheck
 
       - name: Crawl count regression test
-        run: node scripts/test-crawl-page-total.cjs
+        run: cd growthx-ai-seo && node scripts/test-crawl-page-total.cjs
 
       # The error-level rules are all clean, so any new one fails the build.
       # `set-state-in-effect` is pinned to `warn` in eslint.config.mjs with the
       # reason and the remaining count; everything else gates here.
       - name: Lint
-        run: npm run lint
+        run: cd growthx-ai-seo && npm run lint
 
       - name: Dead code check (knip)
-        run: npx knip@5
+        run: cd growthx-ai-seo && npx knip@5
 
       # Also runs check:data, which fails the build on fabricated customer-facing figures.
       - name: Build
-        run: npm run build
+        run: cd growthx-ai-seo && npm run build
 
       # The checks above all passed on the commit that shipped a blank
       # "This page couldn't load" screen to customers: that crash only existed
       # at render time. This step loads every route in a real browser against
       # the production build, so a page that throws fails the build instead.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: cd growthx-ai-seo && npx playwright install --with-deps chromium
 
       - name: Route smoke test
-        run: npm run test:smoke
+        run: cd growthx-ai-seo && npm run test:smoke
 
       - name: Upload smoke traces
         if: failure()
@@ -114,26 +114,26 @@ jobs:
 
       # postinstall runs `prisma generate`, which needs no database.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefix ./growthx-ai-crawler
         working-directory: growthx-ai-crawler
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: cd growthx-ai-crawler && npx tsc --noEmit
 
       # lint:check, not lint: `npm run lint` passes --fix and would rewrite
       # files instead of failing on them.
       - name: Lint
-        run: npm run lint:check
+        run: cd growthx-ai-crawler && npm run lint:check
 
       - name: Dead code check (knip)
-        run: npx knip@5
+        run: cd growthx-ai-crawler && npx knip@5
 
       # The fetch, render-permit and crawl-engine specs drive a real browser.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: cd growthx-ai-crawler && npx playwright install --with-deps chromium
 
       - name: Unit tests
-        run: npx jest --ci
+        run: cd growthx-ai-crawler && npx jest --ci
 
       - name: Build
-        run: npm run build
+        run: cd growthx-ai-crawler && npm run build
