@@ -96,6 +96,7 @@ Rules:
 - Always provide valid read ranges with both start and end specified (for example, start: 1, end: 80, or start: 260, end: 320). Never use start > end. Never omit "end" on large files.
 - To locate where to insert or update metadata or tags in large components, use {"tool":"search","pattern":"return (","path":"..."} first to get the exact line number of the JSX return, then read 60 lines around that line before editing.
 - If an edit fails because text was not found, you MUST read the target file again to inspect the exact lines before trying another edit. Never retry an edit without reading the file first.
+- The read tool displays each line as `N: source text`; `N: ` is only a display label. Never include it in `edit.old`.
 - After any successful edit, read the relevant section again before editing that file. The file may have changed and old text may no longer exist.
 - Never repeat an identical failed edit. If an edit fails, check the actual file content, indentation, and surrounding lines.
 - Keep "old" short (2 to 6 exact lines) and "new" concise (3 to 15 lines) so your JSON response is never truncated. Never paste an entire file into "old" or "new".
