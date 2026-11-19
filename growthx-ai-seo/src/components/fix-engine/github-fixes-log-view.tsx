@@ -2279,9 +2279,9 @@ export function GitHubFixesLogView({
                         </>
                       ) : (
                         <>
-                          The engineer inspected the repository and found that the files already match
-                          the repository&apos;s domain configuration. You can verify the live website directly
-                          or confirm this finding as fixed below.
+                          This run made no repository changes. That does not confirm the finding is fixed.
+                          Review the execution details, resolve any tool errors, and retry. Confirm this
+                          finding as fixed only after verifying the affected pages.
                         </>
                       )}
                     </div>

@@ -1,5 +1,7 @@
 jest.mock('@octokit/rest', () => ({ Octokit: jest.fn() }));
 jest.mock('simple-git', () => ({ simpleGit: jest.fn() }));
+jest.mock('../security/security.service', () => ({ SecurityService: class {} }));
+jest.mock('./automation.service', () => ({ AutomationService: class {} }));
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -80,6 +82,20 @@ describe('EngineerAgentService', () => {
   afterEach(() => fs.rm(dir, { recursive: true, force: true }).catch(() => undefined));
 
   const INSTRUCTION = 'Change the homepage title to New title';
+
+  it('searches a page file, reads it, edits it and produces a reviewable PR', async () => {
+    replies.push(
+      act({ tool: 'search', pattern: 'Old title', path: 'app/page.tsx' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New title' }),
+      act({ tool: 'finish', summary: 'Updated the homepage.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(run.steps.find((s: any) => s.step === 'search').ok).toBe(true);
+    expect(router.generate.mock.calls[1][0].prompt).toContain('app/page.tsx:1: <title>Old title</title>');
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
 
   it('reserves queued work under a database project lock, rather than an API-local set', async () => {
     const enqueue = jest.fn().mockResolvedValue(undefined);

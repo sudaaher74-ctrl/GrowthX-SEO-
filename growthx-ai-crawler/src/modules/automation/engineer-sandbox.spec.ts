@@ -31,6 +31,24 @@ describe('RepoSandbox', () => {
     expect(await box.read('src/page.tsx', 2, 2)).toContain('2: line two');
   });
 
+  it('searches one file with line numbers and preserves search limits', async () => {
+    expect(await box.search('LINE TWO', 'src/page.tsx')).toBe('src/page.tsx:2: line two');
+    expect(await box.search('absent', 'src/page.tsx')).toBe('No matches.');
+    await fs.writeFile(path.join(root, 'src/many.tsx'), 'match\r\n'.repeat(100));
+    expect((await box.search('match', 'src/many.tsx')).split('\n')).toHaveLength(LIMITS.searchMatches);
+    await fs.writeFile(path.join(root, 'src/binary.txt'), 'match\0');
+    expect(await box.search('match', 'src/binary.txt')).toBe('No matches.');
+    await fs.writeFile(path.join(root, 'src/large.txt'), 'match'.repeat(LIMITS.maxFileBytes));
+    expect(await box.search('match', 'src/large.txt')).toBe('No matches.');
+    await expect(box.search('KEY', '.env')).rejects.toThrow(SandboxError);
+    await expect(box.search('private', '../notes.txt')).rejects.toThrow(SandboxError);
+  });
+
+  it('keeps a file passed to list recoverable', async () => {
+    await expect(box.list('src/page.tsx')).rejects.toThrow(SandboxError);
+    expect(await box.read('src/page.tsx', 1, 1)).toContain('line one');
+  });
+
   it('never leaves the repository, however the path is written', async () => {
     for (const p of ['../x', 'src/../../x', `${outside}/notes.txt`.replace(/^\//, ''), '..\\x']) {
       await expect(box.read(p)).rejects.toThrow(SandboxError);

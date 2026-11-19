@@ -298,6 +298,18 @@ export class RepoSandbox {
     const hits: string[] = [];
     let scanned = 0;
 
+    const searchFile = async (abs: string): Promise<void> => {
+      const stat = await fs.stat(abs);
+      if (!stat.isFile() || stat.size > LIMITS.maxFileBytes) return;
+      scanned += 1;
+      const text = await fs.readFile(abs, 'utf8').catch(() => '');
+      if (text.includes('\0')) return;
+      const rel = path.relative(this.root, abs).split(path.sep).join('/');
+      text.split(/\r?\n/).forEach((line, i) => {
+        if (hits.length < LIMITS.searchMatches && line.toLowerCase().includes(q)) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
+      });
+    };
+
     const walk = async (dir: string): Promise<void> => {
       if (hits.length >= LIMITS.searchMatches || scanned >= LIMITS.searchFiles) return;
       const rel = path.relative(this.root, dir).split(path.sep).join('/');
@@ -309,19 +321,12 @@ export class RepoSandbox {
         if (e.isDirectory()) {
           await walk(abs);
         } else if (e.isFile()) {
-          const stat = await fs.stat(abs);
-          if (stat.size > LIMITS.maxFileBytes) continue;
-          scanned += 1;
-          const text = await fs.readFile(abs, 'utf8').catch(() => '');
-          if (text.includes('\0')) continue;
-          const rel = path.relative(this.root, abs).split(path.sep).join('/');
-          text.split('\n').forEach((line, i) => {
-            if (hits.length < LIMITS.searchMatches && line.toLowerCase().includes(q)) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
-          });
+          await searchFile(abs);
         }
       }
     };
-    await walk(base);
+    if ((await fs.stat(base)).isFile()) await searchFile(base);
+    else await walk(base);
     return hits.length > 0 ? hits.join('\n') : 'No matches.';
   }
 
