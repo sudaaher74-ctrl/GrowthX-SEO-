@@ -160,6 +160,23 @@ export class RepoSandbox {
     return abs;
   }
 
+  /** Convert accidental file-as-folder requests into recoverable tool guidance. */
+  private async directoryEntries(abs: string, rel: string) {
+    try {
+      const stat = await fs.stat(abs);
+      if (!stat.isDirectory()) {
+        throw new SandboxError(`${rel || '.'} is a file, not a folder. Use read for file contents.`);
+      }
+      return await fs.readdir(abs, { withFileTypes: true });
+    } catch (error: any) {
+      if (error instanceof SandboxError) throw error;
+      if (error?.code === 'ENOTDIR') {
+        throw new SandboxError(`${rel || '.'} contains a file where a folder is expected. Use list on its parent folder or read the file.`);
+      }
+      throw error;
+    }
+  }
+
   private assertWritable(rel: string) {
     if (rel === '') throw new SandboxError('A file path is required.');
     if (PROTECTED.some((r) => r.test(rel))) {
@@ -173,7 +190,7 @@ export class RepoSandbox {
   async list(rel = ''): Promise<string> {
     const p = rel === '' || rel === '.' ? '' : this.clean(rel);
     const abs = await this.inside(p, true);
-    const entries = await fs.readdir(abs, { withFileTypes: true });
+    const entries = await this.directoryEntries(abs, p);
     const lines = entries
       .filter((e) => !HIDDEN_DIRS.has(e.name) && !SECRET.some((r) => r.test(e.name)))
       .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
@@ -283,7 +300,8 @@ export class RepoSandbox {
 
     const walk = async (dir: string): Promise<void> => {
       if (hits.length >= LIMITS.searchMatches || scanned >= LIMITS.searchFiles) return;
-      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const rel = path.relative(this.root, dir).split(path.sep).join('/');
+      const entries = await this.directoryEntries(dir, rel);
       for (const e of entries) {
         if (hits.length >= LIMITS.searchMatches || scanned >= LIMITS.searchFiles) return;
         if (HIDDEN_DIRS.has(e.name) || SECRET.some((r) => r.test(e.name)) || e.isSymbolicLink()) continue;
