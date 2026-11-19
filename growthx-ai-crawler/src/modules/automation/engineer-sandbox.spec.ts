@@ -49,6 +49,43 @@ describe('RepoSandbox', () => {
     expect(await box.read('src/page.tsx', 1, 1)).toContain('line one');
   });
 
+  it('replaces freshly read JSX lines without copying the old Unicode source', async () => {
+    const file = path.join(root, 'src/content.jsx');
+    await fs.writeFile(file, '<section>\r\n  <p>₹100 • You haven\'t ordered.</p>\r\n</section>\r\n');
+    await box.read('src/content.jsx', 1, 3);
+    await box.replaceLines('src/content.jsx', 2, 2, '  <p>Read our delivery information.</p>');
+    expect(await fs.readFile(file, 'utf8')).toBe('<section>\r\n  <p>Read our delivery information.</p>\r\n</section>\r\n');
+    expect(box.lastRangeEdits.get('src/content.jsx')?.before).toContain('₹100 •');
+    expect(box.originals.get('src/content.jsx')).toContain("haven't");
+    await expect(box.replaceLines('src/content.jsx', 2, 2, 'another')).rejects.toThrow(/Read the target lines/);
+  });
+
+  it('refuses line replacement outside the observed range or after an external change', async () => {
+    await expect(box.replaceLines('src/page.tsx', 1, 1, 'new')).rejects.toThrow(SandboxError);
+    await box.read('src/page.tsx', 2, 2);
+    await expect(box.replaceLines('src/page.tsx', 1, 2, 'new')).rejects.toThrow(/within the last successful read/);
+    await fs.writeFile(path.join(root, 'src/page.tsx'), 'changed externally');
+    await expect(box.replaceLines('src/page.tsx', 2, 2, 'new')).rejects.toThrow(/changed after it was read/);
+    expect(await fs.readFile(path.join(root, 'src/page.tsx'), 'utf8')).toBe('changed externally');
+  });
+
+  it('invalidates a line read after an exact edit and enforces file protections', async () => {
+    await box.read('src/page.tsx', 1, 3);
+    await box.edit('src/page.tsx', 'line one', 'LINE ONE');
+    await expect(box.replaceLines('src/page.tsx', 2, 2, 'new')).rejects.toThrow(/Read the target lines/);
+    await box.read('package.json', 1, 1);
+    await expect(box.replaceLines('package.json', 1, 1, '{"scripts":{}}')).rejects.toThrow(/cannot be changed/);
+    await expect(box.replaceLines('.env', 1, 1, 'secret')).rejects.toThrow(/secrets/);
+    await expect(box.replaceLines('../outside', 1, 1, 'unsafe')).rejects.toThrow(/leave the repository/);
+  });
+
+  it('caps line replacements and rejects no-ops', async () => {
+    await box.read('src/page.tsx', 1, 3);
+    await expect(box.replaceLines('src/page.tsx', 1, 1, 'x'.repeat(LIMITS.maxWriteBytes + 1))).rejects.toThrow(/write-size limit/);
+    await expect(box.replaceLines('src/page.tsx', 1, 1, 'line one')).rejects.toThrow(/must change/);
+    await expect(box.replaceLines('src/page.tsx', 1.5, 2, 'new')).rejects.toThrow(/within the last successful read/);
+  });
+
   it('never leaves the repository, however the path is written', async () => {
     for (const p of ['../x', 'src/../../x', `${outside}/notes.txt`.replace(/^\//, ''), '..\\x']) {
       await expect(box.read(p)).rejects.toThrow(SandboxError);
@@ -158,4 +195,3 @@ describe('RepoSandbox', () => {
     );
   });
 });
-

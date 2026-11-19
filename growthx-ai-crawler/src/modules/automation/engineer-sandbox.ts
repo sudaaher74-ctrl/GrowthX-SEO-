@@ -50,6 +50,8 @@ export const LIMITS = {
 export class RepoSandbox {
   readonly changed = new Set<string>();
   readonly originals = new Map<string, string | null>();
+  readonly lastRangeEdits = new Map<string, { before: string; after: string }>();
+  private readonly lastReads = new Map<string, { text: string; start: number; end: number }>();
   private realRoot = '';
 
   constructor(readonly root: string) {}
@@ -109,6 +111,7 @@ export class RepoSandbox {
     }
     if (!this.originals.has(p)) this.originals.set(p, before);
     this.changed.add(p);
+    this.lastReads.delete(p);
     return `Connected document title in ${p} using the existing Helmet provider. Preview navigation still requires verification.`;
   }
 
@@ -286,6 +289,7 @@ export class RepoSandbox {
       );
     }
 
+    this.lastReads.set(p, { text, start: from, end: to });
     return `${p} (lines ${from}-${to} of ${lines.length})\n${out}`;
   }
 
@@ -330,6 +334,40 @@ export class RepoSandbox {
     return hits.length > 0 ? hits.join('\n') : 'No matches.';
   }
 
+  /** Replace only lines actually read, with a full-file stale-read check. */
+  async replaceLines(rel: string, start: number, end: number, replacement: string): Promise<string> {
+    const p = this.clean(rel);
+    this.assertWritable(p);
+    const observed = this.lastReads.get(p);
+    if (!observed) throw new SandboxError(`Read the target lines of ${p} before replacing them.`);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < observed.start || end > observed.end || start > end) {
+      throw new SandboxError(`Replace lines only within the last successful read of ${p}: ${observed.start}-${observed.end}. Read a different range first if needed.`);
+    }
+    if (typeof replacement !== 'string' || Buffer.byteLength(replacement) > LIMITS.maxWriteBytes) {
+      throw new SandboxError('The replacement must be text within the write-size limit.');
+    }
+    const abs = await this.inside(p, true);
+    const text = await fs.readFile(abs, 'utf8');
+    if (text !== observed.text) {
+      this.lastReads.delete(p);
+      throw new SandboxError(`${p} changed after it was read. Read the target lines again before replacing them.`);
+    }
+    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    const lines = text.split(/\r?\n/);
+    const before = lines.slice(start - 1, end).join(eol);
+    const after = replacement.replace(/\r\n|\n/g, eol);
+    const inserted = after === '' ? [] : after.split(eol);
+    const next = [...lines.slice(0, start - 1), ...inserted, ...lines.slice(end)].join(eol);
+    if (next === text) throw new SandboxError('The replacement must change the file.');
+    if (Buffer.byteLength(next) > LIMITS.maxWriteBytes * 2) throw new SandboxError('The file would become too large.');
+    if (!this.originals.has(p)) this.originals.set(p, text);
+    await fs.writeFile(abs, next, 'utf8');
+    this.lastReads.delete(p);
+    this.lastRangeEdits.set(p, { before, after });
+    this.changed.add(p);
+    return `Replaced lines ${start}-${end} in ${p}.`;
+  }
+
   /** Replaces one exact piece of text. It must occur exactly once, so the change is unambiguous. */
   async edit(rel: string, oldText: string, newText: string): Promise<string> {
     const p = this.clean(rel);
@@ -367,6 +405,7 @@ export class RepoSandbox {
     if (!this.originals.has(p)) this.originals.set(p, text);
     await fs.writeFile(abs, next, 'utf8');
     this.changed.add(p);
+    this.lastReads.delete(p);
     return `Edited ${p}.`;
   }
 
@@ -387,4 +426,3 @@ export class RepoSandbox {
     return `Created ${p}.`;
   }
 }
-
