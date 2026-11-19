@@ -12,6 +12,12 @@ const REPO = { id: 'repo_1', projectId: 'proj_1', owner: 'acme', name: 'site', d
 const act = (a: object) => ({ text: JSON.stringify(a), refused: false });
 
 describe('parseAction', () => {
+  it('accepts only complete line replacements with ordered integer bounds', () => {
+    expect(isUsableAction(JSON.stringify({ tool: 'replace_lines', path: 'src/a.jsx', start: 2, end: 3, new: '' }))).toBe(true);
+    for (const over of [{ end: undefined }, { start: 4, end: 2 }, { start: 1.2 }, { new: undefined }]) {
+      expect(isUsableAction(JSON.stringify({ tool: 'replace_lines', path: 'src/a.jsx', start: 2, end: 3, new: 'source', ...over }))).toBe(false);
+    }
+  });
   it('rejects truncated and incomplete edit/create arguments before provider acceptance', () => {
     expect(isUsableAction('{"tool":"edit","path":"page.jsx","old":"before","new":"after')).toBe(false);
     expect(isUsableAction('{"tool":"edit","path":"page.jsx","summary":"I will change it"}')).toBe(false);
@@ -95,6 +101,36 @@ describe('EngineerAgentService', () => {
     expect((run.steps as any[]).find((s: any) => s.step === 'search').ok).toBe(true);
     expect(router.generate.mock.calls[1][0].prompt).toContain('app/page.tsx:1: <title>Old title</title>');
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers from an exact-edit mismatch via a fresh bounded line replacement and opens a PR', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'model copied the wrong source', new: 'New title' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 1 }),
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>New title</title>' }),
+      act({ tool: 'finish', summary: 'Updated the homepage title.' }),
+    );
+    let committed = '';
+    git.commitAndPush.mockImplementation(async () => { committed = await fs.readFile(path.join(dir, 'app/page.tsx'), 'utf8'); });
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(committed).toContain('<title>New title</title>');
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    const change = run.steps.find((s: any) => s.step === 'replace_lines').change;
+    expect(change.before).toBe('<title>Old title</title>');
+    expect(change.after).toBe('<title>New title</title>');
+    expect(router.generate.mock.calls[2][0].prompt).toContain('use replace_lines');
+  });
+
+  it('does not publish a line replacement beyond the actual read range', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 1 }),
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 2, new: '<title>New title</title>' }),
+      act({ tool: 'finish', summary: 'Unable to edit.' }),
+    );
+    expect((await service.run('proj_1', 'org_1', INSTRUCTION)).status).toBe(AutomationRunStatus.FAILED);
+    expect(git.createPullRequest).not.toHaveBeenCalled();
   });
 
   it('reserves queued work under a database project lock, rather than an API-local set', async () => {
@@ -340,7 +376,8 @@ describe('EngineerAgentService', () => {
     expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
     const thirdPrompt = router.generate.mock.calls[2][0].prompt;
-    expect(thirdPrompt).toMatch(/next action must be a narrow fresh read/);
+    expect(thirdPrompt).toMatch(/Read the exact target lines/);
+    expect(thirdPrompt).toContain('then use replace_lines');
     expect(run.filesChanged).toEqual(['app/page.tsx']);
   });
 
