@@ -14,7 +14,7 @@ import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 
 /**
- * Search phrases to use and blog posts to write, suggested by Sarvam 105B
+ * Search phrases to use and blog posts to write, suggested by Gemini 3.1 Flash-Lite
  * alongside every AI-written report.
  *
  * Reports said what was wrong and what competitors had; none of them told a
@@ -25,8 +25,8 @@ import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
  * business does not.
  *
  * A separate call from the report's own analysis, run beside it: the
- * analysis already fills most of Sarvam's output allowance, and suggestions
- * appended to it would be the part cut off. Nothing here is a measurement,
+ * analysis and suggestions have separate output budgets so each JSON answer
+ * can finish independently. Nothing here is a measurement,
  * so the prompt forbids numbers and the screen labels these as suggestions.
  */
 
@@ -126,7 +126,7 @@ export class ContentIdeasService {
 
   /**
    * Suggestions for one project. Throws a readable error when there is
-   * nothing to base them on or Sarvam cannot answer; callers keep their
+   * nothing to base them on or Gemini cannot answer; callers keep their
    * report and show the error in place of the suggestions.
    */
   async suggest(projectId: string, organizationId?: string, context: ContentIdeasContext = {}): Promise<ContentIdeas> {
@@ -141,16 +141,16 @@ export class ContentIdeasService {
         'You suggest search phrases and blog posts for a small business whose owner knows nothing about SEO. ' +
         'Base everything on what their website says. Never invent numbers. Reply with valid JSON only.',
       task: AiTask.SEO_OPPORTUNITY_GENERATION,
-      provider: AiProvider.SARVAM,
-      // Shown as "Suggested by sarvam-105b"; another vendor's text would be
-      // presented under the wrong name.
+      provider: AiProvider.GEMINI,
+      model: 'gemini-3.1-flash-lite',
+      // Pin the economical model; display the actual model returned by the router.
       allowFallback: false,
       jsonSchema: SCHEMA,
       organizationId,
       projectId,
       maxTokens: 3000,
     });
-    if (completion.refused || !completion.text.trim()) throw new Error('Sarvam returned no suggestions. Try again.');
+    if (completion.refused || !completion.text.trim()) throw new Error('Gemini returned no suggestions. Try again.');
 
     const raw = extractAndParseJson<Record<string, unknown>>(completion.text);
     const ideas: ContentIdeas = {

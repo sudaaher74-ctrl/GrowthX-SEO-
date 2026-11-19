@@ -14,7 +14,7 @@ const PRIORITY_TONE = { high: "bad", medium: "warn", low: "default" } as const;
 
 /**
  * The whole Website Audit as one report a business owner can read: what is
- * wrong, why it matters, how to fix it and who can, written by Sarvam from
+ * wrong, why it matters, how to fix it and who can, written by Gemini from
  * the crawl, and downloadable.
  */
 export function AuditReportTab({ projectId }: { projectId: string }) {
@@ -77,7 +77,7 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
         padded
       >
         {report.isFetching ? (
-          <p className="py-6 text-center text-[12px] text-brand-500">Sarvam is reading your audit. This can take up to a minute.</p>
+          <p className="py-6 text-center text-[12px] text-brand-500">Gemini is reading your audit. This can take up to a minute.</p>
         ) : report.error ? (
           <p className="py-4 text-center text-[12px] text-error-600">{(report.error as Error).message}</p>
         ) : !data ? (

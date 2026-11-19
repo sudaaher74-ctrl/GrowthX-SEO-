@@ -78,7 +78,7 @@ export interface WebsiteAuditReport {
   analysis: AuditAnalysis | null;
   model: string | null;
   analysisError: string | null;
-  /** Search phrases and blog posts Sarvam suggests, written beside the analysis. Absent on older reports. */
+  /** Search phrases and blog posts Gemini suggests, written beside the analysis. Absent on older reports. */
   ideas?: ContentIdeas | null;
   /** Why there are no suggestions, when there are none. */
   ideasError?: string | null;
@@ -129,7 +129,7 @@ function median(values: number[]): number | null {
 /**
  * The whole Website Audit as one report a business owner can read: every
  * problem the crawl found in plain words, with who can fix it and how, and
- * a 4-week plan, written by Sarvam from the measured facts only.
+ * a 4-week plan, written by Gemini from the measured facts only.
  */
 @Injectable()
 export class AuditReportService {
@@ -222,7 +222,7 @@ export class AuditReportService {
     if (!facts.site?.crawledAt) {
       report = { ...base, analysis: null, model: null, analysisError: "Your website hasn't been read yet. Run the audit first.", ideas: null, ideasError: null };
     } else {
-      // Side by side: the suggestions are their own Sarvam call, so they add
+      // Side by side: the suggestions are their own Gemini call, so they add
       // no waiting and neither can cost the other its answer.
       const [analysis, ideas] = await Promise.all([
         this.analyse(facts, projectId, organizationId),
@@ -245,16 +245,16 @@ export class AuditReportService {
           'You are a friendly website expert explaining an audit to a business owner who knows nothing about SEO. ' +
           'Use simple everyday words, no jargon. Use only the facts given. Reply with valid JSON only.',
         task: AiTask.SEO_ANALYSIS,
-        provider: AiProvider.SARVAM,
-        // The customer asked for Sarvam; another vendor's text would be
-        // presented under the wrong name.
+        provider: AiProvider.GEMINI,
+        model: 'gemini-3.1-flash-lite',
+        // Keep reports on this economical model even if GEMINI_MODEL changes.
         allowFallback: false,
         organizationId,
         projectId,
         maxTokens: 6000,
       });
       return completion.refused || !completion.text.trim()
-        ? { analysis: null, model: completion.model, analysisError: 'Sarvam returned no analysis. Try again.' }
+        ? { analysis: null, model: completion.model, analysisError: 'Gemini returned no analysis. Try again.' }
         : { analysis: normaliseAuditAnalysis(extractAndParseJson(completion.text)), model: completion.model, analysisError: null };
     } catch (err) {
       this.logger.warn(`[${projectId}] audit report analysis failed: ${(err as Error).message}`);
