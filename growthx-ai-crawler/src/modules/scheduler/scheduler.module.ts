@@ -1,5 +1,8 @@
-import { Global, Module } from '@nestjs/common';
+import { forwardRef, Global, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DatabaseModule } from '../../database/database.module';
+import { AutopilotModule } from '../autopilot/autopilot.module';
+import { SchedulerController } from './scheduler.controller';
 import { SchedulerService } from './scheduler.service';
 
 export function scheduledJobsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -10,13 +13,18 @@ export function scheduledJobsEnabled(env: NodeJS.ProcessEnv = process.env): bool
 
 @Global()
 @Module({
-  imports: [ScheduleModule.forRootAsync({
-    useFactory: () => ({
-      cronJobs: scheduledJobsEnabled(),
-      intervals: scheduledJobsEnabled(),
-      timeouts: scheduledJobsEnabled(),
+  imports: [
+    DatabaseModule,
+    forwardRef(() => AutopilotModule),
+    ScheduleModule.forRootAsync({
+      useFactory: () => ({
+        cronJobs: scheduledJobsEnabled(),
+        intervals: scheduledJobsEnabled(),
+        timeouts: scheduledJobsEnabled(),
+      }),
     }),
-  })],
+  ],
+  controllers: [SchedulerController],
   providers: [SchedulerService],
   exports: [SchedulerService],
 })

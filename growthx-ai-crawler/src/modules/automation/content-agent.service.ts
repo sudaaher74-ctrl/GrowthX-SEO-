@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AgentKind, ContentPieceKind, ContentPieceStatus, EvidenceSource } from '@prisma/client';
@@ -10,6 +11,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { AgentRunService, RecordEvidenceInput } from '../agents/agent-run.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
+import { WordPressCmsService } from './wordpress-cms.service';
 
 /** Context the caller supplies, beyond what we can read from the project. */
 export interface ContentRequest {
@@ -87,6 +89,7 @@ export class ContentAgentService {
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
     private readonly agentRuns: AgentRunService,
+    @Optional() private readonly cms?: WordPressCmsService,
   ) {}
 
   /**
@@ -337,6 +340,166 @@ export class ContentAgentService {
       orderBy: { createdAt: 'asc' },
       include: { sourceEvidence: true },
     });
+  }
+
+  /** All Content Studio drafts for a project (newest first). */
+  async listDrafts(projectId: string) {
+    return this.prisma.contentPiece.findMany({
+      where: { projectId },
+      orderBy: { updatedAt: 'desc' },
+      take: 60,
+      include: { sourceEvidence: true },
+    });
+  }
+
+  /** Allows a human reviewer to edit title, meta description, or body before approval/publish. */
+  async updateDraft(
+    projectId: string,
+    pieceId: string,
+    input: { title?: string; metaDescription?: string | null; body?: string },
+  ) {
+    const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
+    if (!piece) throw new NotFoundException('Content piece not found');
+
+    const nextBody =
+      input.body !== undefined ? this.validateBody(piece.kind, input.body) : undefined;
+
+    return this.prisma.contentPiece.update({
+      where: { id: pieceId },
+      data: {
+        ...(input.title !== undefined && input.title.trim() ? { title: input.title.trim() } : {}),
+        ...(input.metaDescription !== undefined
+          ? { metaDescription: input.metaDescription?.trim() || null }
+          : {}),
+        ...(nextBody !== undefined ? { body: nextBody } : {}),
+      },
+      include: { sourceEvidence: true },
+    });
+  }
+
+  /**
+   * Publishes a Content Studio draft directly to WordPress, Shopify, or Webflow
+   * (as draft or live), records a FixImpactLedgerEvent for Proof of Impact, and
+   * updates the piece status honestly.
+   */
+  async publishDraftToCms(
+    projectId: string,
+    pieceId: string,
+    input: { platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW'; publishMode?: 'draft' | 'publish' },
+  ) {
+    if (!this.cms) {
+      throw new ServiceUnavailableException('CMS publishing service is unavailable.');
+    }
+    const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
+    if (!piece) throw new NotFoundException('Content piece not found');
+    if (!piece.body?.trim()) {
+      throw new BadRequestException('Draft has no content body to publish.');
+    }
+
+    const bodyHtml = this.markdownToSafeHtml(piece.kind, piece.body);
+    const publishMode = input.publishMode || 'draft';
+
+    const publishResult = await this.cms.publishContentDraftToCms(projectId, {
+      platform: input.platform,
+      title: piece.title,
+      slug: piece.slug,
+      metaDescription: piece.metaDescription,
+      bodyHtml,
+      publishMode,
+    });
+
+    const updated = await this.prisma.contentPiece.update({
+      where: { id: pieceId },
+      data: {
+        status: publishMode === 'publish' ? ContentPieceStatus.PUBLISHED : ContentPieceStatus.COMMITTED,
+      },
+      include: { sourceEvidence: true },
+    });
+
+    if (this.prisma.fixImpactLedgerEvent?.create) {
+      await this.prisma.fixImpactLedgerEvent
+        .create({
+          data: {
+            projectId,
+            eventType: 'CONTENT_PUBLISHED',
+            title: `Content Studio published: ${piece.title}`,
+            description: publishResult.message,
+            actor: `${input.platform}_CONTENT_STUDIO`,
+            affectedUrl: publishResult.externalUrl,
+            verificationStatus: publishMode === 'publish' ? 'PUBLISHED' : 'DRAFT_SAVED',
+            evidenceData: {
+              pieceId: piece.id,
+              kind: piece.kind,
+              platform: input.platform,
+              publishMode,
+              externalId: publishResult.externalId,
+              externalUrl: publishResult.externalUrl,
+            },
+          },
+        })
+        .catch(() => null);
+    }
+
+    return { piece: updated, publishResult };
+  }
+
+  /** Converts Markdown / plain text / JSON-LD safely to clean semantic HTML for CMS publishing. */
+  private markdownToSafeHtml(kind: ContentPieceKind, raw: string): string {
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    if (kind === ContentPieceKind.SCHEMA_MARKUP) {
+      const safeJson = raw.replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--');
+      return `<script type="application/ld+json">\n${safeJson}\n</script>`;
+    }
+
+    const inline = (line: string) =>
+      esc(line)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener noreferrer">$1</a>');
+
+    const lines = raw.split(/\r?\n/);
+    const out: string[] = [];
+    let inList = false;
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        if (inList) {
+          out.push('</ul>');
+          inList = false;
+        }
+        continue;
+      }
+      if (/^[-*]\s+/.test(line)) {
+        if (!inList) {
+          out.push('<ul>');
+          inList = true;
+        }
+        out.push(`<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`);
+        continue;
+      }
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      if (line.startsWith('### ')) {
+        out.push(`<h3>${inline(line.slice(4))}</h3>`);
+      } else if (line.startsWith('## ')) {
+        out.push(`<h2>${inline(line.slice(3))}</h2>`);
+      } else if (line.startsWith('# ')) {
+        out.push(`<h1>${inline(line.slice(2))}</h1>`);
+      } else {
+        out.push(`<p>${inline(line)}</p>`);
+      }
+    }
+    if (inList) out.push('</ul>');
+    return out.join('\n');
   }
 
   /** ContentPiece is unique on (projectId, slug), so collisions get a suffix. */

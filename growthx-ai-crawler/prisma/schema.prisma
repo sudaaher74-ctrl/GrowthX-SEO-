@@ -568,6 +568,7 @@ model Project {
   aiVisibilityMetrics       AiVisibilityMetrics[]
   aiVisibilitySettings      AiVisibilitySettings?
   aiVisibilityJourneys      AiVisibilityJourney[]
+  automationSettings        ProjectAutomationSettings?
 
   @@index([organizationId])
 }
@@ -1242,6 +1243,7 @@ enum CrawlFrequency {
   OFF
   DAILY
   WEEKLY
+  BIWEEKLY
   MONTHLY
 }
 
@@ -4589,4 +4591,25 @@ model AiVisibilitySettings {
   updatedAt      DateTime             @updatedAt
 
   project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectAutomationSettings {
+  id                  String         @id @default(uuid())
+  projectId           String         @unique
+  crawlFrequency      CrawlFrequency @default(WEEKLY)
+  /// CRAWL_ONLY | FULL_PIPELINE
+  pipelineMode        String         @default("CRAWL_ONLY")
+  maxDepth            Int            @default(500)
+  maxConcurrency      Int            @default(5)
+  useSitemap          Boolean        @default(true)
+  autoStageLowRisk    Boolean        @default(false)
+  agentAutonomy       Json           @default("{}")
+  lastScheduledRunAt  DateTime?
+  lastScheduledStatus String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  project             Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([crawlFrequency])
 }

@@ -1,5 +1,5 @@
 import { CrawlFrequency } from '@prisma/client';
-import { SchedulerService } from './scheduler.service';
+import { computeNextScheduledRun, SchedulerService } from './scheduler.service';
 
 /** A site as the scheduler's own `select` returns it. */
 function site(domain: string, organizationId: string | null = 'org_1') {
@@ -164,6 +164,53 @@ describe('SchedulerService', () => {
       const result = await scheduler.handleWebhookTrigger('nope.test', 'x');
 
       expect(result.success).toBe(false);
+      expect(crawler.startCrawlJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('persisted cadence, biweekly & full pipeline', () => {
+    it('computes real UTC next scheduled run timestamps for all cadences', () => {
+      const ref = new Date('2026-11-10T10:00:00.000Z'); // Tuesday
+      expect(computeNextScheduledRun(CrawlFrequency.OFF, ref)).toBeNull();
+      expect(computeNextScheduledRun(CrawlFrequency.DAILY, ref)).toBe('2026-11-11T00:00:00.000Z');
+      expect(computeNextScheduledRun(CrawlFrequency.WEEKLY, ref)).toBe('2026-11-16T01:00:00.000Z');
+      expect(computeNextScheduledRun(CrawlFrequency.BIWEEKLY, ref)).toBe('2026-11-15T02:00:00.000Z');
+      expect(computeNextScheduledRun(CrawlFrequency.MONTHLY, ref)).toBe('2026-12-01T02:00:00.000Z');
+    });
+
+    it('dispatches FULL_PIPELINE when automationSettings.pipelineMode is FULL_PIPELINE', async () => {
+      const autopilot = { start: jest.fn().mockResolvedValue({ id: 'ap_1' }) };
+      prisma.organizationMember = {
+        findFirst: jest.fn().mockResolvedValue({ userId: 'user_owner' }),
+      };
+      const fullScheduler = new SchedulerService(prisma as any, crawler as any, autopilot as any);
+      prisma.website.findMany.mockResolvedValue([
+        {
+          id: 'site_pipe.test',
+          domain: 'pipe.test',
+          projectId: 'proj_1',
+          project: {
+            id: 'proj_1',
+            organizationId: 'org_1',
+            automationSettings: {
+              pipelineMode: 'FULL_PIPELINE',
+              maxDepth: 1000,
+              maxConcurrency: 5,
+              useSitemap: true,
+            },
+          },
+        },
+      ]);
+
+      await fullScheduler.handleBiweeklyScheduledCrawls();
+
+      expect(autopilot.start).toHaveBeenCalledWith({
+        userId: 'user_owner',
+        organizationId: 'org_1',
+        domain: 'pipe.test',
+        projectId: 'proj_1',
+        forceRefresh: true,
+      });
       expect(crawler.startCrawlJob).not.toHaveBeenCalled();
     });
   });

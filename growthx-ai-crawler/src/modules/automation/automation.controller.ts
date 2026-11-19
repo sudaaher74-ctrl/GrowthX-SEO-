@@ -6,7 +6,8 @@ import { ContentGenerationService } from './content-generation.service';
 import { EngineerAgentService } from './engineer-agent.service';
 import { ProofOfImpactService } from './proof-of-impact.service';
 import { WordPressCmsService } from './wordpress-cms.service';
-import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength, IsArray, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength, IsArray, ArrayMaxSize, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ConnectWordPressDto {
   @IsString()
@@ -129,10 +130,25 @@ export class EngineerRunDto {
 }
 
 export class PlanFixesDto {
-  @IsOptional() @IsArray() @ArrayMaxSize(8) @IsString({ each: true })
+  @IsOptional() @IsArray() @ArrayMaxSize(15) @IsString({ each: true })
   findingIds?: string[];
   @IsOptional() @IsString() @MaxLength(40)
   sourceModule?: string;
+}
+
+export class BatchCmsFixesDto {
+  @IsEnum(['WORDPRESS', 'SHOPIFY', 'WEBFLOW'])
+  platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+
+  @IsOptional()
+  @IsEnum(['draft', 'publish'])
+  publishMode?: 'draft' | 'publish';
+
+  @IsArray()
+  @ArrayMaxSize(15)
+  @ValidateNested({ each: true })
+  @Type(() => StageWordPressFixDto)
+  items: StageWordPressFixDto[];
 }
 
 export class RunSelectionsDto {
@@ -530,5 +546,15 @@ export class AutomationController {
     @Body() body: StageWordPressFixDto,
   ) {
     return this.wordpress!.stageWebflowFix(projectId, body);
+  }
+
+  @Post('cms/batch-apply')
+  @ApiOperation({ summary: 'Apply a batch of up to 15 safe SEO fixes to WordPress, Shopify, or Webflow with per-fix rollback snapshots' })
+  @ApiParam({ name: 'projectId' })
+  stageBatchCmsFixes(
+    @Param('projectId') projectId: string,
+    @Body() body: BatchCmsFixesDto,
+  ) {
+    return this.wordpress!.stageBatchCmsFixes(projectId, body);
   }
 }

@@ -389,6 +389,14 @@ export interface PortfolioClient {
   trackedPrompts: number;
   averagePosition: number | null;
   criticalIssues: number;
+  openRegressions?: number;
+  activePipelineStatus?: string | null;
+  monthlyReport?: {
+    month: string;
+    isLocked: boolean;
+    shareToken: string | null;
+    lockedAt: string | null;
+  };
   trend: number[];
   lastCrawledAt: string | null;
 }
@@ -403,6 +411,8 @@ export interface PortfolioResponse {
     clientsDeclining: number;
     clientCount: number;
     openCriticals: number;
+    openRegressions?: number;
+    lockedReportsCount?: number;
     mrrMinor: number;
     mrrCurrency: string;
     clientsWithoutRetainer: number;
@@ -411,9 +421,133 @@ export interface PortfolioResponse {
     projectId: string;
     title: string;
     detail: string;
-    tag: 'AI' | 'CRAWL' | 'SETUP';
+    tag: 'AI' | 'CRAWL' | 'SETUP' | 'REGRESSION';
     severity: 'critical' | 'warning' | 'info';
   }[];
+}
+
+export interface BulkDeliverReportsResponse {
+  month: string;
+  deliveredCount: number;
+  totalClients: number;
+  clients: Array<{
+    projectId: string;
+    name: string;
+    domain: string | null;
+    shareToken: string | null;
+    lockedAt: string | null;
+    error?: string;
+  }>;
+}
+
+export type CrawlFrequencyType = "OFF" | "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+
+export interface ProjectAutomationSettings {
+  projectId: string;
+  crawlFrequency: CrawlFrequencyType;
+  pipelineMode: "CRAWL_ONLY" | "FULL_PIPELINE";
+  maxDepth: number;
+  maxConcurrency: number;
+  useSitemap: boolean;
+  autoStageLowRisk: boolean;
+  agentAutonomy: Record<string, unknown>;
+  nextScheduledRunAt: string | null;
+  lastScheduledRunAt: string | null;
+  lastScheduledStatus: string | null;
+  updatedAt: string | null;
+  recentRuns: Array<{
+    id: string;
+    kind: "CRAWL" | "PIPELINE";
+    status: string;
+    startedAt: string;
+    finishedAt: string | null;
+    summary: string;
+  }>;
+}
+
+export interface UpdateProjectAutomationSettingsInput {
+  crawlFrequency?: CrawlFrequencyType;
+  pipelineMode?: "CRAWL_ONLY" | "FULL_PIPELINE";
+  maxDepth?: number;
+  maxConcurrency?: number;
+  useSitemap?: boolean;
+  autoStageLowRisk?: boolean;
+  agentAutonomy?: Record<string, unknown>;
+}
+
+export interface BatchCmsFixItem {
+  findingId?: string;
+  targetUrl: string;
+  field: string;
+  beforeValue?: string;
+  afterValue: string;
+  findingTitle?: string;
+  publishMode?: "draft" | "publish";
+}
+
+export interface BatchCmsFixResponse {
+  platform: "WORDPRESS" | "SHOPIFY" | "WEBFLOW";
+  publishMode: "draft" | "publish";
+  total: number;
+  applied: number;
+  failed: number;
+  results: Array<{
+    findingId?: string;
+    targetUrl: string;
+    field: string;
+    runId?: string;
+    status: "APPLIED" | "FAILED";
+    message?: string;
+    error?: string;
+  }>;
+}
+
+export type ContentStudioKind =
+  | "ARTICLE"
+  | "BRIEF"
+  | "GBP_POST"
+  | "FAQ"
+  | "REVIEW_REPLY"
+  | "LANDING_PAGE_OUTLINE"
+  | "SCHEMA_MARKUP";
+
+export interface ContentStudioPiece {
+  id: string;
+  projectId: string;
+  kind: ContentStudioKind;
+  status: "PLANNED" | "DRAFTED" | "COMMITTED" | "PUBLISHED" | "REJECTED";
+  title: string;
+  slug: string;
+  targetQuery: string | null;
+  rationale: string | null;
+  metaDescription: string | null;
+  body: string | null;
+  generatedByModel: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateContentStudioDraftInput {
+  kind: ContentStudioKind;
+  topic?: string;
+  targetQuery?: string;
+  pageUrl?: string;
+  location?: string;
+  reviewText?: string;
+  reviewRating?: number;
+  reviewAuthor?: string;
+}
+
+export interface PublishContentDraftResponse {
+  piece: ContentStudioPiece;
+  publishResult: {
+    published: boolean;
+    platform: "WORDPRESS" | "SHOPIFY" | "WEBFLOW";
+    externalId: string;
+    externalUrl: string | null;
+    status: string;
+    message: string;
+  };
 }
 
 export interface CrawlJob {

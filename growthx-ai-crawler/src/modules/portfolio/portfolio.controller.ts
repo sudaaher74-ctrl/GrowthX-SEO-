@@ -1,10 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PortfolioService } from './portfolio.service';
 import { OrgContextService } from '../organizations/org-context.service';
-
-import { IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 export class SetRetainerDto {
   @IsOptional()
@@ -21,6 +20,18 @@ export class SetRetainerDto {
   retainerCurrency?: string;
 }
 
+export class BulkDeliverReportsDto {
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}$/)
+  month?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  expiresInDays?: number;
+}
+
 /** The agency-level view: all clients in one organization. */
 @ApiTags('Agency portfolio')
 @ApiBearerAuth()
@@ -33,12 +44,10 @@ export class PortfolioController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Every client with AI share, health, criticals and retainer' })
+  @ApiOperation({ summary: 'Every client with AI share, health, criticals, regressions, pipeline status, and retainer' })
   @ApiParam({ name: 'orgId' })
   @ApiQuery({ name: 'days', required: false, example: 28 })
   async getPortfolio(@Req() req: any, @Param('orgId') orgId: string, @Query('days') days?: string) {
-    // orgId comes straight off the URL: without this, one agency reads every
-    // other agency's client list, health scores and retainer revenue.
     await this.orgContext.assertMembership(req.user?.userId, orgId);
     const window = Math.min(180, Math.max(7, parseInt(days ?? '28', 10) || 28));
     return this.portfolio.getPortfolio(orgId, window);
@@ -54,8 +63,19 @@ export class PortfolioController {
     @Param('projectId') projectId: string,
     @Body() body: SetRetainerDto,
   ) {
-    // Revenue figures: owners and admins only.
     await this.orgContext.assertManager(req.user?.userId, orgId);
     return this.portfolio.setRetainer(orgId, projectId, body);
+  }
+
+  @Post('bulk-deliver')
+  @ApiOperation({ summary: 'Freeze monthly report snapshots and mint zero-login share links for all clients' })
+  @ApiParam({ name: 'orgId' })
+  async bulkDeliver(
+    @Req() req: any,
+    @Param('orgId') orgId: string,
+    @Body() body?: BulkDeliverReportsDto,
+  ) {
+    await this.orgContext.assertCanWrite(req.user?.userId, orgId);
+    return this.portfolio.bulkDeliverMonthlyReports(orgId, body?.month, body?.expiresInDays ?? 30);
   }
 }

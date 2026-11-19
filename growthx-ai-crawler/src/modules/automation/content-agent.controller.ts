@@ -1,14 +1,10 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ContentPieceKind, } from '@prisma/client';
+import { ContentPieceKind } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ContentAgentService, ContentRequest } from './content-agent.service';
 
-// Every field needs a decorator: the global ValidationPipe runs with
-// `whitelist: true`, which strips any property of a DTO that has none. An
-// undecorated DTO therefore arrives as `{}` and the handler crashes on a field
-// the caller did send.
 export class ContentRequestDto implements ContentRequest {
   @IsEnum(ContentPieceKind)
   kind: ContentPieceKind;
@@ -47,22 +43,49 @@ export class ReviewDecisionDto {
   decision: 'APPROVE' | 'REJECT';
 }
 
+export class UpdateDraftDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  metaDescription?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100000)
+  body?: string;
+}
+
+export class PublishDraftToCmsDto {
+  @IsEnum(['WORDPRESS', 'SHOPIFY', 'WEBFLOW'])
+  platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+
+  @IsOptional()
+  @IsEnum(['draft', 'publish'])
+  publishMode?: 'draft' | 'publish';
+}
+
 /**
- * The content agent: briefs, Google Business Profile posts, FAQs, review
- * replies, local landing-page outlines and schema markup.
- *
- * Separate from the automation controller on purpose — that one is gated on
- * AUTO_FIX_DEPLOY because it opens pull requests against the customer's repo.
- * Drafting copy for a human to review is a much lower-privilege action and
- * should not require the deploy entitlement.
+ * The content agent & Content Studio: briefs, articles, Google Business Profile
+ * posts, FAQs, review replies, local landing-page outlines, and schema markup.
  */
 @ApiTags('Content agent')
 @ApiBearerAuth()
 @Controller('api/projects/:projectId/content-agent')
 @UseGuards(JwtAuthGuard)
 export class ContentAgentController {
-  constructor(
-    private readonly contentAgent: ContentAgentService,) {}
+  constructor(private readonly contentAgent: ContentAgentService) {}
+
+  @Get('drafts')
+  @ApiOperation({ summary: 'List all Content Studio drafts for this project' })
+  @ApiParam({ name: 'projectId' })
+  listDrafts(@Param('projectId') projectId: string) {
+    return this.contentAgent.listDrafts(projectId);
+  }
 
   @Post('drafts')
   @ApiOperation({ summary: 'Draft one piece of content, grounded in this project’s own data' })
@@ -76,10 +99,31 @@ export class ContentAgentController {
     return piece;
   }
 
+  @Patch('drafts/:pieceId')
+  @ApiOperation({ summary: 'Edit a Content Studio draft title, meta description, or body' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'pieceId' })
+  updateDraft(
+    @Param('projectId') projectId: string,
+    @Param('pieceId') pieceId: string,
+    @Body() body: UpdateDraftDto,
+  ) {
+    return this.contentAgent.updateDraft(projectId, pieceId, body);
+  }
+
+  @Post('drafts/:pieceId/publish-cms')
+  @ApiOperation({ summary: 'Publish a Content Studio draft directly to WordPress, Shopify, or Webflow' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'pieceId' })
+  publishDraftToCms(
+    @Param('projectId') projectId: string,
+    @Param('pieceId') pieceId: string,
+    @Body() body: PublishDraftToCmsDto,
+  ) {
+    return this.contentAgent.publishDraftToCms(projectId, pieceId, body);
+  }
+
   @Get('pending-review')
-  // No allowance is spent reading or deciding on a draft — the draft route
-  // already charged for it — but both stay behind the same feature, since a
-  // plan that cannot draft has nothing to review.
   @ApiOperation({ summary: 'Drafts waiting on a human decision' })
   @ApiParam({ name: 'projectId' })
   pendingReview(@Param('projectId') projectId: string) {
@@ -90,7 +134,11 @@ export class ContentAgentController {
   @ApiOperation({ summary: 'Approve or reject a draft. Nothing publishes without this.' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })
-  review(@Param('projectId') projectId: string, @Param('pieceId') pieceId: string, @Body() body: ReviewDecisionDto) {
+  review(
+    @Param('projectId') projectId: string,
+    @Param('pieceId') pieceId: string,
+    @Body() body: ReviewDecisionDto,
+  ) {
     return this.contentAgent.review(projectId, pieceId, body.decision);
   }
 }

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowRight, GitPullRequest, History, ShieldCheck, TrendingUp, Wrench, Zap } from "lucide-react";
+import { ArrowRight, FileText, GitPullRequest, History, ShieldCheck, TrendingUp, Wrench, Zap } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useFindings, useWorkspace } from "@/hooks/use-growthx";
 import { PageHeader, Tabs, StatusNote } from "@/components/ui/console";
@@ -10,12 +10,14 @@ import { PlanView } from "@/components/fix-engine/plan-view";
 import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-view";
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub";
-import { api } from "@/lib/api-client";
+import { ContentStudioView } from "@/components/fix-engine/content-studio-view";
+import { api, type GrowthOpportunity } from "@/lib/api-client";
 import { stagingEngine } from "@/lib/staging-engine";
 
 const TABS = [
   { id: "improvement", label: "Improvement Plan", icon: Wrench },
   { id: "github-fixes", label: "Fixes & Log", icon: History },
+  { id: "content", label: "Content Studio", icon: FileText },
   { id: "results", label: "Results", icon: TrendingUp },
 ] as const;
 
@@ -37,15 +39,18 @@ function FixEngineClient() {
   const tab: TabId =
     rawTab === "results" || rawTab === "changes" || rawTab === "self-healing" || rawTab === "proof"
       ? "results"
-      : legacyJourney ||
-        rawTab === "github-fixes" ||
-        rawTab === "fixes" ||
-        rawTab === "improvements"
-      ? "github-fixes"
-      : "improvement";
+      : rawTab === "content" || rawTab === "content-studio"
+        ? "content"
+        : legacyJourney ||
+            rawTab === "github-fixes" ||
+            rawTab === "fixes" ||
+            rawTab === "improvements"
+          ? "github-fixes"
+          : "improvement";
   const findingId = searchParams.get("findingId");
   const [statusMessage] = useState<string | null>(null);
   const [preparedTask, setPreparedTask] = useState<{ projectId: string; instruction: string; revision: number } | null>(null);
+  const [contentSeedFinding, setContentSeedFinding] = useState<GrowthOpportunity | null>(null);
 
   const { projectId } = useWorkspace();
   const activeProjectId = projectId ?? "";
@@ -209,6 +214,10 @@ function FixEngineClient() {
           <PlanView
             key={activeProjectId}
             onOpenGitHubFixes={(fId) => setTab("github-fixes", fId)}
+            onOpenContentStudio={(finding) => {
+              setContentSeedFinding(finding);
+              setTab("content");
+            }}
           />
         </div>
       ) : tab === "github-fixes" ? (
@@ -217,6 +226,12 @@ function FixEngineClient() {
           initialSection={legacyJourney ? "IMPROVEMENT_LOG" : "ALL"}
           initialFindingId={findingId}
           initialInstruction={preparedTask?.projectId === activeProjectId ? preparedTask.instruction : undefined}
+        />
+      ) : tab === "content" ? (
+        <ContentStudioView
+          key={activeProjectId}
+          initialFinding={contentSeedFinding}
+          onClearInitialFinding={() => setContentSeedFinding(null)}
         />
       ) : (
         <AdaptiveResultsHub />

@@ -3,10 +3,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, FileCode2, GitPullRequest, Globe, RefreshCw, ShieldCheck, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, FileCode2, FileText, GitPullRequest, Globe, Layers, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
+import { BatchFixModal } from "@/components/fix-engine/batch-fix-modal";
 import { useFindings, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -54,13 +55,17 @@ function groupOf(source: string) {
  */
 export function PlanView({
   onOpenGitHubFixes,
+  onOpenContentStudio,
 }: {
   onOpenGitHubFixes?: (findingId?: string) => void;
+  onOpenContentStudio?: (finding: GrowthOpportunity) => void;
 } = {}) {
   const { projectId, projects } = useWorkspace();
   const domain = projects.find((p) => p.id === projectId)?.name ?? null;
   const [group, setGroup] = useState<string>("ALL");
   const [cmsFinding, setCmsFinding] = useState<GrowthOpportunity | null | undefined>(undefined);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchOpen, setBatchOpen] = useState(false);
   const findings = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
   const queryClient = useQueryClient();
@@ -95,8 +100,25 @@ export function PlanView({
   const active = shown.filter((i) => !["DISMISSED", "RESOLVED"].includes(i.lifecycle ?? "DETECTED"));
 
   const highImpactCount = active.filter((i) => i.potential === "HIGH").length;
-  const autoFixableCount = active.filter((i) => i.fixClass === "AUTO").length;
+  const autoFixableItems = active.filter((i) => i.fixClass === "AUTO");
+  const autoFixableCount = autoFixableItems.length;
   const queuedCount = active.filter((i) => i.lifecycle === "QUEUED" || i.lifecycle === "APPROVED").length;
+  const selectedFindings = active.filter((i) => selectedIds.includes(i.id));
+
+  const toggleSelectFinding = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : prev.length >= 15
+          ? prev
+          : [...prev, id],
+    );
+  };
+
+  const selectSafeAutoBatch = () => {
+    const safeIds = autoFixableItems.slice(0, 10).map((f) => f.id);
+    setSelectedIds(safeIds);
+  };
 
   return (
     <div className="space-y-4">
@@ -201,6 +223,50 @@ export function PlanView({
       </div>
       {refresh.error && <StatusNote tone="bad">{errorMessage(refresh.error)}</StatusNote>}
 
+      {/* ── BATCH SAFE FIX EXECUTION BAR ── */}
+      {active.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand-200/80 bg-surface-1 px-4 py-2.5 shadow-2xs text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <Layers size={14} className="text-signal-500 shrink-0" />
+            <span className="font-semibold text-brand-950">
+              {selectedFindings.length > 0
+                ? `${selectedFindings.length} finding${selectedFindings.length === 1 ? "" : "s"} selected for batch execution`
+                : "Batch Safe Fixes: select up to 15 findings to ship in 1 unified PR or CMS batch"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {autoFixableCount > 0 && (
+              <button
+                type="button"
+                onClick={selectSafeAutoBatch}
+                className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-surface-3 cursor-pointer"
+              >
+                Select Safe AUTO ({Math.min(10, autoFixableCount)})
+              </button>
+            )}
+            {selectedFindings.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-[11px] font-semibold text-brand-500 hover:text-brand-900 cursor-pointer"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
+                >
+                  <Layers size={12} />
+                  <span>Batch Apply ({selectedFindings.length}) →</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <Panel title="Improvement plan" subtitle="Highest impact first. Open a finding for its evidence, the pages it affects and what to do.">
         {active.length === 0 ? (
           <div className="p-4">
@@ -218,10 +284,13 @@ export function PlanView({
               <FindingRow
                 key={f.id}
                 finding={f}
+                selected={selectedIds.includes(f.id)}
+                onToggleSelect={() => toggleSelectFinding(f.id)}
                 busy={transition.isPending}
                 onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
                 onOpenGitHubFixes={onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined}
                 onOpenCmsApply={() => setCmsFinding(f)}
+                onOpenContentStudio={onOpenContentStudio ? () => onOpenContentStudio(f) : undefined}
               />
             ))}
           </ul>
@@ -237,22 +306,41 @@ export function PlanView({
           onClose={() => setCmsFinding(undefined)}
         />
       )}
+
+      {batchOpen && selectedFindings.length > 0 && (
+        <BatchFixModal
+          projectId={projectId}
+          domain={domain}
+          findings={selectedFindings}
+          onClose={() => setBatchOpen(false)}
+          onSuccessGitHub={() => {
+            setSelectedIds([]);
+            onOpenGitHubFixes?.();
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function FindingRow({
   finding: f,
+  selected,
+  onToggleSelect,
   busy,
   onMove,
   onOpenGitHubFixes,
   onOpenCmsApply,
+  onOpenContentStudio,
 }: {
   finding: GrowthOpportunity;
+  selected: boolean;
+  onToggleSelect: () => void;
   busy: boolean;
   onMove: (to: string, reason?: string) => void;
   onOpenGitHubFixes?: () => void;
   onOpenCmsApply?: () => void;
+  onOpenContentStudio?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState(false);
@@ -266,7 +354,15 @@ function FindingRow({
 
   return (
     <li className="px-4 py-3">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-2 text-left">
+      <div className="flex items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={`Select ${f.title} for batch execution`}
+          className="mt-1 h-3.5 w-3.5 rounded border-brand-300 cursor-pointer shrink-0"
+        />
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex flex-1 min-w-0 items-start gap-2 text-left cursor-pointer">
         <span className="mt-0.5 text-brand-400">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
@@ -295,6 +391,7 @@ function FindingRow({
           <span className="mt-1 block text-[12px] text-brand-600">{f.summary}</span>
         </span>
       </button>
+      </div>
 
       {open && (
         <div className="mt-3 space-y-3 pl-6">
@@ -348,6 +445,15 @@ function FindingRow({
                 onClick={onOpenCmsApply}
               >
                 Apply via CMS / Platform →
+              </ActionButton>
+            )}
+            {onOpenContentStudio && (
+              <ActionButton
+                variant={f.fixClass === "MANUAL" ? "primary" : "secondary"}
+                icon={<FileText size={12} />}
+                onClick={onOpenContentStudio}
+              >
+                Draft in Content Studio →
               </ActionButton>
             )}
             {onOpenGitHubFixes && (

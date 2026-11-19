@@ -1072,7 +1072,8 @@ interface WebhookEndpointsConfig {
 }
 
 interface CadenceConfig {
-  frequency: "daily" | "weekly" | "biweekly" | "monthly";
+  frequency: "off" | "daily" | "weekly" | "biweekly" | "monthly";
+  pipelineMode: "CRAWL_ONLY" | "FULL_PIPELINE";
   maxDepth: number;
   maxConcurrency: number;
   useSitemap: boolean;
@@ -1104,6 +1105,7 @@ const DEFAULT_WEBHOOK_CONFIG: WebhookEndpointsConfig = {
 
 const DEFAULT_CADENCE_CONFIG: CadenceConfig = {
   frequency: "weekly",
+  pipelineMode: "CRAWL_ONLY",
   maxDepth: 500,
   maxConcurrency: 3,
   useSitemap: true,
@@ -1120,19 +1122,38 @@ function AutomationWebhooksView() {
   const crawlHistoryQuery = useCrawlHistory(currentDomain, 10);
   const startCrawlMutation = useStartCrawl();
 
+  const automationSettingsQuery = useQuery({
+    queryKey: ["automation-settings", projectId],
+    queryFn: () => api.automationSettings.get(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+
   const [notice, setNotice] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
   const [isCrawling, setIsCrawling] = useState(false);
 
-  // Cadence config per project
-  const [cadence, setCadence] = useState<CadenceConfig>(() => {
-    if (typeof window === "undefined" || !projectId) return DEFAULT_CADENCE_CONFIG;
-    try {
-      const saved = localStorage.getItem(`growthx_cadence_config_${projectId}`);
-      return saved ? { ...DEFAULT_CADENCE_CONFIG, ...JSON.parse(saved) } : DEFAULT_CADENCE_CONFIG;
-    } catch {
-      return DEFAULT_CADENCE_CONFIG;
-    }
-  });
+  const serverSettings = automationSettingsQuery.data;
+  const serverCadence: CadenceConfig = serverSettings
+    ? {
+        frequency: serverSettings.crawlFrequency.toLowerCase() as CadenceConfig["frequency"],
+        pipelineMode: serverSettings.pipelineMode,
+        maxDepth: serverSettings.maxDepth,
+        maxConcurrency: serverSettings.maxConcurrency,
+        useSitemap: serverSettings.useSitemap,
+      }
+    : DEFAULT_CADENCE_CONFIG;
+
+  const [cadenceDraft, setCadenceDraft] = useState<{ projectId: string; value: CadenceConfig } | null>(null);
+  const cadence =
+    cadenceDraft && cadenceDraft.projectId === (projectId ?? "") ? cadenceDraft.value : serverCadence;
+  const setCadence = (next: CadenceConfig) =>
+    setCadenceDraft({ projectId: projectId ?? "", value: next });
+
+  const [autoStageDraft, setAutoStageDraft] = useState<{ projectId: string; value: boolean } | null>(null);
+  const autoStage =
+    autoStageDraft && autoStageDraft.projectId === (projectId ?? "")
+      ? autoStageDraft.value
+      : (serverSettings?.autoStageLowRisk ?? false);
 
   // Webhook endpoints config per project
   const [webhooks, setWebhooks] = useState<WebhookEndpointsConfig>(() => {
@@ -1142,17 +1163,6 @@ function AutomationWebhooksView() {
       return saved ? { ...DEFAULT_WEBHOOK_CONFIG, ...JSON.parse(saved) } : DEFAULT_WEBHOOK_CONFIG;
     } catch {
       return DEFAULT_WEBHOOK_CONFIG;
-    }
-  });
-
-  // Auto-staging toggle
-  const [autoStage, setAutoStage] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !projectId) return true;
-    try {
-      const saved = localStorage.getItem(`growthx_auto_stage_${projectId}`);
-      return saved !== null ? JSON.parse(saved) : true;
-    } catch {
-      return true;
     }
   });
 
@@ -1198,15 +1208,56 @@ function AutomationWebhooksView() {
     (url) => url.trim().length > 0
   ).length;
 
-  // Save Cadence
+  const saveCadenceMutation = useMutation({
+    mutationFn: () =>
+      api.automationSettings.update(projectId!, {
+        crawlFrequency: cadence.frequency.toUpperCase() as
+          | "OFF"
+          | "DAILY"
+          | "WEEKLY"
+          | "BIWEEKLY"
+          | "MONTHLY",
+        pipelineMode: cadence.pipelineMode,
+        maxDepth: cadence.maxDepth,
+        maxConcurrency: cadence.maxConcurrency,
+        useSitemap: cadence.useSitemap,
+      }),
+    onSuccess: (updated) => {
+      qc.setQueryData(["automation-settings", projectId], updated);
+      setCadenceDraft(null);
+      setNotice({
+        type: "success",
+        text: `Saved to backend scheduler (${updated.crawlFrequency} · ${updated.pipelineMode === "FULL_PIPELINE" ? "Full 5-Stage Pipeline" : "Website Crawl"}).`,
+      });
+    },
+    onError: (err) => {
+      setNotice({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to save cadence settings.",
+      });
+    },
+  });
+
+  const runNowMutation = useMutation({
+    mutationFn: () => api.automationSettings.runNow(projectId!),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ["automation-settings", projectId] });
+      void qc.invalidateQueries({ queryKey: ["latest-crawl", currentDomain] });
+      void qc.invalidateQueries({ queryKey: ["workspace-pipeline", projectId] });
+      setNotice({ type: "success", text: res.message });
+    },
+    onError: (err) => {
+      setNotice({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to dispatch scheduled workload.",
+      });
+    },
+  });
+
+  // Save Cadence to Postgres
   const handleSaveCadence = () => {
     if (!projectId) return;
-    try {
-      localStorage.setItem(`growthx_cadence_config_${projectId}`, JSON.stringify(cadence));
-      setNotice({ type: "success", text: "Autonomous crawl cadence preferences saved successfully." });
-    } catch {
-      setNotice({ type: "error", text: "Failed to persist cadence preferences to local storage." });
-    }
+    saveCadenceMutation.mutate();
   };
 
   // Save Webhooks
@@ -1220,20 +1271,26 @@ function AutomationWebhooksView() {
     }
   };
 
-  // Toggle Auto-Stage
-  const handleToggleAutoStage = (enabled: boolean) => {
-    setAutoStage(enabled);
+  // Toggle Auto-Stage (persisted in Postgres)
+  const handleToggleAutoStage = async (enabled: boolean) => {
     if (!projectId) return;
+    setAutoStageDraft({ projectId, value: enabled });
     try {
-      localStorage.setItem(`growthx_auto_stage_${projectId}`, JSON.stringify(enabled));
+      const updated = await api.automationSettings.update(projectId, { autoStageLowRisk: enabled });
+      qc.setQueryData(["automation-settings", projectId], updated);
+      setAutoStageDraft(null);
       setNotice({
         type: "success",
         text: enabled
-          ? "Auto-staging enabled: Critical regressions will automatically queue in Fix Engine."
-          : "Auto-staging disabled: Regressions will require manual approval.",
+          ? "Auto-staging enabled & saved to server: Critical regressions will automatically queue in Fix Engine."
+          : "Auto-staging disabled & saved to server: Regressions will require manual approval.",
       });
-    } catch {
-      // ignore
+    } catch (err) {
+      setAutoStageDraft(null);
+      setNotice({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to persist auto-staging preference.",
+      });
     }
   };
 
@@ -1603,32 +1660,81 @@ function AutomationWebhooksView() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSaveCadence}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-950 hover:bg-brand-900 px-3.5 py-1.5 text-xs font-bold text-surface-1 shadow-2xs transition cursor-pointer"
-          >
-            <Check size={13} className="text-success-400" />
-            <span>Save Cadence Settings</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!projectId || runNowMutation.isPending}
+              onClick={() => runNowMutation.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 hover:bg-surface-3 px-3 py-1.5 text-xs font-semibold text-brand-900 transition cursor-pointer disabled:opacity-50"
+            >
+              <Play size={12} className="text-signal-500" />
+              <span>{runNowMutation.isPending ? "Dispatching…" : "Run Scheduled Job Now"}</span>
+            </button>
+            <button
+              type="button"
+              disabled={!projectId || saveCadenceMutation.isPending}
+              onClick={handleSaveCadence}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-950 hover:bg-brand-900 px-3.5 py-1.5 text-xs font-bold text-surface-1 shadow-2xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Check size={13} className="text-success-400" />
+              <span>{saveCadenceMutation.isPending ? "Saving…" : "Save Cadence Settings"}</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
           {/* Cadence Frequency */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-brand-900">Surveillance Cadence</label>
+            <label className="text-xs font-semibold text-brand-900">Surveillance Cadence (Server Cron)</label>
             <select
               value={cadence.frequency}
               onChange={(e) => setCadence({ ...cadence, frequency: e.target.value as CadenceConfig["frequency"] })}
               className="w-full rounded-xl border border-brand-200 bg-surface-2 px-3 py-2 text-xs font-medium text-brand-900 focus:outline-hidden focus:ring-2 focus:ring-signal-400 cursor-pointer"
             >
-              <option value="daily">Daily (Every 24 hours at 02:00 UTC)</option>
-              <option value="weekly">Weekly (Every Monday at 02:00 UTC) — Recommended</option>
-              <option value="biweekly">Bi-weekly (1st and 15th of each month at 02:00 UTC)</option>
+              <option value="off">Manual Only (Scheduled runs paused)</option>
+              <option value="daily">Daily (00:00 UTC)</option>
+              <option value="weekly">Weekly (Every Monday at 01:00 UTC) — Recommended</option>
+              <option value="biweekly">Bi-weekly (1st &amp; 15th of each month at 02:00 UTC)</option>
               <option value="monthly">Monthly (1st of each month at 02:00 UTC)</option>
             </select>
+            <p className="text-[11px] text-brand-500">
+              Next scheduled run:{" "}
+              <span className="font-mono font-semibold text-brand-800">
+                {serverSettings?.nextScheduledRunAt
+                  ? new Date(serverSettings.nextScheduledRunAt).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })
+                  : cadence.frequency === "off"
+                    ? "Paused (manual runs only)"
+                    : "Save to compute schedule"}
+              </span>
+              {serverSettings?.lastScheduledStatus && (
+                <span className="ml-2 text-brand-400">
+                  · Last: {serverSettings.lastScheduledStatus}
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* Scheduled Workload Mode */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-brand-900">Scheduled Workload Scope</label>
+            <select
+              value={cadence.pipelineMode}
+              onChange={(e) =>
+                setCadence({
+                  ...cadence,
+                  pipelineMode: e.target.value as CadenceConfig["pipelineMode"],
+                })
+              }
+              className="w-full rounded-xl border border-brand-200 bg-surface-2 px-3 py-2 text-xs font-medium text-brand-900 focus:outline-hidden focus:ring-2 focus:ring-signal-400 cursor-pointer"
+            >
+              <option value="CRAWL_ONLY">Website Technical Audit + Fix Engine Sync</option>
+              <option value="FULL_PIPELINE">Full 5-Stage Pipeline (Audit + Rivals + AI Visibility + Backlinks + Fix Engine)</option>
+            </select>
             <p className="text-[11px] text-brand-400">
-              Next scheduled execution: <span className="font-medium text-brand-700">Monday 02:00 UTC</span>
+              Persisted to Postgres — runs automatically on server schedule without keeping your browser open.
             </p>
           </div>
 
@@ -1687,6 +1793,31 @@ function AutomationWebhooksView() {
             </p>
           </div>
         </div>
+
+        {serverSettings && serverSettings.recentRuns.length > 0 && (
+          <div className="border-t border-brand-200/70 pt-3 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-brand-500">
+              Recent Crawls &amp; Scheduled Pipeline Runs
+            </p>
+            <div className="divide-y divide-brand-200/60 rounded-xl border border-brand-200/70 bg-surface-2/50">
+              {serverSettings.recentRuns.slice(0, 5).map((run) => (
+                <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="rounded bg-surface-1 border border-brand-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand-700">
+                      {run.kind}
+                    </span>
+                    <span className="truncate text-brand-900 font-medium">{run.summary}</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[10.5px] text-brand-500 shrink-0">
+                    <span>{run.status}</span>
+                    <span>·</span>
+                    <span>{new Date(run.startedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SECTION 3: REAL-TIME WEBHOOK ALERT DISPATCHER */}
@@ -2237,31 +2368,44 @@ function AgentsView() {
 
   const startCrawlMutation = useStartCrawl();
 
-  // Agent Settings per Project
-  const [config, setConfig] = useState<AgentConfig>(() => {
-    if (typeof window === "undefined" || !projectId) return DEFAULT_AGENT_CONFIG;
-    try {
-      const saved = localStorage.getItem(`growthx_agent_settings_${projectId}`);
-      return saved ? { ...DEFAULT_AGENT_CONFIG, ...JSON.parse(saved) } : DEFAULT_AGENT_CONFIG;
-    } catch {
-      return DEFAULT_AGENT_CONFIG;
-    }
+  // Persisted Agent Settings per Project (Postgres via automation-settings)
+  const agentSettingsQuery = useQuery({
+    queryKey: ["automation-settings", projectId],
+    queryFn: () => api.automationSettings.get(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
   });
 
-  const updateConfig = (key: keyof AgentConfig, value: unknown) => {
-    setConfig((prev) => {
-      const next = { ...prev, [key]: value };
-      if (typeof window !== "undefined" && projectId) {
-        try {
-          localStorage.setItem(`growthx_agent_settings_${projectId}`, JSON.stringify(next));
-        } catch {}
-      }
-      return next;
-    });
-    setNotice({
-      type: "success",
-      text: "Autonomous agent configuration updated.",
-    });
+  const [configDraft, setConfigDraft] = useState<{ projectId: string; value: AgentConfig } | null>(null);
+  const config: AgentConfig =
+    configDraft && configDraft.projectId === (projectId ?? "")
+      ? configDraft.value
+      : {
+          ...DEFAULT_AGENT_CONFIG,
+          ...((agentSettingsQuery.data?.agentAutonomy ?? {}) as Partial<AgentConfig>),
+        };
+
+  const updateConfig = async (key: keyof AgentConfig, value: unknown) => {
+    const next = { ...config, [key]: value };
+    if (projectId) setConfigDraft({ projectId, value: next });
+    if (!projectId) return;
+    try {
+      const updated = await api.automationSettings.update(projectId, {
+        agentAutonomy: next as unknown as Record<string, unknown>,
+      });
+      qc.setQueryData(["automation-settings", projectId], updated);
+      setConfigDraft(null);
+      setNotice({
+        type: "success",
+        text: "Autonomous agent configuration saved to server.",
+      });
+    } catch (err) {
+      setConfigDraft(null);
+      setNotice({
+        type: "info",
+        text: err instanceof Error ? err.message : "Could not save agent configuration.",
+      });
+    }
   };
 
   // UI state

@@ -1723,4 +1723,287 @@ export class WordPressCmsService {
     ]);
     return { wordpress, shopify, webflow };
   }
+
+  /**
+   * Applies up to 15 selected SEO fixes in a single safe CMS batch against the
+   * connected WordPress, Shopify, or Webflow site. Each item records its own
+   * BEFORE snapshot and runId so any individual fix can be rolled back with 1 click.
+   */
+  async stageBatchCmsFixes(
+    projectId: string,
+    input: {
+      platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+      publishMode?: 'draft' | 'publish';
+      items: StageWordPressFixInput[];
+    },
+  ) {
+    const items = (input.items ?? []).slice(0, 15);
+    if (items.length === 0) {
+      throw new BadRequestException('Select at least one fix to apply in a CMS batch.');
+    }
+
+    const platform = input.platform;
+    const publishMode = input.publishMode || 'draft';
+
+    const results: Array<{
+      findingId?: string;
+      targetUrl: string;
+      field: string;
+      runId?: string;
+      status: 'APPLIED' | 'FAILED';
+      message?: string;
+      error?: string;
+    }> = [];
+
+    for (const item of items) {
+      const payload: StageWordPressFixInput = {
+        ...item,
+        publishMode: item.publishMode || publishMode,
+      };
+      try {
+        const res =
+          platform === 'SHOPIFY'
+            ? await this.stageShopifyFix(projectId, payload)
+            : platform === 'WEBFLOW'
+              ? await this.stageWebflowFix(projectId, payload)
+              : await this.stageWordPressFix(projectId, payload);
+
+        results.push({
+          findingId: item.findingId,
+          targetUrl: item.targetUrl,
+          field: item.field,
+          runId: (res as any)?.runId,
+          status: 'APPLIED',
+          message: (res as any)?.message ?? `Applied to ${platform}.`,
+        });
+      } catch (err) {
+        results.push({
+          findingId: item.findingId,
+          targetUrl: item.targetUrl,
+          field: item.field,
+          status: 'FAILED',
+          error: (err as Error)?.message ?? `Failed to apply fix to ${platform}.`,
+        });
+      }
+    }
+
+    return {
+      platform,
+      publishMode,
+      total: items.length,
+      applied: results.filter((r) => r.status === 'APPLIED').length,
+      failed: results.filter((r) => r.status === 'FAILED').length,
+      results,
+    };
+  }
+
+  /**
+   * Publishes an approved Content Studio draft directly to WordPress, Shopify,
+   * or Webflow as a new post/page draft or live article.
+   */
+  async publishContentDraftToCms(
+    projectId: string,
+    input: {
+      platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+      title: string;
+      slug: string;
+      metaDescription?: string | null;
+      bodyHtml: string;
+      publishMode?: 'draft' | 'publish';
+    },
+  ): Promise<{
+    published: boolean;
+    platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+    externalId: string;
+    externalUrl: string | null;
+    status: string;
+    message: string;
+  }> {
+    const publishMode = input.publishMode || 'draft';
+
+    if (input.platform === 'WORDPRESS') {
+      const integration = await this.prisma.integration.findUnique({
+        where: { projectId_provider: { projectId, provider: 'wordpress' } },
+      });
+      if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
+        throw new BadRequestException('Connect your WordPress site in Settings → Integrations first.');
+      }
+      const siteUrl = integration.selectedResourceId;
+      const username = integration.googleAccountEmail || 'admin';
+      const appPassword = this.security.decryptCredentials(integration.accessToken);
+      if (!appPassword) {
+        throw new BadRequestException('Stored WordPress credentials could not be decrypted. Please reconnect WordPress.');
+      }
+      const authHeader = this.buildBasicAuthHeader(username, appPassword);
+      const wpRes = await this.safeFetch(
+        `${siteUrl}/wp-json/wp/v2/posts`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            title: input.title,
+            slug: input.slug,
+            content: input.bodyHtml,
+            excerpt: input.metaDescription || '',
+            status: publishMode === 'publish' ? 'publish' : 'draft',
+          }),
+        },
+        20000,
+      );
+      if (!wpRes.ok) {
+        const text = await wpRes.text().catch(() => '');
+        throw new BadRequestException(
+          `WordPress rejected creating the post (HTTP ${wpRes.status}): ${text.slice(0, 180)}`,
+        );
+      }
+      const created = (await wpRes.json()) as { id?: number; link?: string; status?: string };
+      return {
+        published: true,
+        platform: 'WORDPRESS',
+        externalId: String(created.id ?? ''),
+        externalUrl: created.link ?? null,
+        status: created.status ?? publishMode,
+        message:
+          publishMode === 'publish'
+            ? `Published post "${input.title}" live on WordPress.`
+            : `Saved "${input.title}" as a WordPress draft.`,
+      };
+    }
+
+    if (input.platform === 'SHOPIFY') {
+      const integration = await this.prisma.integration.findUnique({
+        where: { projectId_provider: { projectId, provider: 'shopify' } },
+      });
+      if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
+        throw new BadRequestException('Connect your Shopify store in Settings → Integrations first.');
+      }
+      const shopOrigin = this.normalizeSiteUrl(`https://${integration.selectedResourceId}`);
+      const accessToken = this.security.decryptCredentials(integration.accessToken);
+      if (!accessToken) {
+        throw new BadRequestException('Stored Shopify credentials could not be decrypted. Please reconnect Shopify.');
+      }
+      const shopifyRes = await this.safeFetch(
+        `${shopOrigin}/admin/api/2024-10/pages.json`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            page: {
+              title: input.title,
+              handle: input.slug,
+              body_html: input.bodyHtml,
+              published: publishMode === 'publish',
+              metafields: input.metaDescription
+                ? [
+                    {
+                      namespace: 'global',
+                      key: 'description_tag',
+                      value: input.metaDescription,
+                      type: 'single_line_text_field',
+                    },
+                  ]
+                : undefined,
+            },
+          }),
+        },
+        20000,
+      );
+      if (!shopifyRes.ok) {
+        const text = await shopifyRes.text().catch(() => '');
+        throw new BadRequestException(
+          `Shopify rejected creating the page (HTTP ${shopifyRes.status}): ${text.slice(0, 180)}`,
+        );
+      }
+      const created = (await shopifyRes.json()) as { page?: { id?: number; handle?: string } };
+      const handle = created.page?.handle ?? input.slug;
+      return {
+        published: true,
+        platform: 'SHOPIFY',
+        externalId: String(created.page?.id ?? ''),
+        externalUrl: `${shopOrigin}/pages/${handle}`,
+        status: publishMode === 'publish' ? 'published' : 'draft',
+        message:
+          publishMode === 'publish'
+            ? `Published Shopify page "${input.title}" live.`
+            : `Saved "${input.title}" as an unpublished Shopify page draft.`,
+      };
+    }
+
+    // WEBFLOW
+    const integration = await this.prisma.integration.findUnique({
+      where: { projectId_provider: { projectId, provider: 'webflow' } },
+    });
+    if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
+      throw new BadRequestException('Connect your Webflow site in Settings → Integrations first.');
+    }
+    const siteId = integration.selectedResourceId;
+    const apiToken = this.security.decryptCredentials(integration.accessToken);
+    if (!apiToken) {
+      throw new BadRequestException('Stored Webflow credentials could not be decrypted. Please reconnect Webflow.');
+    }
+    const colsRes = await this.safeFetch(
+      `https://api.webflow.com/v2/sites/${encodeURIComponent(siteId)}/collections`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+      },
+      15000,
+    );
+    if (!colsRes.ok) {
+      throw new BadRequestException(`Could not read Webflow CMS collections (HTTP ${colsRes.status}).`);
+    }
+    const colsData = (await colsRes.json()) as { collections?: Array<{ id: string; slug?: string; displayName?: string }> };
+    const collections = colsData.collections ?? [];
+    const targetCol =
+      collections.find((c) => /blog|post|article|guide|resource/i.test(`${c.slug ?? ''} ${c.displayName ?? ''}`)) ??
+      collections[0];
+    if (!targetCol) {
+      throw new BadRequestException(
+        'No Webflow CMS collection was found on this site. Create a Blog/Articles collection in Webflow or export Markdown.',
+      );
+    }
+
+    const createRes = await this.safeFetch(
+      `https://api.webflow.com/v2/collections/${encodeURIComponent(targetCol.id)}/items`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          isDraft: publishMode !== 'publish',
+          fieldData: {
+            name: input.title,
+            slug: input.slug,
+          },
+        }),
+      },
+      20000,
+    );
+    if (!createRes.ok) {
+      const text = await createRes.text().catch(() => '');
+      throw new BadRequestException(
+        `Webflow rejected creating the CMS item (HTTP ${createRes.status}): ${text.slice(0, 180)}`,
+      );
+    }
+    const created = (await createRes.json()) as { id?: string };
+    return {
+      published: true,
+      platform: 'WEBFLOW',
+      externalId: String(created.id ?? ''),
+      externalUrl: integration.googleAccountEmail ? `${integration.googleAccountEmail}/${input.slug}` : null,
+      status: publishMode === 'publish' ? 'staged' : 'draft',
+      message: `Created item "${input.title}" in Webflow collection "${targetCol.displayName || targetCol.id}".`,
+    };
+  }
 }

@@ -1103,6 +1103,11 @@ export const api = {
   // ── Agency portfolio
   getPortfolio: (orgId: string, days = 28) =>
     get<PortfolioResponse>(`/api/organizations/${orgId}/portfolio?days=${days}`),
+  bulkDeliverPortfolioReports: (orgId: string, body?: { month?: string; expiresInDays?: number }) =>
+    post<import("./api-types").BulkDeliverReportsResponse>(
+      `/api/organizations/${orgId}/portfolio/bulk-deliver`,
+      body ?? {},
+    ),
   
   // ── Tokens
   /** Operators only: gives (positive) or takes back (negative) bonus tokens. */
@@ -2179,6 +2184,82 @@ export const api = {
   pauseAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/pause", {}),
   resumeAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/resume", {}),
   retryAdminFailedJobs: () => post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", {}),
+
+  // ── Persisted Automation Settings & Scheduler ──────────────────────────
+  automationSettings: {
+    get: (projectId: string) =>
+      get<import("./api-types").ProjectAutomationSettings>(
+        `/api/projects/${projectId}/automation-settings`,
+      ),
+    update: (projectId: string, body: import("./api-types").UpdateProjectAutomationSettingsInput) =>
+      patch<import("./api-types").ProjectAutomationSettings>(
+        `/api/projects/${projectId}/automation-settings`,
+        body,
+      ),
+    runNow: (projectId: string) =>
+      post<{ mode: "CRAWL_ONLY" | "FULL_PIPELINE"; runId: string; message: string }>(
+        `/api/projects/${projectId}/automation-settings/run-now`,
+        {},
+      ),
+  },
+
+  // ── Batch CMS Apply (WordPress / Shopify / Webflow) ────────────────────
+  getAllCmsConnections: (projectId: string) =>
+    get<{
+      wordpress: { connected: boolean; siteUrl?: string | null; status?: string };
+      shopify: { connected: boolean; shopDomain?: string | null; shopName?: string | null; status?: string };
+      webflow: { connected: boolean; siteId?: string | null; siteName?: string | null; status?: string };
+    }>(`/api/projects/${projectId}/automation/cms/connections`),
+  batchApplyCmsFixes: (
+    projectId: string,
+    body: {
+      platform: "WORDPRESS" | "SHOPIFY" | "WEBFLOW";
+      publishMode?: "draft" | "publish";
+      items: import("./api-types").BatchCmsFixItem[];
+    },
+  ) =>
+    post<import("./api-types").BatchCmsFixResponse>(
+      `/api/projects/${projectId}/automation/cms/batch-apply`,
+      body,
+    ),
+
+  // ── Grounded SEO Content Studio ────────────────────────────────────────
+  contentStudio: {
+    list: (projectId: string) =>
+      get<import("./api-types").ContentStudioPiece[]>(
+        `/api/projects/${projectId}/content-agent/drafts`,
+      ),
+    generate: (projectId: string, body: import("./api-types").CreateContentStudioDraftInput) =>
+      post<import("./api-types").ContentStudioPiece>(
+        `/api/projects/${projectId}/content-agent/drafts`,
+        body,
+      ),
+    update: (
+      projectId: string,
+      pieceId: string,
+      body: { title?: string; metaDescription?: string | null; body?: string },
+    ) =>
+      patch<import("./api-types").ContentStudioPiece>(
+        `/api/projects/${projectId}/content-agent/drafts/${encodeURIComponent(pieceId)}`,
+        body,
+      ),
+    review: (projectId: string, pieceId: string, decision: "APPROVE" | "REJECT") =>
+      post<import("./api-types").ContentStudioPiece>(
+        `/api/projects/${projectId}/content-agent/drafts/${encodeURIComponent(pieceId)}/review`,
+        { decision },
+      ),
+    publishCms: (
+      projectId: string,
+      pieceId: string,
+      body: { platform: "WORDPRESS" | "SHOPIFY" | "WEBFLOW"; publishMode?: "draft" | "publish" },
+    ) =>
+      post<import("./api-types").PublishContentDraftResponse>(
+        `/api/projects/${projectId}/content-agent/drafts/${encodeURIComponent(pieceId)}/publish-cms`,
+        body,
+      ),
+    publishGitHub: (projectId: string, pieceIds: string[]) =>
+      post<AutomationRun>(`/api/projects/${projectId}/automation/runs/content`, { pieceIds }),
+  },
 
   // ── Content Intelligence & Creative Engine ──────────────────────────────
 

@@ -1,10 +1,114 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CrawlFrequency } from '@prisma/client';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { OWN_SCOPE } from '../crawler/website-scope';
+import { AutopilotService } from '../autopilot/autopilot.service';
+
+export interface AgentAutonomyConfig {
+  autonomousFixProposals?: boolean;
+  autoStageLowRisk?: boolean;
+  githubPrAutoReview?: boolean;
+  cmsSafePublish?: boolean;
+  regressionGuard?: boolean;
+  [key: string]: unknown;
+}
+
+export interface UpdateAutomationSettingsInput {
+  crawlFrequency?: CrawlFrequency;
+  pipelineMode?: 'CRAWL_ONLY' | 'FULL_PIPELINE';
+  maxDepth?: number;
+  maxConcurrency?: number;
+  useSitemap?: boolean;
+  autoStageLowRisk?: boolean;
+  agentAutonomy?: AgentAutonomyConfig;
+}
+
+export interface AutomationSettingsResponse {
+  projectId: string;
+  crawlFrequency: CrawlFrequency;
+  pipelineMode: 'CRAWL_ONLY' | 'FULL_PIPELINE';
+  maxDepth: number;
+  maxConcurrency: number;
+  useSitemap: boolean;
+  autoStageLowRisk: boolean;
+  agentAutonomy: AgentAutonomyConfig;
+  nextScheduledRunAt: string | null;
+  lastScheduledRunAt: string | null;
+  lastScheduledStatus: string | null;
+  updatedAt: string | null;
+  recentRuns: Array<{
+    id: string;
+    kind: 'CRAWL' | 'PIPELINE';
+    status: string;
+    startedAt: string;
+    finishedAt: string | null;
+    summary: string;
+  }>;
+}
+
+/**
+ * Pure UTC calculator for the next cron firing timestamp matching the
+ * `@Cron` expressions in SchedulerService:
+ * - DAILY: 00:00 UTC every day
+ * - WEEKLY: Monday 01:00 UTC
+ * - BIWEEKLY: 1st and 15th of month 02:00 UTC
+ * - MONTHLY: 1st of month 02:00 UTC
+ */
+export function computeNextScheduledRun(
+  frequency: CrawlFrequency,
+  now: Date = new Date(),
+): string | null {
+  if (frequency === CrawlFrequency.OFF) return null;
+
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const date = now.getUTCDate();
+
+  if (frequency === CrawlFrequency.DAILY) {
+    return new Date(Date.UTC(year, month, date + 1, 0, 0, 0, 0)).toISOString();
+  }
+
+  if (frequency === CrawlFrequency.WEEKLY) {
+    // Monday = 1 in getUTCDay() (Sun=0..Sat=6)
+    const day = now.getUTCDay();
+    let daysAhead = (1 - day + 7) % 7;
+    const candidate = new Date(Date.UTC(year, month, date + daysAhead, 1, 0, 0, 0));
+    if (candidate.getTime() <= now.getTime()) {
+      daysAhead = daysAhead === 0 ? 7 : daysAhead + 7;
+      return new Date(Date.UTC(year, month, date + daysAhead, 1, 0, 0, 0)).toISOString();
+    }
+    return candidate.toISOString();
+  }
+
+  if (frequency === CrawlFrequency.BIWEEKLY) {
+    const candidates = [
+      new Date(Date.UTC(year, month, 1, 2, 0, 0, 0)),
+      new Date(Date.UTC(year, month, 15, 2, 0, 0, 0)),
+      new Date(Date.UTC(year, month + 1, 1, 2, 0, 0, 0)),
+    ];
+    const next = candidates.find((d) => d.getTime() > now.getTime()) ?? candidates[2];
+    return next.toISOString();
+  }
+
+  // MONTHLY: 1st of month at 02:00 UTC
+  const thisMonthFirst = new Date(Date.UTC(year, month, 1, 2, 0, 0, 0));
+  if (thisMonthFirst.getTime() > now.getTime()) {
+    return thisMonthFirst.toISOString();
+  }
+  return new Date(Date.UTC(year, month + 1, 1, 2, 0, 0, 0)).toISOString();
+}
 
 @Injectable()
 export class SchedulerService {
@@ -12,7 +116,11 @@ export class SchedulerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly crawlerService: CrawlerService,) {}
+    private readonly crawlerService: CrawlerService,
+    @Optional()
+    @Inject(forwardRef(() => AutopilotService))
+    private readonly autopilotService?: AutopilotService,
+  ) {}
 
   /**
    * Daily Cron trigger at midnight UTC for scheduled websites
@@ -33,6 +141,15 @@ export class SchedulerService {
   }
 
   /**
+   * Bi-weekly Cron trigger on the 1st and 15th of every month at 2 AM UTC
+   */
+  @Cron('0 2 1,15 * *')
+  async handleBiweeklyScheduledCrawls(): Promise<void> {
+    this.logger.log('Running bi-weekly scheduled crawl check...');
+    await this.triggerScheduledCrawls(CrawlFrequency.BIWEEKLY);
+  }
+
+  /**
    * Monthly Cron trigger on the 1st of every month at 2 AM UTC
    */
   @Cron('0 2 1 * *')
@@ -42,12 +159,278 @@ export class SchedulerService {
   }
 
   /**
-   * Starts a crawl for the sites that asked for this cadence.
-   *
-   * Each cron used to select every verified site in the database, so one site
-   * was crawled by all three and a monthly customer got a daily crawl. Sites now
-   * match exactly one cadence, and a site whose plan does not include scheduled
-   * crawls is not crawled on a schedule at all — that was being given away.
+   * Reads persisted project scheduler & automation settings, plus the real
+   * computed next scheduled run and recent Crawl/Pipeline executions.
+   */
+  async getAutomationSettings(
+    projectId: string,
+    userId: string,
+  ): Promise<AutomationSettingsResponse> {
+    const project = await this.assertProjectMembership(projectId, userId);
+
+    const [saved, primaryWebsite] = await Promise.all([
+      this.prisma.projectAutomationSettings?.findUnique({ where: { projectId } }) ?? null,
+      this.prisma.website.findFirst({
+        where: { projectId, scope: OWN_SCOPE },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, crawlFrequency: true },
+      }),
+    ]);
+
+    const crawlFrequency: CrawlFrequency =
+      saved?.crawlFrequency ?? primaryWebsite?.crawlFrequency ?? CrawlFrequency.WEEKLY;
+    const pipelineMode: 'CRAWL_ONLY' | 'FULL_PIPELINE' =
+      saved?.pipelineMode === 'FULL_PIPELINE' ? 'FULL_PIPELINE' : 'CRAWL_ONLY';
+
+    const websiteIds = project.websites.map((w) => w.id);
+    const [recentCrawls, recentPipelines] = await Promise.all([
+      websiteIds.length
+        ? this.prisma.crawlJob.findMany({
+            where: { websiteId: { in: websiteIds } },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              status: true,
+              createdAt: true,
+              finishedAt: true,
+              pagesCrawled: true,
+              issuesFound: true,
+            },
+          })
+        : Promise.resolve([]),
+      this.prisma.autopilotRun?.findMany({
+        where: { projectId },
+        orderBy: { startedAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          finishedAt: true,
+          domain: true,
+          error: true,
+        },
+      }) ?? Promise.resolve([]),
+    ]);
+
+    const recentRuns = [
+      ...recentCrawls.map((c) => ({
+        id: c.id,
+        kind: 'CRAWL' as const,
+        status: c.status,
+        startedAt: c.createdAt.toISOString(),
+        finishedAt: c.finishedAt?.toISOString() ?? null,
+        summary: `${c.pagesCrawled} pages crawled · ${c.issuesFound} issues`,
+      })),
+      ...recentPipelines.map((p) => ({
+        id: p.id,
+        kind: 'PIPELINE' as const,
+        status: p.status,
+        startedAt: p.startedAt.toISOString(),
+        finishedAt: p.finishedAt?.toISOString() ?? null,
+        summary: p.error
+          ? `Pipeline error: ${p.error}`
+          : `Full 5-stage workspace pipeline (${p.domain})`,
+      })),
+    ]
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+      .slice(0, 6);
+
+    return {
+      projectId,
+      crawlFrequency,
+      pipelineMode,
+      maxDepth: saved?.maxDepth ?? 500,
+      maxConcurrency: saved?.maxConcurrency ?? 5,
+      useSitemap: saved?.useSitemap ?? true,
+      autoStageLowRisk: saved?.autoStageLowRisk ?? false,
+      agentAutonomy:
+        saved?.agentAutonomy && typeof saved.agentAutonomy === 'object'
+          ? (saved.agentAutonomy as AgentAutonomyConfig)
+          : {},
+      nextScheduledRunAt: computeNextScheduledRun(crawlFrequency),
+      lastScheduledRunAt: saved?.lastScheduledRunAt?.toISOString() ?? null,
+      lastScheduledStatus: saved?.lastScheduledStatus ?? null,
+      updatedAt: saved?.updatedAt?.toISOString() ?? null,
+      recentRuns,
+    };
+  }
+
+  /**
+   * Persists scheduler & automation settings in Postgres and synchronizes
+   * `Website.crawlFrequency` on all owned websites in the project so the
+   * backend cron jobs immediately obey the saved cadence.
+   */
+  async updateAutomationSettings(
+    projectId: string,
+    userId: string,
+    input: UpdateAutomationSettingsInput,
+  ): Promise<AutomationSettingsResponse> {
+    await this.assertProjectMembership(projectId, userId, true);
+
+    const existing = await this.prisma.projectAutomationSettings.findUnique({
+      where: { projectId },
+    });
+
+    const nextFrequency =
+      input.crawlFrequency ?? existing?.crawlFrequency ?? CrawlFrequency.WEEKLY;
+    const nextPipelineMode =
+      input.pipelineMode === 'FULL_PIPELINE' || input.pipelineMode === 'CRAWL_ONLY'
+        ? input.pipelineMode
+        : existing?.pipelineMode === 'FULL_PIPELINE'
+          ? 'FULL_PIPELINE'
+          : 'CRAWL_ONLY';
+    const nextMaxDepth =
+      input.maxDepth !== undefined
+        ? Math.min(25000, Math.max(10, Math.round(input.maxDepth)))
+        : (existing?.maxDepth ?? 500);
+    const nextMaxConcurrency =
+      input.maxConcurrency !== undefined
+        ? Math.min(20, Math.max(1, Math.round(input.maxConcurrency)))
+        : (existing?.maxConcurrency ?? 5);
+    const nextUseSitemap =
+      input.useSitemap !== undefined ? Boolean(input.useSitemap) : (existing?.useSitemap ?? true);
+    const nextAutoStage =
+      input.autoStageLowRisk !== undefined
+        ? Boolean(input.autoStageLowRisk)
+        : (existing?.autoStageLowRisk ?? false);
+    const mergedAutonomy: AgentAutonomyConfig = {
+      ...(existing?.agentAutonomy && typeof existing.agentAutonomy === 'object'
+        ? (existing.agentAutonomy as AgentAutonomyConfig)
+        : {}),
+      ...(input.agentAutonomy ?? {}),
+    };
+
+    await this.prisma.projectAutomationSettings.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        crawlFrequency: nextFrequency,
+        pipelineMode: nextPipelineMode,
+        maxDepth: nextMaxDepth,
+        maxConcurrency: nextMaxConcurrency,
+        useSitemap: nextUseSitemap,
+        autoStageLowRisk: nextAutoStage,
+        agentAutonomy: mergedAutonomy as any,
+      },
+      update: {
+        crawlFrequency: nextFrequency,
+        pipelineMode: nextPipelineMode,
+        maxDepth: nextMaxDepth,
+        maxConcurrency: nextMaxConcurrency,
+        useSitemap: nextUseSitemap,
+        autoStageLowRisk: nextAutoStage,
+        agentAutonomy: mergedAutonomy as any,
+      },
+    });
+
+    // Keep Website.crawlFrequency synchronized for the cron dispatcher.
+    if (input.crawlFrequency !== undefined) {
+      await this.prisma.website.updateMany({
+        where: { projectId, scope: OWN_SCOPE },
+        data: { crawlFrequency: nextFrequency },
+      });
+    }
+
+    return this.getAutomationSettings(projectId, userId);
+  }
+
+  /**
+   * Manually dispatches the configured scheduled workload right now (either a
+   * parameterized crawl or the full 5-stage Autopilot pipeline).
+   */
+  async triggerScheduledWorkloadNow(
+    projectId: string,
+    userId: string,
+  ): Promise<{ mode: 'CRAWL_ONLY' | 'FULL_PIPELINE'; runId: string; message: string }> {
+    const project = await this.assertProjectMembership(projectId, userId, true);
+    const saved = await this.prisma.projectAutomationSettings.findUnique({
+      where: { projectId },
+    });
+    const mode: 'CRAWL_ONLY' | 'FULL_PIPELINE' =
+      saved?.pipelineMode === 'FULL_PIPELINE' ? 'FULL_PIPELINE' : 'CRAWL_ONLY';
+
+    const site = project.websites[0];
+    if (!site) {
+      throw new BadRequestException('No website is linked to this project yet.');
+    }
+
+    if (mode === 'FULL_PIPELINE' && this.autopilotService) {
+      const run = await this.autopilotService.start({
+        userId,
+        organizationId: project.organizationId,
+        domain: site.domain,
+        projectId,
+        forceRefresh: true,
+      });
+      await this.recordScheduleStatus(projectId, 'STARTED_PIPELINE');
+      return {
+        mode,
+        runId: run.id,
+        message: 'Dispatched full 5-stage workspace pipeline.',
+      };
+    }
+
+    const jobId = await this.crawlerService.startCrawlJob(site.id, {
+      pageLimit: saved?.maxDepth ?? 500,
+      maxConcurrency: saved?.maxConcurrency ?? 5,
+      useSitemap: saved?.useSitemap ?? true,
+    });
+    await this.recordScheduleStatus(projectId, 'STARTED_CRAWL');
+    return {
+      mode: 'CRAWL_ONLY',
+      runId: jobId,
+      message: `Dispatched scheduled crawl (${saved?.maxDepth ?? 500} page cap) for ${site.domain}.`,
+    };
+  }
+
+  private async assertProjectMembership(
+    projectId: string,
+    userId: string,
+    requireWrite = false,
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        organizationId: true,
+        websites: {
+          where: { scope: OWN_SCOPE },
+          select: { id: true, domain: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!project) throw new NotFoundException('Project not found.');
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId, organizationId: project.organizationId },
+      },
+      select: { role: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+    if (requireWrite && membership.role === 'VIEWER') {
+      throw new ForbiddenException('Your role in this organization is view-only.');
+    }
+    return project;
+  }
+
+  private async recordScheduleStatus(projectId: string | undefined, status: string) {
+    if (!projectId || !this.prisma.projectAutomationSettings?.updateMany) return;
+    await this.prisma.projectAutomationSettings
+      .updateMany({
+        where: { projectId },
+        data: { lastScheduledRunAt: new Date(), lastScheduledStatus: status.slice(0, 180) },
+      })
+      .catch(() => null);
+  }
+
+  /**
+   * Starts a crawl (or full 5-stage pipeline when configured) for the sites
+   * that asked for this cadence.
    *
    * Failures are per-site: one unreachable domain must not stop the rest of the
    * batch, which is why each start is awaited inside its own try.
@@ -59,7 +442,21 @@ export class SchedulerService {
         select: {
           id: true,
           domain: true,
-          project: { select: { organizationId: true } },
+          projectId: true,
+          project: {
+            select: {
+              id: true,
+              organizationId: true,
+              automationSettings: {
+                select: {
+                  pipelineMode: true,
+                  maxDepth: true,
+                  maxConcurrency: true,
+                  useSitemap: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -72,6 +469,7 @@ export class SchedulerService {
       let skipped = 0;
 
       for (const site of websites) {
+        const projectId = site.project?.id ?? site.projectId ?? undefined;
         try {
           const organizationId = site.project?.organizationId;
 
@@ -82,8 +480,6 @@ export class SchedulerService {
             skipped++;
             continue;
           }
-
-
 
           // A crawl that outlives its own interval would otherwise stack up,
           // and on a small instance a pile-up is what takes the API down.
@@ -97,11 +493,54 @@ export class SchedulerService {
             continue;
           }
 
+          const settings = site.project?.automationSettings;
+          if (
+            settings?.pipelineMode === 'FULL_PIPELINE' &&
+            projectId &&
+            this.autopilotService
+          ) {
+            const actor = this.prisma.organizationMember?.findFirst
+              ? await this.prisma.organizationMember.findFirst({
+                  where: { organizationId, role: { in: ['OWNER', 'ADMIN', 'MEMBER'] } },
+                  orderBy: { createdAt: 'asc' },
+                  select: { userId: true },
+                })
+              : null;
+            if (actor?.userId) {
+              this.logger.log(
+                `Dispatching ${frequency} scheduled FULL_PIPELINE for domain: ${site.domain}`,
+              );
+              await this.autopilotService.start({
+                userId: actor.userId,
+                organizationId,
+                domain: site.domain,
+                projectId,
+                forceRefresh: true,
+              });
+              await this.recordScheduleStatus(projectId, `STARTED_PIPELINE (${frequency})`);
+              started++;
+              continue;
+            }
+          }
+
           this.logger.log(`Dispatching ${frequency} scheduled crawl for domain: ${site.domain}`);
-          await this.crawlerService.startCrawlJob(site.id);
+          if (settings) {
+            await this.crawlerService.startCrawlJob(site.id, {
+              pageLimit: settings.maxDepth,
+              maxConcurrency: settings.maxConcurrency,
+              useSitemap: settings.useSitemap,
+            });
+          } else {
+            await this.crawlerService.startCrawlJob(site.id);
+          }
+          await this.recordScheduleStatus(projectId, `STARTED_CRAWL (${frequency})`);
           started++;
         } catch (err) {
           this.logger.error(`Failed to start scheduled crawl for ${site.domain}`, err);
+          await this.recordScheduleStatus(
+            projectId,
+            `FAILED: ${(err as Error)?.message ?? 'Unknown error'}`,
+          );
           skipped++;
         }
       }
@@ -116,19 +555,18 @@ export class SchedulerService {
 
   /**
    * Webhook handler for CI/CD deployment or sitemap update triggers.
-   *
-   * The secret is required, not optional. The check used to read
-   * `if (website.webhookSecret && website.webhookSecret !== secretToken)`, which
-   * skips itself entirely when no secret is set — and none is set by default.
-   * That left an unauthenticated endpoint able to start a crawl on any verified
-   * domain, at whatever rate the caller liked.
    */
-  async handleWebhookTrigger(domainOrId: string, secretToken?: string): Promise<{ success: boolean; jobId?: string; message: string }> {
-    // By domain or address, only a customer's own website: competitor records
-    // of the same domain belong to the projects tracking it.
+  async handleWebhookTrigger(
+    domainOrId: string,
+    secretToken?: string,
+  ): Promise<{ success: boolean; jobId?: string; message: string }> {
     const website = await this.prisma.website.findFirst({
       where: {
-        OR: [{ id: domainOrId }, { domain: domainOrId, scope: OWN_SCOPE }, { url: domainOrId, scope: OWN_SCOPE }],
+        OR: [
+          { id: domainOrId },
+          { domain: domainOrId, scope: OWN_SCOPE },
+          { url: domainOrId, scope: OWN_SCOPE },
+        ],
       },
     });
 
@@ -137,7 +575,10 @@ export class SchedulerService {
     }
 
     if (!website.isVerified) {
-      return { success: false, message: `Website ${website.domain} is not verified. Audit permission denied.` };
+      return {
+        success: false,
+        message: `Website ${website.domain} is not verified. Audit permission denied.`,
+      };
     }
 
     if (!website.webhookSecret) {
@@ -159,17 +600,11 @@ export class SchedulerService {
     };
   }
 
-  /**
-   * Constant-time comparison, so a caller cannot recover the secret one
-   * character at a time by measuring how long the rejection takes.
-   */
   private secretMatches(expected: string, provided?: string): boolean {
     if (!provided) return false;
 
     const a = Buffer.from(expected, 'utf8');
     const b = Buffer.from(provided, 'utf8');
-    // timingSafeEqual throws on a length mismatch, which would itself leak the
-    // length, so compare against a padded copy and fold the length into the result.
     const length = Math.max(a.length, b.length);
     const padded = (buf: Buffer) => Buffer.concat([buf, Buffer.alloc(length - buf.length)]);
 
