@@ -903,6 +903,77 @@ export const api = {
   getLatestCompetitorReport: (projectId: string) =>
     get<CompetitorIntelReport | null>(`/api/projects/${projectId}/action-engine/competitor-report/latest`),
 
+  monthlyReports: {
+    list: (projectId: string) =>
+      get<Array<{ id: string; month: string; isLocked: boolean; lockedAt: string | null; hasNotes: boolean; hasShareLink: boolean; shareToken: string | null; shareExpiresAt: string | null; updatedAt: string }>>(
+        `/api/projects/${projectId}/monthly-reports`,
+      ),
+    get: (projectId: string, month: string) =>
+      get<import("./api-types").MonthlyReportSnapshotRecord | null>(
+        `/api/projects/${projectId}/monthly-reports/${encodeURIComponent(month)}`,
+      ),
+    saveNotes: (projectId: string, month: string, agencyNotes: string) =>
+      post<{ month: string; agencyNotes: string; isLocked: boolean; updatedAt: string }>(
+        `/api/projects/${projectId}/monthly-reports/${encodeURIComponent(month)}/notes`,
+        { agencyNotes },
+      ),
+    lock: (
+      projectId: string,
+      month: string,
+      body?: { payload?: Partial<import("./api-types").MonthlyReportPayload>; agencyNotes?: string },
+    ) =>
+      post<import("./api-types").MonthlyReportSnapshotRecord>(
+        `/api/projects/${projectId}/monthly-reports/${encodeURIComponent(month)}/lock`,
+        body ?? {},
+      ),
+    share: (
+      projectId: string,
+      month: string,
+      body?: { expiresInDays?: number | null; payload?: Partial<import("./api-types").MonthlyReportPayload>; agencyNotes?: string },
+    ) =>
+      post<{ month: string; shareToken: string; shareExpiresAt: string | null; isLocked: boolean }>(
+        `/api/projects/${projectId}/monthly-reports/${encodeURIComponent(month)}/share`,
+        body ?? {},
+      ),
+    revokeShare: (projectId: string, month: string) =>
+      del<{ revoked: boolean; month: string }>(
+        `/api/projects/${projectId}/monthly-reports/${encodeURIComponent(month)}/share`,
+      ),
+    downloadPdf: async (
+      projectId: string,
+      month: string,
+      body?: { payload?: Partial<import("./api-types").MonthlyReportPayload>; agencyNotes?: string },
+    ): Promise<Blob> => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const orgId = auth.getOrgId();
+      if (orgId) headers["X-Org-Id"] = orgId;
+      const res = await fetch(
+        `${getApiBase()}/api/projects/${encodeURIComponent(projectId)}/monthly-reports/${encodeURIComponent(month)}/pdf`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: JSON.stringify(body ?? {}),
+        },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new ApiError(res.status, text || `PDF generation failed (${res.status})`);
+      }
+      return res.blob();
+    },
+    getPublicShared: async (token: string): Promise<import("./api-types").PublicSharedReportResponse> => {
+      const res = await fetch(`${getApiBase()}/api/public/reports/${encodeURIComponent(token)}`, {
+        method: "GET",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: "Shared report not found." }));
+        throw new ApiError(res.status, data?.message || `Unable to load report (${res.status})`);
+      }
+      return res.json();
+    },
+  },
+
   voice: {
     createSession: async (projectId?: string) =>
       post<{ sessionId: string; createdAt: string }>('/api/voice/session', { projectId }),

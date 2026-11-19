@@ -5,6 +5,7 @@ import type { GrowthOpportunity } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
 import { errorMessage } from "@/lib/error-message";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
+import { downloadCsvFile } from "@/lib/report-csv";
 
 const GROUPS = PLAN_SOURCES;
 
@@ -52,12 +53,32 @@ export function PlanReport() {
   const items = findings.data.items.filter((f) => !["DISMISSED", "RESOLVED"].includes(f.lifecycle ?? "DETECTED"));
   const ordered = [...items].sort((a, b) => (b.impact ?? 0) - (a.impact ?? 0));
 
+  const handleDownloadCsv = () => {
+    downloadCsvFile(`${domain || "website"}-improvement-plan.csv`, [
+      {
+        title: "Open SEO Improvement Plan",
+        headers: ["Title", "Source", "Impact", "Effort", "Fix Class", "Lifecycle", "Recommended Action", "Affected Pages"],
+        rows: ordered.map((f) => [
+          f.title,
+          f.source,
+          f.potential,
+          f.effort,
+          f.fixClass ?? "",
+          f.lifecycle ?? "DETECTED",
+          f.recommendedAction,
+          (f.affectedPages ?? []).slice(0, 5).join(" | "),
+        ]),
+      },
+    ]);
+  };
+
   return (
     <ReportPage
       title="Complete improvement plan"
       clientName={clientName}
       domain={domain}
       intro="Every problem and opportunity found across your website audit, Google data, competitors and AI visibility, ranked by impact, each with the evidence and what to do."
+      onDownloadCsv={handleDownloadCsv}
     >
       <ReportSection title="Summary">
         {findings.data.warnings?.map((warning) => <ReportGap key={warning}>{warning}</ReportGap>)}

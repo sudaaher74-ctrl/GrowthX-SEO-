@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import { ActionButton } from "@/components/ui/console";
-import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { usePortfolio, useWhiteLabel, useWorkspace } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 import { DASH } from "@/lib/google-format";
 
 /** Who the report is for, from the selected workspace. */
@@ -11,48 +12,93 @@ export function useReportContext() {
   const portfolio = usePortfolio(orgId);
   const project = projects.find((p) => p.id === projectId) ?? null;
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
-  return { projectId, clientName: project?.name ?? "Your business", domain: client?.domain ?? null };
+  return { orgId, projectId, clientName: project?.name ?? "Your business", domain: client?.domain ?? null };
 }
 
 /**
- * One report: a title block, sections, and a Download PDF button that uses the
- * browser's print-to-PDF on just this report. Only figures that were really
- * measured appear; a section without data says so instead of being left out.
+ * One report: a white-label-aware title block, sections, CSV export, and a
+ * Download PDF button. Every report under /reports automatically inherits the
+ * agency's logo, brand color, contact line, and custom footer when enabled.
  */
 export function ReportPage({
   title,
   intro,
   clientName,
   domain,
+  onDownloadCsv,
   children,
 }: {
   title: string;
   intro?: string;
   clientName: string;
   domain: string | null;
+  onDownloadCsv?: () => void;
   children: React.ReactNode;
 }) {
+  const { orgId } = useWorkspace();
+  const { subscription } = useSubscription(orgId);
+  const { data: whiteLabel } = useWhiteLabel(orgId);
+  const isWhiteLabeled = Boolean(subscription?.tierId === "agency" && whiteLabel?.whiteLabelEnabled);
+  const brandName = isWhiteLabeled && whiteLabel?.agencyName ? whiteLabel.agencyName : "Reigel AI SEO report";
+  const accentColor = isWhiteLabeled && whiteLabel?.brandColor ? whiteLabel.brandColor : undefined;
+  const logoUrl = isWhiteLabeled ? whiteLabel?.logoUrl : null;
+  const contactLine = isWhiteLabeled ? whiteLabel?.contactLine : null;
+  const footerText = isWhiteLabeled ? whiteLabel?.footerText : null;
+
   return (
     <div className="space-y-4 pb-12">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <Link href="/reports" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-accent-700 hover:underline">
           <ArrowLeft size={13} /> All reports
         </Link>
-        <ActionButton icon={<Printer size={12} />} onClick={() => window.print()}>Download PDF</ActionButton>
+        <div className="flex items-center gap-2">
+          {onDownloadCsv && (
+            <ActionButton variant="secondary" icon={<Download size={12} />} onClick={onDownloadCsv}>
+              Export CSV
+            </ActionButton>
+          )}
+          <ActionButton icon={<Printer size={12} />} onClick={() => window.print()}>
+            Download PDF
+          </ActionButton>
+        </div>
       </div>
-      <article id="report-root" className="mx-auto max-w-4xl space-y-6 rounded-xl border bg-white p-6 shadow-card sm:p-10">
-        <header className="border-b pb-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-400">Reigel AI SEO report</p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-[-0.02em] text-brand-950">{title}</h1>
-          <p className="mt-1 text-[13px] text-brand-600">
-            {clientName}
-            {domain ? ` · ${domain}` : ""} · {new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
-          </p>
-          {intro && <p className="mt-3 text-[12.5px] leading-relaxed text-brand-600">{intro}</p>}
+      <article
+        id="report-root"
+        className="mx-auto max-w-4xl space-y-6 rounded-xl border bg-surface-1 p-6 shadow-card sm:p-10"
+        style={accentColor ? { borderTopWidth: "4px", borderTopColor: accentColor } : undefined}
+      >
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b border-brand-200 pb-5">
+          <div>
+            {logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt={brandName}
+                className="mb-2 max-h-9 max-w-[160px] object-contain"
+              />
+            )}
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-400"
+              style={accentColor ? { color: accentColor } : undefined}
+            >
+              {brandName}
+            </p>
+            <h1 className="mt-1 text-[26px] font-bold tracking-[-0.02em] text-brand-950">{title}</h1>
+            <p className="mt-1 text-[13px] text-brand-600">
+              {clientName}
+              {domain ? ` · ${domain}` : ""} · {new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
+            </p>
+            {intro && <p className="mt-3 text-[12.5px] leading-relaxed text-brand-600">{intro}</p>}
+          </div>
+          {contactLine && (
+            <p className="text-[11.5px] font-medium text-brand-500">{contactLine}</p>
+          )}
         </header>
         {children}
-        <footer className="border-t pt-3 text-[10.5px] text-brand-400">
-          Figures come from your connected accounts and crawls at the time this report was made. “{DASH}” means a figure was not measured; it is never a zero.
+        <footer className="border-t border-brand-200 pt-3 text-[10.5px] text-brand-400">
+          {footerText
+            ? footerText
+            : `Figures come from your connected accounts and crawls at the time this report was made. "${DASH}" means a figure was not measured; it is never a zero.`}
         </footer>
       </article>
     </div>

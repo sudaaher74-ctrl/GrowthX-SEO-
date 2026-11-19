@@ -3905,6 +3905,30 @@ model AuditReportSnapshot {
   @@index([projectId, createdAt])
 }
 
+model MonthlyReportSnapshot {
+  id             String    @id @default(uuid())
+  projectId      String
+  organizationId String
+  /// YYYY-MM (e.g. "2026-10")
+  month          String
+  /// Frozen monthly report payload (search, traffic, keywords, AI visibility, backlinks, competitors, fixes, regressions/rollbacks, next-month ROI priorities, white-label branding)
+  payload        Json
+  /// Editable Account Manager / Agency commentary for this month
+  agencyNotes    String?
+  /// Cryptographic share token for zero-login client portal URL (/share/report/:token)
+  shareToken     String?   @unique
+  shareExpiresAt DateTime?
+  /// Whether the snapshot metrics are explicitly frozen for historical accuracy
+  isLocked       Boolean   @default(false)
+  lockedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([projectId, month])
+  @@index([projectId, month])
+  @@index([shareToken])
+}
+
 /// FOUND | NOT_PUBLISHED | NOT_YET_CRAWLED, used for both price and stock.
 ///
 /// Two states were not enough: a wholesale product with no listed price and a

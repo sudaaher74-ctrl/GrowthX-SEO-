@@ -3,6 +3,7 @@ import { ReportGap, ReportKpis, ReportLoading, ReportPage, ReportSection, Report
 import { useGa4Report } from "@/hooks/use-ga4-report";
 import { useGoogleAlerts, useGoogleKeywords, useGoogleOverview, useGscQueries, useIndexStatus } from "@/hooks/use-google";
 import { DASH, count, formatKpi, percent, position } from "@/lib/google-format";
+import { downloadCsvFile } from "@/lib/report-csv";
 
 /** Google Search Console and Google Analytics 4, in one report. */
 export function GoogleReport() {
@@ -23,12 +24,33 @@ export function GoogleReport() {
   const a = alerts.query.data;
   const idx = index.data;
 
+  const handleDownloadCsv = () => {
+    downloadCsvFile(`${domain || "website"}-google-report.csv`, [
+      {
+        title: `Google KPIs (Last ${days} Days)`,
+        headers: ["Metric", "Value"],
+        rows: (o?.kpis ?? []).map((kpi) => [kpi.label, formatKpi(kpi)]),
+      },
+      {
+        title: "Channels (GA4)",
+        headers: ["Channel", "Sessions", "Users", "Engagement"],
+        rows: (ga?.channels ?? []).map((c) => [c.channel, c.sessions, c.users, c.engagementRate ?? ""]),
+      },
+      {
+        title: "Top Search Queries (GSC)",
+        headers: ["Query", "Clicks", "Impressions", "CTR", "Position"],
+        rows: (q ?? []).map((r) => [r.key, r.clicks, r.impressions, r.ctr, r.position]),
+      },
+    ]);
+  };
+
   return (
     <ReportPage
       title="Google performance report"
       clientName={clientName}
       domain={domain}
       intro={`How your website performs in Google over the last ${days} days: what people searched, how many visited, and what needs attention. Search figures come from Search Console and visit figures from Google Analytics 4.`}
+      onDownloadCsv={handleDownloadCsv}
     >
       <ReportSection title="At a glance">
         {o ? (

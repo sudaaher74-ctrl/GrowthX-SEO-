@@ -341,6 +341,8 @@ export function useLatestCrawl(domain: string | null) {
         qc.invalidateQueries({ queryKey: ["issue-counts"] }),
         qc.invalidateQueries({ queryKey: ["saved-plans"] }),
         qc.invalidateQueries({ queryKey: ["crawl-history", domain] }),
+        qc.invalidateQueries({ queryKey: ["monthly-crawls", domain] }),
+        qc.invalidateQueries({ queryKey: ["monthly-findings"] }),
       ]);
     }
 
@@ -632,6 +634,13 @@ export function useProjectRealtimeSync(projectId: string | null, enabled = true)
         qc.invalidateQueries({ queryKey: ["saved-plans", projectId] }),
         qc.invalidateQueries({ queryKey: ["issue-groups", projectId] }),
         qc.invalidateQueries({ queryKey: ["issue-counts", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-changes", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-proof-cards", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-competitors", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-findings", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-backlinks", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-ledger", projectId] }),
+        qc.invalidateQueries({ queryKey: ["monthly-crawls"] }),
       ]);
       void stagingEngine.sync(projectId);
     };

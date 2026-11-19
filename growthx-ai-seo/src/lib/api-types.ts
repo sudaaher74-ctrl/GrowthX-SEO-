@@ -2199,6 +2199,105 @@ export type AivaUiPayload =
   | { type: "social_draft"; trend: string; platform: string; postText: string }
   | { type: "autopilot"; runId: string; projectId: string };
 
+export interface MonthlyReportWhiteLabel {
+  enabled: boolean;
+  agencyName: string;
+  logoUrl: string | null;
+  brandColor: string;
+  contactLine: string | null;
+  footerText: string | null;
+}
+
+export interface MonthlyReportPayload {
+  domain: string;
+  month: string;
+  monthLabel: string;
+  generatedAt: string;
+  whiteLabel: MonthlyReportWhiteLabel;
+  executiveSummary?: {
+    wins: string[];
+    workCompleted: string[];
+    nextMonthFocus: string[];
+  };
+  kpis?: {
+    clicks?: number | null;
+    clicksDiff?: number | null;
+    impressions?: number | null;
+    ctrPct?: string | null;
+    sessions?: number | null;
+    sessionsDiff?: number | null;
+    peakUsers?: number | null;
+    healthScore?: number | null;
+    pagesCrawled?: number | null;
+    verifiedFixes?: number;
+    rollbacks?: number;
+    regressions?: number;
+    aiCitationSharePct?: number | null;
+    referringDomains?: number | null;
+    verifiedBacklinks?: number | null;
+  };
+  topKeywords?: Array<{ query: string; clicks: number; impressions: number; position: number; ctr?: number }>;
+  decliningKeywords?: Array<{ query: string; clicks: number; position: number; previousPosition?: number | null }>;
+  aiVisibility?: {
+    citationSharePct: number | null;
+    averagePosition: number | null;
+    byAssistant: Array<{ assistant: string; cited: number; checked: number; citationSharePct: number }>;
+  } | null;
+  backlinks?: {
+    totalVerified: number;
+    referringDomains: number;
+    newCount: number;
+    lostCount: number;
+    topSources: Array<{ domain: string; url: string; status: string }>;
+  } | null;
+  competitors?: {
+    summary: string | null;
+    rivals: Array<{ label: string; pages: number; crawledAt: string | null }>;
+  } | null;
+  fixes?: Array<{
+    title: string;
+    url: string;
+    field: string;
+    status: string;
+    verifiedAt?: string | null;
+    pullRequestUrl?: string | null;
+  }>;
+  accountabilityEvents?: Array<{
+    eventType: string;
+    title: string;
+    affectedUrl?: string | null;
+    createdAt: string;
+  }>;
+  nextMonthPriorities?: Array<{
+    title: string;
+    source: string;
+    potential: string;
+    effort: string;
+    roiNote?: string | null;
+  }>;
+}
+
+export interface MonthlyReportSnapshotRecord {
+  id: string;
+  projectId: string;
+  month: string;
+  isLocked: boolean;
+  lockedAt: string | null;
+  agencyNotes: string;
+  shareToken: string | null;
+  shareExpiresAt: string | null;
+  payload: MonthlyReportPayload;
+  updatedAt: string;
+}
+
+export interface PublicSharedReportResponse {
+  month: string;
+  monthLabel: string;
+  lockedAt: string;
+  agencyNotes: string;
+  payload: MonthlyReportPayload;
+}
+
 export interface PipelineStage {
   id: "WEBSITE" | "COMPETITORS" | "AI_VISIBILITY" | "BACKLINKS" | "FIX_ENGINE";
   label: string;

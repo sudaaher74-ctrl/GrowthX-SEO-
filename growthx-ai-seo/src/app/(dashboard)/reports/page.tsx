@@ -15,6 +15,7 @@ const REPORTS: { title: string; about: string; href: string; step?: number }[] =
   { title: "Google", about: "Search Console and Analytics: traffic, queries, channels, alerts and index status.", href: "/reports/google", step: 2 },
   { title: "Competitor Intelligence", about: "How your competitors compare and where they are ahead.", href: "/competitor-intelligence?tab=report", step: 3 },
   { title: "AI Visibility", about: "Whether ChatGPT, Gemini, Perplexity and Claude name you, and how to improve.", href: "/reports/ai-visibility", step: 4 },
+  { title: "Backlinks & Authority", about: "Verified referring domains, lost links, and link-building opportunities.", href: "/reports/backlinks", step: 5 },
 ];
 
 export default function ReportsPage() {

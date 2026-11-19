@@ -5,6 +5,7 @@ import { useVisibility } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 import { DASH, count } from "@/lib/google-format";
+import { downloadCsvFile } from "@/lib/report-csv";
 
 /** How AI assistants describe and recommend the business, and the plan to improve it. */
 export function AiVisibilityReport() {
@@ -27,12 +28,33 @@ export function AiVisibilityReport() {
   );
   const pct = (n: number | null | undefined) => (n == null ? DASH : `${Math.round(n * 10) / 10}%`);
 
+  const handleDownloadCsv = () => {
+    downloadCsvFile(`${domain || "website"}-ai-visibility-report.csv`, [
+      {
+        title: "By Assistant",
+        headers: ["Assistant", "Checked", "Cited", "Citation Share %"],
+        rows: (v?.byAssistant ?? []).map((a) => [assistantLabel(a.assistant, a.model), a.checked, a.cited, a.citationSharePct]),
+      },
+      {
+        title: "Competitor Share of Voice",
+        headers: ["Brand", "Mentions", "Share %"],
+        rows: (v?.shareOfVoice ?? []).map((s) => [s.label, s.mentions, s.sharePct]),
+      },
+      {
+        title: "Recommendations",
+        headers: ["Recommendation", "Priority", "Effort", "Rationale"],
+        rows: (ins?.recommendations ?? []).map((r) => [r.title, r.priority, r.effort, r.rationale]),
+      },
+    ]);
+  };
+
   return (
     <ReportPage
       title="AI Visibility report"
       clientName={clientName}
       domain={domain}
       intro="Whether AI assistants name your business when people ask the questions your customers ask, how you compare with competitors, and what to change. Only assistants that were actually asked are counted; one that could not be asked is not shown as zero."
+      onDownloadCsv={handleDownloadCsv}
     >
       {!v || v.summary.checked === 0 ? (
         <ReportSection title="At a glance">

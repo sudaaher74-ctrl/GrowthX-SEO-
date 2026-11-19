@@ -45,6 +45,13 @@ import { useSubscription } from "@/lib/subscription-engine";
 import { ActionButton, Panel } from "@/components/ui/console";
 import { cn } from "@/lib/utils";
 import type { Ga4Point, GscPoint } from "@/lib/api-types";
+import {
+  MonthlyReportExecutiveSummaryAndNotes,
+  MonthlyReportMissingPillars,
+  MonthlyReportToolbarActions,
+  useMonthlyReportSnapshotData,
+  type MonthlyReportSnapshotContext,
+} from "@/components/reports/monthly-report-enhancements";
 
 const monthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -384,8 +391,6 @@ export default function MonthlyReport() {
     ): row is { label: string; pages: number; crawledAt: string | null } =>
       Boolean(row && row.pages !== null && row.pages !== undefined),
   );
-  const maxRivalPages = Math.max(1, ...rivalBars.map((row) => row.pages));
-
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["monthly-search", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-traffic", projectId] });
@@ -394,6 +399,12 @@ export default function MonthlyReport() {
     queryClient.invalidateQueries({ queryKey: ["monthly-changes", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-proof-cards", projectId] });
     queryClient.invalidateQueries({ queryKey: ["monthly-crawls", domain] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-snapshot", projectId, month] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-backlinks", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-keywords-top", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-keywords-declining", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-ledger", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["monthly-findings", projectId] });
   };
 
   const gscDaily = useMemo(
@@ -417,6 +428,91 @@ export default function MonthlyReport() {
       ),
     [month, traffic.data],
   );
+
+  const portfolioClient = portfolio.data?.clients.find((item) => item.projectId === projectId);
+  const latestMonthCrawl = monthCrawls.at(-1) ?? (crawls.data ?? []).at(-1) ?? null;
+
+  const snapshotContext: MonthlyReportSnapshotContext | null = projectId
+    ? {
+        projectId,
+        domain: domain || project?.name || "Target Website",
+        month,
+        monthLabel: title,
+        isCurrentMonth,
+        whiteLabel: {
+          enabled: isWhiteLabeled,
+          agencyName,
+          logoUrl: logoUrl ?? null,
+          brandColor,
+          contactLine: contactLine ?? null,
+          footerText: footerText ?? null,
+        },
+        liveKpis: {
+          clicks: searchRows.length ? totalClicks : null,
+          clicksDiff,
+          impressions: searchRows.length ? totalImpressions : null,
+          ctrPct,
+          sessions: trafficRows.length ? totalSessions : null,
+          sessionsDiff,
+          peakUsers: trafficRows.length ? peakUsers : null,
+          healthScore: portfolioClient?.health ?? null,
+          pagesCrawled: latestMonthCrawl?.pagesCrawled ?? null,
+          verifiedFixes: live.length,
+          aiCitationSharePct: visibility.data?.summary.checked
+            ? visibility.data.summary.citationSharePct
+            : null,
+        },
+        liveAiVisibility: visibility.data?.summary.checked
+          ? {
+              citationSharePct: visibility.data.summary.citationSharePct,
+              averagePosition: visibility.data.summary.averagePosition,
+              byAssistant: (visibility.data.byAssistant ?? []).map((m) => ({
+                assistant: assistantLabel(m.assistant, m.model),
+                cited: m.cited,
+                checked: m.checked,
+                citationSharePct: m.citationSharePct,
+              })),
+            }
+          : null,
+        liveCompetitors: rivalBars.length
+          ? {
+              summary: competitors.data?.analysis?.executiveSummary ?? null,
+              rivals: rivalBars,
+            }
+          : null,
+        liveFixes: live.map((c) => ({
+          title: c.findingTitle || c.field,
+          url: c.url || "",
+          field: c.field,
+          status: c.verification,
+          verifiedAt: c.checkedAt ?? null,
+          pullRequestUrl: c.pr ?? null,
+        })),
+        dailyGscRows: gscDaily,
+        dailyGa4Rows: ga4Daily,
+      }
+    : null;
+
+  const snapshotData = useMonthlyReportSnapshotData(snapshotContext);
+
+  const effectiveRivalBars =
+    snapshotData.useFrozen && snapshotData.activePayload?.competitors?.rivals?.length
+      ? snapshotData.activePayload.competitors.rivals
+      : rivalBars;
+  const maxRivalPages = Math.max(1, ...effectiveRivalBars.map((row) => row.pages));
+  const effectiveAiAssistants =
+    snapshotData.useFrozen && snapshotData.activePayload?.aiVisibility?.byAssistant
+      ? snapshotData.activePayload.aiVisibility.byAssistant.map((m) => ({
+          assistant: m.assistant,
+          model: null as string | null,
+          cited: m.cited,
+          checked: m.checked,
+          citationSharePct: m.citationSharePct,
+          preFormatted: true,
+        }))
+      : (visibility.data?.byAssistant ?? [])
+          .filter((model) => model.checked > 0)
+          .map((m) => ({ ...m, preFormatted: false }));
 
   return (
     <main id="report-root" className="space-y-6 pb-16">
@@ -511,7 +607,8 @@ export default function MonthlyReport() {
       {/* =====================================================================
           1. EXECUTIVE HEADER & CONTROLS
          ===================================================================== */}
-      <div className="no-print flex flex-col gap-4 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+      <div className="no-print flex flex-col gap-3.5 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
@@ -641,6 +738,16 @@ export default function MonthlyReport() {
             )}
           </div>
         </div>
+        </div>
+
+        {snapshotContext && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-brand-200/70 pt-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-500">
+              Deliverable Actions
+            </span>
+            <MonthlyReportToolbarActions ctx={snapshotContext} snapshotData={snapshotData} />
+          </div>
+        )}
       </div>
 
       {!projectId ? (
@@ -762,6 +869,10 @@ export default function MonthlyReport() {
               );
             })}
           </div>
+
+          {snapshotContext && (
+            <MonthlyReportExecutiveSummaryAndNotes ctx={snapshotContext} snapshotData={snapshotData} />
+          )}
 
           {/* =====================================================================
               2. EXECUTIVE SUMMARY KPIS (6 HIGH-IMPACT CARDS)
@@ -1427,12 +1538,14 @@ export default function MonthlyReport() {
                   <div>
                     <h3 className="text-sm font-bold text-brand-950">Recommendation check</h3>
                     <p className="text-[11px] text-brand-500">
-                      {latestAiScan
-                        ? `${recommendationIsThisMonth ? "This month" : "Latest available"} · ${dateLabel(latestAiScan)}`
-                        : "No completed scan"}
+                      {snapshotData.useFrozen
+                        ? `Frozen snapshot · ${title}`
+                        : latestAiScan
+                          ? `${recommendationIsThisMonth ? "This month" : "Latest available"} · ${dateLabel(latestAiScan)}`
+                          : "No completed scan"}
                     </p>
 
-                    {!latestAiScan ? (
+                    {!latestAiScan && !effectiveAiAssistants.length ? (
                       <div className="flex h-48 items-center justify-center text-xs text-brand-500">
                         No recommendation check saved yet.
                       </div>
@@ -1463,12 +1576,14 @@ export default function MonthlyReport() {
                         </div>
 
                         <div className="space-y-2.5 pt-1">
-                          {(visibility.data?.byAssistant ?? [])
-                            .filter((model) => model.checked > 0)
-                            .map((model) => (
+                          {effectiveAiAssistants.map((model) => (
                               <div key={`${model.assistant}-${model.model ?? ""}`} className="text-xs">
                                 <div className="flex justify-between gap-2 font-medium text-brand-950">
-                                  <span>{assistantLabel(model.assistant, model.model)}</span>
+                                  <span>
+                                    {model.preFormatted
+                                      ? model.assistant
+                                      : assistantLabel(model.assistant, model.model)}
+                                  </span>
                                   <span className="font-mono text-brand-600">
                                     {model.cited}/{model.checked} ({model.citationSharePct}%)
                                   </span>
@@ -1513,23 +1628,25 @@ export default function MonthlyReport() {
                   <div>
                     <h3 className="text-sm font-bold text-brand-950">Pages read across sites</h3>
                     <p className="text-[11px] text-brand-500">
-                      {competitors.data?.generatedAt
-                        ? `${competitorIsThisMonth ? "This month" : "Latest available"} · ${dateLabel(competitors.data.generatedAt)}`
-                        : "No snapshot saved"}
+                      {snapshotData.useFrozen
+                        ? `Frozen snapshot · ${title}`
+                        : competitors.data?.generatedAt
+                          ? `${competitorIsThisMonth ? "This month" : "Latest available"} · ${dateLabel(competitors.data.generatedAt)}`
+                          : "No snapshot saved"}
                     </p>
 
-                    {competitors.isLoading ? (
+                    {competitors.isLoading && !snapshotData.useFrozen ? (
                       <p className="mt-4 text-xs text-brand-500">Loading…</p>
-                    ) : competitors.isError ? (
+                    ) : competitors.isError && !snapshotData.useFrozen ? (
                       <p className="mt-4 text-xs text-error-700">Competitor evidence unavailable.</p>
-                    ) : !rivalBars.length ? (
+                    ) : !effectiveRivalBars.length ? (
                       <div className="flex h-48 flex-col items-center justify-center gap-1 text-xs text-brand-500">
                         <Globe size={24} className="text-brand-300" />
                         Run a competitor crawl to see a comparison.
                       </div>
                     ) : (
                       <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
-                        {rivalBars.map((rival) => (
+                        {effectiveRivalBars.map((rival) => (
                           <div
                             key={rival.label}
                             className="rounded-xl border border-brand-200 bg-surface-2 p-3"
@@ -1903,6 +2020,8 @@ export default function MonthlyReport() {
               </div>
             </section>
           )}
+
+          <MonthlyReportMissingPillars snapshotData={snapshotData} activeTab={activeTab} />
 
           {/* ── PRINT-ONLY EXECUTIVE SIGN-OFF & CERTIFICATION FOOTER ── */}
           <div

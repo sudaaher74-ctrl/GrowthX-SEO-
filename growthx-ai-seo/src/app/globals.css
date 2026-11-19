@@ -784,6 +784,8 @@ html.dark [data-nav-active="true"] * {
   .report-section { break-inside: avoid-page; }
   .report-table tr { break-inside: avoid; }
   .report-table thead { display: table-header-group; }
+  .recharts-wrapper, .recharts-surface { max-width: 100% !important; overflow: visible !important; }
+  h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
   .print-avoid-break { break-inside: avoid; }
   .print-break-before { break-before: page; }
 }

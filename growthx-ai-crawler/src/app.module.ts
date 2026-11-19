@@ -48,6 +48,7 @@ import { VoiceAgentModule } from './modules/voice-agent/voice-agent.module';
 import { RivalSnapshotsModule } from './modules/rival-snapshots/rival-snapshots.module';
 import { AutopilotModule } from './modules/autopilot/autopilot.module';
 import { AuditReportModule } from './modules/audit-report/audit-report.module';
+import { MonthlyReportsModule } from './modules/monthly-reports/monthly-reports.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
 import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
@@ -131,6 +132,7 @@ import { CsrfGuard } from './modules/auth/csrf.guard';
     RivalSnapshotsModule,
     AutopilotModule,
     AuditReportModule,
+    MonthlyReportsModule,
     SavedPlansModule,
     SearchIntelligenceModule,
     TokensModule,
