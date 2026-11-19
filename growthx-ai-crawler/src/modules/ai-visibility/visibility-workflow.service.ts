@@ -1,11 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -23,6 +26,7 @@ import { extractAndParseJson } from "../ai-engine/utils/json-extractor.util";
 import { redactSecretsForAi } from "../security/ai-sanitizer.util";
 import { VisibilityContextService } from "./visibility-context.service";
 import { MetricsEngineService } from "./metrics-engine.service";
+import { FindingSyncService } from "../opportunities/finding-sync.service";
 import {
   VisibilityAssessment,
   VisibilityBrief,
@@ -66,6 +70,9 @@ export class VisibilityWorkflowService
     private readonly context: VisibilityContextService,
     private readonly router: MultiAiRouterService,
     private readonly metrics: MetricsEngineService,
+    @Optional()
+    @Inject(forwardRef(() => FindingSyncService))
+    private readonly findingSync?: FindingSyncService,
   ) {}
 
   onModuleInit() {
@@ -751,5 +758,14 @@ BUSINESS: ${JSON.stringify(brief)}\nEVIDENCE: ${JSON.stringify(ctx)}\nFINDINGS: 
         errors: json(errors),
       },
     });
+    if ((status === "COMPLETED" || status === "PARTIAL") && this.findingSync) {
+      await this.findingSync
+        .syncProject(projectId, { sources: ["MARKET"] })
+        .catch((err) => {
+          this.logger.warn(
+            `[${projectId}] Post-journey AI visibility finding sync failed: ${(err as Error).message}`,
+          );
+        });
+    }
   }
 }

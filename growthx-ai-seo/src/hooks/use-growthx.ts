@@ -1,6 +1,6 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters, type UpdateWhiteLabelInput } from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
@@ -304,7 +304,10 @@ export function useProgrammaticMatrix(projectId?: string | null, competitorId?: 
 }
 
 export function useLatestCrawl(domain: string | null) {
-  return useQuery({
+  const qc = useQueryClient();
+  const prevRef = useRef<{ id: string | null; status: string | null }>({ id: null, status: null });
+
+  const query = useQuery({
     queryKey: ["latest-crawl", domain],
     queryFn: () => api.getLatestCrawl(domain!),
     enabled: Boolean(domain),
@@ -315,9 +318,33 @@ export function useLatestCrawl(domain: string | null) {
     // focus is what notices the other tab's crawl and starts the interval
     // above ticking.
     refetchOnWindowFocus: true,
-    refetchInterval: (query) =>
-      query.state.data?.status === "RUNNING" || query.state.data?.status === "PENDING" ? 3000 : false,
+    refetchInterval: (q) =>
+      q.state.data?.status === "RUNNING" || q.state.data?.status === "PENDING" ? 3000 : false,
   });
+
+  const crawlId = query.data?.id ?? null;
+  const crawlStatus = query.data?.status ?? null;
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    const wasActive = prev.status === "RUNNING" || prev.status === "PENDING";
+    const isNowCompleted = crawlStatus === "COMPLETED";
+    const isNewCompletedCrawl = Boolean(prev.id && crawlId && prev.id !== crawlId && isNowCompleted);
+
+    if ((wasActive && isNowCompleted) || isNewCompletedCrawl) {
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["findings"] }),
+        qc.invalidateQueries({ queryKey: ["issue-groups"] }),
+        qc.invalidateQueries({ queryKey: ["issue-counts"] }),
+        qc.invalidateQueries({ queryKey: ["saved-plans"] }),
+        qc.invalidateQueries({ queryKey: ["crawl-history", domain] }),
+      ]);
+    }
+
+    prevRef.current = { id: crawlId, status: crawlStatus };
+  }, [crawlId, crawlStatus, domain, qc]);
+
+  return query;
 }
 
 export function useStartCrawl(_websiteId?: string | null) {
@@ -528,7 +555,8 @@ export function useFindings(
     },
     enabled: Boolean(projectId),
     retry: false,
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

@@ -9,6 +9,8 @@ describe('FindingSyncService', () => {
   let mockWebsiteAdapter: any;
   let mockCompetitorAdapter: any;
   let mockAiVisAdapter: any;
+  let mockBacklinksAdapter: any;
+  let mockTrafficAdapter: any;
 
   const sampleFinding: NormalisedFinding = {
     projectId: 'proj-1',
@@ -44,8 +46,8 @@ describe('FindingSyncService', () => {
     mockWebsiteAdapter = { source: 'WEBSITE', collect: jest.fn().mockResolvedValue([sampleFinding]) };
     mockCompetitorAdapter = { source: 'COMPETITOR', collect: jest.fn().mockResolvedValue([]) };
     mockAiVisAdapter = { source: 'MARKET', collect: jest.fn().mockResolvedValue([]) };
-    const mockBacklinksAdapter: any = { source: 'BACKLINKS', collect: jest.fn().mockResolvedValue([]) };
-    const mockTrafficAdapter: any = { source: 'SEARCH_CONSOLE', collect: jest.fn().mockResolvedValue([]) };
+    mockBacklinksAdapter = { source: 'BACKLINKS', collect: jest.fn().mockResolvedValue([]) };
+    mockTrafficAdapter = { source: 'SEARCH_CONSOLE', collect: jest.fn().mockResolvedValue([]) };
 
     service = new FindingSyncService(
       mockPrisma as unknown as PrismaService,
@@ -200,5 +202,100 @@ describe('FindingSyncService', () => {
 
     expect(res).toEqual({ created: 0, updated: 0, resolved: 0 });
     expect(mockPrisma.growthOpportunity.update).not.toHaveBeenCalled();
+  });
+
+  it('syncs only requested sources when options.sources is provided (skipping Traffic)', async () => {
+    mockWebsiteAdapter.collect.mockResolvedValue([
+      { ...sampleFinding, fingerprint: 'audit::NEW_BROKEN_LINK', source: 'WEBSITE' },
+    ]);
+    mockPrisma.growthOpportunity.findUnique.mockResolvedValue(null);
+    mockPrisma.growthOpportunity.create.mockResolvedValue({});
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([
+      {
+        id: 'opp-old-website',
+        fingerprint: 'audit::OLD_ISSUE',
+        source: 'WEBSITE',
+        status: 'OPEN',
+        lifecycle: FindingLifecycle.QUEUED,
+        transitions: [],
+      },
+      {
+        id: 'opp-traffic',
+        fingerprint: 'traffic::LOW_CTR',
+        source: 'SEARCH_CONSOLE',
+        status: 'OPEN',
+        lifecycle: FindingLifecycle.QUEUED,
+        transitions: [],
+      },
+    ]);
+
+    const res = await service.syncProject('proj-1', { sources: ['WEBSITE'] });
+
+    expect(res).toEqual({ created: 1, updated: 0, resolved: 1 });
+    expect(mockWebsiteAdapter.collect).toHaveBeenCalledWith('proj-1');
+    expect(mockTrafficAdapter.collect).not.toHaveBeenCalled();
+    expect(mockCompetitorAdapter.collect).not.toHaveBeenCalled();
+    expect(mockAiVisAdapter.collect).not.toHaveBeenCalled();
+    expect(mockBacklinksAdapter.collect).not.toHaveBeenCalled();
+    expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'opp-old-website' },
+        data: expect.objectContaining({ status: 'RESOLVED' }),
+      }),
+    );
+  });
+
+  it('auto-syncs WEBSITE on own crawl completion, COMPETITOR on rival crawl completion, and BACKLINKS on discovery completion', async () => {
+    let crawlHandler: ((jobId: string, websiteId: string) => Promise<void>) | undefined;
+    let discoveryHandler: ((projectId: string) => Promise<void>) | undefined;
+
+    const mockCrawler = {
+      onCrawlCompleted: jest.fn((h) => {
+        crawlHandler = h;
+      }),
+    };
+    const mockDiscovery = {
+      onDiscoveryCompleted: jest.fn((h) => {
+        discoveryHandler = h;
+      }),
+    };
+    mockPrisma.website = {
+      findUnique: jest.fn(),
+    };
+    mockPrisma.growthOpportunity.findUnique.mockResolvedValue(null);
+    mockPrisma.growthOpportunity.create.mockResolvedValue({});
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([]);
+
+    const wiredService = new FindingSyncService(
+      mockPrisma,
+      mockWebsiteAdapter,
+      mockCompetitorAdapter,
+      mockAiVisAdapter,
+      mockBacklinksAdapter,
+      mockTrafficAdapter,
+      mockCrawler as any,
+      mockDiscovery as any,
+    );
+    wiredService.onModuleInit();
+
+    expect(mockCrawler.onCrawlCompleted).toHaveBeenCalledTimes(1);
+    expect(mockDiscovery.onDiscoveryCompleted).toHaveBeenCalledTimes(1);
+
+    mockPrisma.website.findUnique.mockResolvedValueOnce({ projectId: 'proj-1', scope: 'OWN' });
+    await crawlHandler!('job-1', 'site-own');
+    expect(mockWebsiteAdapter.collect).toHaveBeenCalledWith('proj-1');
+    expect(mockTrafficAdapter.collect).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    mockPrisma.website.findUnique.mockResolvedValueOnce({ projectId: 'proj-1', scope: 'COMPETITOR' });
+    await crawlHandler!('job-2', 'site-rival');
+    expect(mockCompetitorAdapter.collect).toHaveBeenCalledWith('proj-1');
+    expect(mockTrafficAdapter.collect).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    await discoveryHandler!('proj-1');
+    expect(mockBacklinksAdapter.collect).toHaveBeenCalledWith('proj-1');
+    expect(mockTrafficAdapter.collect).not.toHaveBeenCalled();
   });
 });

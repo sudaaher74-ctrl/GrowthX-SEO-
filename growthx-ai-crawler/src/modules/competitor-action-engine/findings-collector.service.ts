@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { FindingCategory, FindingConfidence, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { FindingSyncService } from '../opportunities/finding-sync.service';
 import { SiteProfile, countOf, issuesOf, EMPTY_PROFILE } from './site-profile';
 import { SiteProfileLoader } from './site-profile.loader';
 import { instagramCredentials } from '../../config/optional-env';
@@ -51,6 +52,7 @@ export class FindingsCollectorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profiles: SiteProfileLoader,
+    @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
   ) {}
 
   /**
@@ -335,6 +337,12 @@ export class FindingsCollectorService {
       this.prisma.competitorFinding.deleteMany({ where: { projectId } }),
       ...(rows.length ? [this.prisma.competitorFinding.createMany({ data: rows })] : []),
     ]);
+
+    if (this.findingSync) {
+      await this.findingSync.syncProject(projectId, { sources: ['COMPETITOR'] }).catch((err) => {
+        this.logger.warn(`[${projectId}] Post-collection competitor finding sync failed: ${(err as Error).message}`);
+      });
+    }
   }
 }
 

@@ -1,8 +1,9 @@
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { ContentIdeasModule } from '../content-ideas/content-ideas.module';
 import { CompetitorIntelReportService } from './competitor-intel-report.service';
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+import { OpportunitiesModule } from '../opportunities/opportunities.module';
 import { CompetitorActionEngineController } from './competitor-action-engine.controller';
 import { FindingsCollectorService } from './findings-collector.service';
 import { StrategyEngineService } from './strategy-engine.service';
@@ -27,7 +28,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
  * unavailable produces a stated coverage gap rather than a broken import.
  */
 @Module({
-  imports: [DatabaseModule, LocalSeoModule, AiSearchModule, ContentIdeasModule, OrganizationsModule],
+  imports: [DatabaseModule, LocalSeoModule, AiSearchModule, ContentIdeasModule, OrganizationsModule, forwardRef(() => OpportunitiesModule)],
   controllers: [CompetitorActionEngineController],
   providers: [
     FindingsCollectorService,

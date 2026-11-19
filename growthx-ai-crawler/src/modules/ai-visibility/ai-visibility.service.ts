@@ -285,10 +285,10 @@ export class AiVisibilityService {
       // 7. Calculate Metrics with MetricsEngineService
       await this.metrics.calculateScanMetrics(scan.id, projectId);
 
-      // 8. Reconcile findings into GrowthOpportunity via FindingSyncService
+      // 8. Reconcile AI Visibility findings into GrowthOpportunity via FindingSyncService
       if (this.findingSync) {
         try {
-          const syncResult = await this.findingSync.syncProject(projectId);
+          const syncResult = await this.findingSync.syncProject(projectId, { sources: ['MARKET'] });
           this.logger.log(
             `Opportunities synced for project ${projectId}: ${syncResult.created} created, ${syncResult.updated} updated`,
           );

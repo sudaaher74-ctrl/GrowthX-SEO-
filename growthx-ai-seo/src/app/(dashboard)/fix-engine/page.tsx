@@ -56,7 +56,8 @@ function FixEngineClient() {
     queryFn: () => api.savedPlans.list(activeProjectId),
     enabled: Boolean(activeProjectId),
     retry: false,
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const stagedTasksCount = (savedPlans.data ?? []).filter((t) => t.status === "STAGED").length;

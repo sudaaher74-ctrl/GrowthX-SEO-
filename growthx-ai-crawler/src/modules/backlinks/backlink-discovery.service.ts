@@ -31,7 +31,24 @@ type Detail = {
 export class BacklinkDiscovery implements OnModuleInit, OnModuleDestroy {
   private jobs?: Queue<{ runId: string }>;
   private worker?: Worker<{ runId: string }>;
+  private readonly completionHandlers: Array<(projectId: string) => Promise<void> | void> = [];
   private readonly logger = new Logger(BacklinkDiscovery.name);
+
+  onDiscoveryCompleted(handler: (projectId: string) => Promise<void> | void): void {
+    this.completionHandlers.push(handler);
+  }
+
+  private async announceDiscoveryCompleted(projectId: string): Promise<void> {
+    for (const handler of this.completionHandlers) {
+      try {
+        await handler(projectId);
+      } catch (err) {
+        this.logger.warn(
+          `[${projectId}] Backlink discovery completion handler failed: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly connection: QueueService,
@@ -501,6 +518,7 @@ export class BacklinkDiscovery implements OnModuleInit, OnModuleDestroy {
         await this.prisma.backlinkDiscoveryRun.deleteMany({
           where: { id: { in: old.map((row) => row.id) } },
         });
+      await this.announceDiscoveryCompleted(run.projectId);
     } catch {
       await this.prisma.backlinkDiscoveryRun.updateMany({
         where: { id: runId },

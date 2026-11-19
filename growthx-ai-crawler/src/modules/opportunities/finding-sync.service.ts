@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { FindingLifecycle, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
 import { BacklinksAdapter } from '../backlinks/backlinks.adapter';
+import { BacklinkDiscovery } from '../backlinks/backlink-discovery.service';
+import { CrawlerService } from '../crawler/crawler.service';
 import { TrafficAdapter } from './traffic.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
 
@@ -14,8 +16,16 @@ export interface SyncResult {
   resolved: number;
 }
 
+export interface SyncProjectOptions {
+  /**
+   * Optional list of adapter sources to reconcile (e.g. `['WEBSITE']`, `['COMPETITOR']`).
+   * When omitted, all adapters are reconciled.
+   */
+  sources?: string[];
+}
+
 @Injectable()
-export class FindingSyncService {
+export class FindingSyncService implements OnModuleInit {
   private readonly logger = new Logger(FindingSyncService.name);
   private readonly adapters: FindingAdapter[];
 
@@ -26,6 +36,8 @@ export class FindingSyncService {
     private readonly aiVisibilityAdapter: AiVisibilityAdapter,
     private readonly backlinksAdapter: BacklinksAdapter,
     private readonly trafficAdapter: TrafficAdapter,
+    @Optional() private readonly crawler?: CrawlerService,
+    @Optional() private readonly backlinkDiscovery?: BacklinkDiscovery,
   ) {
     this.adapters = [
       this.websiteAuditAdapter,
@@ -36,8 +48,30 @@ export class FindingSyncService {
     ];
   }
 
+  onModuleInit(): void {
+    this.crawler?.onCrawlCompleted(async (_jobId, websiteId) => {
+      const website = await this.prisma.website.findUnique({
+        where: { id: websiteId },
+        select: { projectId: true, scope: true },
+      });
+      if (!website?.projectId) return;
+      const source = website.scope === 'OWN' ? 'WEBSITE' : 'COMPETITOR';
+      const result = await this.syncProject(website.projectId, { sources: [source] });
+      this.logger.log(
+        `[${website.projectId}] Auto-synced ${source} findings after crawl: +${result.created} ~${result.updated} -${result.resolved}`,
+      );
+    });
+
+    this.backlinkDiscovery?.onDiscoveryCompleted(async (projectId) => {
+      const result = await this.syncProject(projectId, { sources: ['BACKLINKS'] });
+      this.logger.log(
+        `[${projectId}] Auto-synced BACKLINKS findings after discovery: +${result.created} ~${result.updated} -${result.resolved}`,
+      );
+    });
+  }
+
   /**
-   * Reconciles findings across all adapters into the single GrowthOpportunity table.
+   * Reconciles findings across adapters into the single GrowthOpportunity table.
    *
    * Rules:
    * - Present, no existing row -> create (status: OPEN, lifecycle: QUEUED).
@@ -46,9 +80,21 @@ export class FindingSyncService {
    * - Absent, row is DISMISSED -> leave alone.
    * - Absent, row is mid-execution (APPROVED, APPLYING, VERIFYING, etc.) -> leave alone.
    */
-  async syncProject(projectId: string): Promise<SyncResult> {
+  async syncProject(projectId: string, options?: SyncProjectOptions): Promise<SyncResult> {
+    const requestedSources = options?.sources?.length
+      ? new Set(options.sources.map((s) => s.toUpperCase().trim()))
+      : null;
+
+    const targetAdapters = requestedSources
+      ? this.adapters.filter((adapter) => requestedSources.has(adapter.source.toUpperCase()))
+      : this.adapters;
+
+    if (targetAdapters.length === 0) {
+      return { created: 0, updated: 0, resolved: 0 };
+    }
+
     const results = await Promise.allSettled(
-      this.adapters.map((adapter) => adapter.collect(projectId)),
+      targetAdapters.map((adapter) => adapter.collect(projectId)),
     );
 
     const collectedFindings: NormalisedFinding[] = [];
@@ -56,14 +102,14 @@ export class FindingSyncService {
     for (let i = 0; i < results.length; i++) {
       const res = results[i];
       if (res.status === 'fulfilled') {
-        successfulSources.add(this.adapters[i].source);
+        successfulSources.add(targetAdapters[i].source);
         for (const f of res.value) {
           if (f.source) successfulSources.add(f.source);
         }
         collectedFindings.push(...res.value);
       } else {
         this.logger.error(
-          `Adapter ${this.adapters[i].constructor.name} failed for project ${projectId}: ${res.reason}`,
+          `Adapter ${targetAdapters[i].constructor.name} failed for project ${projectId}: ${res.reason}`,
         );
       }
     }

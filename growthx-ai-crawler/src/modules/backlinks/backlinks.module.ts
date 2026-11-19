@@ -28,6 +28,6 @@ import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
     DataForSeoBacklinksService,
     BacklinkIntelligenceService,
   ],
-  exports: [BacklinksService, BacklinksAdapter, DataForSeoBacklinksService, BacklinkIntelligenceService],
+  exports: [BacklinksService, BacklinksAdapter, BacklinkDiscovery, DataForSeoBacklinksService, BacklinkIntelligenceService],
 })
 export class BacklinksModule {}

@@ -1,5 +1,6 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { FindingSyncService } from '../opportunities/finding-sync.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { brandTerms, questionGroup } from '../ai-visibility/questions/question-group';
@@ -164,6 +165,7 @@ export class CompetitorIntelReportService {
     private readonly seoReport: CompetitorSeoReportService,
     private readonly router: MultiAiRouterService,
     @Optional() private readonly contentIdeas?: ContentIdeasService,
+    @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
   ) {}
 
   async gatherFacts(projectId: string): Promise<ReportFacts> {
@@ -307,6 +309,11 @@ export class CompetitorIntelReportService {
         data: { projectId, report: report as any },
         select: { id: true },
       });
+      if (this.findingSync) {
+        await this.findingSync.syncProject(projectId, { sources: ['COMPETITOR'] }).catch((err) => {
+          this.logger.warn(`[${projectId}] Post-report competitor finding sync failed: ${(err as Error).message}`);
+        });
+      }
       return row.id;
     } catch (err) {
       this.logger.warn(`[${projectId}] competitor report could not be stored: ${(err as Error).message}`);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -86,6 +86,16 @@ function Journey({ projectId }: { projectId: string }) {
     refetchInterval: (q) => journeyRunning(q.state.data?.journey?.status) ? 4000 : false });
   const data = query.data;
   const run = data?.journey;
+  const prevStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const next = run?.status;
+    if (journeyRunning(prev) && (next === "COMPLETED" || next === "PARTIAL")) {
+      void qc.invalidateQueries({ queryKey: ["findings", projectId] });
+      void qc.invalidateQueries({ queryKey: ["saved-plans", projectId] });
+    }
+    prevStatusRef.current = next;
+  }, [run?.status, projectId, qc]);
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   const prepare = useMutation({ mutationFn: () => visibilityJourneyApi.prepare(projectId), retry: false,
     onSuccess: () => { void refresh(); }, onError: () => { void refresh(); } });
