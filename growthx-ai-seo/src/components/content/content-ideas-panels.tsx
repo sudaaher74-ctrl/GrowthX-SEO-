@@ -39,7 +39,7 @@ export function ContentIdeasPanels({
       <Panel title="Keywords and blog ideas" padded>
         <p className="text-[12.5px] text-brand-600">
           Create a new report to get the words your customers search for and blog posts to write, suggested by Gemini
-          105B from your website.
+          Flash-Lite from your website.
         </p>
       </Panel>
     );
