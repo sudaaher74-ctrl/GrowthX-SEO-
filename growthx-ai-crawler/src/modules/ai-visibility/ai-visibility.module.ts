@@ -35,6 +35,6 @@ import { OrganizationsModule } from '../organizations/organizations.module';
     VisibilityWorkflowService,
     AiVisibilityAdapter,
   ],
-  exports: [AiVisibilityService, AiVisibilityAdapter],
+  exports: [AiVisibilityService, AiVisibilityAdapter, VisibilityWorkflowService],
 })
 export class AiVisibilityModule {}

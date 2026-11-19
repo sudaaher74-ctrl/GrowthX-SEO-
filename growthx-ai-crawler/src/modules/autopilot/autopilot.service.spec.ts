@@ -340,4 +340,65 @@ describe('AutopilotModule wiring', () => {
       .compile();
     expect(moduleRef.get(AutopilotScheduler)).toBeInstanceOf(AutopilotScheduler);
   });
+
+  it('runs zero-touch full refresh pipeline in parallel and syncs Fix Engine on finish', async () => {
+    const prisma: any = fakePrisma();
+    prisma.competitors.push({ id: 'c-teabox.com', domain: 'teabox.com', name: 'Teabox', label: 'Teabox' });
+    prisma.aiVisibilityJourney = { findFirst: jest.fn().mockResolvedValue(null) };
+    prisma.backlinkDiscoveryRun = { findFirst: jest.fn().mockResolvedValue(null) };
+    prisma.growthOpportunity = { count: jest.fn().mockResolvedValue(9) };
+
+    const crawler = { startCrawlJob: jest.fn().mockResolvedValue('job-own') };
+    const fetcher = { fetch: jest.fn().mockResolvedValue({ statusCode: 200, html: '' }) };
+    const router = { generate: jest.fn() };
+    const competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j-rival' }) };
+    const report = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null, snapshotId: 'snap1' }) };
+    const auditReport = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null }) };
+    const orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined) };
+    const visibilityWorkflow = { prepare: jest.fn().mockResolvedValue({ id: 'vis-1' }) };
+    const backlinkDiscovery = { start: jest.fn().mockResolvedValue({ id: 'bl-1' }) };
+    const findingSync = { syncProject: jest.fn().mockResolvedValue({ created: 4, updated: 2, resolved: 1 }) };
+    const opportunityDetection = { detect: jest.fn().mockResolvedValue({ detected: 3, failedDetectors: [] }) };
+
+    const pipeline = new AutopilotService(
+      prisma,
+      orgContext as any,
+      crawler as any,
+      fetcher as any,
+      router as any,
+      competitorCrawl as any,
+      report as any,
+      auditReport as any,
+      undefined,
+      visibilityWorkflow as any,
+      backlinkDiscovery as any,
+      findingSync as any,
+      opportunityDetection as any,
+    );
+
+    const started = await pipeline.start({
+      userId: 'u1',
+      organizationId: 'o1',
+      domain: 'brandkettle.in',
+      forceRefresh: true,
+    });
+
+    expect(started.status).toBe('RUNNING');
+    expect(started.step).toBe('CRAWL_SITES');
+    expect(started.stages).toHaveLength(5);
+    expect(competitorCrawl.startCrawl).toHaveBeenCalledWith('o1', started.projectId, 'c-teabox.com');
+    expect(visibilityWorkflow.prepare).toHaveBeenCalledWith(started.projectId);
+    expect(backlinkDiscovery.start).toHaveBeenCalledWith(started.projectId);
+
+    // Mark crawls completed and advance
+    prisma.jobs['brandkettle.in'] = { status: 'COMPLETED', pagesCrawled: 20, finishedAt: new Date() };
+    prisma.jobs['teabox.com'] = { status: 'COMPLETED', pagesCrawled: 35, finishedAt: new Date() };
+    await pipeline.advance(prisma.runs[0]);
+
+    expect(opportunityDetection.detect).toHaveBeenCalledWith('o1', started.projectId, { excludeTraffic: true });
+    expect(findingSync.syncProject).toHaveBeenCalledWith(started.projectId, {
+      sources: ['WEBSITE', 'COMPETITOR', 'MARKET', 'BACKLINKS'],
+    });
+    expect(prisma.runs[0].status).toBe('DONE');
+  });
 });

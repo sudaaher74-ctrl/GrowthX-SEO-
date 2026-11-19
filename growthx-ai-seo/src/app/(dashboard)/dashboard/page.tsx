@@ -27,6 +27,8 @@ import {
   useLatestCrawl,
   useLocalSeo,
   useStartCrawl,
+  useStartWorkspacePipeline,
+  useWorkspacePipeline,
 } from "@/hooks/use-growthx";
 import { api, type IssueSeverity } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -104,6 +106,11 @@ export default function UnifiedDashboardPage() {
 
   const crawl = useLatestCrawl(currentDomain);
   const startCrawlMutation = useStartCrawl();
+  const pipelineQuery = useWorkspacePipeline(projectId);
+  const startPipelineMutation = useStartWorkspacePipeline(projectId);
+  const pipelineActive = Boolean(
+    pipelineQuery.data && ["DISCOVERING", "AWAITING_CONFIRMATION", "RUNNING"].includes(pipelineQuery.data.status),
+  );
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
   // Every issue count on this page comes from here. The card used to read
@@ -214,6 +221,19 @@ export default function UnifiedDashboardPage() {
     }
   };
   const auditBusy = startCrawlMutation.isPending || crawlRunning;
+  const pipelineBusy = startPipelineMutation.isPending || pipelineActive;
+
+  const runFullPipeline = async () => {
+    if (!currentDomain || pipelineBusy) return;
+    setAuditActionError(null);
+    try {
+      await startPipelineMutation.mutateAsync({ domain: currentDomain, forceRefresh: true });
+    } catch (error) {
+      setAuditActionError(
+        error instanceof Error ? error.message : "Could not start the full workspace pipeline.",
+      );
+    }
+  };
 
   // Where visitors come from, from the stored GA4 report. Shown only when the report has channels.
   const ga4 = useGa4Report(projectId);
@@ -344,6 +364,16 @@ export default function UnifiedDashboardPage() {
           >
             Improvement plan
           </Link>
+          <button
+            type="button"
+            onClick={runFullPipeline}
+            disabled={pipelineBusy || !currentDomain}
+            title="Run Website Audit, Competitor Intelligence, AI Visibility, Backlinks, and Fix Engine sync in one continuous flow"
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100 disabled:opacity-50 shadow-2xs cursor-pointer"
+          >
+            <Layers size={12} className={pipelineBusy ? "animate-pulse text-primary-600" : "text-primary-600"} />
+            {pipelineBusy ? "Pipeline running…" : "Run full pipeline"}
+          </button>
           <button
             type="button"
             onClick={runAudit}

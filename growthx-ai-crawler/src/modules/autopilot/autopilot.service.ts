@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { AutopilotRun } from '@prisma/client';
 import { crawlToShow } from '../crawler/crawl-selection';
 import { OWN_SCOPE, competitorScope, websiteKey } from '../crawler/website-scope';
@@ -12,6 +13,10 @@ import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl
 import { CompetitorIntelReportService } from '../competitor-action-engine/competitor-intel-report.service';
 import { MAX_COMPETITORS } from '../competitor-action-engine/competitor-setup.service';
 import { AuditReportService } from '../audit-report/audit-report.service';
+import { VisibilityWorkflowService } from '../ai-visibility/visibility-workflow.service';
+import { BacklinkDiscovery } from '../backlinks/backlink-discovery.service';
+import { FindingSyncService } from '../opportunities/finding-sync.service';
+import { OpportunityDetectionService } from '../opportunities/opportunity-detection.service';
 import {
   CompetitorSuggestion,
   FINDER_SCHEMA,
@@ -26,6 +31,9 @@ const OWN_SITE_CRAWL = { maxDepth: 20, maxConcurrency: 10, useSitemap: true };
 /** A crawl this recent is used as it is rather than run again. */
 const FRESH_OWN_CRAWL_MS = 24 * 60 * 60 * 1000;
 const FRESH_RIVAL_CRAWL_MS = 7 * 24 * 60 * 60 * 1000;
+const FORCE_REFRESH_DEBOUNCE_MS = 10 * 60 * 1000;
+const FRESH_AI_VISIBILITY_MS = 24 * 60 * 60 * 1000;
+const FRESH_BACKLINKS_MS = 6 * 60 * 60 * 1000;
 /** Past this, the report is written from whatever has finished. */
 const CRAWL_WAIT_MS = 60 * 60 * 1000;
 const SUGGESTIONS_KEPT = 5;
@@ -53,6 +61,14 @@ export interface AutopilotSite {
   pagesCrawled: number;
 }
 
+export interface PipelineStage {
+  id: 'WEBSITE' | 'COMPETITORS' | 'AI_VISIBILITY' | 'BACKLINKS' | 'FIX_ENGINE';
+  label: string;
+  status: 'PENDING' | 'RUNNING' | 'WAITING' | 'DONE' | 'FAILED';
+  detail: string;
+  href: string;
+}
+
 export interface AutopilotView {
   id: string;
   projectId: string;
@@ -62,6 +78,7 @@ export interface AutopilotView {
   suggestions: Array<CompetitorSuggestion & { tracked?: boolean }>;
   competitors: ConfirmedCompetitor[];
   sites: AutopilotSite[];
+  stages?: PipelineStage[];
   log: Array<{ at: string; message: string }>;
   error: string | null;
   reportReady: boolean;
@@ -104,11 +121,31 @@ export class AutopilotService {
     private readonly competitorCrawl: CompetitorCrawlService,
     private readonly report: CompetitorIntelReportService,
     private readonly auditReport: AuditReportService,
+    @Optional() private readonly moduleRef?: ModuleRef,
+    @Optional() private readonly visibilityWorkflow?: VisibilityWorkflowService,
+    @Optional() private readonly backlinkDiscovery?: BacklinkDiscovery,
+    @Optional() private readonly findingSync?: FindingSyncService,
+    @Optional() private readonly opportunityDetection?: OpportunityDetectionService,
   ) {}
+
+  private resolveOptional<T>(direct: T | undefined, token: new (...args: any[]) => T): T | undefined {
+    if (direct) return direct;
+    try {
+      return this.moduleRef?.get(token, { strict: false });
+    } catch {
+      return undefined;
+    }
+  }
 
   // ─── Start ──────────────────────────────────────────────────────────────────
 
-  async start(input: { userId: string; organizationId: string; domain: string; projectId?: string | null }): Promise<AutopilotView> {
+  async start(input: {
+    userId: string;
+    organizationId: string;
+    domain: string;
+    projectId?: string | null;
+    forceRefresh?: boolean;
+  }): Promise<AutopilotView> {
     const domain = websiteDomain(input.domain);
     if (!normaliseCandidate(domain)) throw new BadRequestException(`"${input.domain}" doesn't look like a website address.`);
     await this.orgContext.assertCanWrite(input.userId, input.organizationId);
@@ -121,7 +158,59 @@ export class AutopilotService {
     });
     if (active) return this.view(active);
 
-    const ownCrawlJobId = await this.ensureOwnCrawl(websiteId);
+    const ownCrawlJobId = await this.ensureOwnCrawl(websiteId, Boolean(input.forceRefresh));
+
+    // Zero-touch full refresh: when explicitly requested on a project that already has
+    // tracked competitors, skip re-confirming rivals and launch the full parallel pipeline.
+    if (input.forceRefresh) {
+      const tracked = await this.prisma.competitorDomain.findMany({
+        where: { projectId },
+        select: { id: true, domain: true, name: true, label: true },
+        take: PICK_LIMIT,
+      });
+
+      if (tracked.length > 0) {
+        const competitors: ConfirmedCompetitor[] = [];
+        const logMessages: string[] = [
+          `Started full workspace pipeline for ${domain}.`,
+          ownCrawlJobId ? `Started reading ${domain}.` : `Using the recent read of ${domain}.`,
+        ];
+
+        for (const rival of tracked) {
+          const name = rival.name || rival.label || rival.domain;
+          competitors.push({ domain: rival.domain, name, competitorId: rival.id });
+          if (await this.rivalCrawlIsFresh(projectId, rival.domain, true)) {
+            logMessages.push(`${name} was read minutes ago; reusing that crawl.`);
+            continue;
+          }
+          try {
+            await this.competitorCrawl.startCrawl(input.organizationId, projectId, rival.id);
+            logMessages.push(`Started reading ${name}'s website.`);
+          } catch (err) {
+            logMessages.push(`Couldn't start reading ${name}: ${(err as Error).message}`);
+          }
+        }
+
+        const parallelLogs = await this.launchParallelIntelligence(projectId, true);
+        logMessages.push(...parallelLogs);
+
+        const run = await this.prisma.autopilotRun.create({
+          data: {
+            projectId,
+            organizationId: input.organizationId,
+            userId: input.userId,
+            domain,
+            status: 'RUNNING',
+            step: 'CRAWL_SITES',
+            ownCrawlJobId,
+            competitors: competitors as any,
+            log: logMessages.map(entry) as any,
+          },
+        });
+        return this.view(run);
+      }
+    }
+
     const run = await this.prisma.autopilotRun.create({
       data: {
         projectId,
@@ -188,17 +277,83 @@ export class AutopilotService {
     return { projectId: target, websiteId: website.id };
   }
 
-  private async ensureOwnCrawl(websiteId: string): Promise<string | null> {
+  private async ensureOwnCrawl(websiteId: string, forceRefresh = false): Promise<string | null> {
     const latest = await this.prisma.crawlJob.findFirst({
       where: { websiteId },
       orderBy: { createdAt: 'desc' },
       select: { id: true, status: true, finishedAt: true, createdAt: true },
     });
     if (latest && (latest.status === 'RUNNING' || latest.status === 'PENDING')) return latest.id;
-    if (latest?.status === 'COMPLETED' && latest.finishedAt && Date.now() - latest.finishedAt.getTime() < FRESH_OWN_CRAWL_MS) {
+    const freshnessWindow = forceRefresh ? FORCE_REFRESH_DEBOUNCE_MS : FRESH_OWN_CRAWL_MS;
+    if (latest?.status === 'COMPLETED' && latest.finishedAt && Date.now() - latest.finishedAt.getTime() < freshnessWindow) {
       return null;
     }
     return this.crawler.startCrawlJob(websiteId, OWN_SITE_CRAWL);
+  }
+
+  /**
+   * Launches AI Visibility and Backlink Discovery in parallel alongside rival crawls,
+   * reusing fresh or in-progress runs so we never waste tokens or duplicate manual work.
+   */
+  private async launchParallelIntelligence(projectId: string, forceRefresh = false): Promise<string[]> {
+    const logs: string[] = [];
+
+    const visibility = this.resolveOptional(this.visibilityWorkflow, VisibilityWorkflowService);
+    if (visibility && this.prisma.aiVisibilityJourney?.findFirst) {
+      try {
+        const latestJourney = await this.prisma.aiVisibilityJourney.findFirst({
+          where: { projectId },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, status: true, updatedAt: true },
+        });
+        const isActive = latestJourney && ['QUEUED', 'PREPARING', 'CHECKING', 'PLANNING'].includes(latestJourney.status);
+        const freshness = forceRefresh ? FORCE_REFRESH_DEBOUNCE_MS : FRESH_AI_VISIBILITY_MS;
+        const isFresh =
+          latestJourney?.status === 'COMPLETED' &&
+          latestJourney.updatedAt &&
+          Date.now() - latestJourney.updatedAt.getTime() < freshness;
+
+        if (isActive) {
+          logs.push('AI Visibility check is already running.');
+        } else if (isFresh) {
+          logs.push('Using recent AI Visibility results.');
+        } else {
+          await visibility.prepare(projectId);
+          logs.push('Started AI Visibility journey in parallel.');
+        }
+      } catch (err) {
+        logs.push(`AI Visibility skipped: ${(err as Error).message}`);
+      }
+    }
+
+    const backlinks = this.resolveOptional(this.backlinkDiscovery, BacklinkDiscovery);
+    if (backlinks && this.prisma.backlinkDiscoveryRun?.findFirst) {
+      try {
+        const latestRun = await this.prisma.backlinkDiscoveryRun.findFirst({
+          where: { projectId },
+          orderBy: { startedAt: 'desc' },
+          select: { id: true, status: true, finishedAt: true },
+        });
+        const isActive = latestRun && ['PENDING', 'RUNNING'].includes(latestRun.status);
+        const isFresh =
+          latestRun?.finishedAt &&
+          ['COMPLETED', 'PARTIAL'].includes(latestRun.status) &&
+          Date.now() - latestRun.finishedAt.getTime() < FRESH_BACKLINKS_MS;
+
+        if (isActive) {
+          logs.push('Backlink discovery is already running.');
+        } else if (isFresh) {
+          logs.push('Using recent backlink discovery results.');
+        } else {
+          await backlinks.start(projectId);
+          logs.push('Started backlink discovery in parallel.');
+        }
+      } catch (err) {
+        logs.push(`Backlink discovery skipped: ${(err as Error).message}`);
+      }
+    }
+
+    return logs;
   }
 
   // ─── Find competitors ─────────────────────────────────────────────────────────
@@ -436,6 +591,9 @@ export class AutopilotService {
     if (overPick.length) log.push(`Kept your first ${PICK_LIMIT}. Skipped ${overPick.join(', ')}; you can add more later from Competitor Intelligence.`);
     if (dropped.length) log.push(`Skipped ${dropped.join(', ')}: you can track up to ${MAX_COMPETITORS} competitors.`);
 
+    const parallelLogs = await this.launchParallelIntelligence(run.projectId, false);
+    log.push(...parallelLogs);
+
     const updated = await this.prisma.autopilotRun.update({
       where: { id: runId },
       data: {
@@ -449,13 +607,14 @@ export class AutopilotService {
   }
 
   /** Only a crawl this project ran itself counts: another customer's read of the same site is theirs. */
-  private async rivalCrawlIsFresh(projectId: string, domain: string): Promise<boolean> {
+  private async rivalCrawlIsFresh(projectId: string, domain: string, forceRefresh = false): Promise<boolean> {
     const job = await this.prisma.crawlJob.findFirst({
       where: { website: { domain, scope: competitorScope(projectId) }, status: 'COMPLETED' },
       orderBy: { finishedAt: 'desc' },
       select: { finishedAt: true },
     });
-    return !!job?.finishedAt && Date.now() - job.finishedAt.getTime() < FRESH_RIVAL_CRAWL_MS;
+    const windowMs = forceRefresh ? FORCE_REFRESH_DEBOUNCE_MS : FRESH_RIVAL_CRAWL_MS;
+    return !!job?.finishedAt && Date.now() - job.finishedAt.getTime() < windowMs;
   }
 
   async cancel(runId: string, userId: string): Promise<AutopilotView> {
@@ -520,6 +679,23 @@ export class AutopilotService {
       } catch (err) {
         auditNote = `The website audit report couldn't be written: ${(err as Error).message}`;
       }
+      // Refresh cross-tab detectors and sync Fix Engine (excluding Traffic) so the
+      // unified Improvement Plan reflects every finished pipeline stage immediately.
+      let fixEngineNote = '';
+      const detector = this.resolveOptional(this.opportunityDetection, OpportunityDetectionService);
+      if (detector) {
+        await detector.detect(run.organizationId, run.projectId, { excludeTraffic: true }).catch(() => null);
+      }
+      const syncService = this.resolveOptional(this.findingSync, FindingSyncService);
+      if (syncService) {
+        const synced = await syncService
+          .syncProject(run.projectId, { sources: ['WEBSITE', 'COMPETITOR', 'MARKET', 'BACKLINKS'] })
+          .catch(() => null);
+        if (synced) {
+          fixEngineNote = `Fix Engine plan synced (+${synced.created} new, ${synced.updated} updated, ${synced.resolved} resolved).`;
+        }
+      }
+
       const latest = await this.prisma.autopilotRun.findUnique({ where: { id: run.id } });
       await this.prisma.autopilotRun.update({
         where: { id: run.id },
@@ -534,6 +710,7 @@ export class AutopilotService {
               ? 'Your competitor report is ready.'
               : `Your report is ready with the measured facts. The written analysis couldn't be made: ${report.analysisError ?? 'unknown reason'}`,
             auditNote,
+            ...(fixEngineNote ? [fixEngineNote] : []),
           ),
         },
       });
@@ -596,7 +773,156 @@ export class AutopilotService {
     return out;
   }
 
+  private async buildStages(run: AutopilotRun, sites: AutopilotSite[]): Promise<PipelineStage[]> {
+    const own = sites.find((s) => s.role === 'you');
+    const rivals = sites.filter((s) => s.role === 'competitor');
+
+    const ownStatus: PipelineStage['status'] =
+      own?.crawl === 'COMPLETED'
+        ? 'DONE'
+        : own?.crawl === 'RUNNING' || own?.crawl === 'PENDING'
+          ? 'RUNNING'
+          : own?.crawl === 'FAILED'
+            ? 'FAILED'
+            : 'PENDING';
+
+    let compStatus: PipelineStage['status'] = 'PENDING';
+    let compDetail = 'Waiting for website audit';
+    if (run.status === 'DISCOVERING') {
+      compStatus = 'RUNNING';
+      compDetail = 'Discovering likely rivals';
+    } else if (run.status === 'AWAITING_CONFIRMATION') {
+      compStatus = 'WAITING';
+      compDetail = `${((run.suggestions as any[]) ?? []).length} rivals ready to confirm`;
+    } else if (rivals.length > 0) {
+      const doneCount = rivals.filter((r) => r.crawl === 'COMPLETED').length;
+      const activeCount = rivals.filter((r) => r.crawl === 'RUNNING' || r.crawl === 'PENDING').length;
+      if (run.status === 'DONE' || (activeCount === 0 && doneCount > 0)) {
+        compStatus = 'DONE';
+        compDetail = `${doneCount}/${rivals.length} rivals analyzed`;
+      } else if (activeCount > 0 || run.step === 'REPORT') {
+        compStatus = 'RUNNING';
+        compDetail =
+          run.step === 'REPORT'
+            ? 'Writing competitor intelligence report'
+            : `Crawling rivals (${doneCount}/${rivals.length} done)`;
+      } else {
+        compStatus = 'FAILED';
+        compDetail = 'Rival crawls could not finish';
+      }
+    }
+
+    let aiStatus: PipelineStage['status'] = 'PENDING';
+    let aiDetail = 'Queued after rival confirmation';
+    if (this.prisma.aiVisibilityJourney?.findFirst) {
+      const journey = await this.prisma.aiVisibilityJourney
+        .findFirst({
+          where: { projectId: run.projectId },
+          orderBy: { createdAt: 'desc' },
+          select: { status: true, progress: true },
+        })
+        .catch(() => null);
+      if (journey) {
+        if (journey.status === 'COMPLETED' || journey.status === 'PARTIAL') {
+          aiStatus = 'DONE';
+          aiDetail = 'AI recommendations measured';
+        } else if (['QUEUED', 'PREPARING', 'CHECKING', 'PLANNING'].includes(journey.status)) {
+          aiStatus = 'RUNNING';
+          aiDetail = `Checking AI engines (${journey.progress ?? 0}%)`;
+        } else if (journey.status === 'READY' || journey.status === 'AWAITING_CONFIRMATION') {
+          aiStatus = 'WAITING';
+          aiDetail = 'Questions ready to run';
+        } else if (journey.status === 'FAILED') {
+          aiStatus = 'FAILED';
+          aiDetail = 'Check AI provider settings';
+        }
+      }
+    }
+
+    let blStatus: PipelineStage['status'] = 'PENDING';
+    let blDetail = 'Queued in parallel';
+    if (this.prisma.backlinkDiscoveryRun?.findFirst) {
+      const bl = await this.prisma.backlinkDiscoveryRun
+        .findFirst({
+          where: { projectId: run.projectId },
+          orderBy: { startedAt: 'desc' },
+          select: { status: true, candidates: true },
+        })
+        .catch(() => null);
+      if (bl) {
+        if (bl.status === 'COMPLETED' || bl.status === 'PARTIAL') {
+          blStatus = 'DONE';
+          blDetail = `${bl.candidates ?? 0} link candidates scanned`;
+        } else if (bl.status === 'PENDING' || bl.status === 'RUNNING') {
+          blStatus = 'RUNNING';
+          blDetail = 'Discovering & verifying links';
+        } else if (bl.status === 'FAILED') {
+          blStatus = 'FAILED';
+          blDetail = 'Discovery needs retry';
+        }
+      }
+    }
+
+    let openOpportunities = 0;
+    if (this.prisma.growthOpportunity?.count) {
+      openOpportunities = await this.prisma.growthOpportunity
+        .count({ where: { projectId: run.projectId, status: 'OPEN' } })
+        .catch(() => 0);
+    }
+    const fixStatus: PipelineStage['status'] =
+      run.status === 'DONE'
+        ? 'DONE'
+        : run.step === 'REPORT'
+          ? 'RUNNING'
+          : 'PENDING';
+
+    return [
+      {
+        id: 'WEBSITE',
+        label: 'Website Audit',
+        status: ownStatus,
+        detail: own?.pagesCrawled ? `${own.pagesCrawled} pages read` : ownStatus === 'RUNNING' ? 'Crawling pages…' : 'Pending',
+        href: '/website',
+      },
+      {
+        id: 'COMPETITORS',
+        label: 'Competitor Intelligence',
+        status: compStatus,
+        detail: compDetail,
+        href: '/competitor-intelligence',
+      },
+      {
+        id: 'AI_VISIBILITY',
+        label: 'AI Visibility',
+        status: aiStatus,
+        detail: aiDetail,
+        href: '/ai-visibility',
+      },
+      {
+        id: 'BACKLINKS',
+        label: 'Backlinks',
+        status: blStatus,
+        detail: blDetail,
+        href: '/backlinks',
+      },
+      {
+        id: 'FIX_ENGINE',
+        label: 'Fix Engine Plan',
+        status: fixStatus,
+        detail:
+          fixStatus === 'DONE'
+            ? `${openOpportunities} prioritized fix${openOpportunities === 1 ? '' : 'es'} ready`
+            : fixStatus === 'RUNNING'
+              ? 'Ranking fixes by site ROI…'
+              : 'Syncs automatically on finish',
+        href: '/fix-engine',
+      },
+    ];
+  }
+
   private async view(run: AutopilotRun): Promise<AutopilotView> {
+    const sites = await this.sites(run);
+    const stages = await this.buildStages(run, sites);
     return {
       id: run.id,
       projectId: run.projectId,
@@ -605,7 +931,8 @@ export class AutopilotService {
       step: run.step,
       suggestions: (run.suggestions as any[]) ?? [],
       competitors: (run.competitors as unknown as ConfirmedCompetitor[]) ?? [],
-      sites: await this.sites(run),
+      sites,
+      stages,
       log: (run.log as any[]) ?? [],
       error: run.error,
       reportReady: run.status === 'DONE',

@@ -10,13 +10,14 @@ export class AutopilotController {
   constructor(private readonly autopilot: AutopilotService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Start the autopilot for a website: set up, find competitors, then wait for confirmation' })
-  start(@Req() req: any, @Body() body: { domain: string; projectId?: string }) {
+  @ApiOperation({ summary: 'Start the full workspace pipeline (or autopilot onboarding) for a website' })
+  start(@Req() req: any, @Body() body: { domain: string; projectId?: string; forceRefresh?: boolean }) {
     return this.autopilot.start({
       userId: req.user.userId,
       organizationId: req.organizationId,
       domain: body.domain,
       projectId: body.projectId,
+      forceRefresh: body.forceRefresh,
     });
   }
 

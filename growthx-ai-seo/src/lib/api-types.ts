@@ -2199,6 +2199,14 @@ export type AivaUiPayload =
   | { type: "social_draft"; trend: string; platform: string; postText: string }
   | { type: "autopilot"; runId: string; projectId: string };
 
+export interface PipelineStage {
+  id: "WEBSITE" | "COMPETITORS" | "AI_VISIBILITY" | "BACKLINKS" | "FIX_ENGINE";
+  label: string;
+  status: "PENDING" | "RUNNING" | "WAITING" | "DONE" | "FAILED";
+  detail: string;
+  href: string;
+}
+
 /** Mirrors AutopilotView in growthx-ai-crawler autopilot.service.ts. */
 export interface AutopilotRun {
   id: string;
@@ -2210,6 +2218,7 @@ export interface AutopilotRun {
   suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean; foundBy?: string | null }>;
   competitors: Array<{ domain: string; name: string; competitorId: string }>;
   sites: Array<{ domain: string; name: string; role: "you" | "competitor"; crawl: string; pagesCrawled: number }>;
+  stages?: PipelineStage[];
   log: Array<{ at: string; message: string }>;
   error: string | null;
   reportReady: boolean;

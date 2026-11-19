@@ -885,8 +885,12 @@ export const api = {
                       
   // ── Voice Agent
   autopilot: {
-    start: (domain: string, projectId?: string | null) =>
-      post<AutopilotRun>("/api/autopilot", { domain, projectId: projectId || undefined }),
+    start: (domain: string, projectId?: string | null, options?: { forceRefresh?: boolean }) =>
+      post<AutopilotRun>("/api/autopilot", {
+        domain,
+        projectId: projectId || undefined,
+        ...(options?.forceRefresh ? { forceRefresh: true } : {}),
+      }),
     latest: (projectId: string) => get<AutopilotRun | null>(`/api/autopilot/latest?projectId=${encodeURIComponent(projectId)}`),
     confirm: (runId: string, domains: string[]) => post<AutopilotRun>(`/api/autopilot/${runId}/confirm`, { domains }),
     cancel: (runId: string) => post<AutopilotRun>(`/api/autopilot/${runId}/cancel`, {}),

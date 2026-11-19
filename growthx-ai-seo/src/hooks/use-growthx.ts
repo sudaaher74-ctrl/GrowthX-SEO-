@@ -137,7 +137,7 @@ export function useWorkspace() {
         if (stale || auth.getProjectId() !== storedProjectId) return;
         workspaceQueries.setQueryData(["projects", orgId], fresh);
         if (!fresh.some((project) => project.id === storedProjectId)) setActiveProject(fresh[0]?.id ?? "");
-      }).catch(() => {}); // Preserve selection when the directory cannot be checked.
+      }).catch(() => { }); // Preserve selection when the directory cannot be checked.
       return () => { stale = true; };
     }
     if (projectId && projectId !== auth.getProjectId()) {
@@ -645,6 +645,60 @@ export function useProjectRealtimeSync(projectId: string | null, enabled = true)
       socket.disconnect();
     };
   }, [projectId, enabled, qc]);
+}
+
+const ACTIVE_PIPELINE_STATUSES = new Set(["DISCOVERING", "AWAITING_CONFIRMATION", "RUNNING"]);
+
+/**
+ * Tracks the active workspace-wide Zero-Touch Pipeline (Website Audit → Rivals
+ * → AI Visibility + Backlinks → Fix Engine) without locking any manual tab.
+ */
+export function useWorkspacePipeline(projectId: string | null) {
+  const qc = useQueryClient();
+  const prevStatusRef = useRef<string | null>(null);
+
+  const query = useQuery({
+    queryKey: ["workspace-pipeline", projectId],
+    queryFn: () => api.autopilot.latest(projectId!),
+    enabled: Boolean(projectId) && auth.isAuthenticated(),
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      return status && ACTIVE_PIPELINE_STATUSES.has(status) ? 5000 : false;
+    },
+  });
+
+  const status = query.data?.status ?? null;
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    if (prev && ACTIVE_PIPELINE_STATUSES.has(prev) && status === "DONE" && projectId) {
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["findings", projectId] }),
+        qc.invalidateQueries({ queryKey: ["saved-plans", projectId] }),
+        qc.invalidateQueries({ queryKey: ["issue-groups", projectId] }),
+        qc.invalidateQueries({ queryKey: ["issue-counts", projectId] }),
+        qc.invalidateQueries({ queryKey: ["latest-crawl"] }),
+      ]);
+      void stagingEngine.sync(projectId);
+    }
+    prevStatusRef.current = status;
+  }, [status, projectId, qc]);
+
+  return query;
+}
+
+export function useStartWorkspacePipeline(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, forceRefresh = true }: { domain: string; forceRefresh?: boolean }) =>
+      api.autopilot.start(domain, projectId, { forceRefresh }),
+    onSuccess: (run) => {
+      qc.setQueryData(["workspace-pipeline", run.projectId], run);
+      void qc.invalidateQueries({ queryKey: ["workspace-pipeline", projectId] });
+      void qc.invalidateQueries({ queryKey: ["latest-crawl", run.domain] });
+    },
+  });
 }
 
 
