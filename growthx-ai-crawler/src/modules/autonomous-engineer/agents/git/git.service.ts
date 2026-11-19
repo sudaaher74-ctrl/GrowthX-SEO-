@@ -162,5 +162,104 @@ export class GitService {
     
     return response.data.html_url;
   }
+
+  /**
+   * Safely rolls back an automated pull request:
+   * - If the PR is still open (unmerged), closes it cleanly without touching the default branch.
+   * - If the PR is already merged, creates a revert branch from the default branch,
+   *   runs `git revert` against the merge commit, pushes it, and opens a Revert Pull Request.
+   */
+  async rollbackPullRequest(
+    token: string,
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    defaultBranch: string,
+    runId: string,
+  ): Promise<{
+    action: 'CLOSED_UNMERGED' | 'REVERT_PR_OPENED';
+    revertPullRequestUrl?: string;
+    revertBranch?: string;
+    message: string;
+  }> {
+    const octokit = new Octokit({ auth: token });
+    const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: pullNumber });
+
+    if (!pr.merged) {
+      if (pr.state === 'open') {
+        await octokit.rest.issues
+          .createComment({
+            owner,
+            repo,
+            issue_number: pullNumber,
+            body: 'Closed via GrowthX Fix Engine 1-click rollback before merge.',
+          })
+          .catch(() => null);
+        await octokit.rest.pulls.update({
+          owner,
+          repo,
+          pull_number: pullNumber,
+          state: 'closed',
+        });
+      }
+      if (pr.head?.ref && pr.head.ref !== defaultBranch) {
+        await octokit.rest.git
+          .deleteRef({ owner, repo, ref: `heads/${pr.head.ref}` })
+          .catch(() => null);
+      }
+      return {
+        action: 'CLOSED_UNMERGED',
+        message: `Closed unmerged pull request #${pullNumber} without altering ${defaultBranch}.`,
+      };
+    }
+
+    const mergeSha = pr.merge_commit_sha;
+    if (!mergeSha) {
+      throw new Error(`Pull request #${pullNumber} is merged but has no merge commit SHA to revert.`);
+    }
+
+    const baseBranch = pr.base?.ref || defaultBranch;
+    const revertBranch = `revert/fix-engine-${runId.slice(0, 8)}-${Date.now()}`;
+    const repoUrl = `https://github.com/${owner}/${repo}.git`;
+    const repoDir = await this.cloneRepository(repoUrl, token, repo);
+
+    try {
+      const git: SimpleGit = simpleGit(repoDir);
+      await git.checkout(baseBranch);
+      await git.checkoutLocalBranch(revertBranch);
+      await git.addConfig('user.name', 'GrowthX AI Engineer');
+      await git.addConfig('user.email', 'engineer@growthx.ai');
+
+      try {
+        // Merge commits require -m 1 to select the mainline parent.
+        await git.raw(['revert', '-m', '1', '--no-edit', mergeSha]);
+      } catch {
+        // Squash or rebase merges have a single parent.
+        await git.raw(['revert', '--abort']).catch(() => null);
+        await git.raw(['revert', '--no-edit', mergeSha]);
+      }
+
+      await git.push('origin', revertBranch);
+      const revertPullRequestUrl = await this.createPullRequest(
+        token,
+        owner,
+        repo,
+        `Revert "${pr.title}" (#${pullNumber})`,
+        revertBranch,
+        baseBranch,
+        `Automated 1-click rollback created by GrowthX Fix Engine for PR #${pullNumber} (commit \`${mergeSha.slice(0, 10)}\`).`,
+        false,
+      );
+
+      return {
+        action: 'REVERT_PR_OPENED',
+        revertPullRequestUrl,
+        revertBranch,
+        message: `Opened revert pull request for merged PR #${pullNumber}.`,
+      };
+    } finally {
+      await this.cleanupRepository(repoDir);
+    }
+  }
 }
 

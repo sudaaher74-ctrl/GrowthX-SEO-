@@ -8,10 +8,30 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import type IORedis from 'ioredis';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../database/prisma.service';
+import { QueueService } from '../queue/queue.service';
 import { jwtSecret } from '../../config/secrets';
+
+export const REALTIME_PUBSUB_CHANNEL = 'growthx:realtime:events';
+
+export interface FindingsUpdatedPayload {
+  sources: string[];
+  created: number;
+  updated: number;
+  resolved: number;
+  savedPlansResolved?: number;
+  regressionsDetected?: number;
+  updatedAt: string;
+}
+
+type RealtimeBroadcastMessage =
+  | { kind: 'crawl.progress'; jobId: string; payload: unknown }
+  | { kind: 'crawl.completed'; jobId: string; payload: unknown }
+  | { kind: 'findings.updated'; projectId: string; payload: FindingsUpdatedPayload }
+  | { kind: 'aiva.progress'; sessionId: string; payload: { tool: string; status: string; message: string; data?: unknown } };
 
 function allowedOrigins(): string[] | boolean {
   const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
@@ -67,13 +87,101 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
     credentials: true,
   },
 })
-export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit, OnModuleDestroy {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(CrawlerGateway.name);
+  private publisher?: IORedis;
+  private subscriber?: IORedis;
+  private subscriberReady = false;
+  private startup?: Promise<void>;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly queue?: QueueService,
+  ) {}
+
+  onModuleInit(): void {
+    if (!this.queue) return;
+    this.startup = this.queue.ready.then(() => this.setupRedisBridge());
+  }
+
+  private async setupRedisBridge(): Promise<void> {
+    const redis = this.queue?.getRedisClient();
+    if (!redis) return;
+    this.publisher = redis;
+
+    // Headless worker processes publish events to Redis; API processes subscribe and fan out to browser sockets.
+    if (process.env.WORKER_MODE === 'true') {
+      this.logger.log('Worker realtime Redis Pub/Sub publisher enabled.');
+      return;
+    }
+
+    try {
+      const sub = redis.duplicate({ maxRetriesPerRequest: null });
+      sub.on('error', (err) => {
+        this.logger.warn(`Realtime Pub/Sub subscriber error: ${err.message}`);
+      });
+      sub.on('message', (channel, raw) => {
+        if (channel !== REALTIME_PUBSUB_CHANNEL) return;
+        try {
+          const msg = JSON.parse(raw) as RealtimeBroadcastMessage;
+          this.emitLocal(msg);
+        } catch (err) {
+          this.logger.warn(`Malformed realtime Pub/Sub message: ${(err as Error).message}`);
+        }
+      });
+      await sub.subscribe(REALTIME_PUBSUB_CHANNEL);
+      this.subscriber = sub;
+      this.subscriberReady = true;
+      this.logger.log('API realtime Redis Pub/Sub bridge subscribed.');
+    } catch (err) {
+      this.logger.warn(`Realtime Redis Pub/Sub unavailable; using local WebSocket emit (${(err as Error).message}).`);
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.startup?.catch(() => undefined);
+    this.subscriberReady = false;
+    if (this.subscriber) {
+      try {
+        await this.subscriber.unsubscribe(REALTIME_PUBSUB_CHANNEL);
+        await this.subscriber.quit();
+      } catch {
+        // ignore shutdown error
+      }
+      this.subscriber = undefined;
+    }
+  }
+
+  private emitLocal(msg: RealtimeBroadcastMessage): void {
+    if (!this.server) return;
+    switch (msg.kind) {
+      case 'crawl.progress':
+        this.server.to(`crawl:${msg.jobId}`).emit(`crawl.progress.${msg.jobId}`, msg.payload);
+        break;
+      case 'crawl.completed':
+        this.server.to(`crawl:${msg.jobId}`).emit(`crawl.completed.${msg.jobId}`, msg.payload);
+        break;
+      case 'findings.updated':
+        this.server.to(`project:${msg.projectId}`).emit(`findings.updated.${msg.projectId}`, msg.payload);
+        break;
+      case 'aiva.progress':
+        this.server.to(`aiva:${msg.sessionId}`).emit(`aiva.progress.${msg.sessionId}`, msg.payload);
+        break;
+    }
+  }
+
+  private publishOrEmit(msg: RealtimeBroadcastMessage): void {
+    if (this.publisher && (process.env.WORKER_MODE === 'true' || this.subscriberReady)) {
+      void this.publisher.publish(REALTIME_PUBSUB_CHANNEL, JSON.stringify(msg)).catch(() => {
+        this.emitLocal(msg);
+      });
+      return;
+    }
+    this.emitLocal(msg);
+  }
 
   handleConnection(client: Socket) {
     const token = tokenFromHandshake(client);
@@ -173,30 +281,20 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   broadcastProgress(jobId: string, progress: any) {
-    this.server?.to(`crawl:${jobId}`).emit(`crawl.progress.${jobId}`, progress);
+    this.publishOrEmit({ kind: 'crawl.progress', jobId, payload: progress });
   }
 
   broadcastComplete(jobId: string, result: any) {
-    this.server?.to(`crawl:${jobId}`).emit(`crawl.completed.${jobId}`, result);
+    this.publishOrEmit({ kind: 'crawl.completed', jobId, payload: result });
   }
 
   /** Notifies connected clients in a project room that Fix Engine findings/plans changed. */
-  broadcastFindingsUpdated(
-    projectId: string,
-    payload: {
-      sources: string[];
-      created: number;
-      updated: number;
-      resolved: number;
-      savedPlansResolved?: number;
-      updatedAt: string;
-    },
-  ) {
-    this.server?.to(`project:${projectId}`).emit(`findings.updated.${projectId}`, payload);
+  broadcastFindingsUpdated(projectId: string, payload: FindingsUpdatedPayload) {
+    this.publishOrEmit({ kind: 'findings.updated', projectId, payload });
   }
 
   /** Streams Aiva voice-agent job progress to a specific session's client. */
   broadcastVoiceProgress(sessionId: string, payload: { tool: string; status: string; message: string; data?: any }) {
-    this.server?.to(`aiva:${sessionId}`).emit(`aiva.progress.${sessionId}`, payload);
+    this.publishOrEmit({ kind: 'aiva.progress', sessionId, payload });
   }
 }

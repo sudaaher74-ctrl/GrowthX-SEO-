@@ -596,4 +596,74 @@ describe('ProofOfImpactService', () => {
       evalSpy.mockRestore();
     });
   });
+
+  describe('handleGitHubWebhook & rollbackRun', () => {
+    it('triggers immediate live verification when a pull_request merged webhook arrives', async () => {
+      prisma.siteRepository.findMany = jest.fn().mockResolvedValue([{ id: 'repo_1', projectId: 'proj_1' }]);
+      prisma.automationRun.findMany.mockResolvedValue([
+        { id: 'run_42', projectId: 'proj_1', status: 'AWAITING_REVIEW' },
+      ]);
+      prisma.automationRun.update = jest.fn().mockResolvedValue({});
+
+      const verifySpy = jest
+        .spyOn(service, 'verifyDeployment')
+        .mockResolvedValue({ success: true, verificationStatus: 'VERIFIED' } as any);
+      const loopSpy = jest
+        .spyOn(service, 'evaluateAndTriggerLoop')
+        .mockResolvedValue({ evaluatedRuns: 1, improvedCount: 0, loopTriggeredCount: 0, results: [] });
+
+      const res = await service.handleGitHubWebhook('pull_request', {
+        action: 'closed',
+        pull_request: { merged: true, html_url: 'https://github.com/acme/site/pull/42', head: { ref: 'fix/seo' } },
+        repository: { owner: { login: 'acme' }, name: 'site' },
+      });
+
+      expect(res).toEqual({ handled: true, verifiedRuns: ['run_42'] });
+      expect(prisma.automationRun.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'run_42' }, data: expect.objectContaining({ status: 'MERGED' }) }),
+      );
+      expect(verifySpy).toHaveBeenCalledWith('proj_1', 'run_42');
+      expect(loopSpy).toHaveBeenCalledWith('proj_1', 'run_42');
+
+      verifySpy.mockRestore();
+      loopSpy.mockRestore();
+    });
+
+    it('opens a revert PR and reopens resolved opportunities on 1-click GitHub rollback', async () => {
+      prisma.automationRun.findFirst = jest.fn().mockResolvedValue({
+        id: 'run_42',
+        projectId: 'proj_1',
+        branch: 'fix/meta-title',
+        pullRequestUrl: 'https://github.com/acme/site/pull/42',
+        steps: [{ change: { url: 'https://example.com/pricing', field: 'META_TITLE' } }],
+        repository: { accessTokenEncrypted: 'enc-token', defaultBranch: 'main' },
+      });
+      prisma.growthOpportunity.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      (service as any).security = { decryptCredentials: jest.fn().mockReturnValue('ghp_secret') };
+      (service as any).git = {
+        rollbackPullRequest: jest.fn().mockResolvedValue({
+          action: 'REVERT_PR_OPENED',
+          revertPullRequestUrl: 'https://github.com/acme/site/pull/43',
+          revertBranch: 'revert/fix-engine-run_42',
+          message: 'Opened revert pull request for merged PR #42.',
+        }),
+      };
+
+      const res = await service.rollbackRun('proj_1', 'run_42');
+
+      expect(res).toEqual({
+        success: true,
+        mode: 'GITHUB',
+        action: 'REVERT_PR_OPENED',
+        revertPullRequestUrl: 'https://github.com/acme/site/pull/43',
+        message: 'Opened revert pull request for merged PR #42.',
+      });
+      expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventType: 'FIX_ROLLED_BACK', automationRunId: 'run_42' }),
+        }),
+      );
+      expect(prisma.growthOpportunity.updateMany).toHaveBeenCalled();
+    });
+  });
 });

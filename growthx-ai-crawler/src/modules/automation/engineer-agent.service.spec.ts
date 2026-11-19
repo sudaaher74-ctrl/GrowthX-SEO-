@@ -92,7 +92,7 @@ describe('EngineerAgentService', () => {
     );
     const run = await service.run('proj_1', 'org_1', INSTRUCTION);
     expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
-    expect(run.steps.find((s: any) => s.step === 'search').ok).toBe(true);
+    expect((run.steps as any[]).find((s: any) => s.step === 'search').ok).toBe(true);
     expect(router.generate.mock.calls[1][0].prompt).toContain('app/page.tsx:1: <title>Old title</title>');
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
   });

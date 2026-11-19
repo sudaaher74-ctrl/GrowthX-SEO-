@@ -9,6 +9,7 @@ import { BacklinkDiscovery } from '../backlinks/backlink-discovery.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import { OpportunityDetectionService } from './opportunity-detection.service';
+import { RoiLearningService } from './roi-learning.service';
 import { TrafficAdapter } from './traffic.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
 
@@ -17,6 +18,7 @@ export interface SyncResult {
   updated: number;
   resolved: number;
   savedPlansResolved?: number;
+  regressionsDetected?: number;
 }
 
 export interface SyncProjectOptions {
@@ -57,6 +59,7 @@ export class FindingSyncService implements OnModuleInit {
     @Optional() private readonly backlinkDiscovery?: BacklinkDiscovery,
     @Optional() private readonly opportunityDetection?: OpportunityDetectionService,
     @Optional() private readonly gateway?: CrawlerGateway,
+    @Optional() private readonly roiLearning?: RoiLearningService,
   ) {
     this.adapters = [
       this.websiteAuditAdapter,
@@ -163,15 +166,28 @@ export class FindingSyncService implements OnModuleInit {
       }
     }
 
+    const roiWeights = this.roiLearning
+      ? await this.roiLearning.computeCategoryWeights(projectId).catch(() => new Map())
+      : new Map();
+
     const collectedFingerprints = new Set<string>();
     let created = 0;
     let updated = 0;
     let resolved = 0;
+    let regressionsDetected = 0;
 
     const now = new Date();
 
     for (const finding of collectedFindings) {
       collectedFingerprints.add(finding.fingerprint);
+
+      const scored = this.roiLearning
+        ? this.roiLearning.applyRoiWeight(finding, roiWeights)
+        : {
+            impact: finding.impact,
+            priority: finding.impact * (finding.confidence / 100),
+            evidence: finding.evidence,
+          };
 
       const existing = await this.prisma.growthOpportunity.findUnique({
         where: {
@@ -183,9 +199,6 @@ export class FindingSyncService implements OnModuleInit {
       });
 
       if (!existing) {
-        // Compute priority score from confidence and impact
-        const priority = finding.impact * (finding.confidence / 100);
-
         await this.prisma.growthOpportunity.create({
           data: {
             projectId,
@@ -196,12 +209,12 @@ export class FindingSyncService implements OnModuleInit {
             title: finding.title,
             summary: finding.summary,
             recommendedAction: finding.recommendedAction,
-            evidence: finding.evidence as unknown as Prisma.InputJsonValue,
+            evidence: scored.evidence as unknown as Prisma.InputJsonValue,
             potential: finding.potential,
             effort: finding.effort,
             confidence: finding.confidence,
-            priority,
-            impact: finding.impact,
+            priority: scored.priority,
+            impact: scored.impact,
             fixClass: finding.fixClass,
             affectedPages: finding.affectedPages,
             affectedCount: finding.affectedCount,
@@ -225,30 +238,117 @@ export class FindingSyncService implements OnModuleInit {
         });
         created++;
       } else {
-        // Row exists: update mutable fields and lastSeenAt. NEVER touch status or lifecycle!
-        const priority = finding.impact * (finding.confidence / 100);
+        // Automatic Regression Guard: if a previously RESOLVED, VERIFIED, or MEASURED
+        // issue reappears in a newer crawl/detector sweep, reopen it and boost priority.
+        // DISMISSED, SNOOZED, and active/in-progress states are never overwritten.
+        const isRegression =
+          existing.status === 'RESOLVED' ||
+          existing.lifecycle === FindingLifecycle.RESOLVED ||
+          existing.lifecycle === FindingLifecycle.VERIFIED ||
+          existing.lifecycle === FindingLifecycle.MEASURED;
 
-        await this.prisma.growthOpportunity.update({
-          where: { id: existing.id },
-          data: {
-            title: finding.title,
-            summary: finding.summary,
-            recommendedAction: finding.recommendedAction,
-            evidence: finding.evidence as unknown as Prisma.InputJsonValue,
-            potential: finding.potential,
-            effort: finding.effort,
-            confidence: finding.confidence,
-            priority,
-            impact: finding.impact,
-            fixClass: finding.fixClass,
-            affectedPages: finding.affectedPages,
-            affectedCount: finding.affectedCount,
-            detailType: finding.detailType,
-            detailRef: finding.detailRef,
-            lastSeenAt: now,
-          },
-        });
-        updated++;
+        if (isRegression) {
+          regressionsDetected++;
+          const boostedImpact = Math.min(100, scored.impact + 10);
+          const boostedPriority = Number((boostedImpact * (finding.confidence / 100)).toFixed(2));
+          const existingTransitions = Array.isArray(existing.transitions)
+            ? (existing.transitions as any[])
+            : [];
+          const regressionEvidence = [
+            {
+              label: 'Regression detected',
+              value: `Reappeared after prior ${existing.lifecycle === FindingLifecycle.VERIFIED || existing.lifecycle === FindingLifecycle.MEASURED ? 'verified fix' : 'resolution'}`,
+              source: 'Regression Guard',
+            },
+            ...(scored.evidence ?? []).filter((e) => e?.label !== 'Regression detected'),
+          ];
+
+          await this.prisma.growthOpportunity.update({
+            where: { id: existing.id },
+            data: {
+              title: finding.title,
+              summary: finding.summary,
+              recommendedAction: finding.recommendedAction,
+              evidence: regressionEvidence as unknown as Prisma.InputJsonValue,
+              potential: finding.potential,
+              effort: finding.effort,
+              confidence: finding.confidence,
+              priority: boostedPriority,
+              impact: boostedImpact,
+              fixClass: finding.fixClass,
+              affectedPages: finding.affectedPages,
+              affectedCount: finding.affectedCount,
+              detailType: finding.detailType,
+              detailRef: finding.detailRef,
+              status: 'OPEN',
+              lifecycle: FindingLifecycle.QUEUED,
+              resolvedAt: null,
+              lastSeenAt: now,
+              lastTransitionAt: now,
+              transitions: [
+                ...existingTransitions,
+                {
+                  from: existing.lifecycle,
+                  to: FindingLifecycle.QUEUED,
+                  at: now.toISOString(),
+                  actor: { type: 'SYSTEM' },
+                  reason: 'Regression Guard: previously fixed/resolved issue reappeared',
+                },
+              ] as unknown as Prisma.InputJsonValue,
+            },
+          });
+
+          if (
+            (existing.lifecycle === FindingLifecycle.VERIFIED ||
+              existing.lifecycle === FindingLifecycle.MEASURED) &&
+            this.prisma.fixImpactLedgerEvent?.create
+          ) {
+            await this.prisma.fixImpactLedgerEvent
+              .create({
+                data: {
+                  projectId,
+                  eventType: 'REGRESSION_DETECTED',
+                  title: `Regression detected: ${finding.title}`,
+                  description: `A previously verified issue reappeared during a subsequent ${finding.source} check and was automatically reopened in Fix Engine.`,
+                  actor: 'REGRESSION_GUARD',
+                  affectedUrl: finding.affectedPages?.[0] ?? null,
+                  verificationStatus: 'REGRESSED',
+                  evidenceData: {
+                    findingId: existing.id,
+                    fingerprint: finding.fingerprint,
+                    category: finding.category,
+                    source: finding.source,
+                    affectedPages: finding.affectedPages,
+                  },
+                },
+              })
+              .catch(() => null);
+          }
+          updated++;
+        } else {
+          // Row exists and is active/dismissed/in-progress: update mutable fields only.
+          await this.prisma.growthOpportunity.update({
+            where: { id: existing.id },
+            data: {
+              title: finding.title,
+              summary: finding.summary,
+              recommendedAction: finding.recommendedAction,
+              evidence: scored.evidence as unknown as Prisma.InputJsonValue,
+              potential: finding.potential,
+              effort: finding.effort,
+              confidence: finding.confidence,
+              priority: scored.priority,
+              impact: scored.impact,
+              fixClass: finding.fixClass,
+              affectedPages: finding.affectedPages,
+              affectedCount: finding.affectedCount,
+              detailType: finding.detailType,
+              detailRef: finding.detailRef,
+              lastSeenAt: now,
+            },
+          });
+          updated++;
+        }
       }
     }
 
@@ -333,13 +433,18 @@ export class FindingSyncService implements OnModuleInit {
         updated,
         resolved,
         ...(savedPlansResolved > 0 ? { savedPlansResolved } : {}),
+        ...(regressionsDetected > 0 ? { regressionsDetected } : {}),
         updatedAt: now.toISOString(),
       });
     }
 
-    return savedPlansResolved > 0
-      ? { created, updated, resolved, savedPlansResolved }
-      : { created, updated, resolved };
+    return {
+      created,
+      updated,
+      resolved,
+      ...(savedPlansResolved > 0 ? { savedPlansResolved } : {}),
+      ...(regressionsDetected > 0 ? { regressionsDetected } : {}),
+    };
   }
 
   /**

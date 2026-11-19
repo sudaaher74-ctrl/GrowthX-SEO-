@@ -1596,6 +1596,125 @@ export class WordPressCmsService {
     };
   }
 
+  /**
+   * 1-click CMS rollback: restores the exact saved BEFORE snapshot on WordPress,
+   * Shopify, or Webflow and logs a FIX_ROLLED_BACK audit event.
+   */
+  async rollbackCmsRun(
+    projectId: string,
+    runId: string,
+  ): Promise<{
+    rolledBack: boolean;
+    platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW';
+    targetUrl: string;
+    field: string;
+    restoredValue: string;
+    message: string;
+  }> {
+    const run = await this.prisma.automationRun.findFirst({
+      where: { id: runId, projectId },
+    });
+    if (!run) {
+      throw new NotFoundException(`Automation run ${runId} not found.`);
+    }
+
+    const branchLower = (run.branch || '').toLowerCase();
+    const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
+    const changeStep = steps.find((s) => s?.change)?.change as Record<string, any> | undefined;
+
+    const [beforeSnapshot, ledgerEvent] = await Promise.all([
+      this.prisma.fixSnapshot.findFirst({
+        where: { projectId, automationRunId: runId, snapshotType: 'BEFORE' },
+        orderBy: { capturedAt: 'asc' },
+      }),
+      this.prisma.fixImpactLedgerEvent.findFirst({
+        where: {
+          projectId,
+          automationRunId: runId,
+          actor: { in: ['WORDPRESS_AGENT', 'SHOPIFY_AGENT', 'WEBFLOW_AGENT'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const actor = String(ledgerEvent?.actor || '').toUpperCase();
+    const platform: 'WORDPRESS' | 'SHOPIFY' | 'WEBFLOW' =
+      actor === 'SHOPIFY_AGENT' || branchLower.startsWith('shopify/')
+        ? 'SHOPIFY'
+        : actor === 'WEBFLOW_AGENT' || branchLower.startsWith('webflow/')
+          ? 'WEBFLOW'
+          : 'WORDPRESS';
+
+    const evidence = (ledgerEvent?.evidenceData ?? {}) as Record<string, any>;
+    const targetUrl = String(
+      changeStep?.url || ledgerEvent?.affectedUrl || beforeSnapshot?.url || '',
+    ).trim();
+    const field = String(changeStep?.field || evidence.field || 'META_TITLE').trim();
+    const restoredValue = String(
+      changeStep?.before ??
+        evidence.before ??
+        (field === 'META_DESCRIPTION'
+          ? beforeSnapshot?.metaDescription
+          : beforeSnapshot?.title) ??
+        beforeSnapshot?.contentSnippet ??
+        '',
+    );
+
+    if (!targetUrl) {
+      throw new BadRequestException('Cannot roll back this CMS run: target URL is missing.');
+    }
+    if (!restoredValue.trim()) {
+      throw new BadRequestException(
+        'Cannot roll back automatically: no saved BEFORE snapshot value exists for this fix.',
+      );
+    }
+
+    const rollbackInput: StageWordPressFixInput = {
+      targetUrl,
+      field,
+      beforeValue: String(changeStep?.after || evidence.after || ''),
+      afterValue: restoredValue,
+      findingTitle: `Rollback: ${changeStep?.findingTitle || field}`,
+      publishMode: 'publish',
+    };
+
+    if (platform === 'SHOPIFY') {
+      await this.stageShopifyFix(projectId, rollbackInput);
+    } else if (platform === 'WEBFLOW') {
+      await this.stageWebflowFix(projectId, rollbackInput);
+    } else {
+      await this.stageWordPressFix(projectId, rollbackInput);
+    }
+
+    await this.prisma.fixImpactLedgerEvent.create({
+      data: {
+        projectId,
+        automationRunId: runId,
+        eventType: 'FIX_ROLLED_BACK',
+        title: `${platform} Fix Rolled Back: ${field}`,
+        description: `Restored saved BEFORE snapshot for ${field} on ${targetUrl} via ${platform} API.`,
+        actor: `${platform}_ROLLBACK`,
+        affectedUrl: targetUrl,
+        verificationStatus: 'ROLLED_BACK',
+        evidenceData: {
+          platform,
+          field,
+          restoredValue,
+          previousAfterValue: changeStep?.after ?? evidence.after ?? null,
+        },
+      },
+    });
+
+    return {
+      rolledBack: true,
+      platform,
+      targetUrl,
+      field,
+      restoredValue,
+      message: `Restored previous ${field} value on ${targetUrl} via ${platform}.`,
+    };
+  }
+
   async getAllCmsConnections(projectId: string) {
     const [wordpress, shopify, webflow] = await Promise.all([
       this.getConnection(projectId),

@@ -13,6 +13,7 @@ import { AiSearchModule } from '../ai-search/ai-search.module';
 import { LifecycleService } from './lifecycle.service';
 import { FindingsController } from './findings.controller';
 import { FindingSyncService } from './finding-sync.service';
+import { RoiLearningService } from './roi-learning.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
@@ -43,6 +44,7 @@ import { TrafficAdapter } from './traffic.adapter';
     AiVisibilityAdapter,
     BacklinksAdapter,
     TrafficAdapter,
+    RoiLearningService,
     FindingSyncService,
   ],
   controllers: [
@@ -56,6 +58,7 @@ import { TrafficAdapter } from './traffic.adapter';
     ExecutiveSummaryService,
     GrowthContextService,
     LifecycleService,
+    RoiLearningService,
     FindingSyncService,
     WebsiteAuditAdapter,
     CompetitorAdapter,

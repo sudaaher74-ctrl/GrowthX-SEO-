@@ -374,4 +374,84 @@ describe('FindingSyncService', () => {
       }),
     );
   });
+
+  it('reopens regressed VERIFIED findings, boosts priority, records REGRESSION_DETECTED, and applies learned ROI weights', async () => {
+    const mockRoi = {
+      computeCategoryWeights: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            'TECHNICAL',
+            {
+              category: 'TECHNICAL',
+              sampleSize: 4,
+              improvedCount: 4,
+              flatOrRegressedCount: 0,
+              winRate: 1,
+              avgClicksDeltaPct: 22,
+              avgAiChangePt: null,
+              multiplier: 1.25,
+              evidenceSummary: '4/4 measured TECHNICAL fixes observed positive change (+22% avg clicks)',
+            },
+          ],
+        ]),
+      ),
+      applyRoiWeight: jest.fn((finding) => ({
+        impact: 95,
+        priority: 85.5,
+        evidence: [
+          ...finding.evidence,
+          { label: 'Site historical ROI', value: '4/4 measured TECHNICAL fixes observed positive change (+22% avg clicks)', source: 'Proof of Impact' },
+        ],
+      })),
+    };
+    mockPrisma.fixImpactLedgerEvent = { create: jest.fn().mockResolvedValue({}) };
+    mockPrisma.growthOpportunity.findUnique.mockResolvedValue({
+      id: 'opp-verified',
+      status: 'RESOLVED',
+      lifecycle: FindingLifecycle.VERIFIED,
+      transitions: [],
+    });
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([]);
+
+    const roiService = new FindingSyncService(
+      mockPrisma,
+      mockWebsiteAdapter,
+      mockCompetitorAdapter,
+      mockAiVisAdapter,
+      mockBacklinksAdapter,
+      mockTrafficAdapter,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      mockRoi as any,
+    );
+
+    const res = await roiService.syncProject('proj-1', { sources: ['WEBSITE'] });
+
+    expect(res).toEqual({ created: 0, updated: 1, resolved: 0, regressionsDetected: 1 });
+    expect(mockPrisma.growthOpportunity.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'opp-verified' },
+        data: expect.objectContaining({
+          status: 'OPEN',
+          lifecycle: FindingLifecycle.QUEUED,
+          resolvedAt: null,
+          impact: 100,
+          evidence: expect.arrayContaining([
+            expect.objectContaining({ label: 'Regression detected', source: 'Regression Guard' }),
+            expect.objectContaining({ label: 'Site historical ROI', source: 'Proof of Impact' }),
+          ]),
+        }),
+      }),
+    );
+    expect(mockPrisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'proj-1',
+          eventType: 'REGRESSION_DETECTED',
+        }),
+      }),
+    );
+  });
 });

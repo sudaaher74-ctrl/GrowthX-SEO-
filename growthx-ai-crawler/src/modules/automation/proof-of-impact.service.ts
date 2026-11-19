@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { FindingLifecycle } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -8,7 +8,10 @@ import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi
 import { FetcherService } from '../crawler/fetcher.service';
 import { VerificationEngineService } from '../crawler/verification-engine.service';
 import { FindingSyncService } from '../opportunities/finding-sync.service';
+import { inferCategoryFromField } from '../opportunities/roi-learning.service';
+import { scheduledJobsEnabled } from '../scheduler/scheduler.module';
 import { OWN_SCOPE } from '../crawler/website-scope';
+import { WordPressCmsService } from './wordpress-cms.service';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 
@@ -82,11 +85,248 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly fetcher?: FetcherService,
     @Optional() private readonly verificationEngine?: VerificationEngineService,
     @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
+    @Optional() private readonly wordpress?: WordPressCmsService,
   ) {}
 
   onModuleInit(): void {
+    // Only run the fallback PR poller on the API host where scheduled jobs are enabled,
+    // never duplicated across headless worker replicas.
+    if (!scheduledJobsEnabled()) return;
     this.autoVerifyTimer = setInterval(() => void this.verifyMergedPullRequests(), 60_000);
     this.autoVerifyTimer.unref?.();
+  }
+
+  /**
+   * Event-driven GitHub Webhook handler (`pull_request` merged and `deployment_status` success).
+   * Eliminates the 60s polling lag by verifying changed pages the moment a PR merges or
+   * Vercel/Netlify/Render reports a production deployment succeeded.
+   */
+  async handleGitHubWebhook(
+    event: string,
+    payload: Record<string, any>,
+  ): Promise<{ handled: boolean; verifiedRuns: string[]; reason?: string }> {
+    const repoObj = payload?.repository as { full_name?: string; name?: string; owner?: { login?: string } } | undefined;
+    const owner = (repoObj?.owner?.login || repoObj?.full_name?.split('/')[0] || '').trim();
+    const repoName = (repoObj?.name || repoObj?.full_name?.split('/')[1] || '').trim();
+    if (!owner || !repoName) {
+      return { handled: false, verifiedRuns: [], reason: 'Missing repository metadata in webhook payload' };
+    }
+
+    const repos = await this.prisma.siteRepository.findMany({
+      where: {
+        owner: { equals: owner, mode: 'insensitive' },
+        name: { equals: repoName, mode: 'insensitive' },
+      },
+      select: { id: true, projectId: true },
+    });
+    if (repos.length === 0) {
+      return { handled: false, verifiedRuns: [], reason: `Repository ${owner}/${repoName} is not connected` };
+    }
+
+    const repoIds = repos.map((r) => r.id);
+    const verifiedRuns: string[] = [];
+
+    if (event === 'pull_request') {
+      const action = payload?.action;
+      const pr = payload?.pull_request as
+        | { merged?: boolean; html_url?: string; head?: { ref?: string } }
+        | undefined;
+      if (action !== 'closed' || !pr?.merged) {
+        return { handled: false, verifiedRuns: [], reason: 'Ignored non-merge pull_request event' };
+      }
+
+      const matchClauses: any[] = [];
+      if (pr.html_url) matchClauses.push({ pullRequestUrl: pr.html_url });
+      if (pr.head?.ref) matchClauses.push({ branch: pr.head.ref });
+      if (matchClauses.length === 0) {
+        return { handled: false, verifiedRuns: [], reason: 'No PR URL or branch in webhook payload' };
+      }
+
+      const runs = await this.prisma.automationRun.findMany({
+        where: { repositoryId: { in: repoIds }, OR: matchClauses },
+        select: { id: true, projectId: true, status: true },
+        take: 10,
+      });
+
+      for (const run of runs) {
+        if (run.status === 'AWAITING_REVIEW') {
+          await this.prisma.automationRun
+            .update({ where: { id: run.id }, data: { status: 'MERGED', finishedAt: new Date() } })
+            .catch(() => null);
+        }
+        const result = await this.verifyDeployment(run.projectId, run.id).catch(() => null);
+        if (result?.verificationStatus === 'VERIFIED') {
+          verifiedRuns.push(run.id);
+          await this.evaluateAndTriggerLoop(run.projectId, run.id).catch(() => null);
+        }
+      }
+      return { handled: true, verifiedRuns };
+    }
+
+    if (event === 'deployment_status') {
+      const state = payload?.deployment_status?.state;
+      if (state !== 'success') {
+        return { handled: false, verifiedRuns: [], reason: `Ignored deployment_status state=${String(state)}` };
+      }
+
+      const runs = await this.prisma.automationRun.findMany({
+        where: {
+          repositoryId: { in: repoIds },
+          status: { in: ['AWAITING_REVIEW', 'MERGED'] },
+          pullRequestUrl: { not: null },
+        },
+        orderBy: { startedAt: 'desc' },
+        take: 10,
+        select: { id: true, projectId: true },
+      });
+
+      for (const run of runs) {
+        const result = await this.verifyDeployment(run.projectId, run.id).catch(() => null);
+        if (result?.verificationStatus === 'VERIFIED') {
+          verifiedRuns.push(run.id);
+          await this.evaluateAndTriggerLoop(run.projectId, run.id).catch(() => null);
+        }
+      }
+      return { handled: true, verifiedRuns };
+    }
+
+    return { handled: false, verifiedRuns: [], reason: `Unsupported webhook event: ${event}` };
+  }
+
+  /**
+   * 1-Click Safe Rollback for any Fix Engine run (GitHub PR or CMS publish).
+   * - CMS runs (WordPress / Shopify / Webflow): restores the saved BEFORE snapshot live.
+   * - GitHub PR runs: closes unmerged PRs or opens an automated Revert PR for merged PRs.
+   * Reopens matching GrowthOpportunity rows and notifies Fix Engine immediately.
+   */
+  async rollbackRun(
+    projectId: string,
+    runId: string,
+  ): Promise<{
+    success: boolean;
+    mode: 'GITHUB' | 'CMS';
+    action: string;
+    revertPullRequestUrl?: string;
+    message: string;
+  }> {
+    const run = await this.prisma.automationRun.findFirst({
+      where: { id: runId, projectId },
+      include: { repository: true },
+    });
+    if (!run) {
+      throw new NotFoundException(`Fix run ${runId} not found for this project.`);
+    }
+
+    const branchLower = (run.branch || '').toLowerCase();
+    const isCmsRun =
+      branchLower.startsWith('wordpress/') ||
+      branchLower.startsWith('shopify/') ||
+      branchLower.startsWith('webflow/') ||
+      (!run.pullRequestUrl || !run.pullRequestUrl.includes('github.com/'));
+
+    let outcome: {
+      success: boolean;
+      mode: 'GITHUB' | 'CMS';
+      action: string;
+      revertPullRequestUrl?: string;
+      message: string;
+    };
+
+    if (isCmsRun) {
+      if (!this.wordpress) {
+        throw new BadRequestException('CMS rollback service is unavailable.');
+      }
+      const cmsRes = await this.wordpress.rollbackCmsRun(projectId, runId);
+      outcome = {
+        success: true,
+        mode: 'CMS',
+        action: `${cmsRes.platform}_RESTORED`,
+        message: cmsRes.message,
+      };
+    } else {
+      const prMatch = run.pullRequestUrl?.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/i);
+      if (!prMatch || !run.repository?.accessTokenEncrypted) {
+        throw new BadRequestException('Cannot roll back this GitHub run: repository credentials or PR URL missing.');
+      }
+      const [, owner, repo, prNumStr] = prMatch;
+      const pullNumber = Number(prNumStr);
+      const token = this.security.decryptCredentials(run.repository.accessTokenEncrypted);
+      const gitRes = await this.git.rollbackPullRequest(
+        token,
+        owner,
+        repo,
+        pullNumber,
+        run.repository.defaultBranch || 'main',
+        runId,
+      );
+
+      await this.prisma.fixImpactLedgerEvent.create({
+        data: {
+          projectId,
+          automationRunId: runId,
+          eventType: 'FIX_ROLLED_BACK',
+          title:
+            gitRes.action === 'CLOSED_UNMERGED'
+              ? `Closed unmerged PR #${pullNumber}`
+              : `Revert PR opened for #${pullNumber}`,
+          description: gitRes.message,
+          actor: 'ROLLBACK_ENGINE',
+          pullRequestUrl: gitRes.revertPullRequestUrl || run.pullRequestUrl,
+          verificationStatus: 'ROLLED_BACK',
+          evidenceData: {
+            action: gitRes.action,
+            originalPullRequestUrl: run.pullRequestUrl,
+            revertPullRequestUrl: gitRes.revertPullRequestUrl ?? null,
+            revertBranch: gitRes.revertBranch ?? null,
+          },
+        },
+      });
+
+      if (gitRes.action === 'CLOSED_UNMERGED') {
+        await this.prisma.automationRun
+          .update({ where: { id: runId }, data: { status: 'FAILED', error: 'Rolled back (closed before merge).' } })
+          .catch(() => null);
+      }
+
+      outcome = {
+        success: true,
+        mode: 'GITHUB',
+        action: gitRes.action,
+        revertPullRequestUrl: gitRes.revertPullRequestUrl,
+        message: gitRes.message,
+      };
+    }
+
+    // Reopen any resolved/verified opportunities tied to the rolled-back URLs so the
+    // customer can pick an alternative fix cleanly.
+    const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
+    const affectedUrls = Array.from(
+      new Set(steps.map((s) => s?.change?.url).filter((u): u is string => typeof u === 'string' && Boolean(u))),
+    );
+    if (affectedUrls.length > 0 && this.prisma.growthOpportunity?.updateMany) {
+      await this.prisma.growthOpportunity
+        .updateMany({
+          where: {
+            projectId,
+            status: 'RESOLVED',
+            lifecycle: { in: [FindingLifecycle.VERIFIED, FindingLifecycle.RESOLVED] },
+            affectedPages: { hasSome: affectedUrls },
+          },
+          data: {
+            status: 'OPEN',
+            lifecycle: FindingLifecycle.QUEUED,
+            resolvedAt: null,
+            lastTransitionAt: new Date(),
+          },
+        })
+        .catch(() => null);
+    }
+
+    if (this.findingSync) {
+      await this.findingSync.syncProject(projectId, { sources: ['WEBSITE'] }).catch(() => null);
+    }
+
+    return outcome;
   }
 
   onModuleDestroy(): void {
@@ -1266,6 +1506,14 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       const measuredAiComparisons = aiImpact.models.filter((m) => m.beforeMentionRate != null && m.afterMentionRate != null);
       const hasAiComparison = measuredAiComparisons.length > 0;
       const hasAiGain = measuredAiComparisons.some((m) => (m.changePt ?? 0) > 0);
+      const aiChangePt = hasAiComparison
+        ? Math.round(
+            measuredAiComparisons.reduce((sum, m) => sum + (m.changePt ?? 0), 0) /
+              measuredAiComparisons.length,
+          )
+        : null;
+      const changeField = typeof change?.field === 'string' ? change.field : null;
+      const changeCategory = inferCategoryFromField(changeField);
       if (!hasSearchComparison && !hasAiComparison) {
         results.push({ runId: run.id, status: 'MONITORING', reason: 'Waiting for measured pre-fix and post-fix data.' });
         continue;
@@ -1292,7 +1540,10 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               pullRequestUrl: run.pullRequestUrl,
               verificationStatus: 'VERIFIED',
               evidenceData: {
+                field: changeField,
+                category: changeCategory,
                 clicksDelta,
+                aiChangePt,
                 baselineClicks: seoImpact.baselineClicks,
                 currentClicks: seoImpact.currentClicks,
                 daysMonitored: daysSinceRun,
@@ -1303,6 +1554,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
         results.push({ runId: run.id, status: 'IMPROVED', clicksDelta });
       } else if (daysSinceRun >= 14 || daysSinceRun >= 30) {
         loopTriggeredCount++;
+        const regressionDetected = Boolean(searchClicksDelta != null && searchClicksDelta < 0);
 
         const rca = [
           `Live HTML was verified for ${affectedUrl}.`,
@@ -1311,8 +1563,12 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
           'These observations describe changes over time; they do not prove that the fix caused them.',
         ];
 
-        const pivotTitle = `[Review measured impact] ${domain} — ${affectedUrl}`;
-        const pivotAction = `Review the verified live change in ${file} alongside available Search Console and AI measurements for ${affectedUrl}. Choose the next improvement from evidence; do not assume missing schema, local coverage, or a traffic lift.`;
+        const pivotTitle = regressionDetected
+          ? `[Regression check] ${domain} — ${affectedUrl}`
+          : `[Review measured impact] ${domain} — ${affectedUrl}`;
+        const pivotAction = regressionDetected
+          ? `Search Console clicks declined (${clicksDelta}%) after the verified change in ${file}. Consider 1-click rollback or review the live page before iterating.`
+          : `Review the verified live change in ${file} alongside available Search Console and AI measurements for ${affectedUrl}. Choose the next improvement from evidence; do not assume missing schema, local coverage, or a traffic lift.`;
 
         // 1. Emit NO_IMPROVEMENT_DIAGNOSED in ledger if not present
         const existingNoImp = await this.prisma.fixImpactLedgerEvent.findFirst({
@@ -1324,18 +1580,25 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
               projectId,
               automationRunId: run.id,
               eventType: 'NO_IMPROVEMENT_DIAGNOSED',
-              title: 'No positive change observed in the measured window',
+              title: regressionDetected
+                ? 'Measured clicks declined after deployment — rollback available'
+                : 'No positive change observed in the measured window',
               description: `No positive Search Console or AI mention change was observed in the available measured comparison for ${affectedUrl}. This does not establish that the fix caused or failed to cause the result.`,
               actor: 'CLOSED_LOOP_ENGINE',
               affectedUrl,
               pullRequestUrl: run.pullRequestUrl,
-              verificationStatus: 'VERIFIED',
+              verificationStatus: regressionDetected ? 'REGRESSED' : 'VERIFIED',
               evidenceData: {
+                field: changeField,
+                category: changeCategory,
+                clicksDelta,
+                aiChangePt,
+                regressionDetected,
                 rca,
                 baselineClicks: seoImpact.baselineClicks,
                 currentClicks: seoImpact.currentClicks,
                 daysMonitored: daysSinceRun,
-                verdict: 'NO_POSITIVE_CHANGE_OBSERVED',
+                verdict: regressionDetected ? 'CLICKS_DECLINED_ROLLBACK_RECOMMENDED' : 'NO_POSITIVE_CHANGE_OBSERVED',
               },
             },
           });
@@ -1405,6 +1668,14 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       } else {
         results.push({ runId: run.id, status: 'MONITORING', daysSinceRun });
       }
+    }
+
+    if ((improvedCount > 0 || loopTriggeredCount > 0) && this.findingSync) {
+      // Feed newly measured ROI outcomes right back into Fix Engine priority ranking
+      // (excluding Traffic adapter).
+      await this.findingSync
+        .syncProject(projectId, { sources: ['WEBSITE', 'COMPETITOR', 'MARKET', 'BACKLINKS'] })
+        .catch(() => null);
     }
 
     return {

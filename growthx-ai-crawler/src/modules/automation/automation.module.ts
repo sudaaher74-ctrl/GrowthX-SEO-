@@ -16,10 +16,11 @@ import { ContentAgentService } from './content-agent.service';
 import { ProofOfImpactService } from './proof-of-impact.service';
 import { EngineerQueueService } from './engineer-queue.service';
 import { WordPressCmsService } from './wordpress-cms.service';
+import { GitHubWebhookController } from './github-webhook.controller';
 
 @Module({
   imports: [DatabaseModule, AiSearchModule, AutonomousEngineerModule, SecurityModule, StrategyModule, ImpactModule, forwardRef(() => OpportunitiesModule)],
-  controllers: [AutomationController, ContentAgentController],
+  controllers: [AutomationController, ContentAgentController, GitHubWebhookController],
   providers: [AutomationService, EngineerAgentService, EngineerQueueService, ContentGenerationService, ContentAgentService, ProofOfImpactService, WordPressCmsService],
   exports: [AutomationService, ContentGenerationService, ContentAgentService, ProofOfImpactService, WordPressCmsService],
 })

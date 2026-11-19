@@ -261,6 +261,8 @@ function FindingRow({
   const cls = f.fixClass ? FIX_CLASS[f.fixClass] : null;
   const lifecycle = f.lifecycle ?? "DETECTED";
   const pages = f.affectedPages ?? [];
+  const regressionEvidence = f.evidence.find((e) => e.label === "Regression detected");
+  const roiEvidence = f.evidence.find((e) => e.label === "Site historical ROI");
 
   return (
     <li className="px-4 py-3">
@@ -269,6 +271,16 @@ function FindingRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-semibold text-brand-950">{f.title}</span>
+            {regressionEvidence && (
+              <span title={regressionEvidence.value}>
+                <Pill tone="bad">Regression</Pill>
+              </span>
+            )}
+            {roiEvidence && (
+              <span title={roiEvidence.value}>
+                <Pill tone="good">Proven ROI</Pill>
+              </span>
+            )}
             {group && <Pill tone="info">{group.label}</Pill>}
             <Pill tone={BAND[f.potential]}>{f.potential.toLowerCase()} impact</Pill>
             {f.potential === "HIGH" && (

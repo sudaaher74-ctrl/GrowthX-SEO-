@@ -1601,6 +1601,14 @@ export const api = {
       `/api/projects/${projectId}/automation/impact/fixes/${runId}/verify`,
       {},
     ),
+  rollbackAutomationRun: (projectId: string, runId: string) =>
+    post<{
+      success: boolean;
+      mode: "GITHUB" | "CMS";
+      action: string;
+      revertPullRequestUrl?: string;
+      message: string;
+    }>(`/api/projects/${projectId}/automation/runs/${runId}/rollback`, {}),
   getFixImpactLedger: async (projectId: string) => {
     const remote = await get<import('./api-types').FixLedgerEntry[]>(
       `/api/projects/${projectId}/automation/impact/ledger`,

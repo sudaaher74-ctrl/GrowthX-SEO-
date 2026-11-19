@@ -354,6 +354,17 @@ export class AutomationController {
     return this.proofOfImpact.verifyDeployment(projectId, runId);
   }
 
+  @Post('runs/:runId/rollback')
+  @ApiOperation({ summary: '1-click safe rollback for a GitHub PR or CMS fix run' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  rollbackRun(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.proofOfImpact.rollbackRun(projectId, runId);
+  }
+
   @Get('impact/ledger')
   @ApiOperation({ summary: 'Append-only chronological audit ledger of fix engine events' })
   @ApiParam({ name: 'projectId' })

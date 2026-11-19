@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   List,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   TrendingUp,
   Zap,
@@ -88,6 +89,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "warn" | "bad"; text: string } | null>(null);
   const [targetPlanBCard, setTargetPlanBCard] = useState<ProofOfImpactCard | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  const [confirmRollbackRunId, setConfirmRollbackRunId] = useState<string | null>(null);
 
   // 1. Fetch real proof cards from the closed-loop impact engine
   const proofCardsQuery = useQuery({
@@ -118,6 +120,27 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
       queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
     },
     onError: (err) => {
+      setActionBanner({ tone: "bad", text: errorMessage(err) });
+    },
+  });
+
+  // 1-click safe rollback mutation (restores CMS BEFORE snapshot or opens GitHub revert PR)
+  const rollbackMutation = useMutation({
+    mutationFn: (runId: string) => api.rollbackAutomationRun(projectId!, runId),
+    onSuccess: (data) => {
+      setConfirmRollbackRunId(null);
+      setActionBanner({
+        tone: "good",
+        text: data.revertPullRequestUrl
+          ? `${data.message} Revert PR: ${data.revertPullRequestUrl}`
+          : data.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["fix-proof-cards", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["fix-changes", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["findings", projectId] });
+    },
+    onError: (err) => {
+      setConfirmRollbackRunId(null);
       setActionBanner({ tone: "bad", text: errorMessage(err) });
     },
   });
@@ -413,6 +436,36 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                               <span>Review Next Step</span>
                               <ArrowRight size={12} />
                             </button>
+                            {confirmRollbackRunId === card.runId ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={rollbackMutation.isPending}
+                                  onClick={() => rollbackMutation.mutate(card.runId)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-error-300 bg-error-50 px-2.5 py-1.5 text-xs font-bold text-error-700 hover:bg-error-100 transition cursor-pointer disabled:opacity-50"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>{rollbackMutation.isPending ? "Rolling back…" : "Confirm"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmRollbackRunId(null)}
+                                  className="rounded-lg border border-brand-200 bg-surface-1 px-2 py-1.5 text-xs text-brand-600 hover:bg-surface-2 cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRollbackRunId(card.runId)}
+                                title="Safely roll back this fix (opens a revert PR on GitHub or restores the saved BEFORE snapshot in CMS)"
+                                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:border-error-300 hover:bg-error-50 hover:text-error-700 transition cursor-pointer"
+                              >
+                                <RotateCcw size={12} />
+                                <span>Rollback</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -546,14 +599,45 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleLaunchPlanB(card)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
-                  >
-                    <span>Review Next Step</span>
-                    <ArrowRight size={12} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLaunchPlanB(card)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs hover:bg-signal-500 transition cursor-pointer"
+                    >
+                      <span>Review Next Step</span>
+                      <ArrowRight size={12} />
+                    </button>
+                    {confirmRollbackRunId === card.runId ? (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={rollbackMutation.isPending}
+                          onClick={() => rollbackMutation.mutate(card.runId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-error-300 bg-error-50 px-2.5 py-1.5 text-xs font-bold text-error-700 hover:bg-error-100 transition cursor-pointer disabled:opacity-50"
+                        >
+                          <RotateCcw size={12} />
+                          <span>{rollbackMutation.isPending ? "Rolling back…" : "Confirm Rollback"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRollbackRunId(null)}
+                          className="rounded-lg border border-brand-200 bg-surface-1 px-2 py-1.5 text-xs text-brand-600 hover:bg-surface-2 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRollbackRunId(card.runId)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:border-error-300 hover:bg-error-50 hover:text-error-700 transition cursor-pointer"
+                      >
+                        <RotateCcw size={12} />
+                        <span>Rollback</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </article>
             );

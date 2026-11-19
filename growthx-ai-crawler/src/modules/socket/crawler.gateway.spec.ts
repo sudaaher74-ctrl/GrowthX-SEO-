@@ -1,5 +1,5 @@
 import * as jwt from 'jsonwebtoken';
-import { CrawlerGateway } from './crawler.gateway';
+import { CrawlerGateway, REALTIME_PUBSUB_CHANNEL } from './crawler.gateway';
 
 const SECRET = 'test-secret-value-for-gateway-spec-0123456789';
 
@@ -139,5 +139,60 @@ describe('CrawlerGateway', () => {
       'findings.updated.proj-12345678',
       expect.objectContaining({ sources: ['WEBSITE'], created: 1, resolved: 2 }),
     );
+  });
+
+  it('bridges worker broadcasts over Redis Pub/Sub to API WebSocket rooms', async () => {
+    let onMessage: ((channel: string, raw: string) => void) | undefined;
+    const sub = {
+      on: jest.fn((event: string, cb: any) => {
+        if (event === 'message') onMessage = cb;
+      }),
+      subscribe: jest.fn().mockResolvedValue(1),
+      unsubscribe: jest.fn().mockResolvedValue(1),
+      quit: jest.fn().mockResolvedValue('OK'),
+    };
+    const redis = {
+      publish: jest.fn().mockImplementation((channel: string, raw: string) => {
+        onMessage?.(channel, raw);
+        return Promise.resolve(1);
+      }),
+      duplicate: jest.fn().mockReturnValue(sub),
+    };
+    const queue = {
+      ready: Promise.resolve(),
+      getRedisClient: jest.fn().mockReturnValue(redis),
+    };
+
+    const bridged = new CrawlerGateway(prisma, queue as any);
+    const emit = jest.fn();
+    const to = jest.fn().mockReturnValue({ emit });
+    bridged.server = { to, emit: jest.fn() } as any;
+
+    bridged.onModuleInit();
+    await new Promise((r) => setImmediate(r));
+
+    expect(sub.subscribe).toHaveBeenCalledWith(REALTIME_PUBSUB_CHANNEL);
+
+    bridged.broadcastFindingsUpdated('proj-99999999', {
+      sources: ['WEBSITE'],
+      created: 2,
+      updated: 1,
+      resolved: 0,
+      updatedAt: '2026-11-19T00:00:00.000Z',
+    });
+
+    expect(redis.publish).toHaveBeenCalledWith(
+      REALTIME_PUBSUB_CHANNEL,
+      expect.stringContaining('proj-99999999'),
+    );
+    expect(to).toHaveBeenCalledWith('project:proj-99999999');
+    expect(emit).toHaveBeenCalledWith(
+      'findings.updated.proj-99999999',
+      expect.objectContaining({ created: 2, updated: 1 }),
+    );
+
+    await bridged.onModuleDestroy();
+    expect(sub.unsubscribe).toHaveBeenCalledWith(REALTIME_PUBSUB_CHANNEL);
+    expect(sub.quit).toHaveBeenCalled();
   });
 });
