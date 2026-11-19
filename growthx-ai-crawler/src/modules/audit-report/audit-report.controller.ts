@@ -11,7 +11,7 @@ export class AuditReportController {
 
   @Post()
   @ApiOperation({
-    summary: 'The whole Website Audit as one plain-language report, written by Sarvam',
+    summary: 'The whole Website Audit as one plain-language report, written by Gemini',
     description: 'A POST because it spends model tokens. The facts are returned even when the analysis fails.',
   })
   generate(@Param('projectId') projectId: string, @Req() req: any) {

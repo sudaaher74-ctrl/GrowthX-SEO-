@@ -13,7 +13,7 @@ import { keywordsText } from "@/lib/content-ideas";
  * "Words your customers search for" and "Blog posts to write", the part of a
  * report that says what to do next rather than what is wrong.
  *
- * Suggested by Sarvam from the business's own pages (and, in the competitor
+ * Suggested by Gemini from the business's own pages (and, in the competitor
  * report, what the rivals cover). Where a phrase is one of the searches the
  * site already appears in, it carries Google's own numbers from Search
  * Console; every other phrase is labelled a suggestion. The searches the
@@ -38,7 +38,7 @@ export function ContentIdeasPanels({
     return (
       <Panel title="Keywords and blog ideas" padded>
         <p className="text-[12.5px] text-brand-600">
-          Create a new report to get the words your customers search for and blog posts to write, suggested by Sarvam
+          Create a new report to get the words your customers search for and blog posts to write, suggested by Gemini
           105B from your website.
         </p>
       </Panel>
@@ -52,7 +52,7 @@ export function ContentIdeasPanels({
     );
   }
 
-  const by = ideas.model ?? "Sarvam";
+  const by = ideas.model ?? "AI";
   const search = ideas.search;
   const measuredOn = search?.status === "OK";
   const anyMeasured = ideas.keywords.some((k) => k.measured);

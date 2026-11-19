@@ -55,17 +55,17 @@ describe('AuditReportService', () => {
     expect(facts.problems[0]).toMatchObject({ pages: 12, action: 'Write one or two sentences for each page' });
   });
 
-  it('asks Sarvam only, in plain words, and stores the report', async () => {
+  it('asks Gemini only, in plain words, and stores the report', async () => {
     const router = {
       generate: jest.fn().mockResolvedValue({
-        model: 'sarvam-105b',
+        model: 'gemini-3.1-flash-lite',
         refused: false,
         text: '```json\n{"summary":"Mostly healthy.","fixes":[{"title":"b","priority":"low"},{"title":"a","priority":"critical","whoCanFix":"web developer","steps":["x"]}]}\n```',
       }),
     };
     const { service, prisma } = setup(router);
     const report = await service.generate('p1', 'o1');
-    expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({ provider: AiProvider.SARVAM, allowFallback: false }));
+    expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({ provider: AiProvider.GEMINI, model: 'gemini-3.1-flash-lite', maxTokens: 6000, allowFallback: false }));
     expect(report.analysis?.fixes.map((f) => [f.title, f.priority, f.whoCanFix])).toEqual([
       ['a', 'high', 'developer'],
       ['b', 'low', 'you'],
@@ -74,11 +74,11 @@ describe('AuditReportService', () => {
     expect(prisma.auditReportSnapshot.create).toHaveBeenCalled();
   });
 
-  it('keeps the facts when Sarvam fails, and says so when the site was never read', async () => {
-    const failing = { generate: jest.fn().mockRejectedValue(new Error('SARVAM_API_KEY is not set')) };
+  it('keeps the facts when Gemini fails, and says so when the site was never read', async () => {
+    const failing = { generate: jest.fn().mockRejectedValue(new Error('GEMINI_API_KEY is not set')) };
     const r1 = await setup(failing).service.generate('p1');
     expect(r1.analysis).toBeNull();
-    expect(r1.analysisError).toContain('SARVAM_API_KEY is not set');
+    expect(r1.analysisError).toContain('GEMINI_API_KEY is not set');
     expect(r1.facts.problems).toHaveLength(1);
 
     const never = { generate: jest.fn() };
@@ -89,10 +89,10 @@ describe('AuditReportService', () => {
 });
 
 describe('AuditReportService keyword and blog ideas', () => {
-  const ideas = { keywords: [{ phrase: 'a2 milk delivery', why: 'x', usePage: null }], blogIdeas: [], model: 'sarvam-105b' };
+  const ideas = { keywords: [{ phrase: 'a2 milk delivery', why: 'x', usePage: null }], blogIdeas: [], model: 'gemini-3.1-flash-lite' };
 
   it('adds the suggestions beside the analysis, and stores them with the report', async () => {
-    const router = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok', fixes: [] }), refused: false, model: 'sarvam-105b' }) };
+    const router = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok', fixes: [] }), refused: false, model: 'gemini-3.1-flash-lite' }) };
     const { prisma } = setup(router);
     const contentIdeas = { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) };
     const service = new AuditReportService(prisma as any, { countsForProject: jest.fn().mockResolvedValue({ crawledAt: '2026-09-24T00:00:00Z', healthScore: 72, bySeverity: {} }) } as any, { groupsForProject: jest.fn().mockResolvedValue({ groups: [] }) } as any, router as any, contentIdeas as any);
@@ -112,7 +112,7 @@ describe('AuditReportService keyword and blog ideas', () => {
     const ok = new AuditReportService(prisma as any, counts as any, groups as any, router as any, { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) } as any);
     expect(await ok.generate('p1')).toMatchObject({ analysis: null, ideas });
 
-    const router2 = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok' }), refused: false, model: 'sarvam-105b' }) };
+    const router2 = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok' }), refused: false, model: 'gemini-3.1-flash-lite' }) };
     const failing = new AuditReportService(prisma as any, counts as any, groups as any, router2 as any, {
       forReport: jest.fn().mockResolvedValue({ ideas: null, ideasError: 'Keyword and blog ideas could not be written: x' }),
     } as any);
