@@ -214,18 +214,18 @@ export function KeywordIdeasView() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-surface-2/40 px-4 py-2">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-[11px] font-semibold text-brand-400">Filter type:</span>
-              {[
+              {([
                 { id: "ALL", label: `All (${rows.length})` },
                 { id: "near_me", label: `Near me (${rows.filter((r) => r.kind === "near_me").length})` },
                 { id: "city", label: `Local (${rows.filter((r) => r.kind === "city").length})` },
                 { id: "product", label: `Product (${rows.filter((r) => r.kind === "product").length})` },
                 { id: "question", label: `Question (${rows.filter((r) => r.kind === "question").length})` },
                 { id: "comparison", label: `Comparison (${rows.filter((r) => r.kind === "comparison").length})` },
-              ].map((f) => (
+              ] as const).map((f) => (
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setTypeFilter(f.id as any)}
+                  onClick={() => setTypeFilter(f.id)}
                   className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition ${
                     typeFilter === f.id
                       ? "bg-signal-400 text-signal-ink font-bold shadow-xs"

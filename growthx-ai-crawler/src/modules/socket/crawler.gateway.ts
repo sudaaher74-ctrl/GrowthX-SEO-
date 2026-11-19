@@ -155,12 +155,44 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     return { ok: true };
   }
 
+  @SubscribeMessage('subscribe.project')
+  async subscribeProject(@ConnectedSocket() client: Socket, @MessageBody() body: { projectId?: string }) {
+    const projectId = body?.projectId;
+    if (!this.stillAuthenticated(client) || typeof projectId !== 'string' || !ID_PATTERN.test(projectId)) {
+      return { ok: false };
+    }
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (!project || !(await this.isMember(client.data.userId, project.organizationId))) {
+      return { ok: false };
+    }
+    await client.join(`project:${projectId}`);
+    return { ok: true };
+  }
+
   broadcastProgress(jobId: string, progress: any) {
     this.server?.to(`crawl:${jobId}`).emit(`crawl.progress.${jobId}`, progress);
   }
 
   broadcastComplete(jobId: string, result: any) {
     this.server?.to(`crawl:${jobId}`).emit(`crawl.completed.${jobId}`, result);
+  }
+
+  /** Notifies connected clients in a project room that Fix Engine findings/plans changed. */
+  broadcastFindingsUpdated(
+    projectId: string,
+    payload: {
+      sources: string[];
+      created: number;
+      updated: number;
+      resolved: number;
+      savedPlansResolved?: number;
+      updatedAt: string;
+    },
+  ) {
+    this.server?.to(`project:${projectId}`).emit(`findings.updated.${projectId}`, payload);
   }
 
   /** Streams Aiva voice-agent job progress to a specific session's client. */

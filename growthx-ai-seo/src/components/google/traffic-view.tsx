@@ -669,7 +669,7 @@ function TrafficViewClient() {
       </div>
 
       {/* ── AI REFERRALS CARD & IMPACT LEDGER BEFORE/AFTER ── */}
-      <AiReferralsCard projectId={projectId || ""} range={(`${periodDays}d` as any)} />
+      <AiReferralsCard projectId={projectId || ""} range={`${periodDays}d` as "7d" | "28d" | "90d"} />
 
       {/* ── ROW 1: WHERE TRAFFIC COMES FROM & TOP LANDING PAGES ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

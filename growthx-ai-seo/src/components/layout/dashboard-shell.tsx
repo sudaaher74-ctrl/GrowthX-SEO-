@@ -13,7 +13,7 @@ import { TokenBanner } from "@/components/tokens/token-banner";
 import { ProductTour } from "@/components/tour/product-tour";
 
 import { useTheme } from "@/hooks/use-theme";
-import { useWorkspace } from "@/hooks/use-growthx";
+import { useProjectRealtimeSync, useWorkspace } from "@/hooks/use-growthx";
 import { useSubscription } from "@/lib/subscription-engine";
 import { SubscriptionGateModal } from "@/components/subscription/subscription-gate-modal";
 
@@ -43,9 +43,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // (workspace, audit workflow, tokens) does not apply to it.
   const isAdmin = usePathname().startsWith("/admin");
   const { isDark } = useTheme();
-  const { orgId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
   const { isClaimed } = useSubscription(orgId);
   const [mounted, setMounted] = useState(false);
+
+  useProjectRealtimeSync(projectId, mounted && !isAdmin);
 
   useEffect(() => {
     setMounted(true);

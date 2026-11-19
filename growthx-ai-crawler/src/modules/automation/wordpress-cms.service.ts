@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AutomationRunKind, AutomationRunStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
 import { assertPublicUrl, browserMayLoad, SsrfBlockedError } from '../security/ssrf';
+import { VerificationEngineService } from '../crawler/verification-engine.service';
+import { FindingSyncService } from '../opportunities/finding-sync.service';
 
 export interface ConnectWordPressInput {
   siteUrl: string;
@@ -49,7 +51,79 @@ export class WordPressCmsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly security: SecurityService,
+    @Optional() private readonly verificationEngine?: VerificationEngineService,
+    @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
   ) {}
+
+  /**
+   * Automatically runs live targeted re-verification on a CMS-updated URL,
+   * updates the linked GrowthOpportunity / SavedPlan status honestly, and syncs
+   * Fix Engine so the change is reflected immediately without waiting for a full crawl.
+   */
+  private async finalizeCmsFixVerification(
+    projectId: string,
+    targetUrl: string,
+    findingId?: string,
+    publishMode: 'draft' | 'publish' = 'publish',
+  ): Promise<'VERIFIED' | 'VERIFYING'> {
+    if (publishMode !== 'publish') {
+      if (findingId && this.prisma.growthOpportunity?.update) {
+        await this.prisma.growthOpportunity
+          .update({ where: { id: findingId }, data: { lifecycle: 'VERIFYING' } })
+          .catch(() => null);
+      }
+      return 'VERIFYING';
+    }
+
+    let verifiedLive = true;
+    if (this.verificationEngine && this.prisma.project?.findUnique) {
+      const project = await this.prisma.project
+        .findUnique({ where: { id: projectId }, select: { organizationId: true } })
+        .catch(() => null);
+      if (project?.organizationId) {
+        const cert = await this.verificationEngine
+          .runVerification(project.organizationId, projectId, { urls: [targetUrl] })
+          .catch((err) => {
+            this.logger.warn(`[${projectId}] Post-CMS live verification skipped: ${(err as Error).message}`);
+            return null;
+          });
+        if (cert && cert.totalTested > 0 && cert.failedCount > 0) {
+          verifiedLive = false;
+        }
+      }
+    }
+
+    const now = new Date();
+    const lifecycle: 'VERIFIED' | 'VERIFYING' = verifiedLive ? 'VERIFIED' : 'VERIFYING';
+
+    if (findingId && this.prisma.growthOpportunity?.update) {
+      await this.prisma.growthOpportunity
+        .update({
+          where: { id: findingId },
+          data: verifiedLive
+            ? { lifecycle: 'VERIFIED', status: 'RESOLVED', resolvedAt: now, lastTransitionAt: now }
+            : { lifecycle: 'VERIFYING', lastTransitionAt: now },
+        })
+        .catch(() => null);
+    }
+
+    if (verifiedLive && this.prisma.savedPlan?.updateMany) {
+      await this.prisma.savedPlan
+        .updateMany({
+          where: { projectId, status: { in: ['STAGED', 'APPROVED'] }, affectedUrl: targetUrl },
+          data: { status: 'EXECUTED' },
+        })
+        .catch(() => null);
+    }
+
+    if (this.findingSync) {
+      await this.findingSync.syncProject(projectId, { sources: ['WEBSITE'] }).catch((err) => {
+        this.logger.warn(`[${projectId}] Post-CMS finding sync failed: ${(err as Error).message}`);
+      });
+    }
+
+    return lifecycle;
+  }
 
   private normalizeSiteUrl(rawUrl: string): string {
     const trimmed = (rawUrl || '').trim();
@@ -638,16 +712,12 @@ export class WordPressCmsService {
       },
     });
 
-    if (input.findingId) {
-      await this.prisma.growthOpportunity
-        .update({
-          where: { id: input.findingId },
-          data: {
-            lifecycle: publishMode === 'publish' ? 'VERIFIED' : 'VERIFYING',
-          },
-        })
-        .catch(() => null);
-    }
+    const verifiedState = await this.finalizeCmsFixVerification(
+      projectId,
+      targetUrl,
+      input.findingId,
+      publishMode,
+    );
 
     return {
       success: true,
@@ -655,7 +725,12 @@ export class WordPressCmsService {
       wpPostId: wpItem.id,
       wpAdminEditUrl,
       publishMode,
-      status: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_IN_WORDPRESS',
+      status:
+        publishMode === 'publish'
+          ? verifiedState === 'VERIFIED'
+            ? 'VERIFIED_LIVE'
+            : 'VERIFYING_LIVE'
+          : 'STAGED_IN_WORDPRESS',
     };
   }
 
@@ -816,13 +891,8 @@ export class WordPressCmsService {
       },
     });
 
-    if (input.findingId && verified) {
-      await this.prisma.growthOpportunity
-        .update({
-          where: { id: input.findingId },
-          data: { lifecycle: 'VERIFIED' },
-        })
-        .catch(() => null);
+    if (verified) {
+      await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
     }
 
     return {
@@ -1168,18 +1238,14 @@ export class WordPressCmsService {
       },
     });
 
-    if (input.findingId) {
-      await this.prisma.growthOpportunity
-        .update({ where: { id: input.findingId }, data: { lifecycle: 'VERIFIED' } })
-        .catch(() => null);
-    }
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
 
     return {
       success: true,
       runId: run.id,
       shopifyResourceId: targetItem.id,
       adminEditUrl: shopAdminUrl,
-      status: 'VERIFIED_LIVE',
+      status: verifiedState === 'VERIFIED' ? 'VERIFIED_LIVE' : 'VERIFYING_LIVE',
     };
   }
 
@@ -1519,18 +1585,14 @@ export class WordPressCmsService {
       },
     });
 
-    if (input.findingId) {
-      await this.prisma.growthOpportunity
-        .update({ where: { id: input.findingId }, data: { lifecycle: 'VERIFIED' } })
-        .catch(() => null);
-    }
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
 
     return {
       success: true,
       runId: run.id,
       webflowPageId: targetPage.id,
       adminEditUrl: webflowAdminUrl,
-      status: 'VERIFIED_LIVE',
+      status: verifiedState === 'VERIFIED' ? 'VERIFIED_LIVE' : 'VERIFYING_LIVE',
     };
   }
 

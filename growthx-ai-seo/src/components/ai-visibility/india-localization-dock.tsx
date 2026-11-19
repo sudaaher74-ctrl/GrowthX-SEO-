@@ -70,8 +70,9 @@ export function IndiaLocalizationDock({ projectId }: IndiaLocalizationDockProps)
       setToastMessage("India localization & language preferences updated.");
       setTimeout(() => setToastMessage(null), 4000);
     },
-    onError: (err: any) => {
-      setToastMessage(`Error: ${err?.message || "Failed to update settings"}`);
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to update settings";
+      setToastMessage(`Error: ${msg}`);
       setTimeout(() => setToastMessage(null), 5000);
     },
   });

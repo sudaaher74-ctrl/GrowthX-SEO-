@@ -212,7 +212,7 @@ export function WordPressConnectModal({
                 </label>
                 <select
                   value={seoPlugin}
-                  onChange={(e) => setSeoPlugin(e.target.value as any)}
+                  onChange={(e) => setSeoPlugin(e.target.value as "" | "yoast" | "rankmath" | "aioseo" | "core")}
                   className="w-full rounded-xl border border-brand-200/80 bg-surface-2 px-2.5 py-1.5 text-xs text-brand-950 focus:outline-none focus:border-signal-400"
                 >
                   <option value="">Auto-detect</option>

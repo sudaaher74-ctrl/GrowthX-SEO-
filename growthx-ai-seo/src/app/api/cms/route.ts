@@ -24,7 +24,7 @@ function encryptCmsVault(payload: Record<string, unknown>): string {
   return `${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
 }
 
-function decryptCmsVault<T = Record<string, any>>(token: string): T {
+function decryptCmsVault<T = Record<string, unknown>>(token: string): T {
   const parts = String(token || "").split(".");
   if (parts.length !== 3) {
     throw new Error("Reconnect your CMS platform in Settings to refresh credentials.");
@@ -161,8 +161,8 @@ async function assertPublicOutboundUrl(rawUrl: string): Promise<URL> {
     if (records.some((r) => isPrivateIpAddress(r.address))) {
       throw new Error(`Refusing to connect to an internal or reserved address for ${host}`);
     }
-  } catch (err: any) {
-    if (err?.message?.startsWith("Refusing to connect")) {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.startsWith("Refusing to connect")) {
       throw err;
     }
   }
@@ -516,8 +516,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const payload: Record<string, any> = {};
-      const meta: Record<string, any> = {};
+      const payload: Record<string, unknown> = {};
+      const meta: Record<string, string> = {};
       const plugin = creds.seoPlugin || "core";
 
       if (field === "META_TITLE") {
@@ -618,7 +618,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      const listData = (await listRes.json()) as Record<string, any[]>;
+      const listData = (await listRes.json()) as Record<string, Array<{ id?: number | string; body_html?: string }>>;
       const items = listData[resourceKind] || listData.pages || [];
       if (!items.length) {
         return NextResponse.json(
@@ -630,7 +630,7 @@ export async function POST(req: NextRequest) {
       const item = items[0];
       const resourceId = Number(item.id);
       const singular = isProduct ? "product" : "page";
-      const updatePayload: Record<string, any> = { id: resourceId };
+      const updatePayload: Record<string, unknown> = { id: resourceId };
 
       if (field === "META_TITLE") {
         updatePayload.metafields_global_title_tag = afterValue;
@@ -714,7 +714,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const updateBody: Record<string, any> = {
+      const updateBody: { title?: string; seo: Record<string, unknown> } = {
         title: matched.title,
         seo: { ...(matched.seo || {}) },
       };
@@ -830,9 +830,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ message: "Unsupported CMS action." }, { status: 400 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { message: err?.message || "CMS request failed." },
+      { message: err instanceof Error ? err.message : "CMS request failed." },
       { status: 400 },
     );
   }

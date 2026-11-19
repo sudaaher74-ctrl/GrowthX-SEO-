@@ -1,11 +1,14 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters, type UpdateWhiteLabelInput } from "@/lib/api-client";
+import { io, type Socket } from "socket.io-client";
+import { api, ApiError, auth, getApiBase, type Role, type ProgrammaticMatrixResponse, type IssueGroupFilters, type UpdateWhiteLabelInput } from "@/lib/api-client";
+import { stagingEngine } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
 const periodListeners = new Set<() => void>();
+const bootstrappedFindingsSync = new Set<string>();
 
 /**
  * The 7d / 28d / 90d window, shared by every query that has one.
@@ -534,13 +537,33 @@ export function useFindings(
       filters.cursor ?? null,
     ],
     queryFn: async () => {
-      // Findings are a materialized view of the audit and the other detector
-      // sources. Reconcile before reading so a completed audit cannot show 14
-      // problems on Website Audit and an empty Fix Engine until the nightly
-      // scheduler happens to run.
-      const sync = await api.syncFindings(projectId!).catch(() => ({ created: 0, updated: 0, resolved: 0, warnings: ["Latest findings could not be refreshed. Showing saved detector findings only."] }));
-      const first = await api.findings(projectId!, filters);
-      if (filters.cursor) return { ...first, warnings: sync.warnings ?? [] };
+      // Backend workers auto-sync findings when crawls, competitor runs, AI
+      // visibility journeys, backlinks, and Search Console reports complete.
+      // Reading directly keeps Fix Engine loads fast and avoids redundant
+      // TrafficAdapter runs; only bootstrap once if a project has no findings yet.
+      let first = await api.findings(projectId!, filters);
+      let warnings: string[] = [];
+      const isUnfilteredDefault =
+        !filters.cursor &&
+        !filters.status &&
+        !filters.lifecycle &&
+        !filters.source &&
+        !filters.fixClass &&
+        !filters.category;
+      if (isUnfilteredDefault && first.items.length === 0 && !bootstrappedFindingsSync.has(projectId!)) {
+        bootstrappedFindingsSync.add(projectId!);
+        const sync = await api.syncFindings(projectId!).catch(() => ({
+          created: 0,
+          updated: 0,
+          resolved: 0,
+          warnings: ["Latest findings could not be refreshed. Showing saved detector findings only."],
+        }));
+        warnings = sync.warnings ?? [];
+        if (sync.created > 0 || sync.updated > 0) {
+          first = await api.findings(projectId!, filters);
+        }
+      }
+      if (filters.cursor) return { ...first, warnings };
       const items = [...first.items];
       const seen = new Set<string>();
       let cursor = first.nextCursor;
@@ -551,7 +574,7 @@ export function useFindings(
         items.push(...page.items);
         cursor = page.nextCursor;
       }
-      return { ...first, items, nextCursor: null, warnings: sync.warnings ?? [] };
+      return { ...first, items, nextCursor: null, warnings };
     },
     enabled: Boolean(projectId),
     retry: false,
@@ -580,6 +603,48 @@ export function useTransitionFinding(projectId: string | null) {
       qc.invalidateQueries({ queryKey: ["issue-counts", projectId] });
     },
   });
+}
+
+/**
+ * Subscribes to the backend WebSocket room for the active project so Fix Engine
+ * and audit views refresh live the moment any background crawl, competitor scan,
+ * AI visibility journey, backlink discovery, or live verification finishes.
+ */
+export function useProjectRealtimeSync(projectId: string | null, enabled = true) {
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!enabled || !projectId || !auth.isAuthenticated()) return;
+
+    const socketUrl = getApiBase();
+    const socket: Socket = io(socketUrl, {
+      withCredentials: true,
+      transports: ["websocket"],
+    });
+
+    const subscribe = () => {
+      socket.emit("subscribe.project", { projectId });
+    };
+
+    const handleFindingsUpdated = () => {
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["findings", projectId] }),
+        qc.invalidateQueries({ queryKey: ["saved-plans", projectId] }),
+        qc.invalidateQueries({ queryKey: ["issue-groups", projectId] }),
+        qc.invalidateQueries({ queryKey: ["issue-counts", projectId] }),
+      ]);
+      void stagingEngine.sync(projectId);
+    };
+
+    socket.on("connect", subscribe);
+    socket.on(`findings.updated.${projectId}`, handleFindingsUpdated);
+
+    return () => {
+      socket.off("connect", subscribe);
+      socket.off(`findings.updated.${projectId}`, handleFindingsUpdated);
+      socket.disconnect();
+    };
+  }, [projectId, enabled, qc]);
 }
 
 

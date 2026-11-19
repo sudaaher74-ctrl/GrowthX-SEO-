@@ -48,8 +48,8 @@ export class OpportunityDetectionService {
    * Detectors are independent: failure of an external integration (e.g. GSC/GA4) never
    * blocks site audit, on-page, local, content, or business detectors.
    */
-  async detect(organizationId: string, projectId: string) {
-    const detectors: { name: string; run: () => Promise<Detected[]> }[] = [
+  async detect(organizationId: string, projectId: string, options?: { excludeTraffic?: boolean }) {
+    const allDetectors: { name: string; isTraffic?: boolean; run: () => Promise<Detected[]> }[] = [
       { name: 'competitor-gap-with-demand', run: () => this.competitorGapsWithSearchDemand(projectId) },
       { name: 'technical-crawl-issues', run: () => this.technicalCrawlIssues(projectId) },
       { name: 'onpage-seo-gaps', run: () => this.onpageSeoGaps(projectId) },
@@ -60,9 +60,12 @@ export class OpportunityDetectionService {
       { name: 'striking-distance', run: () => this.strikingDistance(projectId) },
       { name: 'ctr-shortfall', run: () => this.ctrShortfall(projectId) },
       { name: 'declining-queries', run: () => this.decliningQueries(projectId) },
-      { name: 'high-value-pages', run: () => this.highValuePages(projectId) },
-      { name: 'traffic-without-conversion', run: () => this.trafficWithoutConversion(projectId) },
+      { name: 'high-value-pages', isTraffic: true, run: () => this.highValuePages(projectId) },
+      { name: 'traffic-without-conversion', isTraffic: true, run: () => this.trafficWithoutConversion(projectId) },
     ];
+    const detectors = options?.excludeTraffic
+      ? allDetectors.filter((d) => !d.isTraffic)
+      : allDetectors;
 
     const found: Detected[] = [];
     const failed: string[] = [];

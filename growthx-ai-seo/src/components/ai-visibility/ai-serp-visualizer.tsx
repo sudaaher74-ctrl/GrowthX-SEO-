@@ -156,7 +156,7 @@ export function AiSerpVisualizer({
 
     // Signal 3: Knowledge Graph Entity Verification (max 15 pts)
     // If brand has established domain
-    let entityPoints = domain ? 15 : 5;
+    const entityPoints = domain ? 15 : 5;
     score += entityPoints;
 
     // Signal 4: Rival Monopoly Penalty (-15 pts if rivals are cited without brand)

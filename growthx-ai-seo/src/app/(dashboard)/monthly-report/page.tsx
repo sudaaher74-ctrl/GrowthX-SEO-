@@ -400,22 +400,22 @@ export default function MonthlyReport() {
     () =>
       dailyRows(
         month,
-        searchRows as GscPoint[],
+        rowsFor(search.data ?? [], month) as GscPoint[],
         (r) => r.clicks,
         (r) => r.impressions,
       ),
-    [month, searchRows],
+    [month, search.data],
   );
 
   const ga4Daily = useMemo(
     () =>
       dailyRows(
         month,
-        trafficRows as Ga4Point[],
+        rowsFor(traffic.data ?? [], month) as Ga4Point[],
         (r) => r.sessions,
         (r) => r.users,
       ),
-    [month, trafficRows],
+    [month, traffic.data],
   );
 
   return (
@@ -737,19 +737,19 @@ export default function MonthlyReport() {
 
           {/* Navigation Sub-Pills */}
           <div className="no-print flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-surface-1 p-1.5 shadow-2xs">
-            {[
+            {([
               { id: "ALL", label: "Full Report" },
               { id: "TRAFFIC", label: "Search & Visitors" },
               { id: "AI", label: "AI Answer Visibility" },
               { id: "FIXES", label: "What Changed This Month" },
               { id: "AUDIT", label: "Audit & Competitors" },
-            ].map((tab) => {
+            ] as const).map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
                     isActive

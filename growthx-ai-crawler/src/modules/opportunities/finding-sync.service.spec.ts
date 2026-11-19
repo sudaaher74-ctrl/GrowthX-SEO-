@@ -298,4 +298,80 @@ describe('FindingSyncService', () => {
     expect(mockBacklinksAdapter.collect).toHaveBeenCalledWith('proj-1');
     expect(mockTrafficAdapter.collect).not.toHaveBeenCalled();
   });
+
+  it('reconciles stale SavedPlan items, runs post-crawl opportunity detection excluding traffic, and broadcasts WebSocket updates', async () => {
+    let crawlHandler: ((jobId: string, websiteId: string) => Promise<void>) | undefined;
+    const mockCrawler = { onCrawlCompleted: jest.fn((h) => { crawlHandler = h; }) };
+    const mockDetection = { detect: jest.fn().mockResolvedValue({ detected: 2, failedDetectors: [] }) };
+    const mockGateway = { broadcastFindingsUpdated: jest.fn() };
+
+    mockPrisma.website = {
+      findUnique: jest.fn().mockResolvedValue({
+        projectId: 'proj-1',
+        scope: 'OWN',
+        project: { organizationId: 'org-1' },
+      }),
+    };
+    mockPrisma.savedPlan = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'plan-1',
+          source: 'TECHNICAL_AUDIT',
+          title: 'Missing H1 heading',
+          affectedUrl: 'https://example.com/about',
+        },
+        {
+          id: 'plan-keep',
+          source: 'TECHNICAL_AUDIT',
+          title: 'Still broken page',
+          affectedUrl: 'https://example.com/still-broken',
+        },
+      ]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    };
+
+    mockWebsiteAdapter.collect.mockResolvedValue([]);
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([
+      {
+        id: 'opp-fixed',
+        fingerprint: 'audit::MISSING_H1',
+        source: 'WEBSITE',
+        title: 'Missing H1 heading',
+        affectedPages: ['https://example.com/about'],
+        status: 'OPEN',
+        lifecycle: FindingLifecycle.QUEUED,
+        transitions: [],
+      },
+    ]);
+
+    const wired = new FindingSyncService(
+      mockPrisma,
+      mockWebsiteAdapter,
+      mockCompetitorAdapter,
+      mockAiVisAdapter,
+      mockBacklinksAdapter,
+      mockTrafficAdapter,
+      mockCrawler as any,
+      undefined,
+      mockDetection as any,
+      mockGateway as any,
+    );
+    wired.onModuleInit();
+
+    await crawlHandler!('job-9', 'site-own');
+
+    expect(mockPrisma.savedPlan.updateMany).toHaveBeenCalledWith({
+      where: { projectId: 'proj-1', id: { in: ['plan-1'] } },
+      data: { status: 'EXECUTED' },
+    });
+    expect(mockDetection.detect).toHaveBeenCalledWith('org-1', 'proj-1', { excludeTraffic: true });
+    expect(mockGateway.broadcastFindingsUpdated).toHaveBeenCalledWith(
+      'proj-1',
+      expect.objectContaining({
+        sources: ['WEBSITE'],
+        resolved: 1,
+        savedPlansResolved: 1,
+      }),
+    );
+  });
 });

@@ -663,16 +663,16 @@ export function KeywordsView() {
               {tab === "top" ? (
                 <>
                   <span className="mr-1 text-[11px] font-semibold text-brand-400">Position:</span>
-                  {[
+                  {([
                     { id: "ALL", label: `All (${totalKeywords})` },
                     { id: "PAGE_1", label: `Page 1: #1–#10 (${page1Count})` },
                     { id: "PAGE_2", label: `Striking: #11–#20 (${page2Count})` },
                     { id: "PAGE_3_PLUS", label: `Page 3+: #21+ (${page3Count})` },
-                  ].map((p) => (
+                  ] as const).map((p) => (
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => setPositionRange(p.id as any)}
+                      onClick={() => setPositionRange(p.id)}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
                         positionRange === p.id
                           ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
@@ -697,7 +697,7 @@ export function KeywordsView() {
               <span className="text-[11px] font-semibold text-brand-400">Sort by:</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => setSortBy(e.target.value as "clicks" | "impressions" | "position" | "ctr")}
                 className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 outline-none focus:border-brand-400 cursor-pointer"
               >
                 <option value="clicks">Clicks (Highest first)</option>
@@ -711,16 +711,16 @@ export function KeywordsView() {
           {tab === "top" && (
             <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-200/60 pt-2">
               <span className="mr-1 text-[11px] font-semibold text-brand-400">Search Intent:</span>
-              {[
+              {([
                 { id: "ALL", label: `All Intents (${totalKeywords})` },
                 { id: "transactional", label: `Transactional (${transactionalCount})` },
                 { id: "commercial", label: `Commercial (${commercialCount})` },
                 { id: "informational", label: `Informational (${informationalCount})` },
-              ].map((item) => (
+              ] as const).map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setIntentFilter(item.id as any)}
+                  onClick={() => setIntentFilter(item.id)}
                   className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold transition cursor-pointer ${
                     intentFilter === item.id
                       ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
@@ -1051,7 +1051,7 @@ export function KeywordsView() {
                 <SearchRowsTable
                   rows={filteredDecliningRows}
                   label="Query"
-                  extra={[{ header: "Position before", cell: (r) => position((r as any).previousPosition) }]}
+                  extra={[{ header: "Position before", cell: (r) => position((r as { previousPosition?: number | null }).previousPosition ?? null) }]}
                 />
               )
             }

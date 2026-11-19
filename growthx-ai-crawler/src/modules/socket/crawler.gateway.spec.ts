@@ -112,4 +112,32 @@ describe('CrawlerGateway', () => {
     expect(to).toHaveBeenCalledWith('crawl:job-1');
     expect((gateway.server as any).emit).not.toHaveBeenCalled();
   });
+
+  it('authorizes project room subscriptions and emits findings updates only to that project room', async () => {
+    const s = fakeSocket({});
+    s.data.userId = 'u1';
+    prisma.project.findUnique.mockResolvedValue({ organizationId: 'orgA' });
+    prisma.organizationMember.findUnique.mockResolvedValueOnce(null);
+    expect(await gateway.subscribeProject(s, { projectId: 'proj-12345678' })).toEqual({ ok: false });
+
+    prisma.organizationMember.findUnique.mockResolvedValueOnce({ id: 'm1' });
+    expect(await gateway.subscribeProject(s, { projectId: 'proj-12345678' })).toEqual({ ok: true });
+    expect(s.join).toHaveBeenCalledWith('project:proj-12345678');
+
+    const emit = jest.fn();
+    const to = jest.fn().mockReturnValue({ emit });
+    gateway.server = { to, emit: jest.fn() } as any;
+    gateway.broadcastFindingsUpdated('proj-12345678', {
+      sources: ['WEBSITE'],
+      created: 1,
+      updated: 0,
+      resolved: 2,
+      updatedAt: '2026-11-19T00:00:00.000Z',
+    });
+    expect(to).toHaveBeenCalledWith('project:proj-12345678');
+    expect(emit).toHaveBeenCalledWith(
+      'findings.updated.proj-12345678',
+      expect.objectContaining({ sources: ['WEBSITE'], created: 1, resolved: 2 }),
+    );
+  });
 });

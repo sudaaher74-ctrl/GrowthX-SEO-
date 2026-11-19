@@ -186,7 +186,7 @@ export function CompetitorLinkGap({
       }
       return true;
     });
-  }, [data?.items, overlapOnly, competitorFilter, search]);
+  }, [data, overlapOnly, competitorFilter, search]);
 
   return (
     <div className="space-y-5">

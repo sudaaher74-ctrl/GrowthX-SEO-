@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowRight, GitPullRequest, History, ShieldCheck, TrendingUp, Wrench, Zap } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -11,7 +11,7 @@ import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-vie
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub";
 import { api } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { stagingEngine } from "@/lib/staging-engine";
 
 const TABS = [
   { id: "improvement", label: "Improvement Plan", icon: Wrench },
@@ -49,6 +49,12 @@ function FixEngineClient() {
 
   const { projectId } = useWorkspace();
   const activeProjectId = projectId ?? "";
+
+  useEffect(() => {
+    if (activeProjectId) {
+      void stagingEngine.sync(activeProjectId);
+    }
+  }, [activeProjectId]);
 
   const findings = useFindings(activeProjectId, { limit: 100 });
   const savedPlans = useQuery({

@@ -59,8 +59,9 @@ export function GscSuggestedPromptsSection({
       if (onPromptAdded) onPromptAdded();
       setTimeout(() => setToastMessage(null), 4000);
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.message || "Failed to add prompt";
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || "Failed to add prompt";
       setToastMessage(`Error: ${msg}`);
       setTimeout(() => setToastMessage(null), 5000);
     },

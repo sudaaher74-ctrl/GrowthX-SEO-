@@ -1,10 +1,13 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { FindingLifecycle } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { GitService } from '../autonomous-engineer/agents/git/git.service';
 import { SecurityService } from '../security/security.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { VerificationEngineService } from '../crawler/verification-engine.service';
+import { FindingSyncService } from '../opportunities/finding-sync.service';
 import { OWN_SCOPE } from '../crawler/website-scope';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
@@ -77,6 +80,8 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     private readonly security: SecurityService,
     @Optional() private readonly aiRouter?: MultiAiRouterService,
     @Optional() private readonly fetcher?: FetcherService,
+    @Optional() private readonly verificationEngine?: VerificationEngineService,
+    @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
   ) {}
 
   onModuleInit(): void {
@@ -781,6 +786,15 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       results.push({ url, field: targetField, verificationStatus: 'VERIFIED', liveValue: proof, message: 'The expected change is confirmed on the live page.' });
     }
 
+    const verifiedUrls = Array.from(
+      new Set(results.filter((r) => r.verificationStatus === 'VERIFIED').map((r) => r.url).filter(Boolean)),
+    );
+    if (verifiedUrls.length > 0) {
+      await this.closeVerifiedFixLoop(projectId, changes, verifiedUrls).catch((err) => {
+        this.logger.warn(`[${projectId}] Post-merge verification loop update failed: ${(err as Error).message}`);
+      });
+    }
+
     const allVerified = results.length > 0 && results.every((result) => result.verificationStatus === 'VERIFIED');
     const incomplete = results.find((result) => result.verificationStatus === 'NOT_CHECKED')
       || results.find((result) => result.verificationStatus === 'UNSUPPORTED')
@@ -794,6 +808,106 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
         ? `Verified all ${results.length} changed page${results.length === 1 ? '' : 's'} live after merge.`
         : incomplete?.message || 'No changes could be checked.',
     };
+  }
+
+  /**
+   * Closes the post-merge verification loop: marks verified issues/opportunities as
+   * VERIFIED/RESOLVED, runs targeted VerificationEngine certification on the changed URLs,
+   * reconciles staged plans, and notifies Fix Engine via FindingSyncService.
+   */
+  private async closeVerifiedFixLoop(
+    projectId: string,
+    changes: any[],
+    verifiedUrls: string[],
+  ): Promise<void> {
+    const verifiedUrlSet = new Set(verifiedUrls);
+    const verifiedIssueIds = Array.from(
+      new Set(
+        changes
+          .filter((c) => verifiedUrlSet.has(c?.url) && typeof c?.issueId === 'string' && c.issueId.trim())
+          .map((c) => String(c.issueId).trim()),
+      ),
+    );
+    const now = new Date();
+
+    if (verifiedIssueIds.length > 0 && this.prisma.issue?.updateMany) {
+      await this.prisma.issue
+        .updateMany({
+          where: {
+            id: { in: verifiedIssueIds },
+            crawlJob: { website: { projectId } },
+            status: 'OPEN',
+          },
+          data: { status: 'RESOLVED' },
+        })
+        .catch(() => null);
+    }
+
+    if (this.prisma.growthOpportunity?.updateMany) {
+      const matchClauses: any[] = [{ affectedPages: { hasSome: verifiedUrls } }];
+      if (verifiedIssueIds.length > 0) {
+        matchClauses.push({ id: { in: verifiedIssueIds } });
+      }
+      await this.prisma.growthOpportunity
+        .updateMany({
+          where: {
+            projectId,
+            status: 'OPEN',
+            lifecycle: {
+              in: [
+                FindingLifecycle.DETECTED,
+                FindingLifecycle.QUEUED,
+                FindingLifecycle.APPROVED,
+                FindingLifecycle.APPLYING,
+                FindingLifecycle.VERIFYING,
+              ],
+            },
+            OR: matchClauses,
+          },
+          data: {
+            status: 'RESOLVED',
+            lifecycle: FindingLifecycle.VERIFIED,
+            resolvedAt: now,
+            lastTransitionAt: now,
+          },
+        })
+        .catch(() => null);
+    }
+
+    if (this.prisma.savedPlan?.updateMany) {
+      await this.prisma.savedPlan
+        .updateMany({
+          where: {
+            projectId,
+            status: { in: ['STAGED', 'APPROVED'] },
+            affectedUrl: { in: verifiedUrls },
+          },
+          data: { status: 'EXECUTED' },
+        })
+        .catch(() => null);
+    }
+
+    if (this.verificationEngine && this.prisma.project?.findUnique) {
+      const project = await this.prisma.project
+        .findUnique({ where: { id: projectId }, select: { organizationId: true } })
+        .catch(() => null);
+      if (project?.organizationId) {
+        await this.verificationEngine
+          .runVerification(project.organizationId, projectId, {
+            issueIds: verifiedIssueIds.length > 0 ? verifiedIssueIds : undefined,
+            urls: verifiedUrls,
+          })
+          .catch((err) => {
+            this.logger.warn(`[${projectId}] Targeted live verification certificate skipped: ${(err as Error).message}`);
+          });
+      }
+    }
+
+    if (this.findingSync) {
+      await this.findingSync.syncProject(projectId, { sources: ['WEBSITE'] }).catch((err) => {
+        this.logger.warn(`[${projectId}] Post-verification finding sync failed: ${(err as Error).message}`);
+      });
+    }
   }
 
   /**

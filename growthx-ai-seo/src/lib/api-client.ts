@@ -1129,7 +1129,7 @@ export const api = {
     projectId: string,
     prompts: { text: string; category?: string; journeyStage?: string; sourceQuery?: string }[],
   ) =>
-    post<{ added: number; prompts: any[] }>(`/api/projects/${projectId}/ai-visibility/prompts/from-suggestions`, { prompts }),
+    post<{ added: number; prompts: TrackedPromptRow[] }>(`/api/projects/${projectId}/ai-visibility/prompts/from-suggestions`, { prompts }),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string; sourceQuery?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   getQuestionAnalysis: (projectId: string) =>

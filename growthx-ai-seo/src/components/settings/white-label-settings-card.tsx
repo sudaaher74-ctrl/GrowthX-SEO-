@@ -59,8 +59,8 @@ export function WhiteLabelSettingsCard({ onNavigateSubscription }: { onNavigateS
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save white-label settings.");
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to save white-label settings.");
     }
   };
 
@@ -106,7 +106,7 @@ export function WhiteLabelSettingsCard({ onNavigateSubscription }: { onNavigateS
               <span>Agency White-Label Branding</span>
             </h2>
             <p className="text-xs text-brand-500 dark:text-brand-400 mt-0.5">
-              Customize client-facing reports (Monthly SEO Report and Competitor Intel PDF) with your agency's branding.
+              Customize client-facing reports (Monthly SEO Report and Competitor Intel PDF) with your agency&apos;s branding.
             </p>
           </div>
 
@@ -141,7 +141,7 @@ export function WhiteLabelSettingsCard({ onNavigateSubscription }: { onNavigateS
               Agency / Organization Name
             </label>
             <p className="text-[11px] text-brand-500 mb-1.5">
-              Replaces "GrowthX / Reigel AI" on executive report headers.
+              Replaces &quot;GrowthX / Reigel AI&quot; on executive report headers.
             </p>
             <input
               type="text"

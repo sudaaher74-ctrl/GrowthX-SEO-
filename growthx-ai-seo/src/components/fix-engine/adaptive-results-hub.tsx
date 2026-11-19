@@ -83,6 +83,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
   const { projectId } = useWorkspace();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ResultsFilterTab>(initialFilter);
+  const [nowMs] = useState(() => Date.now());
   const [viewMode, setViewMode] = useState<"CARDS" | "TABLE">("TABLE");
   const [actionBanner, setActionBanner] = useState<{ tone: "good" | "warn" | "bad"; text: string } | null>(null);
   const [targetPlanBCard, setTargetPlanBCard] = useState<ProofOfImpactCard | null>(null);
@@ -346,7 +347,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 {filteredCards.map((card) => {
                   const verifiedDate = card.after?.verifiedAt ? new Date(card.after.verifiedAt) : null;
                   const daysObserved = verifiedDate
-                    ? Math.max(1, Math.floor((Date.now() - verifiedDate.getTime()) / 86400000))
+                    ? Math.max(1, Math.floor((nowMs - verifiedDate.getTime()) / 86400000))
                     : 1;
 
                   return (
@@ -444,7 +445,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
             const isFlat = card.liftStatus === "FLAT";
             const verifiedDate = card.after?.verifiedAt ? new Date(card.after.verifiedAt) : null;
             const daysObserved = verifiedDate
-              ? Math.max(1, Math.floor((Date.now() - verifiedDate.getTime()) / 86400000))
+              ? Math.max(1, Math.floor((nowMs - verifiedDate.getTime()) / 86400000))
               : 1;
             const isExpanded = expandedCardId === card.runId;
 
