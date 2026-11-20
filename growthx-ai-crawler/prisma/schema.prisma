@@ -569,6 +569,9 @@ model Project {
   aiVisibilitySettings      AiVisibilitySettings?
   aiVisibilityJourneys      AiVisibilityJourney[]
   automationSettings        ProjectAutomationSettings?
+  webhookConfig             ProjectWebhookConfig?
+  webhookDeliveryLogs       WebhookDeliveryLog[]
+  backlinkOutreachItems     BacklinkOutreachItem[]
 
   @@index([organizationId])
 }
@@ -4612,4 +4615,67 @@ model ProjectAutomationSettings {
   project             Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([crawlFrequency])
+}
+
+model ProjectWebhookConfig {
+  id          String   @id @default(uuid())
+  projectId   String   @unique
+  enabled     Boolean  @default(true)
+  slackUrl    String?
+  discordUrl  String?
+  restUrl     String?
+  /// Encrypted HMAC-SHA256 signing secret for REST webhook deliveries
+  secretToken String?
+  /// Subscribed event flags: healthDrop, regressionDetected, crawlCompleted, fixRolledBack, monthlyReportLocked
+  events      Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WebhookDeliveryLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  /// SLACK | DISCORD | REST
+  channel    String
+  event      String
+  targetHost String
+  /// SUCCESS | FAILED
+  status     String
+  statusCode Int?
+  latencyMs  Int      @default(0)
+  summary    String
+  error      String?
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+model BacklinkOutreachItem {
+  id              String    @id @default(uuid())
+  projectId       String
+  /// LOST_LINK_RECOVERY | COMPETITOR_GAP
+  kind            String    @default("LOST_LINK_RECOVERY")
+  sourceUrl       String
+  sourceDomain    String
+  targetUrl       String?
+  contactEmail    String?
+  /// IDENTIFIED | DRAFTED | CONTACTED | RECOVERED | DISMISSED
+  status          String    @default("IDENTIFIED")
+  subject         String?
+  emailDraft      String?
+  notes           String?
+  lastContactedAt DateTime?
+  recoveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, sourceUrl])
+  @@index([projectId, status])
 }

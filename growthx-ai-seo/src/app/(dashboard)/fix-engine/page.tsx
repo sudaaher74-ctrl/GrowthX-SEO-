@@ -48,6 +48,16 @@ function FixEngineClient() {
           ? "github-fixes"
           : "improvement";
   const findingId = searchParams.get("findingId");
+  const urlContentQuery = searchParams.get("query");
+  const urlContentTopic = searchParams.get("topic");
+  const urlContentKind = searchParams.get("kind") as
+    | "ARTICLE"
+    | "BRIEF"
+    | "FAQ"
+    | "LANDING_PAGE_OUTLINE"
+    | "SCHEMA_MARKUP"
+    | "GBP_POST"
+    | null;
   const [statusMessage] = useState<string | null>(null);
   const [preparedTask, setPreparedTask] = useState<{ projectId: string; instruction: string; revision: number } | null>(null);
   const [contentSeedFinding, setContentSeedFinding] = useState<GrowthOpportunity | null>(null);
@@ -231,6 +241,9 @@ function FixEngineClient() {
         <ContentStudioView
           key={activeProjectId}
           initialFinding={contentSeedFinding}
+          initialQuery={urlContentQuery}
+          initialTopic={urlContentTopic}
+          initialKind={urlContentKind}
           onClearInitialFinding={() => setContentSeedFinding(null)}
         />
       ) : (

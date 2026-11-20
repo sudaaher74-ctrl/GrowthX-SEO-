@@ -4,12 +4,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { scheduledJobsEnabled } from '../scheduler/scheduler.module';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import {
   MonthlyReportPayload,
   WhiteLabelMeta,
@@ -42,7 +44,10 @@ function hostOfUrl(raw: string): string {
 export class MonthlyReportsService {
   private readonly logger = new Logger(MonthlyReportsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
+  ) {}
 
   private assertMonth(month: string): string {
     const trimmed = (month ?? '').trim();
@@ -235,6 +240,13 @@ export class MonthlyReportsService {
         lockedAt: now,
       },
     });
+
+    void this.webhooks?.dispatchProjectEvent(
+      projectId,
+      'monthlyReportLocked',
+      `Monthly SEO Report frozen for ${mergedPayload.domain} (${mergedPayload.monthLabel})`,
+      { month, domain: mergedPayload.domain, lockedAt: now.toISOString() },
+    );
 
     return {
       id: row.id,

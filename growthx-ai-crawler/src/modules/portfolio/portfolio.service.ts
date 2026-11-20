@@ -260,13 +260,13 @@ export class PortfolioService {
     for (const project of projects) {
       try {
         const locked = await this.monthlyReports.lockSnapshot(
-          project.id,
           organizationId,
+          project.id,
           targetMonth,
         );
         const shared = await this.monthlyReports.createShareLink(
-          project.id,
           organizationId,
+          project.id,
           targetMonth,
           { expiresInDays },
         );

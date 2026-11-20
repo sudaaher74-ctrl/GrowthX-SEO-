@@ -2,15 +2,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpDown,
   ArrowUpRight,
   BarChart2,
   CheckCircle2,
   Download,
+  FileText,
   Hash,
   MousePointerClick,
   Search,
+  Sparkles,
   Target,
   TrendingUp,
   Zap,
@@ -22,6 +25,7 @@ import { Table, Td, Th, Tr } from "@/components/ui/console";
 import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { visibilityJourneyApi } from "@/lib/api-client";
 import { count, pathOf, percent, position } from "@/lib/google-format";
 import { stagingEngine } from "@/lib/staging-engine";
 import { cn } from "@/lib/utils";
@@ -61,7 +65,38 @@ export function KeywordsView() {
   const ctr = useGscCtrOpportunities(projectId);
   const declining = useGscDeclining(projectId);
   const movement = useGoogleKeywords(projectId);
+  const aiJourney = useQuery({
+    queryKey: ["keywords-ai-journey", projectId],
+    queryFn: () => visibilityJourneyApi.read(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
   const current = TABS.find((t) => t.id === tab)!;
+
+  // Match Search Console keywords against real measured AI Visibility answers (never guessed)
+  const aiAnswers = useMemo(
+    () => (aiJourney.data?.answers ?? []).filter((a) => !a.errorMessage && Boolean(a.rawResponse)),
+    [aiJourney.data],
+  );
+
+  const aiBadgeForQuery = (query: string): "CITED" | "GAP" | null => {
+    if (!aiAnswers.length) return null;
+    const tokens = query
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 4);
+    if (!tokens.length) return null;
+    const matched = aiAnswers.filter((a) => {
+      const p = a.promptText.toLowerCase();
+      return tokens.some((t) => p.includes(t));
+    });
+    if (!matched.length) return null;
+    const cited = matched.some((a) => a.analysis?.brandMentioned || a.analysis?.recommended);
+    return cited ? "CITED" : "GAP";
+  };
+
+  const contentStudioHref = (query: string, topicPrefix: string) =>
+    `/fix-engine?tab=content&query=${encodeURIComponent(query)}&topic=${encodeURIComponent(`${topicPrefix}: ${query}`)}&kind=ARTICLE`;
 
   const allQueries = useMemo(() => top.query.data ?? [], [top.query.data]);
   const totalKeywords = allQueries.length;
@@ -103,19 +138,29 @@ export function KeywordsView() {
     return { score: Math.max(10, Math.round(40 - (pos - 20) * 0.5)), label: `${Math.max(10, Math.round(40 - (pos - 20) * 0.5))}% Page 3+`, tone: "bg-surface-2 text-brand-400 border-brand-200" };
   };
 
-  const handleStageKeyword = (query: string, pos?: number, type: "PAGE_2_STRIKING" | "LOW_CTR" = "PAGE_2_STRIKING") => {
-    const title = type === "PAGE_2_STRIKING"
-      ? `Push query "${query}" from #${pos?.toFixed(1) || "15"} to Page 1`
-      : `Optimize title & meta for query "${query}" (below expected CTR)`;
+  const handleStageKeyword = (
+    query: string,
+    pos?: number,
+    type: "PAGE_2_STRIKING" | "LOW_CTR" | "DECLINING" = "PAGE_2_STRIKING",
+  ) => {
+    const title =
+      type === "DECLINING"
+        ? `Defend declining query "${query}" (now #${pos?.toFixed(1) || "N"})`
+        : type === "PAGE_2_STRIKING"
+          ? `Push query "${query}" from #${pos?.toFixed(1) || "15"} to Page 1`
+          : `Optimize title & meta for query "${query}" (below expected CTR)`;
 
     stagingEngine.stage(projectId, {
       title,
       category: "Organic Search",
       source: "COMPETITOR_KEYWORD",
       priority: "HIGH",
-      impact: type === "PAGE_2_STRIKING"
-        ? `Ranked #${pos?.toFixed(1) || "15"}. Moving to Page 1 captures significantly higher organic traffic.`
-        : `CTR is significantly below average for rank #${pos?.toFixed(1) || "N"}. Refreshing title tag and description will capture missed clicks.`,
+      impact:
+        type === "DECLINING"
+          ? `Query lost ranking ground (now #${pos?.toFixed(1) || "N"}). Refreshing on-page depth, title, and internal links protects organic clicks.`
+          : type === "PAGE_2_STRIKING"
+            ? `Ranked #${pos?.toFixed(1) || "15"}. Moving to Page 1 captures significantly higher organic traffic.`
+            : `CTR is significantly below average for rank #${pos?.toFixed(1) || "N"}. Refreshing title tag and description will capture missed clicks.`,
       effortHours: 1.5,
       deliverable: `1. Audit page targeting "${query}".\n2. Integrate secondary semantic variations in H2s.\n3. Strengthen title tag click-through hook.\n4. Re-index page via Search Console.`,
       evidence: `Search Console telemetry: rank #${pos?.toFixed(1) || "N"}`,
@@ -806,20 +851,46 @@ export function KeywordsView() {
                       header: "Action",
                       cell: (row) => {
                         const isStaged = stagedKeywords.has(row.key);
-                        return isStaged ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-success-200 bg-success-50 px-2 py-0.5 text-[10px] font-bold text-success-700 font-mono">
-                            <CheckCircle2 size={10} className="text-success-600" />
-                            <span>Staged</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleStageKeyword(row.key, row.position, row.position <= 20 ? "PAGE_2_STRIKING" : "LOW_CTR")}
-                            className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-2 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-surface-3 hover:text-brand-950 transition cursor-pointer shadow-2xs"
-                          >
-                            <Zap size={10} className="text-signal-400" />
-                            <span>Stage Fix</span>
-                          </button>
+                        const aiState = aiBadgeForQuery(row.key);
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {aiState && (
+                              <span
+                                title={aiState === "CITED" ? "Brand cited in related AI Visibility answer" : "Related AI Visibility prompt did not cite your brand"}
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[9.5px] font-bold",
+                                  aiState === "CITED"
+                                    ? "border-success-200 bg-success-50 text-success-700"
+                                    : "border-warning-200 bg-warning-50 text-warning-800",
+                                )}
+                              >
+                                <Sparkles size={9} />
+                                {aiState === "CITED" ? "AI Cited" : "AI Gap"}
+                              </span>
+                            )}
+                            {isStaged ? (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-success-200 bg-success-50 px-2 py-0.5 text-[10px] font-bold text-success-700 font-mono">
+                                <CheckCircle2 size={10} className="text-success-600" />
+                                <span>Staged</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleStageKeyword(row.key, row.position, row.position <= 20 ? "PAGE_2_STRIKING" : "LOW_CTR")}
+                                className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-2 px-2 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-surface-3 hover:text-brand-950 transition cursor-pointer shadow-2xs"
+                              >
+                                <Zap size={10} className="text-signal-400" />
+                                <span>Stage Fix</span>
+                              </button>
+                            )}
+                            <Link
+                              href={contentStudioHref(row.key, "SEO Optimization Guide")}
+                              className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-surface-1 px-2 py-1 text-[10.5px] font-semibold text-accent-700 hover:bg-surface-2 transition"
+                            >
+                              <FileText size={10} />
+                              <span>Draft</span>
+                            </Link>
+                          </div>
                         );
                       },
                     },
@@ -984,14 +1055,23 @@ export function KeywordsView() {
                       {
                         header: "Action",
                         cell: (r) => (
-                          <button
-                            type="button"
-                            onClick={() => handleStageKeyword(r.key, r.position, "PAGE_2_STRIKING")}
-                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
-                          >
-                            <Zap size={11} className="text-signal-400" />
-                            <span>{stagedKeywords.has(r.key) ? "Staged ✓" : "Stage Fix"}</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleStageKeyword(r.key, r.position, "PAGE_2_STRIKING")}
+                              className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
+                            >
+                              <Zap size={11} className="text-signal-400" />
+                              <span>{stagedKeywords.has(r.key) ? "Staged ✓" : "Stage Fix"}</span>
+                            </button>
+                            <Link
+                              href={contentStudioHref(r.key, "Page-1 Breakout Guide")}
+                              className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2 py-1 text-[10.5px] font-semibold text-accent-700 hover:bg-surface-2 transition"
+                            >
+                              <FileText size={10} />
+                              <span>Draft Content</span>
+                            </Link>
+                          </div>
                         ),
                       },
                     ]}
@@ -1051,7 +1131,34 @@ export function KeywordsView() {
                 <SearchRowsTable
                   rows={filteredDecliningRows}
                   label="Query"
-                  extra={[{ header: "Position before", cell: (r) => position((r as { previousPosition?: number | null }).previousPosition ?? null) }]}
+                  extra={[
+                    {
+                      header: "Position before",
+                      cell: (r) => position((r as { previousPosition?: number | null }).previousPosition ?? null),
+                    },
+                    {
+                      header: "Action",
+                      cell: (r) => (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleStageKeyword(r.key, r.position, "DECLINING")}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200/80 bg-surface-1 px-2.5 py-1 text-[10.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
+                          >
+                            <Zap size={11} className="text-signal-400" />
+                            <span>{stagedKeywords.has(r.key) ? "Staged ✓" : "Stage Defense"}</span>
+                          </button>
+                          <Link
+                            href={contentStudioHref(r.key, "Ranking Defense Refresh")}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2 py-1 text-[10.5px] font-semibold text-accent-700 hover:bg-surface-2 transition"
+                          >
+                            <FileText size={10} />
+                            <span>Draft Content</span>
+                          </Link>
+                        </div>
+                      ),
+                    },
+                  ]}
                 />
               )
             }

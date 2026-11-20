@@ -1058,9 +1058,10 @@ function IntegrationsView() {
 
 interface WebhookEventsConfig {
   healthDrop: boolean;
-  critical4xx: boolean;
-  canonicalMismatch: boolean;
-  latencyRegression: boolean;
+  regressionDetected: boolean;
+  crawlCompleted: boolean;
+  fixRolledBack: boolean;
+  monthlyReportLocked: boolean;
 }
 
 interface WebhookEndpointsConfig {
@@ -1079,17 +1080,6 @@ interface CadenceConfig {
   useSitemap: boolean;
 }
 
-interface WebhookDeliveryLog {
-  id: string;
-  timestamp: string;
-  channel: "slack" | "discord" | "rest";
-  event: string;
-  status: "success" | "error";
-  statusCode: number;
-  latencyMs: number;
-  summary: string;
-}
-
 const DEFAULT_WEBHOOK_CONFIG: WebhookEndpointsConfig = {
   slackUrl: "",
   discordUrl: "",
@@ -1097,9 +1087,10 @@ const DEFAULT_WEBHOOK_CONFIG: WebhookEndpointsConfig = {
   secretToken: "",
   events: {
     healthDrop: true,
-    critical4xx: true,
-    canonicalMismatch: true,
-    latencyRegression: false,
+    regressionDetected: true,
+    crawlCompleted: false,
+    fixRolledBack: true,
+    monthlyReportLocked: false,
   },
 };
 
@@ -1155,35 +1146,53 @@ function AutomationWebhooksView() {
       ? autoStageDraft.value
       : (serverSettings?.autoStageLowRisk ?? false);
 
-  // Webhook endpoints config per project
-  const [webhooks, setWebhooks] = useState<WebhookEndpointsConfig>(() => {
-    if (typeof window === "undefined" || !projectId) return DEFAULT_WEBHOOK_CONFIG;
-    try {
-      const saved = localStorage.getItem(`growthx_webhooks_config_${projectId}`);
-      return saved ? { ...DEFAULT_WEBHOOK_CONFIG, ...JSON.parse(saved) } : DEFAULT_WEBHOOK_CONFIG;
-    } catch {
-      return DEFAULT_WEBHOOK_CONFIG;
-    }
+  // Real persisted webhook config & delivery logs from Postgres
+  const webhooksQuery = useQuery({
+    queryKey: ["project-webhooks", projectId],
+    queryFn: () => api.webhooks.get(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
   });
 
-  // Webhook delivery logs
-  const [deliveryLogs, setDeliveryLogs] = useState<WebhookDeliveryLog[]>(() => {
-    if (typeof window === "undefined" || !projectId) return [];
-    try {
-      const saved = localStorage.getItem(`growthx_webhook_logs_${projectId}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const serverWebhooks = webhooksQuery.data;
+  const [webhooksDraft, setWebhooksDraft] = useState<{
+    projectId: string;
+    value: WebhookEndpointsConfig;
+  } | null>(null);
 
-  // Simulator state
+  const webhooks: WebhookEndpointsConfig =
+    webhooksDraft && webhooksDraft.projectId === (projectId ?? "")
+      ? webhooksDraft.value
+      : serverWebhooks
+        ? {
+            slackUrl: serverWebhooks.slackUrl,
+            discordUrl: serverWebhooks.discordUrl,
+            restUrl: serverWebhooks.restUrl,
+            secretToken: "",
+            events: {
+              healthDrop: serverWebhooks.events.healthDrop,
+              regressionDetected: serverWebhooks.events.regressionDetected,
+              crawlCompleted: serverWebhooks.events.crawlCompleted,
+              fixRolledBack: serverWebhooks.events.fixRolledBack,
+              monthlyReportLocked: serverWebhooks.events.monthlyReportLocked,
+            },
+          }
+        : DEFAULT_WEBHOOK_CONFIG;
+
+  const setWebhooks = (next: WebhookEndpointsConfig) =>
+    setWebhooksDraft({ projectId: projectId ?? "", value: next });
+
+  const deliveryLogs = serverWebhooks?.logs ?? [];
+
+  // Live test dispatch state (real backend HTTP POST)
   const [simChannel, setSimChannel] = useState<"slack" | "discord" | "rest">("slack");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{
-    channel: "slack" | "discord" | "rest";
-    statusCode: number;
+    channel: string;
+    status: string;
+    statusCode: number | null;
     latencyMs: number;
+    error: string | null;
     payload: Record<string, unknown>;
   } | null>(null);
   const [showPayloadModal, setShowPayloadModal] = useState(false);
@@ -1260,15 +1269,32 @@ function AutomationWebhooksView() {
     saveCadenceMutation.mutate();
   };
 
-  // Save Webhooks
+  const saveWebhooksMutation = useMutation({
+    mutationFn: () =>
+      api.webhooks.save(projectId!, {
+        slackUrl: webhooks.slackUrl.trim() || null,
+        discordUrl: webhooks.discordUrl.trim() || null,
+        restUrl: webhooks.restUrl.trim() || null,
+        ...(webhooks.secretToken.trim() ? { secretToken: webhooks.secretToken.trim() } : {}),
+        events: webhooks.events,
+      }),
+    onSuccess: (updated) => {
+      qc.setQueryData(["project-webhooks", projectId], updated);
+      setWebhooksDraft(null);
+      setNotice({
+        type: "success",
+        text: "Webhook alert endpoints and event subscriptions saved to Postgres (SSRF-validated).",
+      });
+    },
+    onError: (err) => {
+      setNotice({ type: "error", text: errorMessage(err) });
+    },
+  });
+
+  // Save Webhooks to Postgres
   const handleSaveWebhooks = () => {
     if (!projectId) return;
-    try {
-      localStorage.setItem(`growthx_webhooks_config_${projectId}`, JSON.stringify(webhooks));
-      setNotice({ type: "success", text: "Webhook alert endpoints and subscription matrix saved." });
-    } catch {
-      setNotice({ type: "error", text: "Failed to persist webhook configuration." });
-    }
+    saveWebhooksMutation.mutate();
   };
 
   // Toggle Auto-Stage (persisted in Postgres)
@@ -1351,93 +1377,45 @@ function AutomationWebhooksView() {
     }
   };
 
-  // Send Test Webhook Simulator
+  // Send REAL SSRF-safe Test Webhook via backend
   const handleSendTestWebhook = async () => {
+    if (!projectId) return;
     setIsSimulating(true);
-    const start = performance.now();
-
-    const targetUrl =
-      simChannel === "slack"
-        ? webhooks.slackUrl
-        : simChannel === "discord"
-        ? webhooks.discordUrl
-        : webhooks.restUrl;
-
-    // Build real structured event payload
-    const payload = {
-      event: "seo.crawl.regression_alert",
-      timestamp: new Date().toISOString(),
-      channel: simChannel,
-      targetEndpoint: targetUrl.trim() || `mock://${simChannel}-internal-webhook`,
-      project: {
-        id: projectId || "global",
-        name: currentProject?.name || "Global Workspace",
-        domain: currentDomain || "unknown",
-      },
-      audit: {
-        status: latestCrawl?.status || "COMPLETED",
-        pagesCrawled: latestCrawl?.pagesCrawled ?? 0,
-        issuesFound: latestCrawl?.issuesFound ?? 0,
-        healthScore: currentHealth,
-        regressionsDetected: issuesDelta && issuesDelta > 0 ? issuesDelta : 0,
-      },
-      alertsFired: [
-        ...(webhooks.events.healthDrop ? ["Health score drop threshold"] : []),
-        ...(webhooks.events.critical4xx ? ["Critical 4xx/5xx broken links"] : []),
-        ...(webhooks.events.canonicalMismatch ? ["Canonical tag discrepancy"] : []),
-        ...(webhooks.events.latencyRegression ? ["Response time regression"] : []),
-      ],
-      severity: issuesDelta && issuesDelta > 0 ? "HIGH" : "NORMAL",
-    };
-
-    // Simulate network latency or perform POST if configured
-    await new Promise((r) => setTimeout(r, 65));
-    const elapsed = Math.round(performance.now() - start);
-    const measuredLatency = Math.max(38, elapsed + 24);
-
-    const newLog: WebhookDeliveryLog = {
-      id: `wh-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      channel: simChannel,
-      event: "seo.crawl.regression_alert",
-      status: "success",
-      statusCode: 200,
-      latencyMs: measuredLatency,
-      summary: `${currentDomain || "domain"}: ${latestCrawl?.issuesFound ?? 0} issues, score ${currentHealth ?? "N/A"}`,
-    };
-
-    const nextLogs = [newLog, ...deliveryLogs.slice(0, 19)];
-    setDeliveryLogs(nextLogs);
-    setSimResult({
-      channel: simChannel,
-      statusCode: 200,
-      latencyMs: measuredLatency,
-      payload,
-    });
-    setIsSimulating(false);
-
+    setNotice(null);
     try {
-      if (projectId) {
-        localStorage.setItem(`growthx_webhook_logs_${projectId}`, JSON.stringify(nextLogs));
-      }
-    } catch {
-      // ignore
+      const channelUpper = simChannel.toUpperCase() as "SLACK" | "DISCORD" | "REST";
+      const log = await api.webhooks.test(projectId, channelUpper);
+      setSimResult({
+        channel: log.channel,
+        status: log.status,
+        statusCode: log.statusCode,
+        latencyMs: log.latencyMs,
+        error: log.error,
+        payload: log.payload,
+      });
+      void qc.invalidateQueries({ queryKey: ["project-webhooks", projectId] });
+      setNotice({
+        type: log.status === "SUCCESS" ? "success" : "error",
+        text:
+          log.status === "SUCCESS"
+            ? `Real webhook delivered to ${log.channel} (${log.targetHost}) — ${log.statusCode ? `HTTP ${log.statusCode}` : "OK"} (${log.latencyMs}ms).`
+            : `Webhook delivery to ${log.channel} failed: ${log.error || (log.statusCode ? `HTTP ${log.statusCode}` : "Network error")}`,
+      });
+    } catch (err) {
+      setNotice({ type: "error", text: errorMessage(err) });
+    } finally {
+      setIsSimulating(false);
     }
-
-    setNotice({
-      type: "success",
-      text: `Test dispatch succeeded! Delivered to ${simChannel.toUpperCase()} with HTTP 200 (${measuredLatency}ms).`,
-    });
   };
 
-  const handleClearLogs = () => {
-    setDeliveryLogs([]);
-    if (projectId) {
-      try {
-        localStorage.removeItem(`growthx_webhook_logs_${projectId}`);
-      } catch {
-        // ignore
-      }
+  const handleClearLogs = async () => {
+    if (!projectId) return;
+    try {
+      await api.webhooks.clearLogs(projectId);
+      void qc.invalidateQueries({ queryKey: ["project-webhooks", projectId] });
+      setSimResult(null);
+    } catch (err) {
+      setNotice({ type: "error", text: errorMessage(err) });
     }
   };
 
@@ -1922,8 +1900,38 @@ function AutomationWebhooksView() {
 
         {/* Subscription Event Matrix */}
         <div className="rounded-xl border border-brand-200/70 bg-surface-2 p-4 space-y-3">
-          <p className="text-xs font-bold text-brand-950">Subscribed Surveillance Events</p>
+          <p className="text-xs font-bold text-brand-950">Subscribed Server Alert Events</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={webhooks.events.regressionDetected}
+                onChange={(e) =>
+                  setWebhooks({
+                    ...webhooks,
+                    events: { ...webhooks.events, regressionDetected: e.target.checked },
+                  })
+                }
+                className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
+              />
+              <span>Regression Guard Alerts (Previously fixed defect reappeared)</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={webhooks.events.fixRolledBack}
+                onChange={(e) =>
+                  setWebhooks({
+                    ...webhooks,
+                    events: { ...webhooks.events, fixRolledBack: e.target.checked },
+                  })
+                }
+                className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
+              />
+              <span>1-Click Fix Rollbacks (GitHub Revert PR or CMS restore)</span>
+            </label>
+
             <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
               <input
                 type="checkbox"
@@ -1936,66 +1944,56 @@ function AutomationWebhooksView() {
                 }
                 className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
               />
-              <span>Health Score Drop (Alert if score decreases by &ge; 5 points)</span>
+              <span>Health Score Drop Alerts (Technical audit score decline)</span>
             </label>
 
             <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
               <input
                 type="checkbox"
-                checked={webhooks.events.critical4xx}
+                checked={webhooks.events.monthlyReportLocked}
                 onChange={(e) =>
                   setWebhooks({
                     ...webhooks,
-                    events: { ...webhooks.events, critical4xx: e.target.checked },
+                    events: { ...webhooks.events, monthlyReportLocked: e.target.checked },
                   })
                 }
                 className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
               />
-              <span>Critical 4xx/5xx Errors (Newly discovered dead routes)</span>
+              <span>Monthly Report Snapshot Frozen (Ready for client delivery)</span>
             </label>
 
             <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
               <input
                 type="checkbox"
-                checked={webhooks.events.canonicalMismatch}
+                checked={webhooks.events.crawlCompleted}
                 onChange={(e) =>
                   setWebhooks({
                     ...webhooks,
-                    events: { ...webhooks.events, canonicalMismatch: e.target.checked },
+                    events: { ...webhooks.events, crawlCompleted: e.target.checked },
                   })
                 }
                 className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
               />
-              <span>Canonical Mismatches (Tags dropped or conflicting)</span>
-            </label>
-
-            <label className="flex items-center gap-2.5 text-xs text-brand-800 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={webhooks.events.latencyRegression}
-                onChange={(e) =>
-                  setWebhooks({
-                    ...webhooks,
-                    events: { ...webhooks.events, latencyRegression: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded-md border-brand-300 text-signal-500 focus:ring-signal-400 cursor-pointer"
-              />
-              <span>Latency Regression (TTFB or LCP degraded &gt; 1.5s)</span>
+              <span>Website Crawl Completed (Every completed scheduled audit)</span>
             </label>
           </div>
+          {serverWebhooks?.hasSecretToken && (
+            <p className="text-[11px] text-success-700 font-mono">
+              HMAC-SHA256 signing secret saved on server (sent via X-Reigel-Signature on REST deliveries).
+            </p>
+          )}
         </div>
 
-        {/* Live Webhook Simulator */}
+        {/* Live Real HTTP Webhook Tester */}
         <div className="rounded-xl border border-brand-200/80 bg-surface-2 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold text-brand-950 flex items-center gap-1.5">
                 <Terminal size={14} className="text-signal-500" />
-                Live Webhook Simulator &amp; Beacon Tester
+                Live Webhook Delivery Tester (Real HTTP POST)
               </p>
               <p className="text-[11px] text-brand-500">
-                Execute a test dispatch to test delivery status, latency, and JSON schema compatibility.
+                Save an endpoint above, then send a real SSRF-checked HTTP POST from the server and inspect the measured response.
               </p>
             </div>
 
@@ -2012,32 +2010,45 @@ function AutomationWebhooksView() {
 
               <button
                 type="button"
-                onClick={handleSendTestWebhook}
-                disabled={isSimulating}
+                onClick={() => void handleSendTestWebhook()}
+                disabled={isSimulating || !projectId}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-signal-400 bg-signal-400 hover:bg-signal-500 px-3 py-1.5 text-xs font-bold text-brand-950 shadow-2xs transition cursor-pointer disabled:opacity-50"
               >
                 <Send size={12} className={cn(isSimulating && "animate-pulse")} />
-                <span>{isSimulating ? "Dispatching…" : "Send Test Webhook"}</span>
+                <span>{isSimulating ? "Sending HTTP POST…" : "Send Real Test Webhook"}</span>
               </button>
             </div>
           </div>
 
-          {/* Simulation Outcome Card */}
+          {/* Delivery Outcome Card */}
           {simResult && (
-            <div className="rounded-lg border border-success-200 bg-success-50 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div
+              className={cn(
+                "rounded-lg border p-3 flex flex-wrap items-center justify-between gap-2 text-xs",
+                simResult.status === "SUCCESS"
+                  ? "border-success-200 bg-success-50 text-success-700"
+                  : "border-error-200 bg-error-50 text-error-700",
+              )}
+            >
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="text-success-600 shrink-0" />
-                <span className="font-bold text-success-700">
-                  HTTP {simResult.statusCode} OK — {simResult.channel.toUpperCase()} Dispatch Succeeded
+                {simResult.status === "SUCCESS" ? (
+                  <CheckCircle2 size={15} className="text-success-600 shrink-0" />
+                ) : (
+                  <AlertCircle size={15} className="text-error-600 shrink-0" />
+                )}
+                <span className="font-bold">
+                  {simResult.status === "SUCCESS"
+                    ? `${simResult.statusCode ? `HTTP ${simResult.statusCode}` : "OK"} — ${simResult.channel} Delivery Succeeded`
+                    : `${simResult.statusCode ? `HTTP ${simResult.statusCode}` : "ERR"} — ${simResult.error || "Delivery Failed"}`}
                 </span>
-                <span className="font-mono text-[11px] text-success-600">({simResult.latencyMs}ms latency)</span>
+                <span className="font-mono text-[11px] opacity-80">({simResult.latencyMs}ms)</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPayloadModal(!showPayloadModal)}
-                className="text-xs font-semibold underline text-success-700 hover:text-success-800 cursor-pointer"
+                className="text-xs font-semibold underline cursor-pointer"
               >
-                {showPayloadModal ? "Hide Delivered Payload" : "Inspect Delivered Payload"}
+                {showPayloadModal ? "Hide Payload" : "Inspect Payload"}
               </button>
             </div>
           )}
@@ -2046,8 +2057,10 @@ function AutomationWebhooksView() {
           {showPayloadModal && simResult && (
             <div className="rounded-xl border border-brand-200 bg-brand-950 p-3.5 text-brand-100 font-mono text-[11.5px] overflow-x-auto shadow-inner">
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-brand-800 text-[10.5px] text-brand-400">
-                <span>POST JSON Event Payload Schema</span>
-                <span className="text-signal-400 font-bold">200 OK</span>
+                <span>POST JSON Event Payload</span>
+                <span className="text-signal-400 font-bold">
+                  {simResult.statusCode ? `HTTP ${simResult.statusCode}` : simResult.status}
+                </span>
               </div>
               <pre>{JSON.stringify(simResult.payload, null, 2)}</pre>
             </div>
@@ -2057,11 +2070,11 @@ function AutomationWebhooksView() {
         {/* Webhook Delivery History Log Table */}
         <div className="space-y-2 pt-1">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-brand-950">Webhook Delivery Log (Recent 20 Dispatches)</h4>
+            <h4 className="text-xs font-bold text-brand-950">Server Webhook Delivery Log (Recent 25 Dispatches)</h4>
             {deliveryLogs.length > 0 && (
               <button
                 type="button"
-                onClick={handleClearLogs}
+                onClick={() => void handleClearLogs()}
                 className="text-[11px] font-semibold text-brand-500 hover:text-brand-800 transition cursor-pointer"
               >
                 Clear History
@@ -2071,7 +2084,7 @@ function AutomationWebhooksView() {
 
           {deliveryLogs.length === 0 ? (
             <div className="rounded-xl border border-brand-200/60 bg-surface-2 p-6 text-center text-xs text-brand-400">
-              No webhook dispatches logged yet. Click &quot;Send Test Webhook&quot; above to simulate an alert.
+              No webhook dispatches recorded yet. Save an endpoint and click &quot;Send Real Test Webhook&quot; to verify live delivery.
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-brand-200/70 bg-surface-1">
@@ -2089,7 +2102,7 @@ function AutomationWebhooksView() {
                   {deliveryLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-surface-2/60 transition-colors">
                       <td className="py-2 px-3 font-mono text-[11px] text-brand-600">
-                        {new Date(log.timestamp).toLocaleTimeString([], {
+                        {new Date(log.createdAt).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                           second: "2-digit",
@@ -2102,9 +2115,21 @@ function AutomationWebhooksView() {
                         {log.event}
                       </td>
                       <td className="py-2 px-3">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-bold font-mono text-success-700 border border-success-200">
-                          <span className="h-1 w-1 rounded-full bg-success-500" />
-                          {log.statusCode} OK
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold font-mono border",
+                            log.status === "SUCCESS"
+                              ? "bg-success-50 text-success-700 border-success-200"
+                              : "bg-error-50 text-error-700 border-error-200",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1 w-1 rounded-full",
+                              log.status === "SUCCESS" ? "bg-success-500" : "bg-error-500",
+                            )}
+                          />
+                          {log.statusCode ? `HTTP ${log.statusCode}` : log.status}
                         </span>
                       </td>
                       <td className="py-2 px-3 text-right font-mono text-[11px] text-brand-600">

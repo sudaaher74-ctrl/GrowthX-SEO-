@@ -2261,6 +2261,66 @@ export const api = {
       post<AutomationRun>(`/api/projects/${projectId}/automation/runs/content`, { pieceIds }),
   },
 
+  // ── Real Persisted Webhooks & Delivery Logs ────────────────────────────
+  webhooks: {
+    get: (projectId: string) =>
+      get<import("./api-types").WebhookConfigResponse>(`/api/projects/${projectId}/webhooks`),
+    save: (projectId: string, body: import("./api-types").UpdateWebhookConfigInput) =>
+      patch<import("./api-types").WebhookConfigResponse>(
+        `/api/projects/${projectId}/webhooks`,
+        body,
+      ),
+    test: (projectId: string, channel: "SLACK" | "DISCORD" | "REST") =>
+      post<import("./api-types").WebhookDeliveryLogRecord>(
+        `/api/projects/${projectId}/webhooks/test`,
+        { channel },
+      ),
+    clearLogs: (projectId: string) =>
+      del<{ cleared: number }>(`/api/projects/${projectId}/webhooks/logs`),
+  },
+
+  // ── Lost-Link Recovery & Backlink Outreach Tracker ─────────────────────
+  backlinkOutreach: {
+    list: (projectId: string) =>
+      get<import("./api-types").BacklinkOutreachWorkspace>(
+        `/api/projects/${projectId}/backlinks/outreach`,
+      ),
+    draft: (
+      projectId: string,
+      body: {
+        kind: import("./api-types").BacklinkOutreachKind;
+        sourceUrl: string;
+        targetUrl?: string | null;
+        contactEmail?: string | null;
+        notes?: string | null;
+      },
+    ) =>
+      post<import("./api-types").BacklinkOutreachItem>(
+        `/api/projects/${projectId}/backlinks/outreach/draft`,
+        body,
+      ),
+    update: (
+      projectId: string,
+      itemId: string,
+      body: {
+        status?: import("./api-types").BacklinkOutreachStatus;
+        contactEmail?: string | null;
+        subject?: string | null;
+        emailDraft?: string | null;
+        notes?: string | null;
+        targetUrl?: string | null;
+      },
+    ) =>
+      patch<import("./api-types").BacklinkOutreachItem>(
+        `/api/projects/${projectId}/backlinks/outreach/${encodeURIComponent(itemId)}`,
+        body,
+      ),
+    delete: (projectId: string, itemId: string) =>
+      del<{ deleted: boolean }>(
+        `/api/projects/${projectId}/backlinks/outreach/${encodeURIComponent(itemId)}`,
+      ),
+  },
+
   // ── Content Intelligence & Creative Engine ──────────────────────────────
 
   

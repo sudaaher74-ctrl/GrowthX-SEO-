@@ -58,35 +58,52 @@ function markdownToPreviewHtml(md: string): string {
 
 export function ContentStudioView({
   initialFinding,
+  initialQuery,
+  initialTopic,
+  initialKind,
   onClearInitialFinding,
 }: {
   initialFinding?: GrowthOpportunity | null;
+  initialQuery?: string | null;
+  initialTopic?: string | null;
+  initialKind?: ContentStudioKind | null;
   onClearInitialFinding?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { projectId } = useWorkspace();
 
-  const [seedKey, setSeedKey] = useState<string>(initialFinding?.id ?? "");
+  const resolvedSeedKey = `${initialFinding?.id ?? ""}|${initialQuery ?? ""}|${initialTopic ?? ""}|${initialKind ?? ""}`;
+  const [seedKey, setSeedKey] = useState<string>(resolvedSeedKey);
   const [kind, setKind] = useState<ContentStudioKind>(() =>
-    initialFinding ? inferKindFromFinding(initialFinding) : "ARTICLE",
+    initialKind ?? (initialFinding ? inferKindFromFinding(initialFinding) : "ARTICLE"),
   );
-  const [topic, setTopic] = useState<string>(() => initialFinding?.title ?? "");
+  const [topic, setTopic] = useState<string>(() => initialTopic ?? initialFinding?.title ?? "");
   const [targetQuery, setTargetQuery] = useState<string>(
-    () => initialFinding?.evidence.find((e) => /query|keyword/i.test(e.label))?.value ?? "",
+    () =>
+      initialQuery ??
+      initialFinding?.evidence.find((e) => /query|keyword/i.test(e.label))?.value ??
+      "",
   );
   const [pageUrl, setPageUrl] = useState<string>(() => initialFinding?.affectedPages?.[0] ?? "");
   const [location, setLocation] = useState<string>("");
 
-  // Sync when a new finding is clicked from PlanView
-  if ((initialFinding?.id ?? "") !== seedKey) {
-    setSeedKey(initialFinding?.id ?? "");
+  // Sync when a new finding or keyword deep-link arrives
+  if (resolvedSeedKey !== seedKey) {
+    setSeedKey(resolvedSeedKey);
     if (initialFinding) {
-      setKind(inferKindFromFinding(initialFinding));
-      setTopic(initialFinding.title);
+      setKind(initialKind ?? inferKindFromFinding(initialFinding));
+      setTopic(initialTopic ?? initialFinding.title);
       setTargetQuery(
-        initialFinding.evidence.find((e) => /query|keyword/i.test(e.label))?.value ?? "",
+        initialQuery ??
+          initialFinding.evidence.find((e) => /query|keyword/i.test(e.label))?.value ??
+          "",
       );
       setPageUrl(initialFinding.affectedPages?.[0] ?? "");
+    } else if (initialQuery || initialTopic) {
+      setKind(initialKind ?? "ARTICLE");
+      setTopic(initialTopic ?? `SEO Guide for "${initialQuery}"`);
+      setTargetQuery(initialQuery ?? "");
+      setPageUrl("");
     }
   }
 

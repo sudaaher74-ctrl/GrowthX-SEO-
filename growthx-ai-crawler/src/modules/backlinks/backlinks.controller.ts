@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -30,6 +31,63 @@ import { BacklinkAnalyticsService } from "./backlink-analytics.service";
 import { BacklinkDiscovery } from "./backlink-discovery.service";
 import { RecommendationService } from "./recommendation.service";
 import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
+import { BacklinkOutreachService, OutreachKind, OutreachStatus } from "./backlink-outreach.service";
+import { IsIn, IsOptional, IsString, MaxLength } from "class-validator";
+
+export class CreateOutreachDraftDto {
+  @IsIn(["LOST_LINK_RECOVERY", "COMPETITOR_GAP"])
+  kind: OutreachKind;
+
+  @IsString()
+  @MaxLength(2048)
+  sourceUrl: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  targetUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  notes?: string | null;
+}
+
+export class UpdateOutreachItemDto {
+  @IsOptional()
+  @IsIn(["IDENTIFIED", "DRAFTED", "CONTACTED", "RECOVERED", "DISMISSED"])
+  status?: OutreachStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  subject?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(12000)
+  emailDraft?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  notes?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  targetUrl?: string | null;
+}
 
 @ApiTags("Backlink intelligence")
 @ApiBearerAuth()
@@ -43,6 +101,7 @@ export class BacklinksController {
     private readonly discovery: BacklinkDiscovery,
     private readonly recommendations: RecommendationService,
     private readonly intelligence: BacklinkIntelligenceService,
+    private readonly outreach: BacklinkOutreachService,
   ) {}
 
   private assertCanForceRefresh(req: any, forceRefresh: boolean) {
@@ -306,5 +365,37 @@ export class BacklinksController {
     @Param("sourceId") sourceId: string,
   ) {
     return this.backlinks.remove(projectId, sourceId);
+  }
+
+  // ── Lost-Link Recovery & Outreach Tracker
+
+  @Get("outreach")
+  listOutreach(@Param("projectId") projectId: string) {
+    return this.outreach.listWorkspace(projectId);
+  }
+
+  @Post("outreach/draft")
+  createOutreachDraft(
+    @Param("projectId") projectId: string,
+    @Body() body: CreateOutreachDraftDto,
+  ) {
+    return this.outreach.createOrDraftItem(projectId, body);
+  }
+
+  @Patch("outreach/:itemId")
+  updateOutreachItem(
+    @Param("projectId") projectId: string,
+    @Param("itemId") itemId: string,
+    @Body() body: UpdateOutreachItemDto,
+  ) {
+    return this.outreach.updateItem(projectId, itemId, body);
+  }
+
+  @Delete("outreach/:itemId")
+  deleteOutreachItem(
+    @Param("projectId") projectId: string,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.outreach.deleteItem(projectId, itemId);
   }
 }

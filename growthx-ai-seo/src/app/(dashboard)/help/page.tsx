@@ -9,18 +9,15 @@ import {
   ChevronDown,
   ChevronUp,
   Compass,
-  FileCode2,
   HelpCircle,
   Mail,
-  Radar,
   Search,
   Shield,
-  Zap,
 } from "lucide-react";
 import { resetTour } from "@/hooks/use-tour";
 import { cn } from "@/lib/utils";
 
-type Category = "all" | "getting_started" | "agents" | "ai_visibility" | "billing";
+type Category = "all" | "getting_started" | "agents" | "ai_visibility" | "reports" | "billing";
 
 interface FaqItem {
   q: string;
@@ -32,66 +29,62 @@ const FAQS: FaqItem[] = [
   {
     category: "getting_started",
     q: "How do I connect Google Search Console and GA4?",
-    a: "Navigate to Settings > Integrations and select 'Connect Google' next to Google Search Console or Google Analytics 4. You will be redirected to Google's official OAuth screen. Choose the target property and grant read permissions. Reigel never requires write or administrative rights to your Google properties.",
+    a: "Navigate to Settings → Integrations and select 'Connect Google' next to Google Search Console or Google Analytics 4. You will be redirected to Google's official OAuth screen. Choose the target property and grant read-only permissions. Reigel never requires write or administrative rights to your Google properties.",
+  },
+  {
+    category: "getting_started",
+    q: "What does 'Run full pipeline' do on the Dashboard?",
+    a: "Clicking 'Run full pipeline' orchestrates all 5 SEO stages automatically in one run: Website Technical Audit, Competitor Intelligence, AI Visibility checks, Backlink Discovery, and Fix Engine synchronization. Every tab remains 100% available manually whenever you want to run a single step on its own.",
   },
   {
     category: "getting_started",
     q: "How often is search performance and ranking data updated?",
-    a: "Search Console data is refreshed on a rolling cadence based on Google's export pipeline (typically with Google's standard 2-3 day lag). Rank tracking and competitor checks run daily for all tracked queries in your active workspace.",
+    a: "Search Console data refreshes on Google's rolling export window (typically with a 2–3 day lag). Traffic refreshes automatically every 5 minutes when viewing the Traffic tab. Scheduled audits and 5-stage pipelines run automatically on the server cadence you configure in Settings → Automation & Webhooks (Daily, Weekly, Bi-weekly, or Monthly).",
   },
   {
     category: "agents",
-    q: "How does the Fix Engine open pull requests on GitHub?",
-    a: "When you connect a GitHub repository in Settings > Integrations or from the Fix Engine, Reigel inspects your codebase for SEO issues (missing schema JSON-LD, duplicate titles, broken canonicals). It drafts a new Git branch and opens a pull request with code diffs for your engineering team to review. Reigel never commits directly to main or merges pull requests autonomously.",
+    q: "How does Fix Engine ship changes via GitHub, WordPress, Shopify, and Webflow?",
+    a: "Fix Engine prepares safe SEO improvements (titles, meta descriptions, H1s, canonicals, JSON-LD schema) for your review. You can ship a single fix or select up to 15 findings in Batch Safe Fixes to open 1 unified GitHub Pull Request or push 1 CMS batch to WordPress, Shopify, or Webflow (as Draft or Publish Live). Every CMS change stores a BEFORE snapshot so you can trigger a 1-click rollback anytime, and Regression Guard automatically reopens any defect that reappears on a later crawl.",
   },
   {
     category: "agents",
-    q: "What is the Continuous Website Audit Agent?",
-    a: "The Website Audit Agent is an autonomous spider that crawls your site on a configurable schedule (Weekly, Every 3 Days, Daily, or On-Demand). It checks HTTP status codes, meta tags, Core Web Vitals, duplicate content, and sitemap health for up to 5,000 pages per cycle.",
+    q: "What is Grounded SEO Content Studio?",
+    a: "Inside Fix Engine → Content Studio (or by clicking 'Draft in Content Studio' on any Fix Engine finding or Organic Search keyword), Reigel drafts full SEO articles, briefs, FAQs, local landing page outlines, and JSON-LD schema grounded strictly in your crawled site pages and Search Console data—with zero invented stats. You can edit inline, approve, download Markdown/HTML, open a GitHub PR, or publish directly to WordPress, Shopify, or Webflow.",
+  },
+  {
+    category: "agents",
+    q: "How do server webhooks and alerts work?",
+    a: "In Settings → Automation & Webhooks, you can save SSRF-validated Slack, Discord, or Custom REST webhook URLs (optionally signed with HMAC-SHA256 via X-Reigel-Signature). Reigel sends real HTTP POST notifications when Regression Guard catches a regression, a fix is rolled back, a crawl finishes, or a Monthly Report snapshot is frozen.",
+  },
+  {
+    category: "agents",
+    q: "How does Lost-Link Recovery & Backlink Outreach work?",
+    a: "Open Backlink Intelligence → Lost-Link Recovery & Outreach to see confirmed lost backlinks and competitor referring domain gaps. Generate grounded outreach emails citing the exact source and target URLs, copy or open them in your mail client, and track status from IDENTIFIED → DRAFTED → CONTACTED → RECOVERED. Recovered links automatically log to your Impact Ledger and Monthly Reports.",
   },
   {
     category: "ai_visibility",
     q: "What is AI Visibility and Generative Engine Optimization (GEO)?",
-    a: "AI Visibility measures how often and in what context leading AI search engines (ChatGPT, Perplexity, Gemini, and Claude) cite and recommend your brand for relevant customer queries. GEO is the practice of structuring brand content so AI assistants accurately recommend your products.",
+    a: "AI Visibility measures how often and in what context AI search assistants (ChatGPT, Perplexity, Google Gemini, and Claude) cite and recommend your brand for buyer prompts. The SERP Visualizer previews captured responses with real clickable cited sources and your live crawled page snippet.",
   },
   {
-    category: "ai_visibility",
-    q: "Which AI search engines does Reigel sample?",
-    a: "We query ChatGPT (OpenAI), Perplexity Sonar, Google Gemini, and Anthropic Claude directly through their official developer APIs. Every answer is analyzed for brand sentiment, domain mentions, and citation share.",
-  },
-  {
-    category: "billing",
-    q: "Is Reigel really 100% free through December 31, 2026?",
-    a: "Yes! Early access founders and marketing teams receive full platform access at ₹0 through December 31, 2026. No credit card is required, and there are zero automatic renewal debits.",
+    category: "reports",
+    q: "How do Frozen Monthly Snapshots & Zero-Login White-Label Client Links work?",
+    a: "On Monthly Report (or in bulk from Clients → Lock & Share All Clients), locking a month freezes all KPIs, AI Visibility, Backlinks, Keywords, Fixes, and Account Manager Commentary so past months never drift. Sharing mints a revocable zero-login /share/report/[token] link stamped with your Agency White-Label logo, contact line, and footer, plus 1-click Server A4 PDF and CSV export across every report.",
   },
   {
     category: "billing",
-    q: "What are the 3 conditions of the free founder tier?",
-    a: "Each account can monitor 1 active website, utilize up to 5,000 pages crawl capacity per technical spider run, and receive 2 complete AI Search Visibility audit cycles per month across all assistants.",
-  },
-  {
-    category: "billing",
-    q: "What happens when the promotion ends on January 1, 2027?",
-    a: "Your account will not be charged. You will be invited to choose whether you wish to stay on the standard single-site free tier or upgrade to Growth or Agency plans if you require multi-domain or higher crawl volume support.",
-  },
-  {
-    category: "billing",
-    q: "How do I upgrade or change my subscription plan?",
-    a: "Navigate to Settings > Subscription and click 'Change Plan'. You can select between Founder Early Access, Starter, Growth, or Agency tiers. Your workspace limits (websites, crawl capacity, competitors, and AI visibility cycles) update immediately.",
-  },
-  {
-    category: "getting_started",
-    q: "Can I replace or change my monitored website?",
-    a: "Yes. Head to Settings > Websites to view your currently active domain. You can switch or manage your tracked website anytime.",
+    q: "How do I manage websites, quotas, or upgrade my plan?",
+    a: "Navigate to Settings → Subscription to inspect your active limits (websites, crawl page depth, competitors, and AI visibility cycles) or switch between Founder, Starter, Growth, and Agency tiers. Manage tracked client websites anytime under Clients or Settings → Websites.",
   },
 ];
 
 const CATEGORIES: { id: Category; label: string }[] = [
   { id: "all", label: "All Questions" },
   { id: "getting_started", label: "Getting Started" },
-  { id: "agents", label: "Autonomous Agents" },
+  { id: "agents", label: "Fix Engine, CMS & Automation" },
   { id: "ai_visibility", label: "AI Visibility & GEO" },
-  { id: "billing", label: "Credits & Free Tier" },
+  { id: "reports", label: "Reports & Agency Portals" },
+  { id: "billing", label: "Plans & Quotas" },
 ];
 
 export default function HelpPage() {

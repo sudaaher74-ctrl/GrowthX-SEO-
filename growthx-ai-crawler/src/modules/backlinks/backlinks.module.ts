@@ -12,6 +12,7 @@ import { RecommendationService } from "./recommendation.service";
 import { BacklinksAdapter } from "./backlinks.adapter";
 import { DataForSeoBacklinksService } from "./dataforseo-backlinks.service";
 import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
+import { BacklinkOutreachService } from "./backlink-outreach.service";
 
 @Module({
   imports: [DatabaseModule, QueueModule],
@@ -27,7 +28,8 @@ import { BacklinkIntelligenceService } from "./backlink-intelligence.service";
     BacklinksAdapter,
     DataForSeoBacklinksService,
     BacklinkIntelligenceService,
+    BacklinkOutreachService,
   ],
-  exports: [BacklinksService, BacklinksAdapter, BacklinkDiscovery, DataForSeoBacklinksService, BacklinkIntelligenceService],
+  exports: [BacklinksService, BacklinksAdapter, BacklinkDiscovery, DataForSeoBacklinksService, BacklinkIntelligenceService, BacklinkOutreachService],
 })
 export class BacklinksModule {}

@@ -550,6 +550,97 @@ export interface PublishContentDraftResponse {
   };
 }
 
+export interface WebhookEventsMatrix {
+  healthDrop: boolean;
+  regressionDetected: boolean;
+  crawlCompleted: boolean;
+  fixRolledBack: boolean;
+  monthlyReportLocked: boolean;
+}
+
+export interface WebhookDeliveryLogRecord {
+  id: string;
+  channel: string;
+  event: string;
+  targetHost: string;
+  status: string;
+  statusCode: number | null;
+  latencyMs: number;
+  summary: string;
+  error: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface WebhookConfigResponse {
+  projectId: string;
+  enabled: boolean;
+  slackUrl: string;
+  discordUrl: string;
+  restUrl: string;
+  hasSecretToken: boolean;
+  events: WebhookEventsMatrix;
+  updatedAt: string | null;
+  logs: WebhookDeliveryLogRecord[];
+}
+
+export interface UpdateWebhookConfigInput {
+  enabled?: boolean;
+  slackUrl?: string | null;
+  discordUrl?: string | null;
+  restUrl?: string | null;
+  secretToken?: string | null;
+  events?: Partial<WebhookEventsMatrix>;
+}
+
+export type BacklinkOutreachKind = "LOST_LINK_RECOVERY" | "COMPETITOR_GAP";
+export type BacklinkOutreachStatus =
+  | "IDENTIFIED"
+  | "DRAFTED"
+  | "CONTACTED"
+  | "RECOVERED"
+  | "DISMISSED";
+
+export interface BacklinkOutreachItem {
+  id: string;
+  projectId: string;
+  kind: BacklinkOutreachKind;
+  sourceUrl: string;
+  sourceDomain: string;
+  targetUrl: string | null;
+  contactEmail: string | null;
+  status: BacklinkOutreachStatus;
+  subject: string | null;
+  emailDraft: string | null;
+  notes: string | null;
+  lastContactedAt: string | null;
+  recoveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BacklinkOutreachCandidate {
+  kind: BacklinkOutreachKind;
+  sourceUrl: string;
+  sourceDomain: string;
+  targetUrl: string | null;
+  reason: string;
+}
+
+export interface BacklinkOutreachWorkspace {
+  summary: {
+    totalTracked: number;
+    identified: number;
+    drafted: number;
+    contacted: number;
+    recovered: number;
+    lostCandidates: number;
+    gapCandidates: number;
+  };
+  items: BacklinkOutreachItem[];
+  candidates: BacklinkOutreachCandidate[];
+}
+
 export interface CrawlJob {
   id: string;
   status: string;

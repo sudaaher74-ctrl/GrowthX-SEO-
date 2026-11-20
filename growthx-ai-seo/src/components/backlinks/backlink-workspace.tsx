@@ -15,6 +15,7 @@ import { BacklinkDiscoveryPanel } from './backlink-discovery';
 import { RecommendationDiscovery } from './recommendation-discovery';
 import { BacklinkOverview } from './backlink-overview';
 import { CompetitorLinkGap } from './competitor-link-gap';
+import { BacklinkOutreachRecovery } from './backlink-outreach-recovery';
 
 const date = (value: string | null) => (value ? new Date(value).toLocaleString() : 'Not checked');
 const inputClass = 'w-full rounded-lg border border-brand-200 bg-surface-2 p-2 text-sm text-brand-950 focus:outline-primary-600';
@@ -46,7 +47,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<'overview' | 'link-gap' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
+  const [tab, setTab] = useState<'overview' | 'link-gap' | 'outreach' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
 
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset],
@@ -259,6 +260,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
           [
             { id: 'overview', label: 'Overview' },
             { id: 'link-gap', label: 'Competitor Link Gap' },
+            { id: 'outreach', label: 'Lost-Link Recovery & Outreach' },
             { id: 'recommendations', label: 'Opportunities' },
             { id: 'explorer', label: 'Profile & reports' },
             { id: 'evidence', label: 'Source checks' },
@@ -287,6 +289,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       </nav>
 
       {tab === 'overview' ? <BacklinkOverview projectId={projectId} report={data} onSources={() => setTab('evidence')} onOpportunities={() => setTab('actions')} /> : null}
+      {tab === 'outreach' ? <BacklinkOutreachRecovery projectId={projectId} /> : null}
 
       {tab === 'link-gap' ? (
         <CompetitorLinkGap

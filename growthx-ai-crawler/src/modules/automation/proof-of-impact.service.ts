@@ -12,6 +12,7 @@ import { inferCategoryFromField } from '../opportunities/roi-learning.service';
 import { scheduledJobsEnabled } from '../scheduler/scheduler.module';
 import { OWN_SCOPE } from '../crawler/website-scope';
 import { WordPressCmsService } from './wordpress-cms.service';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 
@@ -86,6 +87,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly verificationEngine?: VerificationEngineService,
     @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
     @Optional() private readonly wordpress?: WordPressCmsService,
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   onModuleInit(): void {
@@ -325,6 +327,13 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     if (this.findingSync) {
       await this.findingSync.syncProject(projectId, { sources: ['WEBSITE'] }).catch(() => null);
     }
+
+    void this.webhooks?.dispatchProjectEvent(
+      projectId,
+      'fixRolledBack',
+      `Fix Engine rolled back run ${runId.slice(0, 8)}: ${outcome.message}`,
+      { runId, mode: outcome.mode, action: outcome.action, revertPullRequestUrl: outcome.revertPullRequestUrl ?? null },
+    );
 
     return outcome;
   }

@@ -10,6 +10,7 @@ import { CrawlerService } from '../crawler/crawler.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import { OpportunityDetectionService } from './opportunity-detection.service';
 import { RoiLearningService } from './roi-learning.service';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { TrafficAdapter } from './traffic.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
 
@@ -60,6 +61,7 @@ export class FindingSyncService implements OnModuleInit {
     @Optional() private readonly opportunityDetection?: OpportunityDetectionService,
     @Optional() private readonly gateway?: CrawlerGateway,
     @Optional() private readonly roiLearning?: RoiLearningService,
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {
     this.adapters = [
       this.websiteAuditAdapter,
@@ -323,6 +325,18 @@ export class FindingSyncService implements OnModuleInit {
                 },
               })
               .catch(() => null);
+
+            void this.webhooks?.dispatchProjectEvent(
+              projectId,
+              'regressionDetected',
+              `Regression Guard reopened "${finding.title}" (${finding.source})`,
+              {
+                findingId: existing.id,
+                title: finding.title,
+                source: finding.source,
+                affectedUrl: finding.affectedPages?.[0] ?? null,
+              },
+            );
           }
           updated++;
         } else {
