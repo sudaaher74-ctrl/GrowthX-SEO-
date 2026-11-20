@@ -86,7 +86,7 @@ export interface CompetitorIntelReport {
   model: string | null;
   /** Why there is no analysis, when there is none. The facts are still usable. */
   analysisError: string | null;
-  /** Search phrases and blog posts Sarvam suggests, from your pages and the rivals' topics. Absent on older reports. */
+  /** Search phrases and blog posts Gemini suggests, from your pages and the rivals' topics. Absent on older reports. */
   ideas?: ContentIdeas | null;
   /** Why there are no suggestions, when there are none. */
   ideasError?: string | null;
@@ -146,7 +146,7 @@ export function normaliseAnalysis(raw: unknown): ReportAnalysis {
 /**
  * The full competitor report: why each rival is likely to rank where you do
  * not, what their sites have that yours lacks, and a plan to close it,
- * written by Sarvam.
+ * written by Gemini Flash Lite.
  *
  * Built from every part of Competitor Intelligence that measures a rival's
  * strengths: the topic gaps, page coverage, structured data, content depth,
@@ -323,7 +323,7 @@ export class CompetitorIntelReportService {
 
   private async write(projectId: string, organizationId?: string): Promise<CompetitorIntelReport> {
     const facts = await this.gatherFacts(projectId);
-    // Side by side, as their own Sarvam call: the suggestions draw on what the
+    // Side by side, as their own Gemini call: the suggestions draw on what the
     // rivals cover that you do not, and neither call can cost the other.
     const [report, ideas] = await Promise.all([
       this.analyse(facts, projectId, organizationId),
@@ -345,16 +345,16 @@ export class CompetitorIntelReportService {
           'and what those competitors have that the business does not. Use only the facts given. ' +
           'Never invent rankings, traffic, revenue or numbers not in the facts. Reply with valid JSON only.',
         task: AiTask.COMPETITOR_ANALYSIS,
-        provider: AiProvider.SARVAM,
-        // The customer asked for Sarvam; a different vendor's analysis would
-        // be presented under the wrong name.
+        provider: AiProvider.GEMINI,
+        // Pin the economical model; display the actual model returned by the router.
+        model: 'gemini-3.1-flash-lite',
         allowFallback: false,
         organizationId,
         projectId,
-        maxTokens: 6000,
+        maxTokens: 3000,
       });
       if (completion.refused || !completion.text.trim()) {
-        return { ...base, analysis: null, model: completion.model, analysisError: 'Sarvam returned no analysis. Try again.' };
+        return { ...base, analysis: null, model: completion.model, analysisError: 'Gemini returned no analysis. Try again.' };
       }
       return {
         ...base,
