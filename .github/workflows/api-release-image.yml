@@ -38,15 +38,42 @@ jobs:
         env:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
-          docker save "growthx-crawler:$SOURCE_SHA" | gzip -1 > api-image.tar.gz
+          docker save "growthx-crawler:$SOURCE_SHA" | gzip -6 > api-image.tar.gz
           sha256sum api-image.tar.gz > api-image.tar.gz.sha256
           printf '%s\n' "$SOURCE_SHA" > source-revision.txt
+          split -b 240M -d -a 2 api-image.tar.gz api-image.part-
+          test ! -f api-image.part-03
+          sha256sum api-image.part-* > api-image.parts.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: api-image-${{ steps.source.outputs.sha }}
+          name: api-image-${{ steps.source.outputs.sha }}-manifest
           path: |
-            api-image.tar.gz
             api-image.tar.gz.sha256
+            api-image.parts.sha256
             source-revision.txt
+          compression-level: 0
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('api-image.part-00') != ''
+        with:
+          name: api-image-${{ steps.source.outputs.sha }}-part-00
+          path: api-image.part-00
+          compression-level: 0
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('api-image.part-01') != ''
+        with:
+          name: api-image-${{ steps.source.outputs.sha }}-part-01
+          path: api-image.part-01
+          compression-level: 0
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('api-image.part-02') != ''
+        with:
+          name: api-image-${{ steps.source.outputs.sha }}-part-02
+          path: api-image.part-02
           compression-level: 0
           retention-days: 3

@@ -19,6 +19,15 @@ The server move still requires the database, secrets, snapshot storage, any pend
 
 ## Future changes
 
+After updating the API, verify its Backlinks contract before accepting the
+release: `python3 scripts/check-backlinks-release.py https://api.reigel.in FULL_COMMIT_SHA`.
+The check reads health and expects an authentication challenge from the
+intelligence route; it does not request a paid DataForSEO refresh. Apply the
+`20261102120000_add_backlink_domain_snapshot` migration before serving the
+Backlinks dashboard. A missing snapshot should appear as an empty state, not a
+missing route or table error. The committed Dockerfile uses the same pinned
+Node 22 base as the desktop server.
+
 For an existing Linux Compose host, `scripts/deploy-compose-release.py` builds a clean Git archive and retains the running API/worker environment, resource limits, network, volumes and previous image IDs. It requires Python 3.12+, Git and Docker Compose. Invoke it with `PHASE SOURCE_CHECKOUT LIVE_CHECKOUT ENV_FILE NEW_RELEASE_DIRECTORY FULL_COMMIT_SHA`. Run phases `prepare`, `build`, `backup`, `migrate`, then `activate` in order. Inspect pending migrations before `migrate`. The backup phase checks the PostgreSQL archive and snapshots Redis; no existing data volumes are replaced. Pause any external watchdog while activating and resume it after health checks. Deploy the matching frontend only after the API is healthy. `rollback` restores the previous API/worker images without dropping additive tables.
 
 The release directory contains private resolved Compose settings and a database backup under `runtime/`; keep it outside Git, restrict access and encrypt it for off-host storage. Restart that release using `docker compose -p EXISTING_PROJECT -f RELEASE/runtime/compose.json up -d --no-build --no-deps api worker`. Point host startup automation at this saved release configuration; do not rebuild a historical dirty checkout. A new server uses the clean repository instructions above and restored private state.
