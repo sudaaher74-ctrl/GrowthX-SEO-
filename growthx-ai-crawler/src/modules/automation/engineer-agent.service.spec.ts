@@ -117,7 +117,8 @@ describe('EngineerAgentService', () => {
     expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
     expect(committed).toContain('<title>New title</title>');
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
-    const change = run.steps.find((s: any) => s.step === 'replace_lines').change;
+    const steps = Array.isArray(run.steps) ? (run.steps as Array<{ step?: string; change?: any }>) : [];
+    const change = steps.find((s) => s.step === 'replace_lines')?.change;
     expect(change.before).toBe('<title>Old title</title>');
     expect(change.after).toBe('<title>New title</title>');
     expect(router.generate.mock.calls[2][0].prompt).toContain('use replace_lines');
