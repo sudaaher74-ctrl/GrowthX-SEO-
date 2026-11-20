@@ -1,27 +1,32 @@
 import Link from "next/link";
-import { CheckCircle2, RefreshCw, Clock, FileText } from "lucide-react";
+import { CheckCircle2, RefreshCw, RotateCcw, Lock, FileText } from "lucide-react";
 
 const PROOF_POINTS = [
   {
     icon: RefreshCw,
-    title: "Re-crawled after every merge",
-    line: "Once you merge a fix, we crawl the page again and confirm the problem is gone.",
+    title: "Re-crawled & Regression Guarded",
+    line: "After every PR merge or CMS publish, Reigel re-crawls to confirm the defect is gone — and automatically re-opens it with Slack, Discord, or REST webhook alerts if it ever returns.",
   },
   {
-    icon: Clock,
-    title: "Timestamped before and after",
-    line: "Each fix keeps the page as it was and as it is now, so you can show a client what changed.",
+    icon: RotateCcw,
+    title: "BEFORE snapshots & 1-Click Safe Rollback",
+    line: "Every direct WordPress, Shopify, and Webflow change stores the exact previous page state so you can undo safely in one click.",
+  },
+  {
+    icon: Lock,
+    title: "Frozen monthly snapshots & zero-login client portals",
+    line: "Lock month-end reports into immutable snapshots and share a white-labeled portal link with clients — no login required.",
   },
   {
     icon: FileText,
-    title: "Reports you can hand over",
-    line: "Audit and competitor reports export as client-ready PDFs.",
+    title: "Server A4 PDF & 1-Click CSV exports",
+    line: "Download agency-branded executive summaries, Fix Impact Ledgers, backlink recovery logs, and keyword reports in seconds.",
   },
 ];
 
 export function ProofLedger() {
   return (
-    <section className="py-20 border-t border-brand-200">
+    <section id="proof" className="py-20 border-t border-brand-200 scroll-mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-[1fr_1fr] gap-10 lg:gap-16 items-center">
           <div>

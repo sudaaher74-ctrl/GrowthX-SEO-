@@ -24,32 +24,33 @@ import {
 const PIPELINE_STEPS = [
   {
     num: "01",
-    title: "Paste your website",
-    description: "Add your URL and up to 5 rivals, or let us suggest them. That's the whole setup.",
+    title: "Paste your URL & connect your stack",
+    description:
+      "Add your domain and up to 5 rivals. Connect Google Search Console, GA4, GitHub, WordPress, Shopify, or Webflow in minutes.",
     icon: Link2,
     iconBg: "bg-surface-2 border border-brand-200 text-signal-400",
   },
   {
     num: "02",
-    title: "We crawl and compare",
+    title: "Run the 5-stage pipeline (or schedule it)",
     description:
-      "Every page is read the way Google reads it. Then we compare you with your rivals and ask AI assistants about you.",
+      "Reigel renders pages like Googlebot, audits backlinks & rivals, and queries 5 AI assistants — on demand or Daily, Weekly, Bi-weekly, or Monthly.",
     icon: Search,
     iconBg: "bg-surface-2 border border-brand-200 text-brand-900",
   },
   {
     num: "03",
-    title: "Get one ranked list",
+    title: "Ship batch fixes & grounded content",
     description:
-      "Each issue and gap shows the evidence, the effort involved and a priority. You see what to do first.",
+      "Approve single fixes, safe batches (up to 15), or fact-grounded Content Studio articles straight to GitHub, WordPress, Shopify, or Webflow with BEFORE snapshots.",
     icon: ListChecks,
     iconBg: "bg-surface-2 border border-brand-200 text-success-500",
   },
   {
     num: "04",
-    title: "Approve, then we prove it",
+    title: "Verify, guard & share white-label proof",
     description:
-      "Approve a fix and Reigel opens a pull request on your repository. You merge it. Then we re-crawl to check it worked.",
+      "Reigel re-crawls to prove the fix worked, Regression Guard flags recurring defects via webhooks, and frozen monthly snapshots share in zero-login client portals.",
     icon: TrendingUp,
     iconBg: "bg-surface-2 border border-brand-200 text-warning-500",
   },
@@ -77,11 +78,11 @@ function WorkflowAppPreview() {
                 {[
                   { icon: LayoutGrid, label: "Dashboard" },
                   { icon: Globe, label: "Website Audit", active: true },
-                  { icon: Target, label: "Competitor Intel" },
+                  { icon: Target, label: "Backlinks & Rivals" },
                   { icon: Bot, label: "AI Visibility" },
                   { icon: Wrench, label: "Fix Engine" },
-                  { icon: FileSpreadsheet, label: "Reports" },
-                  { icon: Settings, label: "Settings" },
+                  { icon: FileSpreadsheet, label: "Client Portals" },
+                  { icon: Settings, label: "Webhooks & Sync" },
                 ].map((item) => {
                   const ItemIcon = item.icon;
                   return (
@@ -227,15 +228,15 @@ function WorkflowAppPreview() {
                     </div>
                     <div>
                       <p className="text-[10px] font-extrabold text-brand-950 leading-tight">
-                        We prepare the fix
+                        Publish safely, anywhere
                       </p>
                       <p className="text-[8.5px] text-brand-500 leading-tight mt-0.5">
-                        Approve a fix and we open the pull request.
+                        Batch to GitHub, WordPress, Shopify &amp; Webflow with 1-click rollback.
                       </p>
                     </div>
                   </div>
                   <span className="bg-signal-400 text-signal-ink text-[9px] font-bold py-1 px-2.5 rounded-full flex items-center justify-center gap-1 w-fit">
-                    <span>View Plan</span>
+                    <span>Open Fix Queue</span>
                     <ArrowRight size={9} />
                   </span>
                 </div>
@@ -266,7 +267,7 @@ export function WorkflowSteps() {
                 in four steps.
               </h2>
               <p className="mt-2 text-sm sm:text-base text-brand-500 leading-relaxed">
-                Add your URL and up to 5 rivals. Reigel does the crawling and comparing, ranks the work, prepares the fixes, and checks the results.
+                Add your URL and up to 5 rivals. Reigel runs the 5-stage pipeline, ships approved fixes to GitHub or your CMS with 1-click rollback, guards against regressions, and proves every win in white-label portals.
               </p>
             </div>
 

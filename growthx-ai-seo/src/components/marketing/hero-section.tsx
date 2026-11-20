@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { auth, subscribeToAuthChange } from "@/lib/api-client";
+import { DomainAuditForm } from "@/components/marketing/domain-audit-form";
 import {
   ArrowRight,
   Bot,
   CheckCircle2,
-  Coins,
+  FileText,
   Globe,
   LayoutGrid,
+  RotateCcw,
   Search,
+  ShieldCheck,
   Sun,
   Wrench,
 } from "lucide-react";
@@ -48,11 +50,11 @@ function DashboardMockup() {
             <span className="text-brand-700 truncate">yourwebsite.com</span>
           </div>
 
-          {/* Credits + Single Theme Toggle */}
+          {/* Example Badge + Single Theme Toggle */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-bold text-brand-950">
-              <Coins size={10} className="text-signal-400 shrink-0" />
-              <span>4.9M<span className="hidden sm:inline">85 Credits</span></span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-surface-2 px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-bold text-brand-700">
+              <ShieldCheck size={10} className="text-success-500 shrink-0" />
+              <span>Example data</span>
             </span>
             <span className="hidden xs:flex h-5 w-5 items-center justify-center rounded-md border border-brand-200 bg-surface-2 text-brand-500">
               <Sun size={10} />
@@ -84,14 +86,15 @@ function DashboardMockup() {
               {/* Navigation Items */}
               <div className="space-y-0.5">
                 {[
-                  { id: "overview" as const, label: "Dashboard", icon: LayoutGrid },
-                  { id: "overview" as const, label: "Website Audit", icon: Globe },
-                  { id: "overview" as const, label: "Organic Search", icon: Search },
-                  { id: "ai" as const, label: "AI Visibility", icon: Bot },
-                  { id: "fixes" as const, label: "Fix Engine", icon: Wrench },
+                  { id: "overview" as const, primary: true, label: "Dashboard", icon: LayoutGrid },
+                  { id: "overview" as const, primary: false, label: "Website Audit", icon: Globe },
+                  { id: "overview" as const, primary: false, label: "Organic Search", icon: Search },
+                  { id: "ai" as const, primary: true, label: "AI Visibility", icon: Bot },
+                  { id: "fixes" as const, primary: true, label: "Fix Engine", icon: Wrench },
+                  { id: "fixes" as const, primary: false, label: "Content Studio", icon: FileText },
                 ].map((item) => {
                   const ItemIcon = item.icon;
-                  const isCurrent = activeTab === item.id;
+                  const isCurrent = item.primary && activeTab === item.id;
                   return (
                     <button
                       key={item.label}
@@ -123,8 +126,8 @@ function DashboardMockup() {
             {/* Bottom mini indicator */}
             <div className="hidden sm:block pt-2 border-t border-brand-200/60">
               <div className="flex items-center justify-between text-[9px] font-mono text-brand-500 px-1">
-                <span>Crawl status</span>
-                <span className="font-bold text-success-500">Synced</span>
+                <span>Regression Guard</span>
+                <span className="font-bold text-success-500">Active</span>
               </div>
             </div>
           </div>
@@ -285,20 +288,21 @@ function DashboardMockup() {
                   </div>
                 </div>
 
-                {/* Fix Engine 1-Click PR Card */}
+                {/* Fix Engine Batch Safe Fix Card */}
                 <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-2xs">
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-1.5">
                       <span className="inline-flex items-center gap-1 rounded bg-success-50 border border-success-500/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-success-600">
                         <CheckCircle2 size={9} />
-                        PR Ready
+                        Batch Ready
                       </span>
                       <p className="text-[11px] font-bold text-brand-950 truncate">
-                        Product JSON-LD schema markup
+                        6 safe fixes &middot; Schema &amp; Canonicals
                       </p>
                     </div>
-                    <p className="text-[9.5px] text-brand-500 truncate">
-                      Auto-generated &amp; validated for Google Rich Results
+                    <p className="text-[9.5px] text-brand-500 truncate flex items-center gap-1">
+                      <RotateCcw size={9} className="text-brand-500 shrink-0" />
+                      <span>WordPress, Shopify, Webflow &amp; GitHub &middot; 1-click rollback</span>
                     </p>
                   </div>
 
@@ -306,7 +310,7 @@ function DashboardMockup() {
                     href="/login"
                     className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-signal-400 hover:bg-signal-500 px-3 py-1.5 text-[10px] font-extrabold text-signal-ink shadow-xs transition-all active:scale-95"
                   >
-                    <span>Merge PR</span>
+                    <span>Ship Batch</span>
                     <ArrowRight size={11} />
                   </Link>
                 </div>
@@ -319,10 +323,10 @@ function DashboardMockup() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-brand-950">
-                      Sampled AI Answer References
+                      Live AI Citation &amp; SERP Visualizer
                     </h4>
                     <p className="text-[9.5px] text-brand-500">
-                      Real-time queries tested across 4 major AI engines
+                      Buyer queries scanned via 5 official AI engine APIs
                     </p>
                   </div>
                   <span className="rounded-full bg-success-50 px-2 py-0.5 text-[9px] font-bold text-success-600">
@@ -334,18 +338,18 @@ function DashboardMockup() {
                   {[
                     {
                       query: "Which suppliers deliver fastest in our region?",
-                      status: "Recommended #1",
-                      engines: "ChatGPT · Perplexity",
+                      status: "Cited #1",
+                      engines: "ChatGPT · Perplexity · Sarvam",
                     },
                     {
-                      query: "Best wholesale enterprise supplier options",
-                      status: "Brand Cited",
-                      engines: "Gemini · Claude",
+                      query: "Best enterprise platform comparison 2026",
+                      status: "Draft Content",
+                      engines: "Gemini · Claude · AI Gap",
                     },
                     {
-                      query: "Verified manufacturer customer reviews & pricing",
-                      status: "Full Profile",
-                      engines: "All 4 Engines",
+                      query: "Verified manufacturer pricing & specifications",
+                      status: "Source Linked",
+                      engines: "All 5 Engines",
                     },
                   ].map((item) => (
                     <div
@@ -369,39 +373,39 @@ function DashboardMockup() {
               </div>
             )}
 
-            {/* TAB 3: FIX ENGINE DETAIL */}
+            {/* TAB 3: FIX ENGINE & CONTENT STUDIO DETAIL */}
             {activeTab === "fixes" && (
               <div className="rounded-2xl border border-brand-200 bg-surface-1 p-3.5 space-y-2.5 shadow-2xs">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-bold text-brand-950">
-                      Autonomous Fix Engine
+                      Fix Engine &amp; Content Studio
                     </h4>
                     <p className="text-[9.5px] text-brand-500">
-                      3 code pull requests generated and verified
+                      Batch safe fixes &amp; grounded drafts with 1-click rollback
                     </p>
                   </div>
-                  <span className="font-mono text-[9px] font-bold text-signal-400">
-                    GitHub Connected
+                  <span className="font-mono text-[8.5px] font-bold text-brand-700 bg-surface-2 border border-brand-200 rounded-full px-2 py-0.5 shrink-0">
+                    WP · Shopify · GitHub
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
                   {[
                     {
-                      title: "Add Product & Merchant Schema markup",
-                      branch: "reigel/fix-schema",
-                      impact: "+18 Health",
+                      title: "Batch Safe Fix: Product Schema + 4 Canonicals",
+                      meta: "Shopify & GitHub · BEFORE snapshot saved",
+                      tag: "Batch (6)",
                     },
                     {
-                      title: "Resolve duplicate canonical tags on 4 pages",
-                      branch: "reigel/canonical-clean",
-                      impact: "+9 Health",
+                      title: "Grounded Article: Buyer Comparison & FAQ JSON-LD",
+                      meta: "Content Studio · Zero invented stats · Draft ready",
+                      tag: "Publish",
                     },
                     {
-                      title: "Generate missing OpenGraph & Twitter tags",
-                      branch: "reigel/social-meta",
-                      impact: "+6 Health",
+                      title: "Lost-Link Recovery: 3 broken referring domains",
+                      meta: "Backlink Outreach · Tracked in Impact Ledger",
+                      tag: "Outreach",
                     },
                   ].map((fix) => (
                     <div
@@ -412,18 +416,15 @@ function DashboardMockup() {
                         <p className="text-[10.5px] font-bold text-brand-950 truncate">
                           {fix.title}
                         </p>
-                        <p className="text-[9px] font-mono text-brand-500">
-                          {fix.branch} &middot;{" "}
-                          <span className="text-success-500 font-bold">
-                            {fix.impact}
-                          </span>
+                        <p className="text-[9px] font-mono text-brand-500 truncate">
+                          {fix.meta}
                         </p>
                       </div>
                       <Link
                         href="/login"
                         className="shrink-0 rounded-lg bg-surface-1 hover:bg-surface-3 border border-brand-200 px-2.5 py-1 text-[9.5px] font-bold text-brand-950 transition-colors"
                       >
-                        Review
+                        {fix.tag}
                       </Link>
                     </div>
                   ))}
@@ -438,22 +439,25 @@ function DashboardMockup() {
 }
 
 export function HeroSection() {
-  const signedIn = useSyncExternalStore(
-    subscribeToAuthChange,
-    () => auth.isAuthenticated(),
-    () => false,
-  );
-
   return (
     <section className="relative lg:min-h-[calc(100vh-4rem)] flex items-start lg:items-center pt-20 pb-12 sm:pt-24 sm:pb-16 lg:pt-28 lg:pb-20 border-b border-brand-200 overflow-x-clip w-full max-w-full">
       <div className="relative max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 w-full py-2 sm:py-4 min-w-0">
         <div className="grid lg:grid-cols-[45%_55%] gap-8 lg:gap-10 items-center min-w-0 w-full">
           {/* LEFT COLUMN */}
           <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-2xs max-w-full">
-              <div className="w-2 h-2 rounded-full bg-signal-400 shrink-0" />
-              <span className="truncate sm:overflow-visible">SEO, AI Search &amp; Google Maps, in one queue</span>
+            {/* Badge + Founder Promo Link */}
+            <div className="flex flex-wrap items-center gap-2 max-w-full">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-surface-1 border border-brand-200 text-brand-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-2xs max-w-full">
+                <div className="w-2 h-2 rounded-full bg-signal-400 shrink-0" />
+                <span className="truncate sm:overflow-visible">Technical SEO &middot; AI Visibility &middot; Direct CMS &amp; GitHub Fixes</span>
+              </div>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-500/20 px-2.5 py-1 text-[10px] sm:text-[11px] font-bold text-success-600 hover:border-success-500/40 transition-colors"
+              >
+                <span>Founder Access: ₹0 through Dec 31, 2026</span>
+                <ArrowRight size={11} />
+              </Link>
             </div>
 
             {/* Headline */}
@@ -468,42 +472,12 @@ export function HeroSection() {
 
             {/* Subtitle */}
             <p className="text-sm sm:text-base lg:text-lg text-brand-500 leading-relaxed max-w-xl break-words">
-              Reigel crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
+              Reigel crawls your site, tracks rivals and lost backlinks, and queries ChatGPT, Claude, Gemini, Perplexity &amp; Sarvam. Ship single or batch fixes directly to GitHub, WordPress, Shopify &amp; Webflow with 1-click rollback — and hand clients white-label proof portals.
             </p>
 
             {/* URL Box CTA */}
             <div className="space-y-3 pt-1">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const input = (e.currentTarget.elements.namedItem("url") as HTMLInputElement)?.value?.trim() ?? "";
-                  if (input) {
-                    try {
-                      localStorage.setItem("growthx_pending_domain", input);
-                    } catch {}
-                  }
-                  const clean = input ? encodeURIComponent(input) : "";
-                  window.location.href = signedIn
-                    ? clean ? `/analyze?url=${clean}` : "/analyze"
-                    : clean ? `/login?url=${clean}` : "/login";
-                }}
-                className="flex flex-col sm:flex-row items-stretch gap-2 bg-surface-1 border border-brand-200 focus-within:border-brand-400 p-1.5 rounded-2xl shadow-card transition-all w-full max-w-md"
-              >
-                <input
-                  name="url"
-                  type="text"
-                  placeholder="yourwebsite.com"
-                  className="flex-1 bg-transparent px-3.5 sm:px-4 py-2.5 text-sm font-medium text-brand-950 placeholder-brand-400 outline-none focus:outline-none focus:ring-0"
-                  style={{ outline: "none", boxShadow: "none" }}
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 bg-signal-400 hover:bg-signal-500 active:scale-[0.98] text-signal-ink font-extrabold text-sm px-5 sm:px-6 py-2.5 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
-                >
-                  <span>Run free audit</span>
-                  <ArrowRight size={14} />
-                </button>
-              </form>
+              <DomainAuditForm className="max-w-md" />
 
               <div className="flex flex-wrap items-center justify-between gap-2 max-w-md px-1 text-xs text-brand-500">
                 <p className="flex items-center gap-1.5 font-medium">
@@ -511,10 +485,10 @@ export function HeroSection() {
                   Free account &middot; No card needed &middot; Audit ready in minutes
                 </p>
                 <Link
-                  href="/login"
+                  href="/#interactive-demo"
                   className="text-brand-900 hover:text-brand-950 font-bold underline decoration-signal-400 underline-offset-4 transition-colors"
                 >
-                  Already a customer? Log in &rarr;
+                  Try interactive demo &darr;
                 </Link>
               </div>
             </div>

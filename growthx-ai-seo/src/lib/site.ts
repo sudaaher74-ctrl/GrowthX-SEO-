@@ -4,4 +4,4 @@ export const SITE_URL =
 
 export const SITE_TITLE = "Reigel: find what's costing you customers, then fix it";
 export const SITE_DESCRIPTION =
-  "Reigel audits your website, tracks rivals and AI-assistant answers, and prepares the fixes as pull requests you approve. For agencies and business owners in India. Free audit, plans from ₹2,999/month.";
+  "Reigel audits your website, tracks rivals, backlinks, and AI-assistant answers, ships safe fixes to GitHub, WordPress, Shopify & Webflow with 1-click rollback, and exports white-label client reports. Free audit, plans from ₹2,999/month.";

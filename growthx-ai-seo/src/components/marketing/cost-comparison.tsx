@@ -15,39 +15,39 @@ interface ComparisonRow {
 
 const COMPARISON_ROWS: ComparisonRow[] = [
   {
-    what: "Technical SEO audit + fixes",
+    what: "Technical SEO audit + direct fixes",
     usualWay: "SEO agency retainer",
     costInr: "₹40,000–1,00,000",
     costUsd: "$500–1,200",
-    growthx: "Included, fixes ready as pull requests",
+    growthx: "Included — GitHub, WP, Shopify & Webflow + rollback",
   },
   {
-    what: "Keyword & competitor research",
+    what: "Keywords, rivals & backlink recovery",
     usualWay: "Semrush or Ahrefs",
     costInr: "₹11,000+",
     costUsd: "$130+",
-    growthx: "Included, gaps priced in ₹",
+    growthx: "Included — gaps, counter-moves & lost-link outreach",
   },
   {
-    what: "AI search visibility",
+    what: "AI search visibility (5 engines)",
     usualWay: "Otterly, Peec or Profound",
     costInr: "₹2,500–8,500",
     costUsd: "$30–100",
-    growthx: "Included",
+    growthx: "Included — live API scans & SERP visualizer",
   },
   {
-    what: "Google Maps rank tracking",
-    usualWay: "Local Falcon or BrightLocal",
+    what: "White-label client portals & monthly PDFs",
+    usualWay: "AgencyAnalytics or DashThis",
     costInr: "₹2,000–3,500",
     costUsd: "$25–45",
-    growthx: "Included",
+    growthx: "Included — frozen snapshots, zero-login portals & PDF/CSV",
   },
   {
-    what: "Someone to actually do the work",
-    usualWay: "Freelancer or in-house hire (for the routine fixes)",
+    what: "Content drafting & routine execution",
+    usualWay: "Freelancer or in-house hire",
     costInr: "₹25,000+",
     costUsd: "$300+",
-    growthx: "Fix Engine opens the pull request",
+    growthx: "Batch Safe Fixes (up to 15) + Grounded Content Studio",
   },
 ];
 
@@ -57,13 +57,23 @@ export function CostComparison() {
   const yearlyPct = Math.round(YEARLY_DISCOUNT * 100);
 
   const starterPrice = planPrice("starter", currency, billingCycle);
-  const badgeText = `Audit, rivals, AI answers and Maps, from ${planPrice("starter", currency, "monthly")}/mo`;
+  const starterNumeric =
+    billingCycle === "yearly"
+      ? Math.round(PLANS[0].monthly[currency] * (1 - YEARLY_DISCOUNT))
+      : PLANS[0].monthly[currency];
+  const usualLowEnd = currency === "INR" ? 80500 : 985;
+  const savedAmount = Math.max(0, usualLowEnd - starterNumeric);
+
+  const badgeText = `Audit, AI visibility, direct CMS fixes & client portals, from ${planPrice("starter", currency, "monthly")}/mo`;
   const totalWithout = currency === "INR" ? "₹80,500+" : "$985+";
-  const saving = currency === "INR" ? "₹77,500" : "$946";
+  const saving =
+    currency === "INR"
+      ? `₹${savedAmount.toLocaleString("en-IN")}`
+      : `$${savedAmount.toLocaleString("en-US")}`;
   const totalWith = `From ${starterPrice}`;
 
   return (
-    <section className="py-20 sm:py-28 relative overflow-hidden border-y border-brand-200">
+    <section id="pricing" className="py-20 sm:py-28 relative overflow-hidden border-y border-brand-200 scroll-mt-16">
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         {/* Header container */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
@@ -221,8 +231,32 @@ export function CostComparison() {
           </div>
         </div>
 
+        {/* Founder Launch Promotion Banner (matches /pricing) */}
+        <div className="mt-10 max-w-4xl mx-auto rounded-2xl border-2 border-signal-400 bg-surface-1 p-4 sm:p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-signal-400 px-2.5 py-0.5 font-mono text-[10px] font-black uppercase text-signal-ink">
+                Founder Launch Promotion
+              </span>
+              <span className="text-[11px] font-bold text-success-600">
+                ₹0 through December 31, 2026 &middot; No card required
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-brand-700 font-medium">
+              Claim full platform access on 1 website (5,000 crawl pages &amp; 2 AI visibility cycles/mo) with zero automatic renewal.
+            </p>
+          </div>
+          <Link
+            href="/pricing"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-full bg-signal-400 hover:bg-signal-500 px-4 py-2 text-xs font-extrabold text-signal-ink shadow-xs transition-all cursor-pointer"
+          >
+            <span>Claim Free Access</span>
+            <ArrowRight size={13} />
+          </Link>
+        </div>
+
         {/* Pricing Teaser Cards */}
-        <div className="mt-12 max-w-4xl mx-auto grid sm:grid-cols-3 gap-5">
+        <div className="mt-6 max-w-4xl mx-auto grid sm:grid-cols-3 gap-5">
           {PLANS.map((plan) => (
             <div
               key={plan.id}

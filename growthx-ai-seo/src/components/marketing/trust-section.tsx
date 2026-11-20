@@ -80,7 +80,7 @@ export function TrustSection() {
                 <p className="text-lg font-extrabold text-brand-950">Full audit of your website</p>
               </div>
               <p className="text-[13px] text-brand-500 mb-5 leading-relaxed">
-                Create a free account, paste your URL, and get a ranked fix list. Fixes arrive as pull requests you approve.
+                Create a free account, paste your URL, and get a ranked fix queue. Publish approved fixes directly to GitHub, WordPress, Shopify, or Webflow — with automatic rollback and re-crawl proof.
               </p>
               <Link
                 href="/login"

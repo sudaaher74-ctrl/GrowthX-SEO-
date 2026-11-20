@@ -39,19 +39,20 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Product",
     links: [
-      { label: "Website Audit", href: "/#features" },
-      { label: "Competitor Intelligence", href: "/#features" },
+      { label: "Website Audit & Pipelines", href: "/#features" },
+      { label: "Fix Engine & 1-Click Rollback", href: "/#interactive-demo" },
+      { label: "Grounded Content Studio", href: "/#features" },
       { label: "AI Search Visibility", href: "/#features" },
-      { label: "Google Business Profile", href: "/#features" },
-      { label: "Fix Engine", href: "/#features" },
+      { label: "Competitors & Backlink Recovery", href: "/#features" },
+      { label: "White-Label Client Portals", href: "/#interactive-demo" },
     ],
     subSection: {
       title: "Connects to",
       links: [
-        { label: "Google Search Console", href: "/#how-it-works" },
-        { label: "Google Analytics (GA4)", href: "/#how-it-works" },
-        { label: "Google Business Profile", href: "/#how-it-works" },
-        { label: "GitHub", href: "/#how-it-works" },
+        { label: "Google Search Console & GA4", href: "/#integrations" },
+        { label: "WordPress, Shopify & Webflow", href: "/#integrations" },
+        { label: "GitHub Repositories", href: "/#integrations" },
+        { label: "Slack, Discord & REST Webhooks", href: "/#integrations" },
       ],
     },
   },
@@ -94,7 +95,14 @@ export function LandingFooter() {
                 Find it. Fix it. Prove it.
               </h3>
               <p className="text-xs text-brand-500 mb-2 max-w-xs leading-relaxed">
-                sudarshan@growthx.in &bull; +91 8767067884<br />
+                <a
+                  href="mailto:sudarshan@reigel.in"
+                  className="hover:text-brand-950 transition-colors"
+                >
+                  sudarshan@reigel.in
+                </a>{" "}
+                &bull; +91 8767067884
+                <br />
                 New Panvel, Navi Mumbai, India
               </p>
             </div>

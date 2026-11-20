@@ -53,7 +53,7 @@ const PRICING_FAQS = [
   },
   {
     q: "What are the 3 conditions of the free founder tier?",
-    a: "Every registered user can monitor 1 active website, utilize up to 5,000 pages crawl capacity per technical spider run, and receive 2 complete AI Search Visibility audit cycles per month across ChatGPT, Perplexity, Claude, and Gemini.",
+    a: "Every registered user can monitor 1 active website, utilize up to 5,000 pages crawl capacity per technical spider run, and receive 2 complete AI Search Visibility audit cycles per month across ChatGPT, Perplexity, Claude, Gemini, and Sarvam.",
   },
   {
     q: "What happens when the promotion ends on January 1, 2027?",
@@ -65,11 +65,11 @@ const PRICING_FAQS = [
   },
   {
     q: "How does the Fix Engine ship changes?",
-    a: "Reigel prepares code patches and opens a pull request on your website's GitHub repository, with a before/after diff. Nothing is published until you review and merge it. Reigel never merges for you.",
+    a: "Ship individual fixes or safe batches (up to 15 fixes at once) directly to GitHub pull requests, WordPress, Shopify, or Webflow. GitHub PRs never merge automatically, and every CMS push lets you choose Draft or Live with an automatic BEFORE snapshot and 1-Click Safe Rollback.",
   },
   {
     q: "Which AI assistants do you measure?",
-    a: "ChatGPT, Claude, Gemini, and Perplexity, each queried through its official developer API. We measure brand citation share, source mentions, and competitor share of voice.",
+    a: "ChatGPT, Claude, Gemini, Perplexity, and Sarvam, each queried through its official developer API. We measure brand citation share, real source links, and competitor share of voice.",
   },
   {
     q: "What are credits?",
@@ -105,7 +105,7 @@ export default function PricingPage() {
           </h1>
 
           <p className="text-sm sm:text-base text-brand-500 leading-relaxed max-w-2xl mx-auto">
-            Audit, rivals, AI answers and Google Maps in one place, with fixes you approve and we prove. Priced in rupees.
+            Audit, rivals, backlink recovery, AI visibility, direct CMS &amp; GitHub fixes, and white-label client portals in one workspace. Priced in rupees.
           </p>
 
           {/* Billing Cycle Switcher */}

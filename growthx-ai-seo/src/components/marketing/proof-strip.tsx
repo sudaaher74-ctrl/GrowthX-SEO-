@@ -11,30 +11,42 @@ const PARTNER_LOGOS = [
   "MilQuu Fresh",
 ];
 
+const STACK_INTEGRATIONS = [
+  "WordPress",
+  "Shopify",
+  "Webflow",
+  "GitHub",
+  "Search Console",
+  "GA4",
+  "Slack & Discord Webhooks",
+];
+
+const AI_ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "Sarvam"];
+
 /** What the product does, stated as fact. No counters: a number belongs here only when it is read from live data. */
 const PRINCIPLES = [
   {
     icon: Activity,
     label: "Crawled like Google",
-    detail: "JavaScript pages are rendered before they are audited.",
+    detail: "Playwright renders JavaScript pages on demand or on Daily, Weekly, Bi-weekly, or Monthly schedules.",
     color: "text-brand-800",
   },
   {
     icon: Target,
     label: "5 AI assistants measured",
-    detail: "ChatGPT, Claude, Gemini, Perplexity and Sarvam, each through its own API.",
+    detail: "ChatGPT, Claude, Gemini, Perplexity & Sarvam via official APIs, with live SERP citation previews.",
     color: "text-signal-400",
   },
   {
     icon: ShieldCheck,
-    label: "You approve every change",
-    detail: "Fixes arrive as a pull request. We never merge for you.",
+    label: "GitHub, WP, Shopify & Webflow",
+    detail: "Ship single or batch fixes with BEFORE snapshots, 1-click rollback, and zero unapproved publishes.",
     color: "text-success-500",
   },
   {
     icon: Zap,
     label: "Nothing invented",
-    detail: "If we could not measure it, the screen says so.",
+    detail: "Zero fabricated stats in audits, Content Studio, or white-label portals. Unmeasured fields say so.",
     color: "text-warning-500",
   },
 ];
@@ -55,6 +67,41 @@ export function ProofStrip() {
                 className="text-xs sm:text-sm font-extrabold text-brand-700 hover:text-brand-950 tracking-tight transition-colors cursor-default"
               >
                 {brand}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Visual Integrations & AI Engines Strip */}
+        <div
+          id="integrations"
+          className="pt-5 border-t border-brand-200 grid md:grid-cols-2 gap-4 items-center scroll-mt-20"
+        >
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-500 mr-1.5">
+              Connects &amp; ships to
+            </span>
+            {STACK_INTEGRATIONS.map((name) => (
+              <span
+                key={name}
+                className="rounded-full border border-brand-200 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-800 shadow-2xs"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center md:justify-end gap-1.5 sm:gap-2">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-500 mr-1.5">
+              Measures AI search
+            </span>
+            {AI_ENGINES.map((engine) => (
+              <span
+                key={engine}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-800 shadow-2xs"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+                {engine}
               </span>
             ))}
           </div>

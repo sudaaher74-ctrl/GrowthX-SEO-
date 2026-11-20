@@ -1,23 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
+import { DomainAuditForm } from "@/components/marketing/domain-audit-form";
 
 export function FinalCTA() {
-  const [url, setUrl] = useState("");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = url.trim();
-    if (trimmed) {
-      try {
-        localStorage.setItem("growthx_pending_domain", trimmed);
-      } catch {}
-    }
-    const clean = trimmed ? encodeURIComponent(trimmed) : "";
-    window.location.href = clean ? `/login?url=${clean}` : "/login";
-  };
-
   return (
     <section className="py-14 sm:py-24 border-t border-brand-200 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -33,32 +19,16 @@ export function FinalCTA() {
                 <span className="text-signal-400">Find out what to fix first.</span>
               </h2>
               <p className="mt-3 sm:mt-4 text-sm sm:text-lg text-brand-500 leading-relaxed">
-                Get your free audit in minutes. Free account, no card needed.
+                Get your free audit in minutes. Founder early access is ₹0 through December 31, 2026 — no card needed.
               </p>
             </div>
 
             {/* Right */}
             <div className="flex flex-col items-start lg:items-end gap-3 sm:gap-4 shrink-0 w-full lg:w-auto">
-              <form
-                onSubmit={handleSubmit}
-                className="flex flex-col sm:flex-row items-stretch gap-2 bg-surface-2 border border-brand-200 focus-within:border-brand-400 p-1.5 rounded-2xl shadow-sm w-full sm:w-[420px]"
-              >
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="yourwebsite.com"
-                  className="flex-1 bg-transparent px-3.5 sm:px-4 py-2.5 text-sm font-medium text-brand-950 placeholder-brand-400 focus:outline-none"
-                  style={{ outline: "none", boxShadow: "none" }}
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 bg-signal-400 hover:bg-signal-500 active:scale-[0.98] text-signal-ink font-extrabold text-sm px-5 sm:px-6 py-2.5 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
-                >
-                  <span>Run free audit</span>
-                  <ArrowRight size={14} />
-                </button>
-              </form>
+              <DomainAuditForm
+                className="w-full sm:w-[420px]"
+                inputContainerClassName="bg-surface-2 border border-brand-200 focus-within:border-brand-400 shadow-sm"
+              />
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-brand-500">
                 {["Free account", "No card needed", "Ready in minutes"].map((item) => (

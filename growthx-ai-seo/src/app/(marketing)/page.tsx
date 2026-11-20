@@ -3,6 +3,7 @@ import { HeroSection } from "@/components/marketing/hero-section";
 import { ProofStrip } from "@/components/marketing/proof-strip";
 import { TrustSection } from "@/components/marketing/trust-section";
 import { WorkflowSteps } from "@/components/marketing/workflow-steps";
+import { InteractiveShowcase } from "@/components/marketing/interactive-showcase";
 import { FeatureCards } from "@/components/marketing/feature-cards";
 import { ProofLedger } from "@/components/marketing/proof-ledger";
 import { ValueSection } from "@/components/marketing/value-section";
@@ -39,7 +40,7 @@ const STRUCTURED_DATA = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description:
-        "Audits your website, tracks rivals and AI-assistant answers, and prepares the fixes as pull requests you approve.",
+        "Audits your website, tracks rivals, lost backlinks, and AI-assistant answers, drafts fact-grounded content, ships single or batch fixes directly to GitHub, WordPress, Shopify & Webflow with 1-click rollback, and delivers white-label client portals and PDF reports.",
       publisher: { "@id": `${SITE_URL}/#org` },
       offers: PLANS.map((plan) => ({
         "@type": "Offer",
@@ -73,6 +74,7 @@ export default function LandingPage() {
         <ProofStrip />
         <TrustSection />
         <WorkflowSteps />
+        <InteractiveShowcase />
         {/* The one claim no rival can make: every fix is checked after it ships. */}
         <ProofLedger />
         <FeatureCards />
