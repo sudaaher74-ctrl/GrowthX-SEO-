@@ -82,7 +82,7 @@ describe('CompetitorIntelReportService.generate', () => {
   it('asks Gemini Flash Lite only, and returns its analysis alongside the facts', async () => {
     const router = {
       generate: jest.fn().mockResolvedValue({
-        model: 'sarvam-105b',
+        model: 'gemini-3.1-flash-lite',
         refused: false,
         text:
           '```json\n{"executiveSummary":"Country Delight covers more.","gaps":[{"title":"Location pages","priority":"low"},' +
@@ -95,7 +95,7 @@ describe('CompetitorIntelReportService.generate', () => {
     expect(router.generate).toHaveBeenCalledWith(
       expect.objectContaining({ provider: AiProvider.GEMINI, model: 'gemini-3.1-flash-lite', allowFallback: false, organizationId: 'org1', projectId: 'p1' }),
     );
-    expect(report.model).toBe('sarvam-105b');
+    expect(report.model).toBe('gemini-3.1-flash-lite');
     expect(report.analysisError).toBeNull();
     expect(report.analysis?.gaps.map((g) => g.priority)).toEqual(['high', 'low']);
     expect(report.analysis?.whyTheyRank[0]).toMatchObject({ competitor: 'Country Delight', threat: 'medium' });
@@ -123,8 +123,8 @@ describe('CompetitorIntelReportService.generate', () => {
 
 describe('CompetitorIntelReportService keyword and blog ideas', () => {
   it("passes the rivals' topics and questions to the suggestions, and attaches them to the report", async () => {
-    const service = setup({ generate: jest.fn().mockResolvedValue({ text: '{}', refused: false, model: 'sarvam-105b' }) });
-    const ideas = { keywords: [], blogIdeas: [{ title: 'Why A2 milk?', covers: 'x', keyword: 'a2 milk' }], model: 'sarvam-105b' };
+    const service = setup({ generate: jest.fn().mockResolvedValue({ text: '{}', refused: false, model: 'gemini-3.1-flash-lite' }) });
+    const ideas = { keywords: [], blogIdeas: [{ title: 'Why A2 milk?', covers: 'x', keyword: 'a2 milk' }], model: 'gemini-3.1-flash-lite' };
     const contentIdeas = { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) };
     (service as any).contentIdeas = contentIdeas;
 
