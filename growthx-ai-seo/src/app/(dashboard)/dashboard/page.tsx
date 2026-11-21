@@ -435,9 +435,9 @@ export default function UnifiedDashboardPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-[12px] font-bold text-brand-950 truncate">AI Visibility Scan</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">3 LLMs</span>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">5 AI Engines</span>
               </div>
-              <p className="text-[10px] text-brand-500 truncate">Check LLM citations</p>
+              <p className="text-[10px] text-brand-500 truncate">Check AI citations</p>
             </div>
           </div>
           <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
@@ -473,9 +473,9 @@ export default function UnifiedDashboardPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-[12px] font-bold text-brand-950 truncate">Executive Report</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Ledger</span>
+                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Reports</span>
               </div>
-              <p className="text-[10px] text-brand-500 truncate">13-fix lift ledger</p>
+              <p className="text-[10px] text-brand-500 truncate">Monthly proof &amp; PDF</p>
             </div>
           </div>
           <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
@@ -604,20 +604,26 @@ export default function UnifiedDashboardPage() {
       {/* Row 2: finish setting up */}
       {setupIncomplete && (
         <Card className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-5 p-4 sm:p-4.5">
-          <div className="w-full shrink-0 lg:w-[170px]">
+          <div className="w-full shrink-0 lg:w-[210px]">
             <p className="text-[13px] font-bold text-brand-950">Finish setting up</p>
             <p className="mt-0.5 text-[11.5px] text-brand-400">
               {doneCount} of {setupSteps.length} steps done
             </p>
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-brand-200/50">
-              <div className="h-full rounded-full bg-signal-400" style={{ width: `${(doneCount / setupSteps.length) * 100}%` }} />
+              <div className="h-full rounded-full bg-signal-400 transition-all duration-300" style={{ width: `${(doneCount / setupSteps.length) * 100}%` }} />
             </div>
+            {nextStep && (
+              <p className="mt-1.5 text-[11px] leading-snug text-brand-500">
+                <span className="font-semibold text-brand-700">Next:</span> {nextStep.why}
+              </p>
+            )}
           </div>
           <ul className="flex flex-1 flex-wrap gap-1.5">
             {setupSteps.map((step) => (
               <li key={step.label}>
                 <Link
                   href={step.href}
+                  title={step.why}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-lg bg-brand-100/70 border border-brand-200/40 px-2.5 py-1 text-[11.5px] font-medium transition hover:bg-brand-200/60",
                     step.done ? "text-brand-950" : "text-brand-500",

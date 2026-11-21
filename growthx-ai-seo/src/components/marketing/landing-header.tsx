@@ -115,7 +115,7 @@ export function LandingHeader() {
                   Log in
                 </Link>
                 <Link
-                  href="/login"
+                  href="/login?mode=signup"
                   className="hidden sm:flex items-center gap-1.5 bg-signal-400 hover:bg-signal-500 text-signal-ink text-[13px] font-bold px-4 py-2 rounded-full transition-all shadow-xs cursor-pointer"
                 >
                   <span>Start free audit</span>
@@ -185,7 +185,7 @@ export function LandingHeader() {
               </Link>
             )}
             <Link
-              href={signedIn ? "/dashboard" : "/login"}
+              href={signedIn ? "/dashboard" : "/login?mode=signup"}
               onClick={() => setMobileOpen(false)}
               className="flex items-center justify-center gap-2 bg-signal-400 hover:bg-signal-500 text-signal-ink text-sm font-bold px-4 py-3 rounded-full"
             >

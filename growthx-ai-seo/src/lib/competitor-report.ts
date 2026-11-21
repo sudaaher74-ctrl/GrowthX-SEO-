@@ -1,4 +1,5 @@
 import { ideasToMarkdown } from "@/lib/content-ideas";
+import { buildCompetitorImplementationSpecs, formatSpecAsMarkdown } from "@/lib/implementation-specs";
 import type { CompetitorIntelReport, IntelPriority, IntelReportRival } from "@/lib/api-client";
 
 /** Downloads for the competitor report: Markdown to read, CSV to work in, HTML to print. */
@@ -109,6 +110,16 @@ export function toMarkdown(report: CompetitorIntelReport): string {
   if (facts.you) out.push(`Your site: ${facts.you.name} (${facts.you.domain}), crawled ${date(facts.you.crawledAt)}, ${num(facts.you.pagesCrawled, " pages")}.`);
   facts.rivals.forEach((r) => out.push(rivalMarkdown(r, report)));
   if (facts.notIncluded.length) out.push(`_Not included (limit reached): ${facts.notIncluded.join(", ")}_`);
+
+  const specs = buildCompetitorImplementationSpecs(report);
+  if (specs.length > 0) {
+    out.push("## Universal Implementation & Content Blueprint");
+    out.push(
+      "_Copy-paste JSON-LD templates for missing competitor schema types and page-build content briefs with rival word-count benchmarks._",
+    );
+    specs.forEach((s) => out.push(formatSpecAsMarkdown(s)));
+  }
+
   return out.join("\n\n") + "\n";
 }
 

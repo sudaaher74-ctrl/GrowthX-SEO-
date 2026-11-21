@@ -74,7 +74,7 @@ export function DomainAuditForm({
         : "/analyze"
       : clean
         ? `/login?url=${clean}`
-        : "/login";
+        : "/login?mode=signup";
   };
 
   return (

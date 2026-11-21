@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, Download, Printer } from "lucide-react";
+import { ArrowLeft, Download, FileText, Printer } from "lucide-react";
 import { ActionButton } from "@/components/ui/console";
 import { usePortfolio, useWhiteLabel, useWorkspace } from "@/hooks/use-growthx";
 import { useSubscription } from "@/lib/subscription-engine";
@@ -25,6 +25,7 @@ export function ReportPage({
   intro,
   clientName,
   domain,
+  onDownloadMarkdown,
   onDownloadCsv,
   children,
 }: {
@@ -32,6 +33,7 @@ export function ReportPage({
   intro?: string;
   clientName: string;
   domain: string | null;
+  onDownloadMarkdown?: () => void;
   onDownloadCsv?: () => void;
   children: React.ReactNode;
 }) {
@@ -51,7 +53,12 @@ export function ReportPage({
         <Link href="/reports" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-accent-700 hover:underline">
           <ArrowLeft size={13} /> All reports
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onDownloadMarkdown && (
+            <ActionButton variant="secondary" icon={<FileText size={12} />} onClick={onDownloadMarkdown}>
+              Report (.md)
+            </ActionButton>
+          )}
           {onDownloadCsv && (
             <ActionButton variant="secondary" icon={<Download size={12} />} onClick={onDownloadCsv}>
               Export CSV

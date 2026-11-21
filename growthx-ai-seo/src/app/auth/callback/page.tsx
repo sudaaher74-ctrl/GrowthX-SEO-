@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, api } from "@/lib/api-client";
 
@@ -17,6 +18,8 @@ function CallbackContent() {
     if (code) window.history.replaceState(null, "", window.location.pathname);
 
     if (started.current) return;
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
     if (code) {
       started.current = true;
       api.exchangeLoginCode(code).then(
@@ -54,22 +57,39 @@ function CallbackContent() {
         (err) => {
           console.error("Could not complete Google sign-in", err);
           setError("That sign-in link has expired. Please sign in again.");
-          setTimeout(() => router.push("/login"), 3000);
+          redirectTimer = setTimeout(() => router.push("/login"), 4000);
         },
       );
     } else {
-      const timer = setTimeout(() => {
+      redirectTimer = setTimeout(() => {
         router.push("/login");
-      }, 3000);
-      return () => clearTimeout(timer);
+      }, 4000);
     }
+
+    return () => {
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
   }, [router, searchParams]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-950 text-brand-50">
-      <div className="text-center">
+    <div className="flex min-h-screen items-center justify-center bg-brand-950 px-4 text-brand-50">
+      <div className="w-full max-w-sm text-center">
         {error ? (
-          <p className="text-sm text-error-400">{error}</p>
+          <div
+            role="alert"
+            className="rounded-2xl border border-error-500/40 bg-brand-900/90 p-6 shadow-xl space-y-4"
+          >
+            <p className="text-sm font-medium text-error-400">{error}</p>
+            <p className="text-xs text-brand-400">
+              Redirecting back to sign in…
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center rounded-full bg-signal-400 px-5 py-2.5 text-xs font-extrabold text-signal-ink hover:bg-signal-500 transition-colors"
+            >
+              Back to sign in
+            </Link>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-4">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-signal-400 border-t-transparent" />

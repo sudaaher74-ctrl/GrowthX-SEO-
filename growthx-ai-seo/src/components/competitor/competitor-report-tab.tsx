@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Bot, ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
+import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
+import { buildCompetitorImplementationSpecs } from "@/lib/implementation-specs";
 import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
 import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
 import { useSubscription } from "@/lib/subscription-engine";
@@ -116,6 +118,47 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
           </div>
         )}
       </Panel>
+
+      {data && (() => {
+        const totalMissingTopics = data.facts.rivals.reduce((sum, r) => sum + (r.advantages?.missingTopicsTotal ?? 0), 0);
+        const missingSchemaCount = new Set(
+          data.facts.rivals.flatMap((r) =>
+            (r.advantages?.schema ?? []).filter((s) => s.them > 0 && s.you === 0).map((s) => s.type),
+          ),
+        ).size;
+        const aiAsked = data.facts.aiAnswers.asked;
+        const aiYou = data.facts.aiAnswers.namedYou;
+        return (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Rivals Benchmarked</p>
+              <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{data.facts.rivals.length}</p>
+              <p className="mt-1 text-[11px] text-brand-500">
+                Your site: {data.facts.you?.pagesCrawled != null ? `${data.facts.you.pagesCrawled} pages crawled` : "not crawled"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Missing Topic Pages</p>
+              <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{totalMissingTopics.toLocaleString("en-US")}</p>
+              <p className="mt-1 text-[11px] text-brand-500">Topics rivals publish that you lack</p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Missing Schema Types</p>
+              <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{missingSchemaCount}</p>
+              <p className="mt-1 text-[11px] text-brand-500">JSON-LD templates generated below</p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">AI Answer Citations</p>
+              <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">
+                {aiAsked > 0 ? `${aiYou}/${aiAsked}` : "—"}
+              </p>
+              <p className="mt-1 text-[11px] text-brand-500">
+                {aiAsked > 0 ? `${((aiYou / aiAsked) * 100).toFixed(1)}% mention rate vs rivals` : "Run AI Visibility to compare"}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {data && !data.analysis && (
         <Panel padded>
@@ -235,6 +278,17 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
             </Panel>
           )}
         </>
+      )}
+
+      {data && (
+        <ImplementationHandoffPanel
+          reportTitle="Competitor Intelligence"
+          domain={data.facts.you?.domain}
+          projectId={projectId}
+          specs={buildCompetitorImplementationSpecs(data)}
+          filenameSlug="competitor-intelligence"
+          subtitle="Copy-paste JSON-LD templates for missing competitor schema types and page-build content briefs with exact rival word-count benchmarks — ready for any developer or writer."
+        />
       )}
 
       {data && <ContentIdeasPanels projectId={projectId} ideas={data.ideas} error={data.ideasError} />}

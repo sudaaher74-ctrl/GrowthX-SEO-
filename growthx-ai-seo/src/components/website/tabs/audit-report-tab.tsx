@@ -7,6 +7,8 @@ import { api, type WebsiteAuditReport } from "@/lib/api-client";
 import { auditReportFilename, auditToCsv, auditToMarkdown, pageRows, severityWord } from "@/lib/audit-report";
 import { download, markdownToPrintableHtml, themeColours } from "@/lib/competitor-report";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
+import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
+import { buildAuditImplementationSpecs } from "@/lib/implementation-specs";
 import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
 import { useSubscription } from "@/lib/subscription-engine";
 
@@ -104,6 +106,49 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
           </div>
         )}
       </Panel>
+
+      {data && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Health Score</p>
+            <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">
+              {data.facts.site?.healthScore != null ? `${data.facts.site.healthScore}/100` : "—"}
+            </p>
+            <p className="mt-1 text-[11px] text-brand-500">{data.facts.site?.domain || "Crawled site"}</p>
+          </div>
+          <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Pages Audited</p>
+            <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">
+              {data.facts.pages ? data.facts.pages.read.toLocaleString("en-US") : "—"}
+            </p>
+            <p className="mt-1 text-[11px] text-brand-500">
+              {data.facts.pages
+                ? `${data.facts.pages.broken} broken · ${data.facts.pages.slow} slow (>1s)`
+                : "Crawl required"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Urgent &amp; High Issues</p>
+            <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">
+              {((data.facts.problemsBySeverity.CRITICAL ?? 0) + (data.facts.problemsBySeverity.HIGH ?? 0)).toLocaleString("en-US")}
+            </p>
+            <p className="mt-1 text-[11px] text-brand-500">
+              {data.facts.problems.length + data.facts.moreProblems} total issue groups found
+            </p>
+          </div>
+          <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Schema &amp; Visibility</p>
+            <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">
+              {data.facts.pages ? data.facts.pages.withGoogleDetails.toLocaleString("en-US") : "—"}
+            </p>
+            <p className="mt-1 text-[11px] text-brand-500">
+              {data.facts.pages
+                ? `pages with schema · ${data.facts.pages.hiddenFromGoogle} hidden`
+                : "Not measured"}
+            </p>
+          </div>
+        </div>
+      )}
 
       {data && !data.analysis && (
         <Panel padded>
@@ -213,6 +258,17 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
             </Panel>
           )}
         </>
+      )}
+
+      {data && data.facts.problems.length > 0 && (
+        <ImplementationHandoffPanel
+          reportTitle="Website Audit"
+          domain={data.facts.site?.domain}
+          projectId={projectId}
+          specs={buildAuditImplementationSpecs(data)}
+          filenameSlug="website-audit"
+          subtitle="Platform-agnostic technical specs with exact affected URLs, standard HTML/JSON-LD/redirect templates, and QA checks — hand directly to any web developer or CMS editor."
+        />
       )}
 
       {data && <ContentIdeasPanels projectId={projectId} ideas={data.ideas} error={data.ideasError} />}

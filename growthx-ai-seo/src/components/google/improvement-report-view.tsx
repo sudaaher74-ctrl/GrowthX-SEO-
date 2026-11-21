@@ -151,11 +151,11 @@ export function ImprovementReportView() {
     setExtraCities((prev) => prev.filter((c) => c !== city));
   };
 
-  const handleCopyUtm = async (url: string) => {
+  const handleCopyUtm = async (url: string, key = url) => {
     try {
       await navigator.clipboard.writeText(url);
-      setCopiedUrl(url);
-      window.setTimeout(() => setCopiedUrl((prev) => (prev === url ? null : prev)), 2000);
+      setCopiedUrl(key);
+      window.setTimeout(() => setCopiedUrl((prev) => (prev === key ? null : prev)), 2000);
     } catch {
       // Clipboard API unavailable
     }
@@ -900,6 +900,27 @@ export function ImprovementReportView() {
                       </p>
                     )}
                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-brand-200/70">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const brief = [
+                            `### [TRF-${String(p.rank).padStart(2, "0")}] ${p.title}`,
+                            `**Platform:** ${SOURCE[p.platform]} · **Priority:** ${p.priority.toUpperCase()} · **Impact:** ${p.impact} · **Effort:** ${p.effort}`,
+                            "",
+                            p.evidence ? `**Evidence:** ${p.evidence}` : "",
+                            p.whyItMatters ? `**Why it matters:** ${p.whyItMatters}` : "",
+                            p.steps.length ? `\n**Implementation Steps:**\n${p.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}` : "",
+                            p.measureBy ? `\n**How to verify:** ${p.measureBy}` : "",
+                          ]
+                            .filter(Boolean)
+                            .join("\n");
+                          void handleCopyUtm(brief, `brief-${stageId}`);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 text-[11px] font-semibold text-brand-950 transition cursor-pointer"
+                      >
+                        {copiedUrl === `brief-${stageId}` ? <Check size={11} className="text-success-600" /> : <Copy size={11} />}
+                        <span>{copiedUrl === `brief-${stageId}` ? "Brief copied!" : "Copy Handoff Brief"}</span>
+                      </button>
                       <button
                         type="button"
                         disabled={isStaged || !projectId}

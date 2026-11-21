@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,6 +9,7 @@ import {
   Users,
   Mail,
   Lock,
+  User,
   Eye,
   EyeOff,
   ArrowLeft,
@@ -19,10 +20,26 @@ import {
   Quote,
   Sun,
   Moon,
+  AlertCircle,
 } from "lucide-react";
 import { api, auth, getApiBase } from "@/lib/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
+
+type AuthMode = "login" | "signup";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function splitFullName(raw: string): { firstName?: string; lastName?: string } {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned) return {};
+  const spaceIdx = cleaned.indexOf(" ");
+  if (spaceIdx === -1) return { firstName: cleaned.slice(0, 80) };
+  return {
+    firstName: cleaned.slice(0, spaceIdx).slice(0, 80),
+    lastName: cleaned.slice(spaceIdx + 1).slice(0, 80) || undefined,
+  };
+}
 
 function LoginFormInner() {
   const router = useRouter();
@@ -30,10 +47,30 @@ function LoginFormInner() {
   const urlParam = (searchParams.get("url") || "").trim();
   const planParam = searchParams.get("plan");
   const cycleParam = searchParams.get("cycle");
-  const [form, setForm] = useState({ email: "", password: "" });
+  const modeParam = (searchParams.get("mode") || "").toLowerCase();
+
+  const initialMode: AuthMode =
+    modeParam === "login"
+      ? "login"
+      : modeParam === "signup" || Boolean(urlParam) || Boolean(planParam)
+        ? "signup"
+        : "login";
+
+  const [modeOverride, setModeOverride] = useState<{ key: string; mode: AuthMode } | null>(null);
+  const modeKey = `${modeParam}|${urlParam}|${planParam ?? ""}`;
+  const mode: AuthMode = modeOverride?.key === modeKey ? modeOverride.mode : initialMode;
+  const [form, setForm] = useState({ fullName: "", email: "", password: "" });
+  const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
+    email: false,
+    password: false,
+  });
+  const [submitted, setSubmitted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(searchParams.get("error") || null);
   const [busy, setBusy] = useState(false);
+
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (urlParam) {
@@ -53,19 +90,77 @@ function LoginFormInner() {
     }
   }, [urlParam, planParam, cycleParam]);
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
+    if (error) setError(null);
+  };
+
+  const switchMode = (next: AuthMode) => {
+    if (next === mode) return;
+    setModeOverride({ key: modeKey, mode: next });
+    setError(null);
+    setSubmitted(false);
+    setTouched({ email: false, password: false });
+    setShowPassword(false);
+  };
+
+  const isSignup = mode === "signup";
+  const trimmedEmail = form.email.trim();
+
+  const getEmailValidationError = (): string | null => {
+    if (!trimmedEmail) return "Please enter your email address.";
+    if (!EMAIL_RE.test(trimmedEmail)) return "Enter an email address in the format you@company.com.";
+    return null;
+  };
+
+  const getPasswordValidationError = (): string | null => {
+    if (!form.password) {
+      return isSignup
+        ? "Create a password with at least 8 characters."
+        : "Please enter your password.";
+    }
+    if (isSignup && form.password.length < 8) {
+      return "Use a password of at least 8 characters.";
+    }
+    if (form.password.length > 128) {
+      return "Use a password of at most 128 characters.";
+    }
+    return null;
+  };
+
+  const showEmailError = (submitted || touched.email) ? getEmailValidationError() : null;
+  const showPasswordError = (submitted || touched.password) ? getPasswordValidationError() : null;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!form.email || !form.password) {
-      setError("Please enter both email and password.");
+    setSubmitted(true);
+    setError(null);
+
+    const emailErr = getEmailValidationError();
+    const passwordErr = getPasswordValidationError();
+
+    if (emailErr) {
+      emailRef.current?.focus();
       return;
     }
-    setError(null);
+    if (passwordErr) {
+      passwordRef.current?.focus();
+      return;
+    }
+
     setBusy(true);
     try {
-      await api.login(form.email, form.password);
+      if (isSignup) {
+        const { firstName, lastName } = splitFullName(form.fullName);
+        await api.register({
+          email: trimmedEmail,
+          password: form.password,
+          ...(firstName ? { firstName } : {}),
+          ...(lastName ? { lastName } : {}),
+        });
+      } else {
+        await api.login(trimmedEmail, form.password);
+      }
 
       // Pick up the caller's first organization so the dashboard has a workspace
       const orgs = await api.listOrganizations();
@@ -84,6 +179,11 @@ function LoginFormInner() {
         return;
       }
 
+      if (isSignup) {
+        router.push("/analyze");
+        return;
+      }
+
       const existingProjects = firstOrgId ? await api.listProjects(firstOrgId).catch(() => []) : [];
       if (!existingProjects || existingProjects.length === 0) {
         router.push("/analyze");
@@ -92,88 +192,277 @@ function LoginFormInner() {
 
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not sign in.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : isSignup
+            ? "Could not create your account. Please try again."
+            : "Could not sign in. Please check your credentials and try again.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const emailDescribedBy = [
+    isSignup ? "auth-email-hint" : null,
+    showEmailError ? "auth-email-error" : null,
+  ]
+    .filter(Boolean)
+    .join(" ") || undefined;
+
+  const passwordDescribedBy = [
+    isSignup ? "auth-password-rules" : null,
+    showPasswordError ? "auth-password-error" : null,
+  ]
+    .filter(Boolean)
+    .join(" ") || undefined;
+
   return (
     <div className="w-full max-w-md mx-auto my-auto py-6 sm:py-8">
       {/* Pending Website Audit Pill */}
       {urlParam && (
-        <div className="mb-5 inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-semibold text-brand-950 shadow-2xs">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-semibold text-brand-950 shadow-2xs">
           <Globe size={14} className="text-brand-700 shrink-0" />
           <span>
-            Auditing <strong className="font-mono text-brand-950">{urlParam}</strong> right after sign-in
+            Auditing <strong className="font-mono text-brand-950">{urlParam}</strong> right after{" "}
+            {isSignup ? "sign-up" : "sign-in"}
           </span>
         </div>
       )}
 
+      {/* Mode Switcher: Create free account | Log in */}
+      <div
+        role="tablist"
+        aria-label="Account mode"
+        className="mb-6 grid grid-cols-2 gap-1 rounded-full border border-brand-200 bg-surface-1 p-1"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isSignup}
+          onClick={() => switchMode("signup")}
+          className={cn(
+            "min-h-[40px] rounded-full px-3 py-2 text-xs font-extrabold transition-all cursor-pointer",
+            isSignup
+              ? "bg-signal-400 text-signal-ink shadow-xs"
+              : "text-brand-600 hover:text-brand-950",
+          )}
+        >
+          Create free account
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isSignup}
+          onClick={() => switchMode("login")}
+          className={cn(
+            "min-h-[40px] rounded-full px-3 py-2 text-xs font-extrabold transition-all cursor-pointer",
+            !isSignup
+              ? "bg-signal-400 text-signal-ink shadow-xs"
+              : "text-brand-600 hover:text-brand-950",
+          )}
+        >
+          Log in
+        </button>
+      </div>
+
       {/* Heading */}
-      <h2 className="text-3xl font-black text-brand-950 tracking-tight mb-1">
-        Welcome back
+      <h2 id="auth-form-heading" className="text-3xl font-black text-brand-950 tracking-tight mb-1">
+        {isSignup ? "Create your free account" : "Welcome back"}
       </h2>
-      <p className="text-sm text-brand-500 mb-8">
-        {urlParam ? `Sign in to start crawling ${urlParam}` : "Log in to your Reigel account"}
+      <p className="text-sm text-brand-500 mb-6">
+        {isSignup
+          ? urlParam
+            ? `Set up your free workspace to crawl ${urlParam} in under 60 seconds.`
+            : "Start your first technical SEO & AI visibility audit — no credit card required."
+          : urlParam
+            ? `Sign in to start crawling ${urlParam}.`
+            : "Log in to your Reigel account."}
       </p>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <form
+        key={mode}
+        method="post"
+        onSubmit={handleSubmit}
+        aria-labelledby="auth-form-heading"
+        className="space-y-4"
+        noValidate
+      >
+        {/* Full Name (Sign-up only — single field for global names & autofill) */}
+        {isSignup && (
+          <div>
+            <label
+              htmlFor="auth-full-name"
+              className="block text-xs font-bold text-brand-700 mb-1.5"
+            >
+              Your name <span className="font-normal text-brand-400">(optional)</span>
+            </label>
+            <div className="relative">
+              <User
+                size={16}
+                aria-hidden="true"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none"
+              />
+              <input
+                id="auth-full-name"
+                name="full-name"
+                type="text"
+                autoComplete="name"
+                enterKeyHint="next"
+                maxLength={160}
+                value={form.fullName}
+                onChange={set("fullName")}
+                placeholder="Alex Rivera"
+                className="w-full min-h-[48px] pl-10 pr-4 py-3 text-base sm:text-sm rounded-xl border border-brand-200 bg-surface-1 placeholder:text-brand-400 text-brand-950 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-signal-400 focus:border-brand-400 transition-all"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Email */}
         <div>
-          <label className="block text-xs font-bold text-brand-700 mb-1.5">
-            Email address
+          <label
+            htmlFor="auth-email"
+            className="block text-xs font-bold text-brand-700 mb-1"
+          >
+            Work email <span aria-hidden="true" className="text-error-500">*</span>
           </label>
+          {isSignup && (
+            <p id="auth-email-hint" className="text-[11px] text-brand-500 mb-1.5">
+              Format: you@company.com
+            </p>
+          )}
           <div className="relative">
-            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+            <Mail
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none"
+            />
             <input
+              ref={emailRef}
+              id="auth-email"
+              name="email"
               type="email"
               required
-              autoComplete="email"
+              autoComplete="username"
+              spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
+              enterKeyHint="next"
+              aria-invalid={showEmailError ? "true" : "false"}
+              aria-describedby={emailDescribedBy}
               value={form.email}
               onChange={set("email")}
+              onBlur={() => {
+                if (form.email.trim().length > 0) {
+                  setTouched((t) => ({ ...t, email: true }));
+                }
+              }}
               placeholder="you@company.com"
-              className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-brand-200 bg-surface-1 placeholder:text-brand-400 text-brand-950 focus:outline-none focus:border-brand-400 transition-all"
+              className={cn(
+                "w-full min-h-[48px] pl-10 pr-4 py-3 text-base sm:text-sm rounded-xl border bg-surface-1 placeholder:text-brand-400 text-brand-950 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-signal-400 transition-all",
+                showEmailError
+                  ? "border-error-500 bg-error-50/40"
+                  : "border-brand-200 focus:border-brand-400",
+              )}
             />
           </div>
+          {showEmailError && (
+            <p
+              id="auth-email-error"
+              className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-error-600"
+            >
+              <AlertCircle size={13} aria-hidden="true" className="shrink-0" />
+              <span>{showEmailError}</span>
+            </p>
+          )}
         </div>
 
         {/* Password */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-bold text-brand-700">
-              Password
-            </label>
-          </div>
+          <label
+            htmlFor={isSignup ? "new-password" : "current-password"}
+            className="block text-xs font-bold text-brand-700 mb-1"
+          >
+            {isSignup ? "Create password" : "Password"}{" "}
+            <span aria-hidden="true" className="text-error-500">*</span>
+          </label>
+          {isSignup && (
+            <p
+              id="auth-password-rules"
+              className={cn(
+                "text-[11px] mb-1.5",
+                showPasswordError ? "text-error-600 font-semibold" : "text-brand-500",
+              )}
+            >
+              At least 8 characters. You can paste from a password manager.
+            </p>
+          )}
           <div className="relative">
-            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+            <Lock
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none"
+            />
             <input
+              ref={passwordRef}
+              id={isSignup ? "new-password" : "current-password"}
+              name={isSignup ? "new-password" : "current-password"}
               type={showPassword ? "text" : "password"}
               required
-              autoComplete="current-password"
+              minLength={isSignup ? 8 : 1}
+              maxLength={128}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              enterKeyHint="done"
+              aria-invalid={showPasswordError ? "true" : "false"}
+              aria-describedby={passwordDescribedBy}
               value={form.password}
               onChange={set("password")}
-              placeholder="Enter your password"
-              className="w-full pl-10 pr-10 py-3 text-sm rounded-xl border border-brand-200 bg-surface-1 placeholder:text-brand-400 text-brand-950 focus:outline-none focus:border-brand-400 transition-all"
+              onBlur={() => {
+                if (form.password.length > 0) {
+                  setTouched((t) => ({ ...t, password: true }));
+                }
+              }}
+              placeholder={isSignup ? "Minimum 8 characters" : "Enter your password"}
+              className={cn(
+                "w-full min-h-[48px] pl-10 pr-12 py-3 text-base sm:text-sm rounded-xl border bg-surface-1 placeholder:text-brand-400 text-brand-950 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-signal-400 transition-all",
+                showPasswordError
+                  ? "border-error-500 bg-error-50/40"
+                  : "border-brand-200 focus:border-brand-400",
+              )}
             />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-500 hover:text-brand-950 cursor-pointer"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-pressed={showPassword}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-lg text-brand-500 hover:text-brand-950 hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
             </button>
           </div>
+          {showPasswordError && (
+            <p
+              id="auth-password-error"
+              className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-error-600"
+            >
+              <AlertCircle size={13} aria-hidden="true" className="shrink-0" />
+              <span>{showPasswordError}</span>
+            </p>
+          )}
         </div>
 
-        {/* Error Notification */}
+        {/* Server Error Notification */}
         {error && (
           <div
             role="alert"
-            className="rounded-xl border border-error-500/40 bg-error-50 px-3.5 py-2.5 text-xs text-error-600 font-medium"
+            className="flex items-start gap-2 rounded-xl border border-error-500/40 bg-error-50 px-3.5 py-2.5 text-xs text-error-600 font-medium"
           >
-            {error}
+            <AlertCircle size={14} aria-hidden="true" className="shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
@@ -181,16 +470,16 @@ function LoginFormInner() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-full text-sm font-extrabold text-signal-ink bg-signal-400 hover:bg-signal-500 active:scale-[0.99] shadow-xs transition-all cursor-pointer disabled:opacity-60"
+          className="w-full min-h-[48px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-full text-sm font-extrabold text-signal-ink bg-signal-400 hover:bg-signal-500 active:scale-[0.99] shadow-xs transition-all cursor-pointer disabled:opacity-60"
         >
           {busy ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              <span>Signing in…</span>
+              <span>{isSignup ? "Creating workspace…" : "Signing in…"}</span>
             </>
           ) : (
             <>
-              <span>Log in</span>
+              <span>{isSignup ? "Create free account" : "Sign in"}</span>
               <ArrowRight size={15} />
             </>
           )}
@@ -210,12 +499,12 @@ function LoginFormInner() {
       </div>
 
       {/* Social Logins */}
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         <a
           href={`${getApiBase()}/auth/google`}
-          className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-full border border-brand-200 bg-surface-1 hover:bg-surface-2 text-xs sm:text-sm font-semibold text-brand-900 shadow-2xs transition-all"
+          className="w-full min-h-[48px] flex items-center justify-center gap-3 py-2.5 px-4 rounded-full border border-brand-200 bg-surface-1 hover:bg-surface-2 text-xs sm:text-sm font-semibold text-brand-900 shadow-2xs transition-all"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               fill="#4285F4"
@@ -235,10 +524,42 @@ function LoginFormInner() {
           </svg>
           <span>Continue with Google</span>
         </a>
+        {isSignup && (
+          <p className="text-center text-[11px] text-brand-500">
+            Google sign-in creates your free workspace automatically.
+          </p>
+        )}
       </div>
 
+      {/* Inline mode switch prompt */}
+      <p className="mt-5 text-center text-xs text-brand-500">
+        {isSignup ? (
+          <>
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={() => switchMode("login")}
+              className="font-bold text-brand-950 underline underline-offset-2 hover:text-signal-500 cursor-pointer"
+            >
+              Sign in
+            </button>
+          </>
+        ) : (
+          <>
+            New to Reigel?{" "}
+            <button
+              type="button"
+              onClick={() => switchMode("signup")}
+              className="font-bold text-brand-950 underline underline-offset-2 hover:text-signal-500 cursor-pointer"
+            >
+              Create a free account
+            </button>
+          </>
+        )}
+      </p>
+
       {/* Security Note */}
-      <div className="mt-8 flex items-center justify-center gap-1.5 text-xs text-brand-500">
+      <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-brand-500">
         <ShieldCheck size={14} className="text-success-500" />
         <span>Your data is secure with enterprise-grade encryption.</span>
       </div>
@@ -261,7 +582,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const referrer = typeof document !== "undefined" ? document.referrer : "";
-    if (/(^|\.)(google\.|bing\.|duckduckgo\.|yahoo\.|ecosia\.|search\.brave\.)/i.test(referrer)) {
+    const hasIntentQuery = typeof window !== "undefined" && window.location.search.length > 1;
+    if (!hasIntentQuery && /(^|\.)(google\.|bing\.|duckduckgo\.|yahoo\.|ecosia\.|search\.brave\.)/i.test(referrer)) {
       router.replace("/");
     }
   }, [router]);
@@ -295,14 +617,14 @@ export default function LoginPage() {
         <div className="relative z-10 my-8 sm:my-10 space-y-6">
           <div>
             <h1 className="text-3xl sm:text-4xl font-black text-brand-950 tracking-tight leading-tight">
-              Sign in and <br />
+              Audit, fix, and <br />
               keep{" "}
               <span className="text-signal-400">
                 growing.
               </span>
             </h1>
             <p className="text-sm text-brand-500 mt-2.5 max-w-md leading-relaxed">
-              Access your dashboard, track progress and let Reigel do the heavy lifting.
+              Create a free workspace or sign in to audit your site, track AI citations, and export developer-ready reports.
             </p>
           </div>
 

@@ -225,6 +225,11 @@ function AnalyzeOnboardingInner() {
     if (urlParam) {
       setDomainInput(cleanDomainInput(urlParam));
     }
+    // Clear the one-time pending domain handoff once /analyze has hydrated it,
+    // so navigating to /dashboard never loops back here unexpectedly.
+    try {
+      localStorage.removeItem("growthx_pending_domain");
+    } catch {}
   }, [urlParam]);
 
   useEffect(() => {
@@ -303,7 +308,7 @@ function AnalyzeOnboardingInner() {
 
   // Step-by-step timer: starts at 0 (only domain pill), then reveals 1 node at a time
   useEffect(() => {
-    if (phase !== "crawling") return;
+    if (phase !== "crawling" || isFailed) return;
     const timer = setInterval(() => {
       setElapsedSec((s) => s + 1);
       setRevealStep((prev) => {
@@ -314,7 +319,19 @@ function AnalyzeOnboardingInner() {
       });
     }, 850);
     return () => clearInterval(timer);
-  }, [phase, isCompleted, maxAvailableStep]);
+  }, [phase, isCompleted, isFailed, maxAvailableStep]);
+
+  const finishAndOpen = (target: "/website" | "/dashboard") => {
+    try {
+      localStorage.removeItem("growthx_pending_domain");
+    } catch {}
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+    queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+    queryClient.invalidateQueries({ queryKey: ["latest-crawl"] });
+    queryClient.invalidateQueries({ queryKey: ["issue-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["issue-groups"] });
+    router.replace(target);
+  };
 
   // Automatically redirect to Website Audit (/website) after crawl finishes AND all nodes have revealed
   useEffect(() => {
@@ -327,7 +344,7 @@ function AnalyzeOnboardingInner() {
       queryClient.invalidateQueries({ queryKey: ["issue-counts"] });
       queryClient.invalidateQueries({ queryKey: ["issue-groups"] });
       router.replace("/website");
-    }, 1100);
+    }, 1800);
     return () => clearTimeout(timer);
   }, [phase, isCompleted, revealStep, maxAvailableStep, queryClient, router]);
 
@@ -476,14 +493,23 @@ function AnalyzeOnboardingInner() {
               Safe Read-Only Crawler
             </span>
             {projects.length > 0 && (
-              <button
-                type="button"
-                onClick={() => router.push("/website")}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
-              >
-                <span>Website Audit</span>
-                <ArrowRight size={13} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => finishAndOpen("/dashboard")}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-xs font-semibold text-brand-700 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+                >
+                  <span>Skip to Dashboard</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => finishAndOpen("/website")}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-2 px-3.5 py-2 text-xs font-bold text-brand-800 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
+                >
+                  <span>Website Audit</span>
+                  <ArrowRight size={13} />
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -520,6 +546,7 @@ function AnalyzeOnboardingInner() {
             <form onSubmit={handleStartAudit} noValidate>
               {error && (
                 <div
+                  id="onboarding-domain-error"
                   role="alert"
                   className="mb-3.5 flex items-center gap-2 rounded-xl border border-error-500/40 bg-error-50 px-4 py-2.5 text-xs font-semibold text-error-700"
                 >
@@ -529,7 +556,15 @@ function AnalyzeOnboardingInner() {
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-brand-300 bg-surface-2 px-4 py-3.5 focus-within:border-brand-400 transition-colors">
+                <div
+                  className={cn(
+                    "flex flex-1 items-center gap-3 rounded-2xl border bg-surface-2 px-4 py-3.5 transition-all focus-within:ring-2 focus-within:ring-signal-400/60",
+                    error ? "border-error-500" : "border-brand-300 focus-within:border-brand-400",
+                  )}
+                >
+                  <label htmlFor="onboarding-domain" className="sr-only">
+                    Website domain
+                  </label>
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-signal-400">
                     <Globe size={17} />
                   </span>
@@ -538,21 +573,31 @@ function AnalyzeOnboardingInner() {
                   </span>
                   <input
                     id="onboarding-domain"
+                    name="domain"
                     type="text"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="go"
                     required
                     autoFocus
+                    aria-invalid={error ? "true" : "false"}
+                    aria-describedby={error ? "onboarding-domain-error" : undefined}
                     value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
+                    onChange={(e) => {
+                      setDomainInput(e.target.value);
+                      if (error) setError(null);
+                    }}
                     placeholder="yourwebsite.com"
-                    className="w-full min-w-0 border-0 bg-transparent font-mono text-base font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                    style={{ outline: "none", boxShadow: "none" }}
+                    className="w-full min-w-0 border-0 bg-transparent font-mono text-base font-bold text-brand-950 placeholder:text-brand-400 outline-none focus:outline-none focus:ring-0"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 hover:bg-signal-500 active:scale-[0.98] px-7 py-4 text-sm font-extrabold text-signal-ink shadow-xs transition-all disabled:opacity-60 cursor-pointer"
+                  className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-signal-400 hover:bg-signal-500 active:scale-[0.98] px-7 py-4 text-sm font-extrabold text-signal-ink shadow-xs transition-all disabled:opacity-60 cursor-pointer"
                 >
                   {submitting ? (
                     <>
@@ -575,7 +620,7 @@ function AnalyzeOnboardingInner() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Zap size={13} className="text-signal-400" />
-                  128+ SEO, speed &amp; AI visibility checks
+                  Technical SEO, speed, schema &amp; indexability checks
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldCheck size={13} className="text-success-500" />
@@ -839,19 +884,32 @@ function AnalyzeOnboardingInner() {
             </span>
           </Link>
           <span className="text-brand-300">/</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-bold text-brand-700">
-            <Radar
-              size={12}
-              className={cn(
-                "text-signal-400",
-                !isCompleted && "animate-spin",
-              )}
-            />
-            {isCompleted
-              ? "Crawl Complete"
-              : showHome
-                ? `Scanning: ${currentScanningNode.path}`
-                : `Connecting: ${displayDomain}`}
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold",
+              isFailed
+                ? "border-error-500/40 bg-error-50 text-error-700"
+                : "border-brand-200 bg-surface-2 text-brand-700",
+            )}
+          >
+            {isFailed ? (
+              <AlertTriangle size={12} className="text-error-500" />
+            ) : (
+              <Radar
+                size={12}
+                className={cn(
+                  "text-signal-400",
+                  !isCompleted && "animate-spin",
+                )}
+              />
+            )}
+            {isFailed
+              ? "Crawl Stopped"
+              : isCompleted
+                ? "Crawl Complete"
+                : showHome
+                  ? `Scanning: ${currentScanningNode.path}`
+                  : `Connecting: ${displayDomain}`}
           </span>
         </div>
 
@@ -902,6 +960,48 @@ function AnalyzeOnboardingInner() {
 
       {/* ── MAIN WORKSPACE: LEFT INSPECTOR + CENTER MULTI-ROW TREE + RIGHT PAGES LOG ── */}
       <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-4 pt-3 pb-24 sm:px-6">
+        {isFailed && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-col gap-3 rounded-2xl border border-error-500/40 bg-error-50 px-5 py-4 text-error-700 shadow-card sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-error-600" />
+              <div>
+                <p className="text-sm font-extrabold text-error-700">
+                  The live crawl for {displayDomain} could not finish.
+                </p>
+                <p className="mt-0.5 text-xs text-error-600">
+                  {crawlData?.latestAttempt?.errorMessage ||
+                    "Check that the domain is publicly reachable over HTTPS and does not block automated crawlers, then try again."}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPhase("input");
+                  setActiveDomain("");
+                  setRevealStep(0);
+                  setElapsedSec(0);
+                  setError(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-4 py-2 text-xs font-extrabold text-signal-ink hover:bg-signal-500 transition-colors cursor-pointer"
+              >
+                <span>Edit URL &amp; Retry</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => finishAndOpen("/dashboard")}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-300 bg-surface-1 px-4 py-2 text-xs font-bold text-brand-900 hover:bg-surface-2 transition-colors cursor-pointer"
+              >
+                <span>Continue to Dashboard</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 items-center gap-5 lg:grid-cols-12">
           {/* =================================================================
               LEFT COLUMN (3 COLS): ACTIVE FILE INSPECTOR & RUNTIME TASKS
@@ -914,8 +1014,15 @@ function AnalyzeOnboardingInner() {
                   <Activity size={13} className="text-signal-400" />
                   Active File Scanner
                 </span>
-                <span className="rounded-md border border-brand-200 bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-signal-400">
-                  {isCompleted ? "DONE" : "LIVE"}
+                <span
+                  className={cn(
+                    "rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold",
+                    isFailed
+                      ? "border-error-500/40 bg-error-50 text-error-600"
+                      : "border-brand-200 bg-surface-2 text-signal-400",
+                  )}
+                >
+                  {isFailed ? "STOPPED" : isCompleted ? "DONE" : "LIVE"}
                 </span>
               </div>
 
@@ -931,7 +1038,7 @@ function AnalyzeOnboardingInner() {
                         : currentScanningNode.path
                       : `https://${displayDomain}`}
                   </span>
-                  {!isCompleted && (
+                  {!isCompleted && !isFailed && (
                     <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
                   )}
                 </div>
@@ -1387,8 +1494,17 @@ function AnalyzeOnboardingInner() {
                 </div>
               ) : (
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-surface-2/40 p-3 text-xs text-brand-500">
-                  <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
-                  <span>Starting from {displayDomain}…</span>
+                  {isFailed ? (
+                    <>
+                      <AlertTriangle size={13} className="shrink-0 text-error-500" />
+                      <span>Crawl stopped before pages were mapped.</span>
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 size={13} className="shrink-0 animate-spin text-signal-400" />
+                      <span>Starting from {displayDomain}…</span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1400,36 +1516,63 @@ function AnalyzeOnboardingInner() {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-200/80 bg-surface-1/95 px-4 py-3.5 shadow-2xl backdrop-blur-xl sm:px-6">
         <div className="mx-auto max-w-2xl">
           <div className="flex flex-col items-center">
-            <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                {isCompleted ? (
+                {isFailed ? (
+                  <AlertTriangle size={17} className="text-error-500" />
+                ) : isCompleted ? (
                   <Check size={17} className="text-success-500" strokeWidth={3} />
                 ) : (
                   <Loader2 size={16} className="animate-spin text-signal-400" />
                 )}
                 <p className="text-sm font-extrabold tracking-tight text-brand-950 sm:text-base">
-                  {isCompleted
-                    ? "Audit Complete — Opening Website Audit..."
-                    : showHome
-                      ? `Crawling Website... (${currentScanningNode.path === "/" ? "/ Home" : currentScanningNode.path})`
-                      : `Connecting to ${displayDomain}...`}
+                  {isFailed
+                    ? "Crawl could not complete — retry or continue to Dashboard"
+                    : isCompleted
+                      ? "Audit Complete — Opening Website Audit..."
+                      : showHome
+                        ? `Crawling Website... (${currentScanningNode.path === "/" ? "/ Home" : currentScanningNode.path})`
+                        : `Connecting to ${displayDomain}...`}
                 </p>
               </div>
 
-              <span className="font-mono text-xs font-bold text-brand-500">
-                {filesFinishedCount} files finished
-              </span>
+              {isCompleted ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => finishAndOpen("/dashboard")}
+                    className="rounded-full border border-brand-200 bg-surface-2 px-3 py-1 text-xs font-bold text-brand-800 hover:text-brand-950 transition-colors cursor-pointer"
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => finishAndOpen("/website")}
+                    className="inline-flex items-center gap-1 rounded-full bg-signal-400 px-3.5 py-1 text-xs font-extrabold text-signal-ink hover:bg-signal-500 transition-colors cursor-pointer"
+                  >
+                    <span>Open Audit</span>
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              ) : (
+                <span className="font-mono text-xs font-bold text-brand-500">
+                  {filesFinishedCount} files finished
+                </span>
+              )}
             </div>
 
             <div className="mt-2 flex w-full items-center gap-3.5">
               <div className="h-3 flex-1 overflow-hidden rounded-full border border-brand-200 bg-surface-2 p-0.5">
                 <div
-                  className="h-full rounded-full bg-signal-400 transition-all duration-500"
-                  style={{ width: `${progressPct}%` }}
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    isFailed ? "bg-error-500" : "bg-signal-400",
+                  )}
+                  style={{ width: `${isFailed ? Math.max(progressPct, 12) : progressPct}%` }}
                 />
               </div>
               <span className="w-11 shrink-0 text-right font-mono text-sm font-extrabold text-brand-950">
-                {progressPct}%
+                {isFailed ? "—" : `${progressPct}%`}
               </span>
             </div>
           </div>

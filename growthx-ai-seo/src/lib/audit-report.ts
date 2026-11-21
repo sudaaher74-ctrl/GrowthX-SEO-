@@ -1,4 +1,5 @@
 import { ideasToMarkdown } from "@/lib/content-ideas";
+import { buildAuditImplementationSpecs, formatSpecAsMarkdown } from "@/lib/implementation-specs";
 import type { WebsiteAuditReport } from "@/lib/api-client";
 
 /** Downloads for the Website Audit report: Markdown to read, CSV to work in. Print goes through the shared renderer. */
@@ -86,6 +87,16 @@ export function auditToMarkdown(report: WebsiteAuditReport): string {
     ),
   );
   if (facts.moreProblems) out.push(`_…and ${facts.moreProblems} smaller problems. See Website Audit for the full list._`);
+
+  const specs = buildAuditImplementationSpecs(report);
+  if (specs.length > 0) {
+    out.push("## Universal Implementation & Developer Handoff Guide");
+    out.push(
+      "_Platform-agnostic briefs with standard HTML, JSON-LD, redirect mappings, and QA checks — usable by any website owner, CMS editor, or web developer._",
+    );
+    specs.forEach((s) => out.push(formatSpecAsMarkdown(s)));
+  }
+
   return out.join("\n\n") + "\n";
 }
 

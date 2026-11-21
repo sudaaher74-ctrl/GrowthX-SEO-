@@ -62,7 +62,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Pricing", href: "/pricing" },
       { label: "Help", href: "/help" },
       { label: "Log in", href: "/login" },
-      { label: "Start free audit", href: "/login" },
+      { label: "Start free audit", href: "/login?mode=signup" },
     ],
   },
 ];
