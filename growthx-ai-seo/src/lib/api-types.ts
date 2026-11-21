@@ -1174,7 +1174,7 @@ export interface GoogleBreakdown {
   rows: GscRow[] | null;
 }
 
-/** Mirrors the backend's GoogleReport: the Sarvam improvement report on Search Console and Analytics 4. */
+/** Mirrors the backend's GoogleReport: the executive traffic & business improvement report on Search Console and Analytics 4. */
 export type GoogleReportLevel = "high" | "medium" | "low";
 export interface GoogleReportPriority {
   rank: number;
@@ -1188,7 +1188,7 @@ export interface GoogleReportPriority {
   steps: string[];
   measureBy: string;
 }
-interface GoogleReportRow {
+export interface GoogleReportRow {
   key: string;
   clicks: number;
   impressions: number;
@@ -1227,6 +1227,53 @@ export interface LocationTrafficGap {
   relevantOfferings: string[];
   matchingPages: string[];
 }
+export interface TrafficQualityDiagnostics {
+  botAndNoise: {
+    suspectedBotSessions: number;
+    notSetCitySessions: number;
+    noiseShare: number;
+    estimatedHumanSessions: number;
+    suspectedBotCities: { city: string; country: string; sessions: number; reason: string }[];
+    diagnosis: string;
+  };
+  conversionTracking: {
+    status: "MISSING" | "ZERO_RECORDED" | "ACTIVE";
+    keyEvents: number | null;
+    conversionRate: number | null;
+    recommendedEvents: string[];
+    diagnosis: string;
+  };
+  attributionHealth: {
+    status: "DARK_TRAFFIC_HIGH" | "UNASSIGNED_SPIKE" | "HEALTHY";
+    directShare: number;
+    unassignedShare: number;
+    diagnosis: string;
+    utmTemplates: { label: string; channel: string; url: string }[];
+  };
+  searchOpportunity: {
+    strikingDistanceCount: number;
+    ctrOpportunityCount: number;
+    decliningCount: number;
+    estimatedMissedClicks: number;
+    indexedPages: number | null;
+    notIndexedPages: number | null;
+    indexableButNotIndexed: number | null;
+    topWinQuery: { query: string; clicks: number; impressions: number; position: number; ctr: number } | null;
+  };
+  targetMarketFit: {
+    targetCitySessions: number;
+    nonTargetHumanSessions: number;
+    targetMarketShare: number;
+    topUntappedCities: { city: string; country: string; sessions: number }[];
+  };
+  aiVisibility: {
+    answersMeasured: number;
+    brandMentions: number;
+    recommendations: number;
+    mentionRate: number;
+    measuredAt: string | null;
+  } | null;
+}
 export interface GoogleReportFacts {
   days: number;
   site: string | null;
@@ -1237,8 +1284,32 @@ export interface GoogleReportFacts {
   topPages: GoogleReportRow[];
   strikingDistance: GoogleReportRow[];
   ctrOpportunities: GoogleReportRow[];
+  decliningQueries?: { query: string; previousPosition: number; currentPosition: number; previousClicks: number; currentClicks: number }[];
+  newQueries?: string[];
+  cannibalization?: string[];
+  index?: {
+    asked: number;
+    indexed: number;
+    notIndexed: number;
+    indexableButNotIndexed: number;
+    canonicalOverridden: number;
+    topReasons: { state: string; count: number }[];
+  } | null;
+  alerts?: string[];
+  traffic?: {
+    sessions: number;
+    users: number;
+    engagementRate: number;
+    keyEvents: number | null;
+    channels: { channel: string; sessions: number; share: number; engagementRate: number | null; keyEvents: number | null }[];
+    landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
+    sources: { source: string; medium: string; channel: string; sessions: number; share: number; engagementRate: number; keyEvents: number | null }[];
+    countries: { country: string; sessions: number }[];
+    cities: { city: string; country: string; sessions: number }[];
+  } | null;
   business?: BusinessTrafficContext | null;
   locationGaps?: LocationTrafficGap[];
+  diagnostics?: TrafficQualityDiagnostics | null;
   notMeasured: string[];
 }
 export interface GoogleReport {

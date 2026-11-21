@@ -16,9 +16,17 @@ import {
   KpiFact,
   LocationTrafficGap,
   RowFact,
+  TrafficQualityDiagnostics,
   buildPrompt,
+  cleanHeadingText,
+  computeTrafficDiagnostics,
   enrichAnalysisWithBusinessGaps,
+  isUtilityOrGenericOffering,
+  isUtilityPath,
+  matchExactCity,
   normaliseAnalysis,
+  queryMatchesLocation,
+  stripLocationFromOffering,
 } from './google-report';
 
 const TOP = 20;
@@ -109,7 +117,7 @@ export class GoogleReportService {
     const asRows = (rows: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>, extra?: (r: any) => string): RowFact[] =>
       rows.map((r) => ({ key: r.key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position, extra: extra?.(r) }));
 
-    const [queries, pages, striking, ctr, declining, kw, alerts, index, ga4, business] = await Promise.all([
+    const [queries, pages, striking, ctr, declining, kw, alerts, index, ga4, business, aiVisibility] = await Promise.all([
       searchOn ? attempt('Top queries', notMeasured, () => this.gsc.top(projectId, 'QUERY', { days, limit: TOP })) : null,
       searchOn ? attempt('Top pages', notMeasured, () => this.gsc.top(projectId, 'PAGE', { days, limit: TOP })) : null,
       searchOn ? attempt('Queries near page one', notMeasured, () => this.gsc.strikingDistance(projectId, { days, limit: 15 })) : null,
@@ -120,6 +128,7 @@ export class GoogleReportService {
       sc.connected ? attempt('Index status', notMeasured, () => this.indexStatus.report(projectId)) : null,
       ga.connected ? attempt('Analytics report', notMeasured, () => this.reports.read(projectId, `${days}d` as Ga4Range)) : null,
       this.gatherBusinessFromAudit(projectId, project, customCities),
+      this.gatherAiVisibilitySummary(projectId),
     ]);
 
     if (!sc.connected) notMeasured.push('Search Console is not connected, so nothing about search visibility is measured.');
@@ -170,45 +179,70 @@ export class GoogleReportService {
 
     const alertList = alerts?.comparable ? alerts.alerts.slice(0, 8).map((a: any) => `${a.title}. ${a.detail}`) : [];
     const topQueriesList = asRows(queries ?? []);
+    const strikingDistanceList = asRows(striking ?? []);
+    const ctrOpportunitiesList = asRows(
+      ctr ?? [],
+      (r) => `expected CTR about ${(r.expectedCtr * 100).toFixed(1)}% here, roughly ${r.estimatedMissedClicks} clicks missed`,
+    );
+    const decliningQueriesList = (declining ?? []).map((q) => ({
+      query: q.query,
+      previousPosition: q.previousPosition,
+      currentPosition: q.currentPosition,
+      previousClicks: q.previousClicks,
+      currentClicks: q.currentClicks,
+    }));
+    const indexSummary =
+      index && index.connected && index.totals.asked > 0
+        ? {
+            asked: index.totals.asked,
+            indexed: index.totals.indexed,
+            notIndexed: index.totals.notIndexed,
+            indexableButNotIndexed: index.indexableButNotIndexed.length,
+            canonicalOverridden: index.canonicalOverridden.length,
+            topReasons: index.groups
+              .filter((g) => g.verdict !== 'PASS')
+              .slice(0, 4)
+              .map((g) => ({ state: g.coverageState, count: g.count })),
+          }
+        : null;
+
     const locationGaps = this.computeLocationGaps(days, business, traffic, topQueriesList, kpis);
+    const site = project?.websites[0]?.domain ?? null;
+    const diagnostics = computeTrafficDiagnostics(
+      {
+        site,
+        days,
+        traffic,
+        business,
+        locationGaps,
+        topQueries: topQueriesList,
+        strikingDistance: strikingDistanceList,
+        ctrOpportunities: ctrOpportunitiesList,
+        decliningQueries: decliningQueriesList,
+        index: indexSummary,
+      },
+      aiVisibility,
+    );
 
     return {
       days,
-      site: project?.websites[0]?.domain ?? null,
+      site,
       searchConsole: { connected: sc.connected, hasData: sc.hasData, lastSyncedAt: sc.lastSyncedAt, propertyName: sc.propertyName },
       analytics: { connected: ga.connected, hasData: ga.hasData, lastSyncedAt: ga.lastSyncedAt, propertyName: ga.propertyName },
       kpis,
       topQueries: topQueriesList,
       topPages: asRows(pages ?? []),
-      strikingDistance: asRows(striking ?? []),
-      ctrOpportunities: asRows(ctr ?? [], (r) => `expected CTR about ${(r.expectedCtr * 100).toFixed(1)}% here, roughly ${r.estimatedMissedClicks} clicks missed`),
-      decliningQueries: (declining ?? []).map((q) => ({
-        query: q.query,
-        previousPosition: q.previousPosition,
-        currentPosition: q.currentPosition,
-        previousClicks: q.previousClicks,
-        currentClicks: q.currentClicks,
-      })),
+      strikingDistance: strikingDistanceList,
+      ctrOpportunities: ctrOpportunitiesList,
+      decliningQueries: decliningQueriesList,
       newQueries: (kw?.new ?? []).slice(0, 8).map((q) => q.query),
       cannibalization: (kw?.cannibalization ?? []).slice(0, 5).map((c) => `"${c.query}" is answered by ${c.pages.map((p) => p.page).join(' and ')}`),
-      index:
-        index && index.connected && index.totals.asked > 0
-          ? {
-              asked: index.totals.asked,
-              indexed: index.totals.indexed,
-              notIndexed: index.totals.notIndexed,
-              indexableButNotIndexed: index.indexableButNotIndexed.length,
-              canonicalOverridden: index.canonicalOverridden.length,
-              topReasons: index.groups
-                .filter((g) => g.verdict !== 'PASS')
-                .slice(0, 4)
-                .map((g) => ({ state: g.coverageState, count: g.count })),
-            }
-          : null,
+      index: indexSummary,
       alerts: alertList,
       traffic,
       business,
       locationGaps,
+      diagnostics,
       notMeasured,
     };
   }
@@ -281,29 +315,36 @@ export class GoogleReportService {
       const completion = await this.router.generate({
         prompt: buildPrompt(facts),
         systemInstruction:
-          'You are a senior SEO strategist writing for a business owner. Read their Website Audit business context, Google Search Console, and Google Analytics 4 ' +
-          'figures, say plainly where the site stands, identify any cities/markets where the business operates that have 0 clicks or low traffic, and say what to do first. Use only the facts given. ' +
-          'Never invent rankings, traffic, revenue or numbers not in the facts. Reply with valid JSON only.',
+          'You are a principal SEO & digital analytics strategist writing an executive growth report for a business owner or agency. ' +
+          'Read their Website Audit business context, Traffic Quality Diagnostics, Google Search Console, and Google Analytics 4 figures. ' +
+          'Call out datacenter/bot traffic noise, 0 key events, dark Direct attribution, striking-distance queries, CTR gaps, and target cities with 0/low clicks. ' +
+          'Never copy-paste identical strategies across channels and never duplicate city names inside keyword phrases. ' +
+          'Use only the facts given. Never invent rankings, traffic, revenue or numbers not in the facts. Reply with valid JSON only.',
         task: AiTask.SEO_ANALYSIS,
-        provider: AiProvider.SARVAM,
+        provider: AiProvider.GEMINI,
+        model: 'gemini-3.1-flash-lite',
         allowFallback: true,
         organizationId,
         projectId,
-        maxTokens: 6000,
+        maxTokens: 4500,
       });
       if (completion.refused || !completion.text.trim()) {
         return {
           ...base,
           analysis: enrichAnalysisWithBusinessGaps(null, facts),
-          model: completion.model || 'GrowthX Business & Traffic Planner',
+          model: 'Reigel Traffic Intelligence (Deterministic)',
           analysisError: null,
         };
       }
       const parsed = normaliseAnalysis(extractAndParseJson(completion.text));
+      const hasUsefulAiContent =
+        Boolean(parsed.executiveSummary) &&
+        parsed.priorities.length > 0 &&
+        Boolean(parsed.marketingStrategy && parsed.marketingStrategy.channels.length > 0);
       return {
         ...base,
-        analysis: enrichAnalysisWithBusinessGaps(parsed, facts),
-        model: completion.model,
+        analysis: enrichAnalysisWithBusinessGaps(hasUsefulAiContent ? parsed : null, facts),
+        model: hasUsefulAiContent ? completion.model : 'Reigel Traffic Intelligence (Deterministic)',
         analysisError: null,
       };
     } catch (err) {
@@ -311,7 +352,7 @@ export class GoogleReportService {
       return {
         ...base,
         analysis: enrichAnalysisWithBusinessGaps(null, facts),
-        model: 'GrowthX Business & Traffic Planner',
+        model: 'Reigel Traffic Intelligence (Deterministic)',
         analysisError: null,
       };
     }
@@ -365,9 +406,21 @@ export class GoogleReportService {
         }
       }
     }
+    const brandName = profile?.businessName || project.name || website?.domain || null;
+    const seenOfferings = new Set<string>();
+    const addOffering = (raw: string | null | undefined) => {
+      if (!raw) return;
+      const cleaned = cleanHeadingText(raw, brandName);
+      if (isUtilityOrGenericOffering(cleaned, brandName)) return;
+      const key = cleaned.toLowerCase();
+      if (seenOfferings.has(key)) return;
+      seenOfferings.add(key);
+      detectedOfferings.add(cleaned);
+    };
+
     if (Array.isArray(profile?.offerings)) {
       for (const o of profile.offerings) {
-        if (typeof o === 'string' && o.trim()) detectedOfferings.add(o.trim());
+        if (typeof o === 'string') addOffering(o);
       }
     }
 
@@ -428,25 +481,39 @@ export class GoogleReportService {
           pagesAudited = crawlJob.pagesCrawled || crawledPages.length;
 
           const textCorpus: string[] = [];
-          for (const p of crawledPages) {
+          const commercialPages: Array<{ path: string; title: string }> = [];
+          const secondaryPages: Array<{ path: string; title: string }> = [];
+
+          // Process homepage & commercial pages before utility/about/app routes
+          const orderedPages = [...crawledPages].sort((a, b) => {
+            const pathA = (() => { try { return new URL(a.url).pathname || '/'; } catch { return a.url; } })();
+            const pathB = (() => { try { return new URL(b.url).pathname || '/'; } catch { return b.url; } })();
+            const score = (p: string) => (p === '/' ? 0 : isUtilityPath(p) ? 2 : 1);
+            return score(pathA) - score(pathB) || pathA.localeCompare(pathB);
+          });
+
+          for (const p of orderedPages) {
             let path = p.url;
             try {
               path = new URL(p.url).pathname || '/';
             } catch {
               // keep raw path
             }
-            const title = (p.title ?? '').trim();
-            if (title && auditedPages.length < 15) {
-              auditedPages.push({ path, title });
+            const title = cleanHeadingText(p.title ?? '', brandName);
+            const utility = isUtilityPath(path) || ['LEGAL', 'CONTACT', 'STATIC'].includes(p.pageType);
+            if (title) {
+              if (!utility && commercialPages.length < 15) {
+                commercialPages.push({ path, title });
+              } else if (secondaryPages.length < 10) {
+                secondaryPages.push({ path, title });
+              }
             }
             if (path === '/' && p.metaDescription && !fallbackSummary) {
               fallbackSummary = p.metaDescription.trim();
             }
-            if (title && detectedOfferings.size < 6 && !['LEGAL', 'CONTACT', 'STATIC'].includes(p.pageType)) {
-              const cleanHeading = (p.h1?.[0] || title.split('|')[0].split('–')[0].split('-')[0] || '').trim();
-              if (cleanHeading && cleanHeading.length > 3 && cleanHeading.length < 65) {
-                detectedOfferings.add(cleanHeading);
-              }
+            if (!utility && title && detectedOfferings.size < 6) {
+              const rawHeading = p.h1?.[0] || title.split('|')[0].split('–')[0].split('-')[0] || '';
+              addOffering(rawHeading);
             }
             textCorpus.push(title, ...(p.h1 ?? []), ...(p.h2 ?? []).slice(0, 5), p.metaDescription ?? '', path);
 
@@ -470,6 +537,11 @@ export class GoogleReportService {
             }
           }
 
+          auditedPages.push(...commercialPages.slice(0, 15));
+          if (auditedPages.length < 6) {
+            auditedPages.push(...secondaryPages.slice(0, 6 - auditedPages.length));
+          }
+
           const joinedLower = ` ${textCorpus.join(' ').toLowerCase()} `;
           for (const city of KNOWN_CITIES) {
             const pattern = new RegExp(`\\b${city.toLowerCase()}\\b`, 'i');
@@ -484,14 +556,30 @@ export class GoogleReportService {
     }
 
     const targetCities = Array.from(detectedCities).slice(0, 8);
+    // Deduplicate offerings after stripping redundant embedded target city suffixes
+    const cleanOfferings: string[] = [];
+    const seenCleanOffering = new Set<string>();
+    for (const raw of detectedOfferings) {
+      const stripped = stripLocationFromOffering(raw, targetCities);
+      if (isUtilityOrGenericOffering(stripped, brandName)) continue;
+      const key = stripped.toLowerCase();
+      if (seenCleanOffering.has(key)) continue;
+      seenCleanOffering.add(key);
+      cleanOfferings.push(stripped);
+    }
+    if (cleanOfferings.length === 0 && profile?.industry) {
+      const cleanIndustry = stripLocationFromOffering(profile.industry, targetCities);
+      if (cleanIndustry) cleanOfferings.push(cleanIndustry);
+    }
+
     return {
-      businessName: profile?.businessName || project.name || website?.domain || null,
+      businessName: brandName,
       industry: profile?.industry || null,
       summary: profile?.summary || fallbackSummary || null,
       businessModel: profile?.businessModel || null,
       targetAudience: profile?.targetAudience || null,
       businessGoal: profile?.businessGoal || null,
-      offerings: Array.from(detectedOfferings).slice(0, 8),
+      offerings: cleanOfferings.slice(0, 6),
       targetCities,
       primaryCity: targetCities[0] || profile?.city || null,
       state: profile?.state || null,
@@ -502,6 +590,48 @@ export class GoogleReportService {
       healthScore,
       auditedPages,
     };
+  }
+
+  /** Reads the latest completed AI Visibility scan summary for cross-channel context, if available. */
+  private async gatherAiVisibilitySummary(
+    projectId: string,
+  ): Promise<TrafficQualityDiagnostics['aiVisibility']> {
+    try {
+      const scan = await this.prisma.aiVisibilityScan.findFirst({
+        where: { projectId, status: 'COMPLETED' },
+        orderBy: { completedAt: 'desc' },
+        select: {
+          completedAt: true,
+          runs: {
+            select: {
+              responses: {
+                where: { status: 'SUCCESS' },
+                select: {
+                  analysis: {
+                    select: { brandMentioned: true, recommended: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!scan) return null;
+      const responses = scan.runs.flatMap((r) => r.responses);
+      if (responses.length === 0) return null;
+      const brandMentions = responses.filter((r) => r.analysis?.brandMentioned).length;
+      const recommendations = responses.filter((r) => r.analysis?.recommended).length;
+      return {
+        answersMeasured: responses.length,
+        brandMentions,
+        recommendations,
+        mentionRate: brandMentions / responses.length,
+        measuredAt: scan.completedAt ? scan.completedAt.toISOString() : null,
+      };
+    } catch (err) {
+      this.logger.debug(`AI Visibility summary skipped in GoogleReportService: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /**
@@ -521,7 +651,6 @@ export class GoogleReportService {
       : business?.industry
         ? [business.industry]
         : ['core products and services'];
-    const offeringText = offerings.slice(0, 2).join(' & ');
     const brand = business?.businessName || 'your business';
 
     const locations: Array<{ name: string; source: LocationTrafficGap['source'] }> = [];
@@ -550,29 +679,43 @@ export class GoogleReportService {
       pushLoc('Primary Local Market', 'target_market');
     }
 
+    const allLocationNames = locations.map((l) => l.name);
+    const cleanedOfferings = offerings
+      .map((o) => stripLocationFromOffering(o, allLocationNames))
+      .filter(Boolean);
+    const primaryOffering = cleanedOfferings[0] || 'core products and services';
+    const cleanOfferingText = cleanedOfferings.slice(0, 2).join(' & ') || primaryOffering;
+
     const totalSearchClicks = kpis.find((k) => k.label.toLowerCase().includes('click'))?.value ?? 0;
     const totalImpressions = kpis.find((k) => k.label.toLowerCase().includes('impression'))?.value ?? 0;
 
     return locations.map(({ name: location, source }): LocationTrafficGap => {
       const locLower = location.toLowerCase();
+      // Exact normalized city match (with curated synonyms) so "Mumbai" and "Navi Mumbai" never double-count each other.
       const citySessions = (traffic?.cities ?? [])
-        .filter((c) => c.city.toLowerCase().includes(locLower) || locLower.includes(c.city.toLowerCase()))
+        .filter((c) => matchExactCity(c.city, location))
         .reduce((sum, c) => sum + (c.sessions || 0), 0);
       const countrySessions = (traffic?.countries ?? [])
         .filter((c) => c.country.toLowerCase() === locLower)
         .reduce((sum, c) => sum + (c.sessions || 0), 0);
       const sessions = citySessions || countrySessions;
 
-      const matchingQueries = topQueries.filter((q) => q.key.toLowerCase().includes(locLower));
+      // Word-boundary matching where longer target cities ("Navi Mumbai") claim matches before shorter substrings ("Mumbai").
+      const matchingQueries = topQueries.filter((q) => queryMatchesLocation(q.key, location, allLocationNames));
       const queryClicks = matchingQueries.reduce((sum, q) => sum + (q.clicks || 0), 0);
       const queryImpressions = matchingQueries.reduce((sum, q) => sum + (q.impressions || 0), 0);
 
-      // If this is the sole/primary market and total clicks are 0, reflect the overall impression count
+      // If this is the sole/primary market and no city-specific queries matched, reflect overall search totals
       const searchClicks = matchingQueries.length > 0 ? queryClicks : locations.length === 1 ? (totalSearchClicks ?? 0) : 0;
       const searchImpressions = matchingQueries.length > 0 ? queryImpressions : locations.length === 1 ? (totalImpressions ?? 0) : 0;
 
       const matchingPages = (business?.auditedPages ?? [])
-        .filter((p) => p.path.toLowerCase().includes(locLower) || p.title.toLowerCase().includes(locLower))
+        .filter(
+          (p) =>
+            !isUtilityPath(p.path) &&
+            (queryMatchesLocation(p.path.replace(/[-/_]/g, ' '), location, allLocationNames) ||
+              queryMatchesLocation(p.title, location, allLocationNames)),
+        )
         .map((p) => p.path);
 
       const status: LocationTrafficGap['status'] =
@@ -583,25 +726,30 @@ export class GoogleReportService {
             : 'ACTIVE';
 
       const targetUrl = matchingPages[0] || `/locations/${slugify(location)}`;
+      const localizedPhrase = `${primaryOffering} in ${location}`;
 
       const finding =
         status === 'NO_CLICKS'
-          ? `Website Audit shows ${brand} targets ${location} for ${offeringText}, but Traffic recorded 0 search clicks and 0 visitor sessions from ${location} in the last ${days} days.`
+          ? `Website Audit shows ${brand} serves ${location} (${cleanOfferingText}), but Traffic recorded 0 search clicks and 0 GA4 sessions from ${location} in the last ${days} days.`
           : status === 'LOW_TRAFFIC'
-            ? `Your business serves ${location} (${offeringText}), but Traffic recorded only ${sessions} visitor session${sessions === 1 ? '' : 's'} and ${searchClicks} search click${searchClicks === 1 ? '' : 's'}${searchImpressions > 0 ? ` (${searchImpressions} impressions)` : ''} in the last ${days} days.`
-            : `${location} is actively sending traffic (${sessions} sessions, ${searchClicks} search clicks in ${days} days).`;
+            ? `${brand} serves ${location} (${cleanOfferingText}), recording ${sessions} GA4 session${sessions === 1 ? '' : 's'} and ${searchClicks} search click${searchClicks === 1 ? '' : 's'}${searchImpressions > 0 ? ` (${searchImpressions} impressions)` : ''} in the last ${days} days.`
+            : `${location} is actively converting local search demand (${sessions} GA4 sessions, ${searchClicks} search clicks in ${days} days).`;
 
       const plan =
         status === 'NO_CLICKS'
-          ? `Launch local search capture for ${location}: build or optimize ${targetUrl} around "${offeringText} in ${location}", add LocalBusiness areaServed schema, and align titles/meta descriptions with high-intent buyer searches in ${location}.`
+          ? `Launch dedicated local search capture for ${location}: build ${targetUrl} targeting "${localizedPhrase}", add LocalBusiness areaServed schema, and publish local delivery/service proof.`
           : status === 'LOW_TRAFFIC'
-            ? `Convert existing search visibility in ${location} into clicks and qualified sessions by upgrading page titles, local trust signals, and internal links to ${matchingPages[0] || '/'}.`
-            : `Scale high-converting traffic from ${location} by expanding commercial keyword coverage and conversion paths on ${matchingPages[0] || '/'}.`;
+            ? searchImpressions > 0
+              ? `You already have ${searchImpressions} impressions for ${location} with ${searchClicks} clicks — upgrade the page title, meta description, and local proof on ${matchingPages[0] || '/'} to convert visibility into clicks.`
+              : `Build dedicated local search relevance for ${location} on ${matchingPages[0] || targetUrl} so GA4 visitors are backed by compounding Google Search clicks.`
+            : `Scale high-converting local traffic from ${location} by expanding commercial sub-topic coverage and tracking GA4 key events on ${matchingPages[0] || '/'}.`;
 
       const recommendedSteps = [
-        `Optimize ${matchingPages[0] || `your primary service page (or create ${targetUrl})`} with "${offeringText} in ${location}" in the page title, H1 headline, and opening paragraph.`,
-        `Add LocalBusiness / Service JSON-LD schema declaring areaServed: "${location}" and include local delivery, service coverage, or customer proof for ${location}.`,
-        `Target high-intent local search terms ("best ${offerings[0]} in ${location}", "${offerings[0]} near ${location}") in meta descriptions to lift Google CTR from 0% and submit in Search Console.`,
+        matchingPages[0]
+          ? `Optimize ${matchingPages[0]} with "${localizedPhrase}" in the <title>, H1 headline, and opening paragraph, plus neighborhood/service coverage proof.`
+          : `Create a dedicated local landing page at ${targetUrl} focused on "${localizedPhrase}" with clear delivery/service areas and buyer proof.`,
+        `Deploy LocalBusiness & Service JSON-LD schema explicitly declaring areaServed: "${location}" and link to it from your homepage and footer.`,
+        `Target commercial local queries ("best ${localizedPhrase}", "${primaryOffering} near ${location}") in titles & meta descriptions, then submit the URL in Search Console.`,
       ];
 
       return {
@@ -614,7 +762,7 @@ export class GoogleReportService {
         finding,
         plan,
         recommendedSteps,
-        relevantOfferings: offerings,
+        relevantOfferings: cleanedOfferings.length ? cleanedOfferings : [primaryOffering],
         matchingPages,
       };
     });

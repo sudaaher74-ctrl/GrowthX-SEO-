@@ -1,4 +1,16 @@
-import { GoogleReportFacts, buildPrompt, enrichAnalysisWithBusinessGaps, normaliseAnalysis } from './google-report';
+import {
+  GoogleReportFacts,
+  buildPrompt,
+  cleanHeadingText,
+  computeTrafficDiagnostics,
+  enrichAnalysisWithBusinessGaps,
+  isUtilityOrGenericOffering,
+  isUtilityPath,
+  matchExactCity,
+  normaliseAnalysis,
+  queryMatchesLocation,
+  stripLocationFromOffering,
+} from './google-report';
 
 const facts = (over: Partial<GoogleReportFacts> = {}): GoogleReportFacts => ({
   days: 28,
@@ -179,7 +191,142 @@ describe('buildPrompt', () => {
     });
     const enriched = enrichAnalysisWithBusinessGaps(null, f);
     expect(enriched.priorities.length).toBeGreaterThan(0);
-    expect(enriched.priorities[0].title).toContain('Nashik');
-    expect(enriched.priorities[0].steps).toContain('Optimize page title for Nashik');
+    expect(enriched.priorities.some((p) => p.title.includes('Nashik'))).toBe(true);
+    expect(enriched.priorities.find((p) => p.title.includes('Nashik'))?.steps).toContain('Optimize page title for Nashik');
+  });
+});
+
+describe('business & geo cleaning helpers', () => {
+  it('cleans squashed multi-line headings and strips utility pages & offerings', () => {
+    expect(cleanHeadingText('Good MilkBrighter Days')).toBe('Good Milk Brighter Days');
+    expect(cleanHeadingText('Pure Milk.A Healthier You.')).toBe('Pure Milk. A Healthier You.');
+    expect(isUtilityPath('/app/account')).toBe(true);
+    expect(isUtilityPath('/about-us')).toBe(true);
+    expect(isUtilityPath('/products/a2-milk')).toBe(false);
+    expect(isUtilityOrGenericOffering('Your Account')).toBe(true);
+    expect(isUtilityOrGenericOffering('Your Cart')).toBe(true);
+    expect(isUtilityOrGenericOffering('About MilQuu Fresh')).toBe(true);
+    expect(isUtilityOrGenericOffering('Pure Milk.A Healthier You.')).toBe(true);
+    expect(isUtilityOrGenericOffering('Fresh Milk Delivery in Navi Mumbai')).toBe(false);
+  });
+
+  it('strips embedded city phrases to prevent double-city keyword gibberish', () => {
+    expect(stripLocationFromOffering('Fresh Milk Delivery in Navi Mumbai', ['Navi Mumbai', 'Mumbai'])).toBe(
+      'Fresh Milk Delivery',
+    );
+    expect(stripLocationFromOffering('A2 Cow Milk near Pune', ['Pune'])).toBe('A2 Cow Milk');
+  });
+
+  it('matches cities strictly without double-counting Mumbai and Navi Mumbai', () => {
+    expect(matchExactCity('Mumbai', 'Navi Mumbai')).toBe(false);
+    expect(matchExactCity('Navi Mumbai', 'Mumbai')).toBe(false);
+    expect(matchExactCity('Mumbai', 'Mumbai')).toBe(true);
+    expect(matchExactCity('Bangalore', 'Bengaluru')).toBe(true);
+
+    const allLocs = ['Navi Mumbai', 'Mumbai'];
+    expect(queryMatchesLocation('milk delivery in navi mumbai', 'Navi Mumbai', allLocs)).toBe(true);
+    expect(queryMatchesLocation('milk delivery in navi mumbai', 'Mumbai', allLocs)).toBe(false);
+    expect(queryMatchesLocation('milk delivery in mumbai', 'Mumbai', allLocs)).toBe(true);
+  });
+});
+
+describe('computeTrafficDiagnostics & enriched fallback strategy', () => {
+  it('detects datacenter bot cities, 0 key events, dark Direct traffic, distinct channel strategies, and preserves both Mumbai and Navi Mumbai', () => {
+    const f = facts({
+      site: 'milquufresh.in',
+      topQueries: [{ key: 'milk subscription', clicks: 1, impressions: 120, ctr: 0.008, position: 8.7 }],
+      strikingDistance: [{ key: 'milk subscription', clicks: 1, impressions: 120, ctr: 0.008, position: 8.7 }],
+      traffic: {
+        sessions: 251,
+        users: 191,
+        engagementRate: 0.667,
+        keyEvents: 0,
+        channels: [
+          { channel: 'Direct', sessions: 183, share: 0.726, engagementRate: 0.62, keyEvents: 0 },
+          { channel: 'Organic Search', sessions: 54, share: 0.214, engagementRate: 0.78, keyEvents: 0 },
+          { channel: 'Referral', sessions: 13, share: 0.052, engagementRate: 0.7, keyEvents: 0 },
+          { channel: 'Unassigned', sessions: 2, share: 0.008, engagementRate: 0.5, keyEvents: 0 },
+        ],
+        landingPages: [{ page: '/', sessions: 140, engagementRate: 0.68, keyEvents: 0 }],
+        sources: [],
+        countries: [{ country: 'India', sessions: 107 }],
+        cities: [
+          { city: 'Mumbai', country: 'India', sessions: 77 },
+          { city: 'Council Bluffs', country: 'United States', sessions: 45 },
+          { city: '(not set)', country: '(not set)', sessions: 22 },
+          { city: 'Navi Mumbai', country: 'India', sessions: 14 },
+          { city: 'Thane', country: 'India', sessions: 11 },
+        ],
+      },
+      business: {
+        businessName: 'MilQuuFresh',
+        industry: 'Fresh Milk Delivery in Navi Mumbai',
+        summary: 'Daily milk subscriptions delivered to your doorstep.',
+        businessModel: 'D2C Subscription',
+        targetAudience: 'Families',
+        businessGoal: 'Subscriptions',
+        offerings: ['Fresh Milk Delivery'],
+        targetCities: ['Navi Mumbai', 'Mumbai'],
+        primaryCity: 'Navi Mumbai',
+        state: 'Maharashtra',
+        country: 'India',
+        seedKeywords: ['milk subscription'],
+        pagesAudited: 41,
+        crawledAt: '2026-11-20T00:00:00Z',
+        healthScore: 88,
+        auditedPages: [{ path: '/', title: 'Fresh Milk Delivery' }],
+      },
+      locationGaps: [
+        {
+          location: 'Navi Mumbai',
+          source: 'business_profile',
+          sessions: 14,
+          searchClicks: 0,
+          searchImpressions: 0,
+          status: 'LOW_TRAFFIC',
+          finding: '14 GA4 sessions and 0 search clicks in Navi Mumbai.',
+          plan: 'Build dedicated local page for Navi Mumbai.',
+          recommendedSteps: ['Optimize / for Fresh Milk Delivery in Navi Mumbai'],
+          relevantOfferings: ['Fresh Milk Delivery'],
+          matchingPages: ['/'],
+        },
+        {
+          location: 'Mumbai',
+          source: 'website_audit',
+          sessions: 77,
+          searchClicks: 0,
+          searchImpressions: 19,
+          status: 'LOW_TRAFFIC',
+          finding: '77 GA4 sessions and 0 search clicks (19 impressions) in Mumbai.',
+          plan: 'Upgrade title & meta for Mumbai.',
+          recommendedSteps: ['Optimize /locations/mumbai for Fresh Milk Delivery in Mumbai'],
+          relevantOfferings: ['Fresh Milk Delivery'],
+          matchingPages: [],
+        },
+      ],
+    });
+
+    const diag = computeTrafficDiagnostics(f);
+    expect(diag.botAndNoise.suspectedBotSessions).toBe(45);
+    expect(diag.botAndNoise.suspectedBotCities[0].city).toBe('Council Bluffs');
+    expect(diag.botAndNoise.notSetCitySessions).toBe(22);
+    expect(diag.botAndNoise.estimatedHumanSessions).toBe(206);
+    expect(diag.conversionTracking.status).toBe('ZERO_RECORDED');
+    expect(diag.attributionHealth.status).toBe('DARK_TRAFFIC_HIGH');
+    expect(diag.attributionHealth.utmTemplates.length).toBe(3);
+    expect(diag.targetMarketFit.targetCitySessions).toBe(91); // 77 Mumbai + 14 Navi Mumbai
+    expect(diag.targetMarketFit.topUntappedCities[0].city).toBe('Thane');
+
+    const enriched = enrichAnalysisWithBusinessGaps(null, { ...f, diagnostics: diag });
+    // Both Navi Mumbai AND Mumbai are preserved in priorities (Mumbai not silently dropped!)
+    expect(enriched.priorities.some((p) => queryMatchesLocation(p.title, 'Navi Mumbai', ['Navi Mumbai', 'Mumbai']))).toBe(true);
+    expect(enriched.priorities.some((p) => queryMatchesLocation(p.title, 'Mumbai', ['Navi Mumbai', 'Mumbai']))).toBe(true);
+    // Key Events, Direct/Bot attribution, and Striking-Distance query all surfaced
+    expect(enriched.priorities.some((p) => /key event/i.test(p.title))).toBe(true);
+    expect(enriched.priorities.some((p) => /council bluffs|dark traffic/i.test(p.title))).toBe(true);
+    expect(enriched.priorities.some((p) => p.title.includes('milk subscription'))).toBe(true);
+    // Every channel gets a genuinely distinct strategy (never copy-pasted!)
+    const strategies = enriched.marketingStrategy!.channels.map((c) => c.strategy);
+    expect(new Set(strategies).size).toBe(strategies.length);
   });
 });
