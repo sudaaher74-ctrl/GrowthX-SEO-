@@ -109,7 +109,9 @@ export class RepoSandbox {
     lastRead: { text: string; start: number; end: number } | undefined;
     lastRangeEdit: { before: string; after: string } | undefined;
   }): Promise<void> {
-    const abs = await this.inside(snap.path, false);
+    const p = this.clean(snap.path);
+    this.assertPathPolicy(p, 'write');
+    const abs = await this.inside(p, false, 'write');
     if (snap.existed && snap.content !== null) {
       await fs.writeFile(abs, snap.content, 'utf8');
     } else {
@@ -133,7 +135,7 @@ export class RepoSandbox {
     this.assertWritable(p);
     if (!value?.trim() || Array.from(value).length > 60) throw new SandboxError('Use a non-empty document title of at most 60 characters.');
     const before = await this.source(p);
-    const abs = await this.inside(p, true);
+    const abs = await this.inside(p, true, 'write');
     // Require an app manifest inside the sandbox before using the existing React patcher.
     let app = path.posix.dirname(p);
     let manifest = false;
@@ -182,6 +184,24 @@ export class RepoSandbox {
     if (!this.realRoot) this.realRoot = await fs.realpath(this.root);
   }
 
+  /** Enforces hidden-directory, secret, and (for writes) protected-file policies on a repo-relative path. */
+  private assertPathPolicy(relPosix: string, mode: 'read' | 'write'): void {
+    if (!relPosix) return;
+    const parts = relPosix.split('/').filter((s) => s !== '' && s !== '.');
+    if (parts.includes('..')) throw new SandboxError('Paths cannot leave the repository.');
+    const hidden = parts.find((s) => HIDDEN_DIRS.has(s));
+    if (hidden) throw new SandboxError(`${hidden} is not available.`);
+    const joined = parts.join('/');
+    if (SECRET.some((r) => r.test(joined))) {
+      throw new SandboxError('That file holds secrets and cannot be used.');
+    }
+    if (mode === 'write' && PROTECTED.some((r) => r.test(joined))) {
+      throw new SandboxError(
+        `${joined} cannot be changed by the engineer (it can run code or change what is installed). Ask a person to change it.`,
+      );
+    }
+  }
+
   /** A repository-relative POSIX path, checked, or a SandboxError saying why not. */
   private clean(rel: string): string {
     if (typeof rel !== 'string') throw new SandboxError('A path is required.');
@@ -189,15 +209,17 @@ export class RepoSandbox {
     if (p.includes('\0')) throw new SandboxError('Invalid path.');
     const parts = p.split('/').filter((s) => s !== '' && s !== '.');
     if (parts.includes('..')) throw new SandboxError('Paths cannot leave the repository.');
-    const first = parts.find((s) => HIDDEN_DIRS.has(s));
-    if (first) throw new SandboxError(`${first} is not available.`);
     const joined = parts.join('/');
-    if (SECRET.some((r) => r.test(joined))) throw new SandboxError('That file holds secrets and cannot be used.');
+    this.assertPathPolicy(joined, 'read');
     return joined;
   }
 
-  /** Confirms the real location (after symlinks) is still inside the repository. */
-  private async inside(rel: string, mustExist: boolean): Promise<string> {
+  /**
+   * Confirms the real location (after symlinks) is still inside the repository
+   * AND enforces hidden-directory, secret, and protected-file rules on the
+   * resolved target (not just the requested alias).
+   */
+  private async inside(rel: string, mustExist: boolean, mode: 'read' | 'write' = 'read'): Promise<string> {
     await this.init();
     const abs = path.resolve(this.root, rel);
     let probe = abs;
@@ -220,10 +242,28 @@ export class RepoSandbox {
     } catch {
       throw new SandboxError(`${rel || '.'} does not exist.`);
     }
-    if (real !== this.realRoot && !real.startsWith(this.realRoot + path.sep)) {
+    const remaining = path.relative(probe, abs);
+    const resolvedTarget = remaining ? path.resolve(real, remaining) : real;
+
+    if (
+      (real !== this.realRoot && !real.startsWith(this.realRoot + path.sep)) ||
+      (resolvedTarget !== this.realRoot && !resolvedTarget.startsWith(this.realRoot + path.sep))
+    ) {
       throw new SandboxError('Paths cannot leave the repository.');
     }
-    return abs;
+
+    const resolvedRel = path.relative(this.realRoot, resolvedTarget).split(path.sep).join('/');
+    this.assertPathPolicy(resolvedRel, mode);
+
+    if (mode === 'write') {
+      // Never write directly through a symlink (prevents aliases to protected or hidden files).
+      const targetLstat = await fs.lstat(abs).catch(() => null);
+      if (targetLstat?.isSymbolicLink()) {
+        throw new SandboxError(`${rel} is a symlink and cannot be modified by the engineer.`);
+      }
+    }
+
+    return resolvedTarget;
   }
 
   /** Convert accidental file-as-folder requests into recoverable tool guidance. */
@@ -257,8 +297,21 @@ export class RepoSandbox {
     const p = rel === '' || rel === '.' ? '' : this.clean(rel);
     const abs = await this.inside(p, true);
     const entries = await this.directoryEntries(abs, p);
-    const lines = entries
-      .filter((e) => !HIDDEN_DIRS.has(e.name) && !SECRET.some((r) => r.test(e.name)))
+    const visible: typeof entries = [];
+    for (const e of entries) {
+      if (HIDDEN_DIRS.has(e.name) || SECRET.some((r) => r.test(e.name))) continue;
+      if (e.isSymbolicLink()) {
+        // Hide symlinks whose resolved targets escape the repo or point to hidden/secret locations.
+        const candidateRel = p ? `${p}/${e.name}` : e.name;
+        try {
+          await this.inside(candidateRel, true, 'read');
+        } catch {
+          continue;
+        }
+      }
+      visible.push(e);
+    }
+    const lines = visible
       .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
       .slice(0, LIMITS.listEntries)
       .map((e) => (e.isDirectory() ? `${e.name}/` : e.name));
@@ -283,7 +336,7 @@ export class RepoSandbox {
         if (HIDDEN_DIRS.has(e.name) || SECRET.some((r) => r.test(e.name)) || e.isSymbolicLink()) continue;
         if (e.name.startsWith('.') && e.name !== '.well-known') continue;
         const abs = path.join(dir, e.name);
-        const rel = path.relative(this.root, abs).split(path.sep).join('/');
+        const rel = path.relative(this.realRoot || this.root, abs).split(path.sep).join('/');
         if (e.isDirectory()) {
           if (/(^|\/)(__tests__|test|tests|fixtures|migrations|uploads|images|img|icons|fonts)$/i.test(rel)) continue;
           await walk(abs, depth + 1);
@@ -422,7 +475,7 @@ export class RepoSandbox {
       scanned += 1;
       const text = await fs.readFile(abs, 'utf8').catch(() => '');
       if (text.includes('\0')) return;
-      const rel = path.relative(this.root, abs).split(path.sep).join('/');
+      const rel = path.relative(this.realRoot || this.root, abs).split(path.sep).join('/');
       text.split(/\r?\n/).forEach((line, i) => {
         if (hits.length < LIMITS.searchMatches && line.toLowerCase().includes(q)) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
       });
@@ -430,7 +483,7 @@ export class RepoSandbox {
 
     const walk = async (dir: string): Promise<void> => {
       if (hits.length >= LIMITS.searchMatches || scanned >= LIMITS.searchFiles) return;
-      const rel = path.relative(this.root, dir).split(path.sep).join('/');
+      const rel = path.relative(this.realRoot || this.root, dir).split(path.sep).join('/');
       const entries = await this.directoryEntries(dir, rel);
       for (const e of entries) {
         if (hits.length >= LIMITS.searchMatches || scanned >= LIMITS.searchFiles) return;
@@ -460,7 +513,7 @@ export class RepoSandbox {
     if (typeof replacement !== 'string' || Buffer.byteLength(replacement) > LIMITS.maxWriteBytes) {
       throw new SandboxError('The replacement must be text within the write-size limit.');
     }
-    const abs = await this.inside(p, true);
+    const abs = await this.inside(p, true, 'write');
     const text = await fs.readFile(abs, 'utf8');
     if (text !== observed.text) {
       this.lastReads.delete(p);
@@ -496,7 +549,7 @@ export class RepoSandbox {
     if (typeof oldText !== 'string' || oldText === '') throw new SandboxError('The text to replace is required.');
     if (typeof newText !== 'string') throw new SandboxError('The new text is required.');
     if (oldText === newText) throw new SandboxError('The replacement must change the file.');
-    const abs = await this.inside(p, true);
+    const abs = await this.inside(p, true, 'write');
     const text = await fs.readFile(abs, 'utf8');
     // The read tool presents logical lines with `\n`; translate that exact
     // snippet back to the file's newline convention before matching. This
@@ -564,14 +617,14 @@ export class RepoSandbox {
     this.assertWritable(p);
     if (typeof content !== 'string') throw new SandboxError('Content is required.');
     if (Buffer.byteLength(content) > LIMITS.maxWriteBytes) throw new SandboxError('That file is too large.');
-    const abs = await this.inside(p, false);
+    const abs = await this.inside(p, false, 'write');
     const exists = await fs.lstat(abs).then(() => true, () => false);
     if (exists) throw new SandboxError(`${p} already exists. Use edit to change it.`);
     await fs.mkdir(path.dirname(abs), { recursive: true });
-    // Re-check after creating parents: the final location must still be inside.
-    await this.inside(p, false);
+    // Re-check after creating parents: the final location must still be inside and writable.
+    const finalAbs = await this.inside(p, false, 'write');
     this.originals.set(p, null);
-    await fs.writeFile(abs, content, 'utf8');
+    await fs.writeFile(finalAbs, content, 'utf8');
     this.changed.add(p);
     return `Created ${p}.`;
   }

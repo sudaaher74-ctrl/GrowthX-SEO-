@@ -455,6 +455,51 @@ describe('AutomationService', () => {
       expect(git.commitAndPush).not.toHaveBeenCalled();
       expect(run.status).toBe(AutomationRunStatus.FAILED);
     });
+
+    it('rejects a legacy saved contentDir traversing outside the checkout and leaves outside filesystem untouched', async () => {
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-outside-'));
+      try {
+        const relativeEscape = path.relative(workDir, outside);
+        prisma.siteRepository.findUnique.mockResolvedValue({ ...REPO, contentDir: relativeEscape });
+        prisma.contentPiece.findMany.mockResolvedValue([drafted]);
+
+        const run = await service.runContent('proj_1', 'org_1');
+
+        expect(run.status).toBe(AutomationRunStatus.FAILED);
+        expect(git.commitAndPush).not.toHaveBeenCalled();
+        expect(await fs.readdir(outside)).toEqual([]);
+      } finally {
+        await fs.rm(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects a symlinked content directory inside the checkout and leaves outside filesystem untouched', async () => {
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-symlink-outside-'));
+      try {
+        await fs.symlink(outside, path.join(workDir, 'symlink-content'), process.platform === 'win32' ? 'junction' : 'dir');
+        prisma.siteRepository.findUnique.mockResolvedValue({ ...REPO, contentDir: 'symlink-content/blog' });
+        prisma.contentPiece.findMany.mockResolvedValue([drafted]);
+
+        const run = await service.runContent('proj_1', 'org_1');
+
+        expect(run.status).toBe(AutomationRunStatus.FAILED);
+        expect(git.commitAndPush).not.toHaveBeenCalled();
+        expect(await fs.readdir(outside)).toEqual([]);
+      } finally {
+        await fs.rm(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects saving a traversing contentDir in connectRepository', async () => {
+      await expect(
+        service.connectRepository(
+          'proj_1',
+          { owner: 'acme', name: 'website', accessToken: 'ghp_valid', contentDir: '../escape' },
+          ACTOR,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.siteRepository.upsert).not.toHaveBeenCalled();
+    });
   });
   describe('the intervention ledger', () => {
     it('records every applied fix against the page it changed', async () => {

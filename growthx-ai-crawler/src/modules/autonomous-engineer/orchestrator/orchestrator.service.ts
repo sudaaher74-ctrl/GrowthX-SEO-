@@ -90,7 +90,7 @@ export class OrchestratorService {
       // 8. Commit & PR
       this.logger.log(`[8/8] Submitting Pull Request...`);
       const commitMsg = `fix(seo): implement fix for ${issueId}`;
-      await this.gitAgent.commitAndPush(repoDir, branchName, commitMsg);
+      await this.gitAgent.commitAndPush(repoDir, branchName, commitMsg, githubToken);
 
       const prBody = `## Proposed SEO fix\n\nIssue investigated: ${issueDetails}\n\nFix strategy: ${issueAnalysis.strategy}\n\nValidation performed: ${validationResult.output}\n\nReview the diff and repository CI before approval. This PR does not establish that the issue is resolved in production.`;
       const prUrl = await this.gitAgent.createPullRequest(githubToken, repoOwner, repoName, commitMsg, branchName, repositoryAccess.defaultBranch, prBody);

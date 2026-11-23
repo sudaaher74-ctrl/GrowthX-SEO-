@@ -211,4 +211,50 @@ describe('RepoSandbox', () => {
     await expect(box.edit('src/indented.jsx', '  <title>Old</title>', '      <title>New</title>')).resolves.toContain('Edited');
     expect(await fs.readFile(file, 'utf8')).toContain('      <title>New</title>');
   });
+
+  it('blocks in-repository symlinks aliasing secrets, hidden directories, and protected files across all file tools', async () => {
+    await fs.mkdir(path.join(root, '.git'), { recursive: true });
+    await fs.writeFile(path.join(root, '.git/config'), '[remote "origin"]\n  url = https://github.com/acme/site.git\n');
+
+    await fs.symlink(path.join(root, '.env'), path.join(root, 'src/env-alias.txt'));
+    await fs.symlink(path.join(root, '.git/config'), path.join(root, 'src/git-alias.txt'));
+    await fs.symlink(path.join(root, 'package.json'), path.join(root, 'src/pkg-alias.json'));
+    await fs.symlink(
+      path.join(root, '.github/workflows'),
+      path.join(root, 'src/ci-alias'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+
+    // Listing must hide secret/hidden symlink aliases.
+    const srcList = await box.list('src');
+    expect(srcList).not.toContain('env-alias.txt');
+    expect(srcList).not.toContain('git-alias.txt');
+
+    // Reads & search must block secret and hidden-directory symlink aliases.
+    await expect(box.read('src/env-alias.txt')).rejects.toThrow(/secrets/);
+    await expect(box.read('src/git-alias.txt')).rejects.toThrow(/not available/);
+    await expect(box.search('KEY', 'src/env-alias.txt')).rejects.toThrow(/secrets/);
+    await expect(box.search('github.com', 'src/git-alias.txt')).rejects.toThrow(/not available/);
+
+    // Protected files remain readable, but editing/creating/restoring through an alias must fail and leave target untouched.
+    await expect(box.edit('src/pkg-alias.json', '{}', '{"scripts":{"postinstall":"pwn"}}')).rejects.toThrow(/cannot be changed|symlink/);
+    await box.read('src/pkg-alias.json', 1, 1);
+    await expect(box.replaceLines('src/pkg-alias.json', 1, 1, '{"hacked":true}')).rejects.toThrow(/cannot be changed|symlink/);
+    await expect(box.create('src/ci-alias/evil.yml', 'on: push')).rejects.toThrow(/cannot be changed/);
+    await expect(
+      box.restore({
+        path: 'src/pkg-alias.json',
+        existed: true,
+        content: '{"tampered":true}',
+        wasChanged: false,
+        hadOriginal: false,
+        previousOriginal: undefined,
+        lastRead: undefined,
+        lastRangeEdit: undefined,
+      }),
+    ).rejects.toThrow(/cannot be changed|symlink/);
+
+    expect(await fs.readFile(path.join(root, 'package.json'), 'utf8')).toBe('{}');
+    await expect(fs.access(path.join(root, '.github/workflows/evil.yml'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

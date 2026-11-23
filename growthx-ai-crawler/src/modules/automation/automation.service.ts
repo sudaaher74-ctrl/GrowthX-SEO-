@@ -16,6 +16,11 @@ import {
   GITHUB_REUSE_SENTINELS,
   isExplicitlyAuthorizedRepository,
 } from './repository-auth';
+import {
+  resolveSafeCheckoutWriteTarget,
+  validateContentDirectory,
+  writeConfinedCheckoutFile,
+} from './checkout-path';
 import { isPublishableSeoText } from '../ai/fix-generator';
 import { OWN_SCOPE } from '../crawler/website-scope';
 import { PrismaService } from '../../database/prisma.service';
@@ -163,6 +168,8 @@ export class AutomationService {
       );
     }
 
+    const validatedContentDir = validateContentDirectory(input.contentDir);
+
     const data = {
       owner,
       name,
@@ -173,7 +180,7 @@ export class AutomationService {
       credentialVerifiedAt: new Date(),
       defaultBranch: input.defaultBranch?.trim() || verified.defaultBranch,
       framework: input.framework ?? 'unknown',
-      contentDir: input.contentDir ?? null,
+      contentDir: validatedContentDir,
       // Never enabled from here: a fix is a pull request the customer reviews and merges.
       autoMerge: false,
     };
@@ -408,7 +415,7 @@ export class AutomationService {
         });
       }
 
-      await this.git.commitAndPush(workingDir, branch, `fix(seo): apply ${changed.length} automated SEO fixes`);
+      await this.git.commitAndPush(workingDir, branch, `fix(seo): apply ${changed.length} automated SEO fixes`, token);
       steps.push(this.step('push', branch, true));
 
       const prUrl = await this.git.createPullRequest(
@@ -479,32 +486,31 @@ export class AutomationService {
       steps.push(this.step('clone', `${repo.owner}/${repo.name}`, true));
 
       const context = await this.repoUnderstanding.analyzeRepository(workingDir);
-      const contentDir = repo.contentDir ?? (await this.guessContentDir(workingDir));
-      steps.push(this.step('analyze', `content directory: ${contentDir}`, true));
+      const rawContentDir = repo.contentDir ?? (await this.guessContentDir(workingDir));
+      const plannedTargets = [];
+      for (const piece of pieces) {
+        const target = await resolveSafeCheckoutWriteTarget(workingDir, rawContentDir, piece.slug);
+        plannedTargets.push({ piece, target });
+      }
+      steps.push(this.step('analyze', `content directory: ${plannedTargets[0].target.contentDir}`, true));
 
       const branch = `growthx-ai/content-${Date.now()}`;
       await this.git.createFeatureBranch(workingDir, branch);
 
       const changed: string[] = [];
-      for (const piece of pieces) {
-        const relative = path.join(contentDir, `${piece.slug}.md`);
-        const absolute = path.join(workingDir, relative);
-        await fs.mkdir(path.dirname(absolute), { recursive: true });
-        await fs.writeFile(
-          absolute,
-          this.content.toMarkdownFile({
-            title: piece.title,
-            metaDescription: piece.metaDescription,
-            body: piece.body ?? '',
-            targetQuery: piece.targetQuery,
-          }),
-          'utf8',
-        );
-        changed.push(relative);
+      for (const { piece, target } of plannedTargets) {
+        const markdown = this.content.toMarkdownFile({
+          title: piece.title,
+          metaDescription: piece.metaDescription,
+          body: piece.body ?? '',
+          targetQuery: piece.targetQuery,
+        });
+        await writeConfinedCheckoutFile(workingDir, target, markdown);
+        changed.push(target.relativePath);
 
         await this.prisma.contentPiece.update({
           where: { id: piece.id },
-          data: { status: ContentPieceStatus.COMMITTED, filePath: relative, runId: run.id },
+          data: { status: ContentPieceStatus.COMMITTED, filePath: target.relativePath, runId: run.id },
         });
       }
       steps.push(this.step('write', `${changed.length} page(s)`, true));
@@ -519,7 +525,7 @@ export class AutomationService {
         });
       }
 
-      await this.git.commitAndPush(workingDir, branch, `content: add ${changed.length} SEO page(s)`);
+      await this.git.commitAndPush(workingDir, branch, `content: add ${changed.length} SEO page(s)`, token);
       const prUrl = await this.git.createPullRequest(
         token,
         repo.owner,

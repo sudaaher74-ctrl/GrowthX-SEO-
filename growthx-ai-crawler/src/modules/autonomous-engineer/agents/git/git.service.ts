@@ -28,14 +28,26 @@ function redactToken(text: string, token?: string): string {
 @Injectable()
 export class GitService {
   private readonly logger = new Logger(GitService.name);
+  /**
+   * Ephemeral per-checkout GitHub authentication held strictly in process memory
+   * so credentials are never written to `.git/config` or any file inside the
+   * checkout directory accessible to the engineer sandbox or build scripts.
+   */
+  private readonly checkoutAuth = new Map<string, { origin: string; token: string }>();
 
   /**
    * Builds a hardened SimpleGit instance for Docker / self-hosted PC servers:
    * - Forces HTTP/1.1 to avoid silent HTTP/2 stalls over Docker bridge / NAT / PPPoE MTUs.
    * - Disables interactive terminal prompts so bad tokens fail fast instead of hanging.
    * - Uses low-speed detection so truly dead sockets fail cleanly and trigger IPv4 retry.
+   * - Supplies GitHub credentials exclusively via ephemeral `GIT_CONFIG_*` environment
+   *   variables scoped to the verified origin, never embedding tokens in URLs or `.git/config`.
    */
-  private createGit(baseDir?: string, timeoutMs = resolveGitBlockTimeoutMs()): SimpleGit {
+  private createGit(
+    baseDir?: string,
+    timeoutMs = resolveGitBlockTimeoutMs(),
+    auth?: { origin: string; token: string },
+  ): SimpleGit {
     const git = simpleGit({
       ...(baseDir ? { baseDir } : {}),
       timeout: { block: timeoutMs },
@@ -50,6 +62,13 @@ export class GitService {
     if (typeof git.env === 'function') {
       git.env('GIT_TERMINAL_PROMPT', '0');
       git.env('GCM_INTERACTIVE', 'never');
+      if (auth?.token?.trim() && auth.origin) {
+        const basic = Buffer.from(`x-access-token:${auth.token.trim()}`, 'utf8').toString('base64');
+        const normalizedOrigin = auth.origin.replace(/\/+$/, '');
+        git.env('GIT_CONFIG_COUNT', '1');
+        git.env('GIT_CONFIG_KEY_0', `http.${normalizedOrigin}/.extraHeader`);
+        git.env('GIT_CONFIG_VALUE_0', `Authorization: Basic ${basic}`);
+      }
     }
     return git;
   }
@@ -113,12 +132,14 @@ export class GitService {
    * automatically retries once with `--ipv4` if IPv6/NAT stalls on a self-hosted PC.
    */
   async cloneRepository(repoUrl: string, token: string, _repoName: string): Promise<string> {
-    // GitHub's documented form for a token over HTTPS. The token is URL-encoded, so a
-    // character that is not valid in a URL cannot corrupt the address (git reports that
-    // as "URL using bad/illegal format").
-    const url = new URL(repoUrl);
-    url.username = 'x-access-token';
-    url.password = token.trim();
+    // Strip any credentials from the remote URL so `.git/config` inside the
+    // checkout never stores access tokens. Authentication is supplied solely via
+    // ephemeral origin-scoped `GIT_CONFIG_*` environment variables.
+    const cleanUrl = new URL(repoUrl);
+    cleanUrl.username = '';
+    cleanUrl.password = '';
+    const trimmedToken = token.trim();
+    const auth = trimmedToken ? { origin: cleanUrl.origin, token: trimmedToken } : undefined;
 
     const forceIpv4 = process.env.GIT_FORCE_IPV4 === 'true';
     const baseArgs = ['--depth', '1', '--single-branch', '--no-tags', '--progress'];
@@ -130,14 +151,17 @@ export class GitService {
     for (let i = 0; i < attempts.length; i++) {
       const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
       const args = attempts[i];
-      const git = this.createGit();
+      const git = this.createGit(undefined, resolveGitBlockTimeoutMs(), auth);
 
       this.logger.log(
-        `Cloning ${repoUrl} to ${targetDir}${args.includes('--ipv4') ? ' (IPv4)' : ''} (attempt ${i + 1}/${attempts.length})...`,
+        `Cloning ${cleanUrl.toString()} to ${targetDir}${args.includes('--ipv4') ? ' (IPv4)' : ''} (attempt ${i + 1}/${attempts.length})...`,
       );
 
       try {
-        await git.clone(url.toString(), targetDir, args);
+        await git.clone(cleanUrl.toString(), targetDir, args);
+        if (auth) {
+          this.checkoutAuth.set(path.resolve(targetDir), auth);
+        }
         return targetDir;
       } catch (error) {
         lastError = error;
@@ -145,19 +169,20 @@ export class GitService {
         const msg = redactToken(error instanceof Error ? error.message : String(error), token);
         const canRetry = i + 1 < attempts.length && TRANSIENT_GIT_ERROR_RE.test(msg);
         if (canRetry) {
-          this.logger.warn(`Clone of ${repoUrl} stalled (${msg}); retrying over IPv4...`);
+          this.logger.warn(`Clone of ${cleanUrl.toString()} stalled (${msg}); retrying over IPv4...`);
           continue;
         }
-        throw this.formatGitError('clone', repoUrl, error, token);
+        throw this.formatGitError('clone', cleanUrl.toString(), error, token);
       }
     }
 
-    throw this.formatGitError('clone', repoUrl, lastError, token);
+    throw this.formatGitError('clone', cleanUrl.toString(), lastError, token);
   }
 
   /** Remove only workspaces this service created under the host temp directory. */
   async cleanupRepository(repoDir: string): Promise<void> {
     const resolved = path.resolve(repoDir);
+    this.checkoutAuth.delete(resolved);
     if (path.dirname(resolved) !== path.resolve(os.tmpdir()) ||
         !path.basename(resolved).startsWith('growthx-auto-engineer-')) {
       throw new Error('Refusing to remove a directory outside the Fix Engine temporary workspace.');
@@ -201,8 +226,20 @@ export class GitService {
 
   /**
    * Commits the changes and pushes to the remote.
+   * Supplies credentials strictly via ephemeral env config for the push call so
+   * `.git/config` inside the checkout never contains credentials.
    */
-  async commitAndPush(repoDir: string, branchName: string, commitMessage: string): Promise<void> {
+  async commitAndPush(
+    repoDir: string,
+    branchName: string,
+    commitMessage: string,
+    token?: string,
+  ): Promise<void> {
+    const storedAuth = this.checkoutAuth.get(path.resolve(repoDir));
+    const auth = token?.trim()
+      ? { origin: storedAuth?.origin || 'https://github.com', token: token.trim() }
+      : storedAuth;
+
     const git = this.createGit(repoDir);
 
     this.logger.log(`Committing changes: "${commitMessage}"`);
@@ -215,22 +252,23 @@ export class GitService {
     await git.commit(commitMessage);
 
     this.logger.log(`Pushing branch ${branchName} to remote...`);
+    const pushGit = this.createGit(repoDir, resolveGitBlockTimeoutMs(), auth);
     const forceIpv4 = process.env.GIT_FORCE_IPV4 === 'true';
     const pushArgs = forceIpv4 ? ['--progress', '--ipv4'] : ['--progress'];
     try {
-      await git.push('origin', branchName, pushArgs);
+      await pushGit.push('origin', branchName, pushArgs);
     } catch (error) {
-      const msg = redactToken(error instanceof Error ? error.message : String(error));
+      const msg = redactToken(error instanceof Error ? error.message : String(error), auth?.token);
       if (!forceIpv4 && TRANSIENT_GIT_ERROR_RE.test(msg)) {
         this.logger.warn(`Push of ${branchName} stalled (${msg}); retrying over IPv4...`);
         try {
-          await git.push('origin', branchName, ['--progress', '--ipv4']);
+          await pushGit.push('origin', branchName, ['--progress', '--ipv4']);
           return;
         } catch (retryError) {
-          throw this.formatGitError('push', branchName, retryError);
+          throw this.formatGitError('push', branchName, retryError, auth?.token);
         }
       }
-      throw this.formatGitError('push', branchName, error);
+      throw this.formatGitError('push', branchName, error, auth?.token);
     }
   }
 

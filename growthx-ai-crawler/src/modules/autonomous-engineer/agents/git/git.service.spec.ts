@@ -60,10 +60,24 @@ describe('GitService', () => {
     await service.cleanupRepository(dir);
   });
 
-  it('authenticates the clone URL without mutating the caller\'s input', async () => {
+  it('authenticates via ephemeral origin-scoped env config without embedding the token in the clone URL', async () => {
+    const clone = jest.fn().mockResolvedValue(undefined);
+    const env = jest.fn().mockReturnThis();
+    mockSimpleGit.mockReturnValue({ clone, env });
+
     const url = 'https://github.com/o/r.git';
     const dir = await service.cloneRepository(url, 'ghp_supersecret', 'r');
     expect(url).toBe('https://github.com/o/r.git');
+    // Clone URL must NEVER contain credentials so `.git/config` stays token-free.
+    expect(clone.mock.calls[0][0]).toBe('https://github.com/o/r.git');
+    expect(clone.mock.calls[0][0]).not.toContain('ghp_supersecret');
+    expect(clone.mock.calls[0][0]).not.toContain('x-access-token');
+    expect(env).toHaveBeenCalledWith('GIT_CONFIG_COUNT', '1');
+    expect(env).toHaveBeenCalledWith('GIT_CONFIG_KEY_0', 'http.https://github.com/.extraHeader');
+    expect(env).toHaveBeenCalledWith(
+      'GIT_CONFIG_VALUE_0',
+      expect.stringMatching(/^Authorization: Basic /),
+    );
     await service.cleanupRepository(dir);
   });
 

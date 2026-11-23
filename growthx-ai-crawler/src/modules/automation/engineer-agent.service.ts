@@ -615,7 +615,7 @@ export class EngineerAgentService {
       }
 
       const title = `${clip(instruction.split('\n')[0], 60)}`;
-      await this.git.commitAndPush(dir, branch, `chore(reigel): ${title}`);
+      await this.git.commitAndPush(dir, branch, `chore(reigel): ${title}`, token);
       steps.push(this.step('push', branch, true));
       const prUrl = await this.git.createPullRequest(token, repo.owner, repo.name, `Reigel engineer: ${title}`, branch, repo.defaultBranch, this.prBody(instruction, outcome.summary, changed, validated.output), true);
       steps.push(this.step('pull_request', prUrl, true));
