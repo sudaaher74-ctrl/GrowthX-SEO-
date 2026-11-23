@@ -181,4 +181,34 @@ describe('ValidationService', () => {
     expect(result.output).toContain('Build skipped: isolated build execution is disabled');
     expect(result.output).not.toContain('no package.json');
   });
+
+  it('validates HTML files including embedded JSON-LD blocks and rejects broken HTML or JSON-LD', async () => {
+    await fs.writeFile(
+      path.join(tempDir, 'index.html'),
+      '<!doctype html><html><head><title>Acme</title><script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization"}</script></head><body></body></html>',
+    );
+    expect((await service.validateRepository(tempDir, 'npm', ['index.html'])).success).toBe(true);
+
+    await fs.writeFile(
+      path.join(tempDir, 'broken.html'),
+      '<html><head><script type="application/ld+json">{bad json}</script></head><body></body></html>',
+    );
+    const badJsonLd = await service.validateRepository(tempDir, 'npm', ['broken.html']);
+    expect(badJsonLd.success).toBe(false);
+    expect(badJsonLd.output).toContain('Invalid JSON-LD');
+  });
+
+  it('validates XML sitemaps, CSS braces, and robots.txt directives', async () => {
+    await fs.writeFile(path.join(tempDir, 'sitemap.xml'), '<?xml version="1.0"?><urlset><url><loc>https://acme.in/</loc></url></urlset>');
+    await fs.writeFile(path.join(tempDir, 'styles.css'), 'body { color: black; /* { ignored */ }');
+    await fs.writeFile(path.join(tempDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://acme.in/sitemap.xml\n');
+
+    expect((await service.validateRepository(tempDir, 'npm', ['sitemap.xml', 'styles.css', 'robots.txt'])).success).toBe(true);
+
+    await fs.writeFile(path.join(tempDir, 'bad-sitemap.xml'), '<urlset><url><loc>https://acme.in/</url></urlset>');
+    expect((await service.validateRepository(tempDir, 'npm', ['bad-sitemap.xml'])).success).toBe(false);
+
+    await fs.writeFile(path.join(tempDir, 'bad.css'), 'body { color: black;');
+    expect((await service.validateRepository(tempDir, 'npm', ['bad.css'])).success).toBe(false);
+  });
 });

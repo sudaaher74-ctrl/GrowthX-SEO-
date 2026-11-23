@@ -121,6 +121,7 @@ You work by choosing ONE tool per turn and replying with JSON only. Tools:
 - {"tool":"finish","summary":"what you changed and why, for the person reviewing it"}
 
 Rules:
+- Start from the REPOSITORY MAP and AUTO PRE-SEARCH HITS in the prompt — open exact existing paths directly with "read" instead of guessing folders like src/app that may not exist.
 - Look before you change: find the right file, read it (in 60-100 line ranges), then edit. Prefer replace_lines for JSX/TSX and multi-line changes: copy only the replacement source, without line-number labels. Keep start/end inside the latest read range. The server verifies that the file is unchanged since that read.
 - CRITICAL FOR replace_lines: replace_lines DELETES EVERY line from start through end inclusive and replaces all of them with "new". NEVER pass a wide block (such as an entire return (...) or component body) unless "new" reproduces EVERY line you want to keep. To INSERT code (e.g. a JSON-LD <script> or a prop), choose a narrow 1-3 line anchor range and repeat those anchor lines plus your added lines in "new".
 - Before referencing any symbol, schema, or helper in JSX/JS/TS, confirm it is already imported at the top of that file (or add the import statement cleanly). Every edit must leave the file syntactically valid.
@@ -430,28 +431,38 @@ export class EngineerAgentService {
       .map((f) => `${f.source} ${f.title} ${f.summary} ${f.recommendedAction}`)
       .join(' ')
       .toLowerCase();
+    const isCanonicalFinding = /\b(preferred address|canonical|multiple canonical|duplicate canonical)\b/.test(
+      combinedText,
+    );
+    const isSitemapOrRobotsFinding = /\b(sitemap|robots\.txt|llms\.txt|indexation)\b/.test(combinedText);
     const isMetadataOrTitleFinding =
-      /\b(same name|duplicate title|missing title|page title|meta description|title tag|h1|canonical)\b/.test(
-        combinedText,
-      );
+      /\b(same name|duplicate title|missing title|page title|meta description|title tag|h1)\b/.test(combinedText);
     const isAiOrCompetitorFinding =
       findingsContext.some((f) =>
-        ['AI_VISIBILITY', 'COMPETITOR', 'COMPETITORS', 'MARKET_INTELLIGENCE'].includes(
+        ['AI_VISIBILITY', 'COMPETITOR', 'COMPETITORS', 'MARKET', 'MARKET_INTELLIGENCE'].includes(
           (f.source || '').toUpperCase(),
         ),
-      ) || /\b(ai models cite|citation|ai visibility|schema|json-ld|faq|llms\.txt)\b/.test(combinedText);
+      ) || /\b(ai models cite|citation|ai visibility|schema|json-ld|faq)\b/.test(combinedText);
 
-    if (isMetadataOrTitleFinding && !isAiOrCompetitorFinding) {
+    if (isCanonicalFinding) {
       lines.push(
-        `\nGuidance: Locate the routed page components matching the affected pages (such as pages under src/pages/ or src/app/**/page.tsx). Use {"tool":"search","pattern":"return (","path":"..."} to locate the JSX return in large files, read 60 lines around it with both start and end specified, and update unique <Helmet><title>...</title></Helmet> or metadata exports cleanly. Do not edit internal UI fragments or route registries. Finish cleanly once 1-3 key pages are updated so a pull request can be opened.`,
+        `\nGuidance: Inspect ALL files shown in the Repository Map and Pre-Search Hits that declare rel="canonical" (including index.html, shared SEOHead/layout components, and page files). Duplicate canonicals are most often caused by a static <link rel="canonical"> in index.html colliding with dynamic Helmet/SEOHead canonicals, or a page rendering a second canonical tag. Remove/deduplicate the conflicting declaration so every page outputs exactly one canonical URL, then call finish.`,
+      );
+    } else if (isSitemapOrRobotsFinding) {
+      lines.push(
+        `\nGuidance: Check the Repository Map for existing robots.txt, sitemap.xml, llms.txt, or framework sitemap/robots handlers (or create them under public/ if missing). Keep XML and robots.txt valid and reference the live site origin cleanly, then call finish.`,
+      );
+    } else if (isMetadataOrTitleFinding && !isAiOrCompetitorFinding) {
+      lines.push(
+        `\nGuidance: Use the Repository Map and Pre-Search Hits to open exact routed page components or shared SEO components matching the affected pages. Read 60-90 lines around the target section with explicit start and end, update unique <Helmet><title>...</title></Helmet> or metadata cleanly (keep titles <= 60 chars), and finish cleanly once 1-3 key pages are updated so a pull request can be opened.`,
       );
     } else if (isAiOrCompetitorFinding) {
       lines.push(
-        `\nGuidance: Focus ONLY on primary public landing, home, about/service pages, or shared SEO head/layout components (.jsx/.tsx/.js/.ts — never cart, checkout, login, account screens, or raw .html files in JS/React apps). Add grounded Organization/LocalBusiness/FAQPage JSON-LD structured data, clear factual offering summary, or comparison/FAQ copy using only real business details already present in the repository. When using replace_lines, replace ONLY 1-4 anchor lines (repeating those lines plus your addition) so surrounding JSX/braces stay intact. Finish cleanly once 1-2 primary public files are updated so a pull request can be opened.`,
+        `\nGuidance: Use the Repository Map to focus ONLY on primary public landing, home, about/service pages, or shared SEO head/layout components (never cart, checkout, login, or account screens). Add grounded Organization/LocalBusiness/FAQPage JSON-LD structured data, clear factual offering summary, or comparison/FAQ copy using only real business details already present in the repository. When using replace_lines, replace ONLY 1-4 anchor lines (repeating those lines plus your addition) so surrounding JSX/braces stay intact. Finish cleanly once 1-2 primary public files are updated so a pull request can be opened.`,
       );
     } else {
       lines.push(
-        `\nGuidance: Locate the exact public page or layout file matching the affected URLs (never edit unrelated cart/account screens). Read 60-100 lines around the target section with explicit start and end, apply the smallest clean fix using replace_lines, and call finish as soon as the targeted fix is in place.`,
+        `\nGuidance: Use the Repository Map and Pre-Search Hits to open exact public page, SEO, CSS, or layout files matching the affected URLs (never edit unrelated cart/account screens). Read 60-100 lines around the target section with explicit start and end, apply the smallest clean fix using replace_lines, and call finish as soon as the targeted fix is in place.`,
       );
     }
 
@@ -523,10 +534,16 @@ export class EngineerAgentService {
       const website = await this.prisma.website?.findFirst({ where: { projectId, scope: 'own' }, select: { domain: true } });
       let origin = '';
       if (website?.domain) { try { const url = new URL(website.domain.includes('://') ? website.domain : `https://${website.domain}`); if (['https:', 'http:'].includes(url.protocol)) origin = url.origin; } catch { /* No verified site origin for route evidence. */ } }
+      const detectedFramework =
+        context.framework && context.framework !== 'Unknown'
+          ? context.appRoot && context.appRoot !== '.'
+            ? `${context.framework} (app in ${context.appRoot}/)`
+            : context.framework
+          : repo.framework;
       const outcome = await this.work(
         box,
         instruction,
-        repo.framework,
+        detectedFramework,
         context.packageManager,
         organizationId,
         projectId,
@@ -543,7 +560,16 @@ export class EngineerAgentService {
         });
       }
       const changed = [...box.changed];
-      if (!steps.some((step) => (step.step === 'edit' || step.step === 'replace_lines' || step.step === 'metadata') && step.ok)) {
+      const hasExistingCodeEdit = steps.some(
+        (step) => (step.step === 'edit' || step.step === 'replace_lines' || step.step === 'metadata') && step.ok,
+      );
+      const isPublicSeoAssetOnly =
+        changed.length > 0 &&
+        changed.every((file) =>
+          /(^|\/)(public\/)?(robots\.txt|sitemap[^/]*\.xml|llms\.txt)$/i.test(file) ||
+          /(^|\/)\.well-known\//i.test(file),
+        );
+      if (!hasExistingCodeEdit && !isPublicSeoAssetOnly) {
         throw new Error('No existing website code was updated. New files alone do not demonstrate an integrated fix; nothing was pushed.');
       }
 
@@ -575,6 +601,59 @@ export class EngineerAgentService {
     }
   }
 
+  /**
+   * Builds compact Turn-1 reconnaissance (relevant file map + targeted plain-text pre-search hits)
+   * so the agent sees all conflicting/relevant files immediately instead of guessing paths blindly.
+   */
+  private async buildInitialRecon(
+    box: RepoSandbox,
+    instruction: string,
+    findingsContext: FindingRunContext[],
+  ): Promise<{ repoMap: string; preSearchText: string; matchedFiles: string[] }> {
+    const repoMap = await box.summarizeStructure(65).catch(() => '');
+    const hay = `${instruction} ${findingsContext.map((f) => `${f.source} ${f.title} ${f.recommendedAction}`).join(' ')}`.toLowerCase();
+
+    const queries: string[] = [];
+    if (/\b(canonical|preferred address)\b/.test(hay)) queries.push('canonical');
+    if (/\b(same name|duplicate title|missing title|page title|title tag|meta description)\b/.test(hay)) {
+      queries.push('<title', 'SEOHead');
+    }
+    if (/\b(schema|json-ld|structured data|ai models cite|ai visibility|citation|competitor)\b/.test(hay)) {
+      queries.push('application/ld+json', 'schema.org');
+    }
+    if (/\b(sitemap|robots\.txt|llms\.txt|indexation)\b/.test(hay)) {
+      queries.push('sitemap', 'robots');
+    }
+    if (/\b(missing h1|multiple h1|\bh1\b)\b/.test(hay)) {
+      queries.push('<h1');
+    }
+    if (/\b(nap|localbusiness|local seo|address|phone)\b/.test(hay)) {
+      queries.push('LocalBusiness');
+    }
+
+    const uniqueQueries = [...new Set(queries)].slice(0, 2);
+    const matchedFiles = new Set<string>();
+    const sections: string[] = [];
+
+    for (const q of uniqueQueries) {
+      const hits = await box.search(q).catch(() => 'No matches.');
+      if (hits && hits !== 'No matches.') {
+        const lines = hits.split('\n').slice(0, 18);
+        for (const line of lines) {
+          const m = line.match(/^([^:]+):\d+:/);
+          if (m?.[1]) matchedFiles.add(m[1]);
+        }
+        sections.push(`Search "${q}":\n${lines.join('\n')}`);
+      }
+    }
+
+    return {
+      repoMap: clip(repoMap, 2600),
+      preSearchText: sections.length ? clip(sections.join('\n\n'), 2400) : '',
+      matchedFiles: [...matchedFiles],
+    };
+  }
+
   /** The agent loop: the model picks a tool, we run it inside the sandbox, and show it the result. */
   private async work(
     box: RepoSandbox,
@@ -590,15 +669,18 @@ export class EngineerAgentService {
   ): Promise<{ summary: string }> {
     const history: { call: string; result: string }[] = [];
     const rootListing = await box.list('');
+    const recon = await this.buildInitialRecon(box, instruction, findingsContext);
     const deadline = Date.now() + MAX_MINUTES * 60_000;
     let malformed = 0;
     const readPaths = new Set<string>();
+    const everReadPaths = new Set<string>();
     const readAfterFailure = new Set<string>();
     const failedEditSignatures = new Set<string>();
     const failedEditsByFile = new Map<string, number>();
     const syntaxFailuresByFile = new Map<string, number>();
     let editIndex = 0;
     let rejectedFinishes = 0;
+    let zeroChangeChallenges = 0;
     let consecutiveFailures = 0;
     let recoveryLimitReached = false;
 
@@ -639,6 +721,8 @@ export class EngineerAgentService {
         siteOrigin ? `TARGET PROJECT SITE ORIGIN: ${siteOrigin}` : '',
         findingsContext.length ? `FINDINGS DATA (include every affected page when determining scope):\n${JSON.stringify(findingsContext)}` : '',
         `REPOSITORY: framework ${framework}, package manager ${packageManager}. Root:\n${rootListing}`,
+        recon.repoMap ? `REPOSITORY MAP (exact existing files — open these directly with "read"):\n${recon.repoMap}` : '',
+        recon.preSearchText ? `AUTO PRE-SEARCH HITS (inspect ALL relevant files below before deciding):\n${recon.preSearchText}` : '',
         older.length ? `EARLIER STEPS (short):\n${older.join('\n')}` : '',
         recent.length ? `RECENT STEPS:\n${recent.join('\n\n')}` : 'No steps yet.',
         turnNotice,
@@ -685,6 +769,23 @@ export class EngineerAgentService {
           steps.push(this.step('acceptance', clip(acceptance.join('\n'), 1500), false));
           if (++rejectedFinishes >= 3) throw new Error('Metadata integration checks failed. No pull request was pushed.');
           continue;
+        }
+        if (box.changed.size === 0 && zeroChangeChallenges < 1 && turn <= MAX_TURNS - 3) {
+          const proposedSummary = String(action.summary ?? '').trim();
+          const unreadMatches = recon.matchedFiles.filter((f) => !everReadPaths.has(f)).slice(0, 6);
+          const claimsAlreadyFixed = /\b(already|dynamically|resolving|resolved|present|no change|ensures|configured)\b/i.test(
+            proposedSummary,
+          );
+          if (unreadMatches.length > 0 || claimsAlreadyFixed) {
+            zeroChangeChallenges += 1;
+            const filesHint = unreadMatches.length
+              ? ` You have NOT inspected these matching files yet: ${unreadMatches.join(', ')}. Read them first (for example, a static <link rel="canonical"> or duplicate tag in index.html or a shared SEO component often conflicts with a page component).`
+              : ' Run {"tool":"search",...} across the ENTIRE repository (including index.html, shared SEO/layout components, and public/) to verify whether another file causes the issue.';
+            const challengeMsg = `Hold on — you called finish without changing any files ("${clip(proposedSummary, 160)}"), but the live audit measured this issue in production.${filesHint} Only call finish with zero changes after inspecting all relevant files.`;
+            history.push({ call: 'zero-change review', result: challengeMsg });
+            steps.push(this.step('review_check', clip(challengeMsg, 300), false));
+            continue;
+          }
         }
         if (box.changed.size > 0 && typeof this.validation.validateContentSyntax === 'function') {
           const syntaxErrors: string[] = [];
@@ -783,6 +884,7 @@ export class EngineerAgentService {
 
         if (action.tool === 'read') {
           readPaths.add(actionPath);
+          everReadPaths.add(actionPath);
           if (failedEditsByFile.has(actionPath)) readAfterFailure.add(actionPath);
         }
         if (isEdit || action.tool === 'metadata') {

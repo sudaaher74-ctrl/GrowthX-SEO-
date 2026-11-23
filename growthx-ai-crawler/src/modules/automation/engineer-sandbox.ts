@@ -265,6 +265,57 @@ export class RepoSandbox {
     return lines.length > 0 ? lines.join('\n') : '(empty)';
   }
 
+  /**
+   * Builds a compact prioritized map of website source/SEO files inside the sandbox so the agent
+   * knows exact file paths on turn 1 instead of guessing folders.
+   */
+  async summarizeStructure(maxFiles = 65): Promise<string> {
+    const base = await this.inside('', true);
+    const found: string[] = [];
+    let scannedDirs = 0;
+
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      if (depth > 6 || found.length >= 400 || scannedDirs >= 160) return;
+      scannedDirs += 1;
+      const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+      for (const e of entries) {
+        if (found.length >= 400) return;
+        if (HIDDEN_DIRS.has(e.name) || SECRET.some((r) => r.test(e.name)) || e.isSymbolicLink()) continue;
+        if (e.name.startsWith('.') && e.name !== '.well-known') continue;
+        const abs = path.join(dir, e.name);
+        const rel = path.relative(this.root, abs).split(path.sep).join('/');
+        if (e.isDirectory()) {
+          if (/(^|\/)(__tests__|test|tests|fixtures|migrations|uploads|images|img|icons|fonts)$/i.test(rel)) continue;
+          await walk(abs, depth + 1);
+        } else if (e.isFile()) {
+          if (/\.(tsx?|jsx?|mjs|cjs|html?|xml|css|scss|mdx?|txt|json)$/i.test(e.name)) {
+            if (!/\.(spec|test)\.[jt]sx?$/i.test(e.name) && !/(package-lock|yarn\.lock|pnpm-lock)/i.test(e.name)) {
+              found.push(rel);
+            }
+          }
+        }
+      }
+    };
+    await walk(base, 0);
+
+    const priority = (rel: string): number => {
+      const lower = rel.toLowerCase();
+      if (/(^|\/)(index\.html|robots\.txt|sitemap[^/]*\.xml|llms\.txt)$/.test(lower)) return 0;
+      if (/(seo|head|meta|schema|route|layout|app\.[jt]sx?|main\.[jt]sx?|page\.[jt]sx?)$/.test(lower)) return 1;
+      if (/(^|\/)(pages|app|public)\//.test(lower)) return 2;
+      if (/(^|\/)(components|data|content)\//.test(lower)) return 3;
+      if (/(^|\/)(backend|server|api)\//.test(lower)) return 6;
+      return 4;
+    };
+
+    const sorted = found.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
+    const shown = sorted.slice(0, maxFiles);
+    if (shown.length === 0) return '(no source files detected)';
+    return sorted.length > maxFiles
+      ? `${shown.join('\n')}\n… (${sorted.length - maxFiles} more files; use search or list to explore)`
+      : shown.join('\n');
+  }
+
   async read(rel: string, start = 1, end?: number): Promise<string> {
     const p = this.clean(rel);
     const abs = await this.inside(p, true);
@@ -468,9 +519,38 @@ export class RepoSandbox {
       }
     }
     const newForFile = newText.replace(/\r\n|\n/g, eol);
+    let matchLength = oldForFile.length;
+    if (first === -1) {
+      // Fallback: unique whitespace-trimmed line match so a 2-space indentation slip from small models still resolves unambiguously.
+      const fileLines = text.split(eol);
+      const needleLines = oldForFile.split(eol).map((l) => l.trim());
+      if (needleLines.length > 0 && needleLines.some((l) => l.length > 0)) {
+        const matchStarts: number[] = [];
+        for (let i = 0; i <= fileLines.length - needleLines.length; i++) {
+          let allMatch = true;
+          for (let j = 0; j < needleLines.length; j++) {
+            if (fileLines[i + j].trim() !== needleLines[j]) {
+              allMatch = false;
+              break;
+            }
+          }
+          if (allMatch) matchStarts.push(i);
+        }
+        if (matchStarts.length === 1) {
+          const lineIdx = matchStarts[0];
+          const matchedBlock = fileLines.slice(lineIdx, lineIdx + needleLines.length).join(eol);
+          const prefix = lineIdx === 0 ? '' : fileLines.slice(0, lineIdx).join(eol) + eol;
+          first = prefix.length;
+          matchLength = matchedBlock.length;
+          oldForFile = matchedBlock;
+        } else if (matchStarts.length > 1) {
+          throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
+        }
+      }
+    }
     if (first === -1) throw new SandboxError(`That text was not found in ${p}. Read the file again and copy the source text exactly; line-number labels are not part of the file.`);
     if (text.indexOf(oldForFile, first + 1) !== -1) throw new SandboxError(`That text appears more than once in ${p}. Include more surrounding text so it is unique.`);
-    const next = text.slice(0, first) + newForFile + text.slice(first + oldForFile.length);
+    const next = text.slice(0, first) + newForFile + text.slice(first + matchLength);
     if (Buffer.byteLength(next) > LIMITS.maxWriteBytes * 2) throw new SandboxError('The file would become too large.');
     if (!this.originals.has(p)) this.originals.set(p, text);
     await fs.writeFile(abs, next, 'utf8');

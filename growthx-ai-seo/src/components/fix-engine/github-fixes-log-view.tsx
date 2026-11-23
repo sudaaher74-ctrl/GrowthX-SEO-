@@ -187,17 +187,27 @@ function buildDirectEditRetryInstruction(ctx: ReturnType<typeof resolveRunContex
   const targetPages = ctx.matchedFindings[0]?.affectedPages?.slice(0, 3).join(", ") || "";
   const pagesHint = targetPages ? ` Focus on affected public pages: ${targetPages}.` : "";
   const hay = `${ctx.moduleId} ${ctx.headline} ${base}`.toLowerCase();
+  const isCanonical = /\b(preferred address|canonical|multiple canonical|duplicate canonical)\b/.test(hay);
+  const isSitemapOrRobots = /\b(sitemap|robots\.txt|llms\.txt|indexation)\b/.test(hay);
   const isAiOrCompetitor =
-    ["AI_VISIBILITY", "COMPETITOR", "COMPETITORS"].includes(ctx.moduleId.toUpperCase()) ||
+    ["AI_VISIBILITY", "COMPETITOR", "COMPETITORS", "MARKET"].includes(ctx.moduleId.toUpperCase()) ||
     /\b(ai models cite|citation|ai visibility|schema|json-ld|faq|llms\.txt)\b/.test(hay);
 
-  const targetRule = isAiOrCompetitor
-    ? `1. TARGET FILES: Edit ONLY primary public landing, home, about/service pages, or shared SEO head/layout components (.jsx/.tsx/.js/.ts). NEVER edit cart, checkout, login, or account screens.${pagesHint}`
-    : `1. TARGET FILES: Locate the routed page files matching the affected URLs (e.g. src/pages/ or src/app/**/page.tsx). Do not modify internal screen fragments or route registries.${pagesHint}`;
-
-  const editRule = isAiOrCompetitor
-    ? `3. NARROW BOUNDED REPLACE: replace_lines deletes EVERY line from start to end inclusive. To insert JSON-LD or factual copy, replace ONLY 1-4 anchor lines (repeating those anchor lines plus your addition) inside your latest read range so surrounding JSX/braces stay intact. Use only real business details already in the repository.`
-    : `3. NARROW BOUNDED REPLACE: Use {"tool":"search","pattern":"return (","path":"..."} to locate JSX return if needed, read a 60-90 line range covering ALL lines you will change, then call replace_lines on a narrow 1-6 line range strictly inside that read range while preserving surrounding JSX/braces.`;
+  let targetRule: string;
+  let editRule: string;
+  if (isCanonical) {
+    targetRule = `1. TARGET FILES: Check EVERY file shown in the Repository Map and Pre-Search Hits that declares rel="canonical" (including index.html, shared SEOHead/layout components, and page components). Removing a conflicting static canonical in index.html or duplicate Helmet canonical fixes all affected pages at once.${pagesHint}`;
+    editRule = `3. NARROW BOUNDED REPLACE: Inspect all canonical occurrences before deciding; remove or deduplicate conflicting canonical tags using a narrow 1-4 line replace_lines strictly inside your read range so each page emits exactly one canonical URL.`;
+  } else if (isSitemapOrRobots) {
+    targetRule = `1. TARGET FILES: Use the Repository Map to locate existing robots.txt, sitemap.xml, llms.txt, or framework sitemap/robots handlers (create under public/ if absent).${pagesHint}`;
+    editRule = `3. CLEAN WEB ASSET UPDATE: Keep XML, robots.txt, or code syntactically valid; use narrow replace_lines on existing files or create missing public/ assets cleanly.`;
+  } else if (isAiOrCompetitor) {
+    targetRule = `1. TARGET FILES: Use the Repository Map to edit ONLY primary public landing, home, about/service pages, or shared SEO head/schema components (never cart, checkout, login, or account screens).${pagesHint}`;
+    editRule = `3. NARROW BOUNDED REPLACE: replace_lines deletes EVERY line from start to end inclusive. To insert JSON-LD or factual copy, replace ONLY 1-4 anchor lines (repeating those anchor lines plus your addition) inside your latest read range so surrounding JSX/braces stay intact. Use only real business details already in the repository.`;
+  } else {
+    targetRule = `1. TARGET FILES: Use the Repository Map and Pre-Search Hits to open exact existing files (never guess nonexistent folders). Target the routed public page or shared SEO/layout component matching the affected URLs.${pagesHint}`;
+    editRule = `3. NARROW BOUNDED REPLACE: Read a 60-90 line range covering ALL lines you will change, then call replace_lines on a narrow 1-6 line range strictly inside that read range while preserving surrounding JSX/braces.`;
+  }
 
   const guidance = `
 RETRY EXECUTION GUIDANCE:

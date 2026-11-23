@@ -154,11 +154,12 @@ export class ValidationService {
   }
 
   /**
-   * Validates the concrete syntax of a single file's content in memory (AST parse / JSON parse).
-   * Non-JS/TS/JSON files (e.g. markdown, css) return success so incremental edit checks do not block them.
+   * Validates the concrete syntax of a single file's content in memory (AST parse / JSON / HTML / XML / CSS / text).
+   * Unknown extensions return success here so incremental edit checks do not block them; `validateFilesSyntax` enforces the supported extension list.
    */
   async validateContentSyntax(relativePath: string, content: string): Promise<ValidationResult> {
     const ext = path.extname(relativePath).toLowerCase();
+    const base = path.basename(relativePath);
     if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
       const ts = await import('typescript');
       const isJsx = ext === '.tsx' || ext === '.jsx';
@@ -178,14 +179,14 @@ export class ValidationService {
         const errors = diagnostics.map((d: ts.Diagnostic) => {
           const pos = d.file && d.start != null ? d.file.getLineAndCharacterOfPosition(d.start) : { line: 0, character: 0 };
           const message = ts.flattenDiagnosticMessageText(d.messageText, '\n');
-          return `${path.basename(relativePath)} (${pos.line + 1}:${pos.character + 1}): ${message}`;
+          return `${base} (${pos.line + 1}:${pos.character + 1}): ${message}`;
         });
         return {
           success: false,
           output: `Syntax error in generated fix: ${errors.join('; ')}`,
         };
       }
-      return { success: true, output: `Syntax valid for ${path.basename(relativePath)}` };
+      return { success: true, output: `Syntax valid for ${base}` };
     }
 
     if (ext === '.json') {
@@ -194,20 +195,125 @@ export class ValidationService {
       } catch (e: any) {
         return {
           success: false,
-          output: `Invalid JSON in ${path.basename(relativePath)}: ${e.message}`,
+          output: `Invalid JSON in ${base}: ${e.message}`,
         };
       }
-      return { success: true, output: `Valid JSON in ${path.basename(relativePath)}` };
+      return { success: true, output: `Valid JSON in ${base}` };
     }
 
-    return { success: true, output: `Syntax check skipped for ${path.basename(relativePath)}` };
+    if (ext === '.html' || ext === '.htm') {
+      if (!content.trim()) {
+        return { success: false, output: `Syntax error in generated fix: ${base} is empty.` };
+      }
+      const withoutComments = content.replace(/<!--[\s\S]*?-->/g, '');
+      for (const tag of ['script', 'style', 'head', 'body']) {
+        const opens = (withoutComments.match(new RegExp(`<${tag}(?:\\s[^>]*)?>`, 'gi')) || []).length;
+        const closes = (withoutComments.match(new RegExp(`</${tag}\\s*>`, 'gi')) || []).length;
+        if (opens !== closes) {
+          return {
+            success: false,
+            output: `Syntax error in generated fix: ${base} has mismatched <${tag}> tags (${opens} open, ${closes} close).`,
+          };
+        }
+      }
+      const jsonLdRe = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      let match: RegExpExecArray | null;
+      let blockIdx = 0;
+      while ((match = jsonLdRe.exec(withoutComments)) !== null) {
+        blockIdx += 1;
+        const rawJson = match[1].trim();
+        if (!rawJson) {
+          return { success: false, output: `Invalid JSON-LD block #${blockIdx} in ${base}: block is empty.` };
+        }
+        try {
+          JSON.parse(rawJson);
+        } catch (e: any) {
+          return { success: false, output: `Invalid JSON-LD block #${blockIdx} in ${base}: ${e.message}` };
+        }
+      }
+      return { success: true, output: `HTML syntax valid for ${base}` };
+    }
+
+    if (ext === '.xml') {
+      const stripped = content
+        .replace(/<\?[\s\S]*?\?>/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+        .trim();
+      if (!stripped) {
+        return { success: false, output: `Syntax error in generated fix: ${base} has no XML elements.` };
+      }
+      const stack: string[] = [];
+      const tagRe = /<(\/?)([A-Za-z_][\w:.-]*)(?:\s[^<>]*?)?(\/?)>/g;
+      let tagMatch: RegExpExecArray | null;
+      let seenTags = 0;
+      while ((tagMatch = tagRe.exec(stripped)) !== null) {
+        seenTags += 1;
+        const [, isClosing, tagName, isSelfClosing] = tagMatch;
+        if (isSelfClosing) continue;
+        if (!isClosing) {
+          stack.push(tagName);
+        } else {
+          const expected = stack.pop();
+          if (expected !== tagName) {
+            return {
+              success: false,
+              output: `Syntax error in generated fix: ${base} has mismatched XML closing tag </${tagName}> (expected </${expected ?? 'none'}>).`,
+            };
+          }
+        }
+      }
+      if (seenTags === 0 || stack.length > 0) {
+        return {
+          success: false,
+          output: `Syntax error in generated fix: ${base} has unclosed XML tag(s): ${stack.join(', ') || 'no root element'}.`,
+        };
+      }
+      return { success: true, output: `XML syntax valid for ${base}` };
+    }
+
+    if (ext === '.css' || ext === '.scss') {
+      const cleaned = content
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, '');
+      let depth = 0;
+      for (const ch of cleaned) {
+        if (ch === '{') depth += 1;
+        else if (ch === '}') {
+          depth -= 1;
+          if (depth < 0) {
+            return { success: false, output: `Syntax error in generated fix: ${base} has an unexpected closing brace '}'.` };
+          }
+        }
+      }
+      if (depth !== 0) {
+        return { success: false, output: `Syntax error in generated fix: ${base} has ${depth} unclosed '{' brace(s).` };
+      }
+      return { success: true, output: `CSS syntax valid for ${base}` };
+    }
+
+    if (ext === '.txt' || ext === '.md' || ext === '.mdx') {
+      if (!content.trim() || content.includes('\0')) {
+        return { success: false, output: `Syntax error in generated fix: ${base} is empty or binary.` };
+      }
+      if (base.toLowerCase() === 'robots.txt' && !/^\s*(user-agent|sitemap)\s*:/im.test(content)) {
+        return { success: false, output: `Syntax error in generated fix: ${base} must declare at least one User-agent or Sitemap directive.` };
+      }
+      return { success: true, output: `Text syntax valid for ${base}` };
+    }
+
+    return { success: true, output: `Syntax check skipped for ${base}` };
   }
 
   /**
-   * Validates the concrete syntax of modified files (AST parse diagnostics).
-   * Catches unclosed JSX tags, malformed expressions, and invalid JSON immediately.
+   * Validates the concrete syntax of modified files (AST parse & web-asset syntax diagnostics).
+   * Catches unclosed JSX/HTML/XML tags, malformed CSS braces, and invalid JSON/JSON-LD immediately.
    */
   async validateFilesSyntax(repoDir: string, files: string[]): Promise<ValidationResult> {
+    const supportedExts = new Set([
+      '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json',
+      '.html', '.htm', '.xml', '.css', '.scss', '.txt', '.md', '.mdx',
+    ]);
     let checked = 0;
     const skipped: string[] = [];
     for (const relativePath of files) {
@@ -224,7 +330,7 @@ export class ValidationService {
       }
 
       const ext = path.extname(relativePath).toLowerCase();
-      if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'].includes(ext)) {
+      if (!supportedExts.has(ext)) {
         skipped.push(relativePath);
         continue;
       }

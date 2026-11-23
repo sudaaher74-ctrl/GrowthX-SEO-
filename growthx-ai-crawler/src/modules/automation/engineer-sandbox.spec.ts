@@ -194,4 +194,21 @@ describe('RepoSandbox', () => {
       /too large.*limit is \d+.*Read a smaller range/,
     );
   });
+
+  it('summarizes website source structure prioritizing index.html and SEO files while hiding secrets', async () => {
+    await fs.mkdir(path.join(root, 'frontend/src/components/seo'), { recursive: true });
+    await fs.writeFile(path.join(root, 'frontend/index.html'), '<html></html>');
+    await fs.writeFile(path.join(root, 'frontend/src/components/seo/SEOHead.jsx'), 'export default () => null;');
+    const summary = await box.summarizeStructure(20);
+    expect(summary).toContain('frontend/index.html');
+    expect(summary).toContain('frontend/src/components/seo/SEOHead.jsx');
+    expect(summary).not.toContain('.env');
+  });
+
+  it('matches a unique edit snippet even when leading indentation differs slightly', async () => {
+    const file = path.join(root, 'src/indented.jsx');
+    await fs.writeFile(file, 'export default function Page() {\n      <title>Old</title>\n}\n');
+    await expect(box.edit('src/indented.jsx', '  <title>Old</title>', '      <title>New</title>')).resolves.toContain('Edited');
+    expect(await fs.readFile(file, 'utf8')).toContain('      <title>New</title>');
+  });
 });

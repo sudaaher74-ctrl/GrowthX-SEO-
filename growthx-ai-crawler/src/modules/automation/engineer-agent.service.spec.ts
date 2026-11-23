@@ -628,4 +628,67 @@ describe('EngineerAgentService', () => {
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
     expect(run.filesChanged).toEqual(['app/page.tsx']);
   });
+
+  it('surfaces pre-search canonical matches on turn 1 and challenges premature zero-change finish so duplicate index.html canonical is fixed', async () => {
+    const realValidation = new ValidationService();
+    const svc = new EngineerAgentService(
+      prisma,
+      router,
+      git,
+      { analyzeRepository: jest.fn().mockResolvedValue({ framework: 'React', appRoot: 'frontend', packageManager: 'npm' }) } as any,
+      realValidation,
+      { decryptCredentials: jest.fn().mockReturnValue('ghp_realtoken123') } as any,
+    );
+
+    await fs.mkdir(path.join(dir, 'frontend/src/pages'), { recursive: true });
+    await fs.writeFile(
+      path.join(dir, 'frontend/index.html'),
+      '<!doctype html><html><head>\n  <link rel="canonical" href="https://acme.in/" />\n  <title>Acme</title>\n</head><body></body></html>\n',
+    );
+    await fs.writeFile(
+      path.join(dir, 'frontend/src/pages/BlogPost.jsx'),
+      'export default function BlogPost() { return <link rel="canonical" href="https://acme.in/blog/post" />; }\n',
+    );
+
+    replies.push(
+      act({ tool: 'read', path: 'frontend/src/pages/BlogPost.jsx', start: 1, end: 20 }),
+      // Model prematurely claims canonical is already dynamic without inspecting frontend/index.html
+      act({ tool: 'finish', summary: 'The canonical URL in BlogPost.jsx is already dynamically generated.' }),
+      // Challenged with unread matching file frontend/index.html -> reads and removes the conflicting static canonical!
+      act({ tool: 'read', path: 'frontend/index.html', start: 1, end: 10 }),
+      act({ tool: 'replace_lines', path: 'frontend/index.html', start: 2, end: 2, new: '' }),
+      act({ tool: 'finish', summary: 'Removed conflicting static canonical tag from frontend/index.html.' }),
+    );
+
+    const run = await svc.run('proj_1', 'org_1', 'Fix 23 pages declare more than one preferred address (duplicate canonical)');
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(run.filesChanged).toEqual(['frontend/index.html']);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    const turn1Prompt = router.generate.mock.calls[0][0].prompt;
+    expect(turn1Prompt).toContain('REPOSITORY MAP');
+    expect(turn1Prompt).toContain('frontend/index.html');
+    expect(turn1Prompt).toContain('AUTO PRE-SEARCH HITS');
+    const challengePrompt = router.generate.mock.calls[2][0].prompt;
+    expect(challengePrompt).toContain('You have NOT inspected these matching files yet: frontend/index.html');
+  });
+
+  it('allows creating standalone public SEO web assets like robots.txt or sitemap.xml', async () => {
+    const realValidation = new ValidationService();
+    const svc = new EngineerAgentService(
+      prisma,
+      router,
+      git,
+      { analyzeRepository: jest.fn().mockResolvedValue({ framework: 'React', packageManager: 'npm' }) } as any,
+      realValidation,
+      { decryptCredentials: jest.fn().mockReturnValue('ghp_realtoken123') } as any,
+    );
+    replies.push(
+      act({ tool: 'create', path: 'public/robots.txt', content: 'User-agent: *\nAllow: /\nSitemap: https://acme.in/sitemap.xml\n' }),
+      act({ tool: 'finish', summary: 'Created public/robots.txt with sitemap directive.' }),
+    );
+    const run = await svc.run('proj_1', 'org_1', 'Create public/robots.txt and reference sitemap.xml');
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(run.filesChanged).toEqual(['public/robots.txt']);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
 });
