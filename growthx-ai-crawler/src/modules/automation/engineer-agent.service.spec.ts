@@ -593,4 +593,39 @@ describe('EngineerAgentService', () => {
     expect(recoveryPrompt).toContain('Edit reverted (app/SEOHead.jsx left unchanged) because it introduced a syntax error');
     expect(recoveryPrompt).toContain('deleting surrounding JSX/braces');
   });
+
+  it('does not discard already-valid changes when a follow-up edit hits a pre-read reminder and a no-op replacement', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New title' }),
+      // Procedural pre-read reminder (forgot to re-read before second edit)
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>New title</title>' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      // Harmless no-op replacement (line already matches)
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>New title</title>' }),
+      act({ tool: 'finish', summary: 'Updated page title cleanly.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    const finishPrompt = router.generate.mock.calls[5][0].prompt;
+    expect(finishPrompt).toContain('already match your replacement');
+  });
+
+  it('preserves valid prior edits and guides the model to finish instead of aborting on a second follow-up edit error', async () => {
+    await fs.writeFile(path.join(dir, 'app/second.tsx'), '<p>Second</p>\n');
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'Old title', new: 'New title' }),
+      act({ tool: 'read', path: 'app/second.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/second.tsx', old: 'wrong1', new: 'x' }),
+      act({ tool: 'read', path: 'app/second.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/second.tsx', old: 'wrong2', new: 'y' }),
+      act({ tool: 'finish', summary: 'Applied the primary title fix in app/page.tsx.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    expect(run.filesChanged).toEqual(['app/page.tsx']);
+  });
 });

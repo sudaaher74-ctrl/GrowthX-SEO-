@@ -67,15 +67,43 @@ const TOOLS = ['list', 'read', 'search', 'edit', 'replace_lines', 'create', 'met
 const ACTION_SCHEMA = {
   type: 'object',
   properties: {
-    tool: { type: 'string', enum: [...TOOLS] },
-    path: { type: 'string' },
-    start: { type: 'integer' },
-    end: { type: 'integer' },
-    pattern: { type: 'string' },
-    old: { type: 'string' },
-    new: { type: 'string' },
-    content: { type: 'string' },
-    summary: { type: 'string' },
+    tool: {
+      type: 'string',
+      enum: [...TOOLS],
+      description: 'Tool name to invoke: list, read, search, edit, replace_lines, create, metadata, or finish.',
+    },
+    path: {
+      type: 'string',
+      description: 'Repository-relative file or folder path (required for read, edit, replace_lines, create, metadata).',
+    },
+    start: {
+      type: 'integer',
+      description: '1-based inclusive start line number (required for replace_lines and read).',
+    },
+    end: {
+      type: 'integer',
+      description: '1-based inclusive end line number >= start (required for replace_lines and read).',
+    },
+    pattern: {
+      type: 'string',
+      description: 'Plain-text search string for search, or exact static route pathname (e.g. /about) for metadata.',
+    },
+    old: {
+      type: 'string',
+      description: 'Exact existing source snippet to replace (required for edit ONLY).',
+    },
+    new: {
+      type: 'string',
+      description: 'Replacement source code (required for edit, replace_lines, and metadata ONLY).',
+    },
+    content: {
+      type: 'string',
+      description: 'Full new file contents (required for create ONLY).',
+    },
+    summary: {
+      type: 'string',
+      description: 'One-sentence PR summary (required for finish ONLY; never set summary on edit or replace_lines).',
+    },
   },
   required: ['tool'],
 };
@@ -687,14 +715,17 @@ export class EngineerAgentService {
       let result: string;
       let ok = true;
       let syntaxReverted = false;
+      let isPreReadReminder = false;
       const actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
       const isEdit = action.tool === 'edit' || action.tool === 'replace_lines';
       const isWriteTool = isEdit || action.tool === 'create' || action.tool === 'metadata';
       try {
         if ((isEdit || action.tool === 'metadata') && !readPaths.has(actionPath)) {
+          isPreReadReminder = true;
           throw new SandboxError(`Read ${actionPath} before editing it. A fresh read is required to inspect the exact lines.`);
         }
         if ((isEdit || action.tool === 'metadata') && failedEditsByFile.has(actionPath) && !readAfterFailure.has(actionPath)) {
+          isPreReadReminder = true;
           throw new SandboxError(`A previous edit to ${actionPath} failed. Read the exact target section again before trying a different edit.`);
         }
         if (action.tool === 'edit') {
@@ -765,7 +796,9 @@ export class EngineerAgentService {
       } catch (error: any) {
         if (!(error instanceof SandboxError) && !['ENOENT', 'EISDIR', 'ENOTDIR'].includes(error?.code)) throw error;
         ok = false;
-        result = `Error: ${error instanceof SandboxError ? error.message : `${action.path ?? ''} could not be used.`}`;
+        const errMessage = error instanceof SandboxError ? error.message : `${action.path ?? ''} could not be used.`;
+        result = `Error: ${errMessage}`;
+        const isNoOpEdit = error instanceof SandboxError && errMessage === 'The replacement must change the file.';
         if (syntaxReverted) {
           const syntaxCount = (syntaxFailuresByFile.get(actionPath) ?? 0) + 1;
           syntaxFailuresByFile.set(actionPath, syntaxCount);
@@ -775,6 +808,14 @@ export class EngineerAgentService {
           } else {
             result += ` Your previous read of ${actionPath} is still intact; submit a narrower, syntactically valid edit now.`;
           }
+        } else if (isNoOpEdit) {
+          result += box.changed.size > 0
+            ? ` Those lines in ${actionPath} already match your replacement. Edit a different line or call {"tool":"finish","summary":"..."} now so a Pull Request can be opened for ${[...box.changed].join(', ')}.`
+            : ` Those lines in ${actionPath} already match your replacement. Choose lines that actually need updating, or call finish if no change is needed.`;
+        } else if (isPreReadReminder) {
+          result += box.changed.size > 0
+            ? ` Read the exact lines in ${actionPath} with start/end first, OR call {"tool":"finish","summary":"..."} now if your changes in ${[...box.changed].join(', ')} are already complete.`
+            : ` Call {"tool":"read","path":"${actionPath}","start":1,"end":100} first before editing.`;
         } else if (isEdit) {
           // Require a fresh read after failed edits
           readPaths.delete(actionPath);
@@ -786,15 +827,20 @@ export class EngineerAgentService {
           const fileFailures = (failedEditsByFile.get(actionPath) ?? 0) + 1;
           failedEditsByFile.set(actionPath, fileFailures);
           if (fileFailures >= 2) {
-            result += ` (Stop: ${fileFailures} edits in ${actionPath} failed. Call finish now and explain the limitation; do not continue searching or retrying.)`;
+            if (box.changed.size > 0 && fileFailures === 2) {
+              result += ` (Stop editing ${actionPath}: you already have valid changes in ${[...box.changed].join(', ')}. Call {"tool":"finish","summary":"..."} on your next turn so a Pull Request can be opened.)`;
+            } else {
+              result += ` (Stop: ${fileFailures} edits in ${actionPath} failed. Call finish now and explain the limitation; do not continue searching or retrying.)`;
+              recoveryLimitReached = true;
+            }
           }
-          recoveryLimitReached = fileFailures >= 2;
         } else if (action.tool === 'metadata') {
           result += ` If the metadata tool cannot patch ${actionPath}, read the router to verify the static route or use the "edit" tool on ${actionPath} directly.`;
         }
         consecutiveFailures += 1;
         if (consecutiveFailures >= 5) {
           result += ` (Stop: 5 consecutive actions failed. Call finish now with a summary explaining what blocked the change.)`;
+          if (box.changed.size === 0) recoveryLimitReached = true;
         }
       }
       const readEndDefault = (action.start ?? 1) + 119;
