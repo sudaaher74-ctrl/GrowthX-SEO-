@@ -1548,6 +1548,16 @@ export const api = {
       body,
     ),
 
+  verifyManualFinding: (
+    projectId: string,
+    id: string,
+    body: { url?: string; note?: string },
+  ) =>
+    post<import("./api-types").ManualVerificationResult>(
+      `/api/projects/${projectId}/findings/${id}/verify-manual`,
+      body,
+    ),
+
   
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   discoverCompetitors: (projectId: string) =>

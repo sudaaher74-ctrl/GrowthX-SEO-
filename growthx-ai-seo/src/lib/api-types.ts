@@ -2603,6 +2603,33 @@ export interface PipelineStage {
 }
 
 /** Mirrors AutopilotView in growthx-ai-crawler autopilot.service.ts. */
+export interface ManualVerificationCheck {
+  name: string;
+  passed: boolean;
+  observed: string;
+}
+
+export interface ManualVerificationResult {
+  findingId: string;
+  verified: boolean;
+  url: string;
+  httpStatus: number | null;
+  checkedAt: string;
+  checks: ManualVerificationCheck[];
+  observed: {
+    title: string | null;
+    metaDescription: string | null;
+    h1: string | null;
+    canonicalUrl: string | null;
+    robotsDirectives: string | null;
+    jsonLdCount: number;
+    jsonLdTypes: string[];
+  } | null;
+  summary: string;
+  ledgerEventId: string | null;
+  lifecycle: string;
+}
+
 export interface AutopilotRun {
   id: string;
   projectId: string;

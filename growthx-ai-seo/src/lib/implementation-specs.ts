@@ -1,6 +1,8 @@
 import type {
   BacklinkOutreachItem,
   CompetitorIntelReport,
+  GoogleReport,
+  GrowthOpportunity,
   QuestionAnalysisReport,
   VisibilityInsights,
   VisibilityReport,
@@ -947,4 +949,298 @@ export function formatSpecsDocument(
     "",
   ];
   return header.join("\n") + specs.map(formatSpecAsMarkdown).join("\n\n---\n\n") + "\n";
+}
+
+/* ──────────── 5. MASTER IMPROVEMENT PLAN & FIX ENGINE SPECS ──────────── */
+
+function inferOwnerFromFinding(f: GrowthOpportunity): SpecOwner {
+  const hay = `${f.source} ${f.title} ${f.recommendedAction}`.toLowerCase();
+  if (hay.includes("backlink") || hay.includes("outreach") || hay.includes("referring")) {
+    return "Outreach / PR";
+  }
+  if (
+    hay.includes("schema") ||
+    hay.includes("json-ld") ||
+    hay.includes("canonical") ||
+    hay.includes("robots") ||
+    hay.includes("redirect") ||
+    hay.includes("301") ||
+    hay.includes("404") ||
+    hay.includes("llms.txt") ||
+    hay.includes("sitemap") ||
+    hay.includes("speed") ||
+    hay.includes("lcp")
+  ) {
+    return "Web Developer";
+  }
+  if (
+    hay.includes("content") ||
+    hay.includes("article") ||
+    hay.includes("faq") ||
+    hay.includes("guide") ||
+    hay.includes("citation") ||
+    hay.includes("competitor") ||
+    hay.includes("keyword")
+  ) {
+    return "Content & SEO";
+  }
+  return "Website Owner / CMS";
+}
+
+function inferPriorityFromFinding(f: GrowthOpportunity): SpecPriority {
+  const p = (f.potential || "").toUpperCase();
+  if (p === "HIGH") return "high";
+  if (p === "LOW") return "low";
+  return "medium";
+}
+
+function inferEffortLabel(effort: string | undefined): string {
+  switch ((effort || "").toUpperCase()) {
+    case "LOW":
+      return "Low (15–30 min)";
+    case "HIGH":
+      return "High (2–4 hrs)";
+    default:
+      return "Medium (45–90 min)";
+  }
+}
+
+export function buildPlanImplementationSpecs(
+  findings: GrowthOpportunity[],
+  domain: string | null | undefined,
+): ImplementationSpec[] {
+  const origin = cleanOrigin(domain);
+  const specs: ImplementationSpec[] = [];
+
+  findings.slice(0, 20).forEach((f, idx) => {
+    const owner = inferOwnerFromFinding(f);
+    const affectedUrls = (f.affectedPages ?? []).slice(0, 8);
+    const firstUrl = affectedUrls[0] || `${origin}/`;
+    const evidenceLines = (f.evidence ?? []).map((e) => `${e.label}: ${e.value}`).join(" · ");
+    const hay = `${f.title} ${f.recommendedAction}`.toLowerCase();
+
+    let codeLabel: string | undefined;
+    let codeLanguage: string | undefined;
+    let codeSnippet: string | undefined;
+
+    if (hay.includes("canonical")) {
+      codeLabel = "Standard HTML Canonical Tag (<head>)";
+      codeLanguage = "html";
+      codeSnippet = `<link rel="canonical" href="${firstUrl}" />`;
+    } else if (hay.includes("schema") || hay.includes("json-ld") || hay.includes("structured data")) {
+      codeLabel = "Standard JSON-LD Schema Starter (<head>)";
+      codeLanguage = "json";
+      codeSnippet = JSON.stringify(
+        {
+          "@context": "https://schema.org",
+          "@type": hay.includes("faq") ? "FAQPage" : hay.includes("local") ? "LocalBusiness" : "Organization",
+          name: hostOf(origin),
+          url: firstUrl,
+        },
+        null,
+        2,
+      );
+    } else if (hay.includes("meta description") || hay.includes("title tag")) {
+      codeLabel = "Standard SEO Head Meta Template (<head>)";
+      codeLanguage = "html";
+      codeSnippet = `<title>Primary Service or Topic | ${hostOf(origin)}</title>\n<meta name="description" content="Specific 140-155 character summary with primary service, location/audience, and clear call to action." />`;
+    } else if (hay.includes("llms.txt")) {
+      codeLabel = "Standard /llms.txt File (site root)";
+      codeLanguage = "markdown";
+      codeSnippet = `# ${hostOf(origin)}\n\n> Official site summary for AI search engines.\n\n## Key Pages\n- [Home](${origin}/)\n`;
+    } else if (hay.includes("301") || hay.includes("broken") || hay.includes("404")) {
+      codeLabel = "HTTP 301 Redirect Rule";
+      codeLanguage = "text";
+      codeSnippet = `${firstUrl}  -->  301  -->  ${origin}/`;
+    }
+
+    specs.push({
+      id: `PLN-${String(idx + 1).padStart(2, "0")}`,
+      title: f.title,
+      priority: inferPriorityFromFinding(f),
+      owner,
+      effort: inferEffortLabel(f.effort),
+      affectedUrls,
+      observedState: evidenceLines ? `${f.summary} (${evidenceLines})` : f.summary,
+      expectedOutcome: f.recommendedAction,
+      codeLabel,
+      codeLanguage,
+      codeSnippet,
+      steps: f.recommendedAction
+        .split(/\n+/)
+        .map((s) => s.replace(/^[\d.\-*•\s]+/, "").trim())
+        .filter(Boolean)
+        .slice(0, 5),
+      verificationChecklist: [
+        `Inspect ${firstUrl} in a browser (View Source / DevTools) to verify the update is live in rendered HTML.`,
+        "Return to Fix Engine in Reigel and click 'Mark Applied & Verify Live' to confirm the live check and log proof to your Results Ledger.",
+      ],
+      contentStudioTopic: owner === "Content & SEO" ? f.title : undefined,
+      contentStudioQuery:
+        f.evidence.find((e) => /query|keyword|prompt/i.test(e.label))?.value || undefined,
+    });
+  });
+
+  return specs;
+}
+
+export function formatFindingAsBrief(
+  finding: GrowthOpportunity,
+  domain?: string | null,
+): string {
+  const specs = buildPlanImplementationSpecs([finding], domain);
+  const spec = specs[0];
+  if (!spec) return `${finding.title}\n\n${finding.recommendedAction}`;
+  return formatSpecAsMarkdown(spec);
+}
+
+export function formatSprintPackMarkdown(
+  findings: GrowthOpportunity[],
+  domain: string | null | undefined,
+): string {
+  const specs = buildPlanImplementationSpecs(findings, domain);
+  return formatSpecsDocument("Fix Engine Sprint Handoff Pack", domain, specs);
+}
+
+/* ────────── 6. COMPLETE ALL-IN-ONE SITE PLAYBOOK (.MD BUNDLE) ────────── */
+
+export function buildAllInOnePlaybookMarkdown(input: {
+  domain: string;
+  auditReport?: WebsiteAuditReport | null;
+  googleReport?: GoogleReport | null;
+  competitorReport?: CompetitorIntelReport | null;
+  visibilityReport?: VisibilityReport | null;
+  visibilityInsights?: VisibilityInsights | null;
+  questionAnalysis?: QuestionAnalysisReport | null;
+  backlinkReport?: BacklinkReport | null;
+  backlinkOutreach?: BacklinkOutreachItem[] | null;
+  findings?: GrowthOpportunity[] | null;
+}): string {
+  const { domain } = input;
+  const date = new Date().toISOString().slice(0, 10);
+  const sections: string[] = [
+    `# ${domain} — Complete All-in-One SEO & AI Growth Playbook`,
+    "",
+    `Generated: ${date} · Platform: Reigel · Strictly grounded in measured workspace telemetry`,
+    "",
+    "> **How to use this playbook:** This single document combines every completed Reigel module into one executive & developer handoff pack. Every code block uses standard web primitives (HTML, JSON-LD, HTTP 301 maps, `/llms.txt`, `robots.txt`) so any web developer, CMS editor, or content writer can execute independently.",
+    "",
+    "---",
+  ];
+
+  // 1. Website Audit
+  sections.push("", "## 1. Website Audit & Technical Implementation Specs");
+  if (input.auditReport) {
+    const auditSpecs = buildAuditImplementationSpecs(input.auditReport);
+    const totalIssues = Object.values(input.auditReport.facts.problemsBySeverity ?? {}).reduce(
+      (sum, n) => sum + (Number(n) || 0),
+      0,
+    );
+    sections.push(
+      `Health Score: **${input.auditReport.facts.site?.healthScore ?? "—"}/100** · Pages Crawled: **${input.auditReport.facts.pages?.read ?? 0}** · Open Issues: **${totalIssues}**`,
+      "",
+      auditSpecs.length > 0
+        ? auditSpecs.map(formatSpecAsMarkdown).join("\n\n")
+        : "_No open technical issues requiring developer specs._",
+    );
+  } else {
+    sections.push("_Not yet generated — run Website Audit to include technical crawl specs._");
+  }
+
+  // 2. Traffic & Growth Intelligence (GSC + GA4)
+  sections.push("", "---", "", "## 2. Traffic & Growth Intelligence (Search Console + GA4)");
+  if (input.googleReport) {
+    const gr = input.googleReport;
+    const priorities = gr.analysis?.priorities ?? [];
+    sections.push(
+      gr.analysis?.executiveSummary || "_Google report summary available in Traffic & Growth report._",
+      "",
+      priorities.length > 0
+        ? priorities
+            .slice(0, 10)
+            .map(
+              (p, i) =>
+                `### [TRF-${String(i + 1).padStart(2, "0")}] ${p.title}\n**Priority:** ${p.impact} impact · **Effort:** ${p.effort} · **Source:** ${p.platform}\n\n**Evidence:** ${p.evidence}\n\n**Why it matters:** ${p.whyItMatters}\n\n**Steps:**\n${p.steps.map((s, idx) => `${idx + 1}. ${s}`).join("\n")}\n\n**Verify / Measure by:** ${p.measureBy}`,
+            )
+            .join("\n\n")
+        : "_No traffic priorities recorded yet._",
+    );
+  } else {
+    sections.push("_Not yet generated — connect Search Console / GA4 and generate Traffic & Growth Report._");
+  }
+
+  // 3. Competitor Intelligence
+  sections.push("", "---", "", "## 3. Competitor Intelligence & Schema/Content Gaps");
+  if (input.competitorReport) {
+    const compSpecs = buildCompetitorImplementationSpecs(input.competitorReport);
+    const rivals = input.competitorReport.facts.rivals ?? [];
+    sections.push(
+      `Compared against **${rivals.length}** rival(s): ${rivals.map((r) => r.domain).join(", ") || "none"}.`,
+      "",
+      compSpecs.length > 0
+        ? compSpecs.map(formatSpecAsMarkdown).join("\n\n")
+        : "_No competitor implementation gaps recorded yet._",
+    );
+  } else {
+    sections.push("_Not yet generated — run Competitor Intelligence to include rival schema and page briefs._");
+  }
+
+  // 4. AI Visibility
+  sections.push("", "---", "", "## 4. AI Visibility & Citation Optimization");
+  if (input.visibilityReport) {
+    const aiSpecs = buildAiVisibilityImplementationSpecs({
+      visibility: input.visibilityReport,
+      insights: input.visibilityInsights ?? undefined,
+      questionAnalysis: input.questionAnalysis ?? undefined,
+      domain,
+      clientName: domain,
+    });
+    sections.push(
+      `AI Citation Share: **${input.visibilityReport.summary.citationSharePct}%** (${input.visibilityReport.summary.cited}/${input.visibilityReport.summary.checked} checks cited).`,
+      "",
+      aiSpecs.length > 0
+        ? aiSpecs.map(formatSpecAsMarkdown).join("\n\n")
+        : "_No AI visibility action specs generated yet._",
+    );
+  } else {
+    sections.push("_Not yet measured — run AI Visibility checks to include citation gaps and `/llms.txt` specs._");
+  }
+
+  // 5. Backlinks & Authority
+  sections.push("", "---", "", "## 5. Backlinks & Link Recovery");
+  if (input.backlinkReport) {
+    const blSpecs = buildBacklinkImplementationSpecs({
+      report: input.backlinkReport,
+      outreachItems: input.backlinkOutreach ?? [],
+      domain,
+      clientName: domain,
+    });
+    sections.push(
+      `Verified Backlinks: **${input.backlinkReport.summary.verifiedLinks}** · Referring Domains: **${input.backlinkReport.summary.referringDomains}** · Confirmed Lost Links: **${input.backlinkReport.summary.confirmedLostLinks}**`,
+      "",
+      blSpecs.length > 0
+        ? blSpecs.map(formatSpecAsMarkdown).join("\n\n")
+        : "_No backlink recovery actions needed right now._",
+    );
+  } else {
+    sections.push("_Not yet scanned — run Backlink Discovery to include 301 recovery maps and outreach drafts._");
+  }
+
+  // 6. Consolidated Fix Engine Master Queue
+  sections.push("", "---", "", "## 6. Master Prioritized Improvement Queue");
+  const openFindings = (input.findings ?? []).filter(
+    (f) => !["DISMISSED", "RESOLVED", "VERIFIED", "MEASURED"].includes(f.lifecycle ?? "DETECTED"),
+  );
+  if (openFindings.length > 0) {
+    const planSpecs = buildPlanImplementationSpecs(openFindings, domain);
+    sections.push(
+      `**${openFindings.length} open findings** prioritized by impact:`,
+      "",
+      planSpecs.map(formatSpecAsMarkdown).join("\n\n"),
+    );
+  } else {
+    sections.push("_No open findings in the consolidated Fix Engine queue._");
+  }
+
+  return sections.join("\n") + "\n";
 }

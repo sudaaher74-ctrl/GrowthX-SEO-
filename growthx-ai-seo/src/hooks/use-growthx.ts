@@ -607,6 +607,33 @@ export function useTransitionFinding(projectId: string | null) {
   });
 }
 
+export function useVerifyManualFinding(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      url,
+      note,
+    }: {
+      id: string;
+      url?: string;
+      note?: string;
+    }) => api.verifyManualFinding(projectId!, id, { url, note }),
+    onSuccess: (res) => {
+      if (res.verified) {
+        void Promise.all([
+          qc.invalidateQueries({ queryKey: ["findings", projectId] }),
+          qc.invalidateQueries({ queryKey: ["issue-groups", projectId] }),
+          qc.invalidateQueries({ queryKey: ["issue-counts", projectId] }),
+          qc.invalidateQueries({ queryKey: ["monthly-changes", projectId] }),
+          qc.invalidateQueries({ queryKey: ["monthly-proof-cards", projectId] }),
+          qc.invalidateQueries({ queryKey: ["monthly-ledger", projectId] }),
+        ]);
+      }
+    },
+  });
+}
+
 /**
  * Subscribes to the backend WebSocket room for the active project so Fix Engine
  * and audit views refresh live the moment any background crawl, competitor scan,
@@ -706,6 +733,30 @@ export function useStartWorkspacePipeline(projectId: string | null) {
       qc.setQueryData(["workspace-pipeline", run.projectId], run);
       void qc.invalidateQueries({ queryKey: ["workspace-pipeline", projectId] });
       void qc.invalidateQueries({ queryKey: ["latest-crawl", run.domain] });
+    },
+  });
+}
+
+export function useConfirmWorkspacePipeline(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, domains }: { runId: string; domains: string[] }) =>
+      api.autopilot.confirm(runId, domains),
+    onSuccess: (run) => {
+      qc.setQueryData(["workspace-pipeline", run.projectId], run);
+      void qc.invalidateQueries({ queryKey: ["workspace-pipeline", projectId] });
+      void qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] });
+    },
+  });
+}
+
+export function useCancelWorkspacePipeline(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId }: { runId: string }) => api.autopilot.cancel(runId),
+    onSuccess: (run) => {
+      qc.setQueryData(["workspace-pipeline", run.projectId], run);
+      void qc.invalidateQueries({ queryKey: ["workspace-pipeline", projectId] });
     },
   });
 }

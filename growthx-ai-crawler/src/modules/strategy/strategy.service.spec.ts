@@ -158,10 +158,51 @@ describe('StrategyService', () => {
     it('survives a project that has never been crawled', async () => {
       prisma.crawlJob.findFirst.mockResolvedValue(null);
       const evidence = await service.gatherEvidence('proj_1');
-
       expect(evidence.site.pagesCrawled).toBe(0);
       expect(evidence.site.lastCrawledAt).toBeNull();
       expect(evidence.site.topIssueTypes).toEqual([]);
+    });
+
+    it('enriches strategy evidence with real GSC, GA4, and Backlink metrics when available', async () => {
+      prisma.gscDailyMetric = {
+        findMany: jest.fn().mockImplementation(({ where }: any) => {
+          if (where.grain === 'TOTAL') {
+            return Promise.resolve([{ clicks: 42, impressions: 1800 }]);
+          }
+          return Promise.resolve([
+            { query: 'winter hiking jacket', clicks: 5, impressions: 650, position: 6.4 },
+          ]);
+        }),
+      };
+      prisma.ga4DailyMetric = {
+        findMany: jest.fn().mockImplementation(({ where }: any) => {
+          if (where.grain === 'TOTAL') {
+            return Promise.resolve([{ sessions: 310, users: 240, conversions: null }]);
+          }
+          return Promise.resolve([
+            { channel: 'Organic Search', sessions: 190 },
+            { channel: 'Direct', sessions: 120 },
+          ]);
+        }),
+      };
+      prisma.backlink = {
+        findMany: jest.fn().mockResolvedValue([
+          { status: 'VERIFIED', source: { sourceUrl: 'https://trailmag.example/gear' } },
+          { status: 'LOST', source: { sourceUrl: 'https://oldblog.example/review' } },
+        ]),
+      };
+
+      const evidence = await service.gatherEvidence('proj_1');
+      expect(evidence.searchConsole?.clicks).toBe(42);
+      expect(evidence.searchConsole?.lowCtrQueries).toHaveLength(1);
+      expect(evidence.analytics?.sessions).toBe(310);
+      expect(evidence.analytics?.conversions).toBeNull();
+      expect(evidence.backlinks).toEqual({ verifiedCount: 1, referringDomains: 1, lostCount: 1 });
+
+      const prompt = buildStrategyPrompt(evidence);
+      expect(prompt).toContain('winter hiking jacket');
+      expect(prompt).toContain('Organic Search: 190 sessions');
+      expect(prompt).toContain('Lost backlinks: 1');
     });
   });
 

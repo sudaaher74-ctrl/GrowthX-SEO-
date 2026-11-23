@@ -154,6 +154,150 @@ export class StrategyService {
       }
     }
 
+    const since28d = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
+
+    // Cross-signal 1: Search Console (28d)
+    let searchConsole: StrategyEvidence['searchConsole'] = null;
+    if (this.prisma.gscDailyMetric?.findMany) {
+      try {
+        const [totalRows, queryRows] = await Promise.all([
+          this.prisma.gscDailyMetric.findMany({
+            where: { projectId, grain: 'TOTAL', date: { gte: since28d } },
+            select: { clicks: true, impressions: true },
+          }),
+          this.prisma.gscDailyMetric.findMany({
+            where: { projectId, grain: 'QUERY', date: { gte: since28d }, query: { not: null } },
+            select: { query: true, clicks: true, impressions: true, position: true },
+            take: 1500,
+          }),
+        ]);
+
+        const byQuery = new Map<string, { clicks: number; impressions: number; posWeighted: number }>();
+        for (const r of queryRows) {
+          const q = (r.query ?? '').trim();
+          if (!q) continue;
+          const prev = byQuery.get(q) ?? { clicks: 0, impressions: 0, posWeighted: 0 };
+          prev.clicks += r.clicks;
+          prev.impressions += r.impressions;
+          prev.posWeighted += r.position * Math.max(1, r.impressions);
+          byQuery.set(q, prev);
+        }
+
+        const aggregated = [...byQuery.entries()].map(([query, v]) => ({
+          query,
+          clicks: v.clicks,
+          impressions: v.impressions,
+          ctrPct: v.impressions > 0 ? Number(((v.clicks / v.impressions) * 100).toFixed(2)) : 0,
+          position: v.impressions > 0 ? Number((v.posWeighted / v.impressions).toFixed(1)) : 0,
+        }));
+
+        const totalClicks = totalRows.reduce((acc, r) => acc + r.clicks, 0);
+        const totalImpressions = totalRows.reduce((acc, r) => acc + r.impressions, 0);
+
+        if (totalClicks > 0 || totalImpressions > 0 || aggregated.length > 0) {
+          const topQueries = [...aggregated].sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions).slice(0, 6);
+          const lowCtrQueries = aggregated
+            .filter((q) => q.impressions >= 25 && q.ctrPct < 3)
+            .sort((a, b) => b.impressions - a.impressions)
+            .slice(0, 5);
+
+          searchConsole = {
+            windowDays: 28,
+            clicks: totalClicks || aggregated.reduce((acc, r) => acc + r.clicks, 0),
+            impressions: totalImpressions || aggregated.reduce((acc, r) => acc + r.impressions, 0),
+            topQueries,
+            lowCtrQueries,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Strategy GSC evidence skipped for ${projectId}: ${err?.message ?? err}`);
+      }
+    }
+
+    // Cross-signal 2: Google Analytics 4 (28d)
+    let analytics: StrategyEvidence['analytics'] = null;
+    if (this.prisma.ga4DailyMetric?.findMany) {
+      try {
+        const [totalRows, channelRows] = await Promise.all([
+          this.prisma.ga4DailyMetric.findMany({
+            where: { projectId, grain: 'TOTAL', date: { gte: since28d } },
+            select: { sessions: true, users: true, conversions: true },
+          }),
+          this.prisma.ga4DailyMetric.findMany({
+            where: { projectId, grain: 'CHANNEL', date: { gte: since28d }, channel: { not: null } },
+            select: { channel: true, sessions: true },
+            take: 1000,
+          }),
+        ]);
+
+        const sessions = totalRows.reduce((acc, r) => acc + r.sessions, 0);
+        const users = totalRows.reduce((acc, r) => acc + r.users, 0);
+        const hasConversions = totalRows.some((r) => r.conversions !== null);
+        const conversions = hasConversions
+          ? totalRows.reduce((acc, r) => acc + (r.conversions ?? 0), 0)
+          : null;
+
+        const byChannel = new Map<string, number>();
+        for (const r of channelRows) {
+          const ch = (r.channel ?? '').trim();
+          if (!ch) continue;
+          byChannel.set(ch, (byChannel.get(ch) ?? 0) + r.sessions);
+        }
+        const channelTotal = [...byChannel.values()].reduce((a, b) => a + b, 0) || sessions;
+        const topChannels = [...byChannel.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([channel, count]) => ({
+            channel,
+            sessions: count,
+            sharePct: channelTotal > 0 ? Number(((count / channelTotal) * 100).toFixed(1)) : 0,
+          }));
+
+        if (sessions > 0) {
+          analytics = {
+            windowDays: 28,
+            sessions,
+            users,
+            conversions,
+            topChannels,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Strategy GA4 evidence skipped for ${projectId}: ${err?.message ?? err}`);
+      }
+    }
+
+    // Cross-signal 3: Verified Backlinks & Lost Links
+    let backlinks: StrategyEvidence['backlinks'] = null;
+    if (this.prisma.backlink?.findMany) {
+      try {
+        const rows = await this.prisma.backlink.findMany({
+          where: { source: { projectId } },
+          select: { status: true, source: { select: { sourceUrl: true } } },
+          take: 500,
+        });
+        const verified = rows.filter((r) => r.status === 'VERIFIED');
+        const lost = rows.filter((r) => r.status === 'LOST');
+        if (verified.length > 0 || lost.length > 0) {
+          const domains = new Set<string>();
+          for (const row of verified) {
+            try {
+              domains.add(new URL(row.source.sourceUrl).hostname.replace(/^www\./i, ''));
+            } catch {
+              // ignore malformed URL
+            }
+          }
+          backlinks = {
+            verifiedCount: verified.length,
+            referringDomains: domains.size,
+            lostCount: lost.length,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Strategy Backlinks evidence skipped for ${projectId}: ${err?.message ?? err}`);
+      }
+    }
+
     return {
       business: { projectName: project.name, domains: project.websites.map((w) => w.domain) },
       site: {
@@ -173,6 +317,9 @@ export class StrategyService {
         trackedPromptCount,
       },
       competitors: project.competitors.map((c) => ({ domain: c.domain, label: c.label })),
+      searchConsole,
+      analytics,
+      backlinks,
     };
   }
 

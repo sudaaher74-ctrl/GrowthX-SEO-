@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  Copy,
   Download,
   ExternalLink,
+  FileText,
   Lock,
   Printer,
   ShieldCheck,
@@ -18,6 +21,78 @@ import { downloadCsvFile } from "@/lib/report-csv";
 function fmt(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   return new Intl.NumberFormat().format(value);
+}
+
+function buildSharedReportMarkdown(report: PublicSharedReportResponse, brandName: string): string {
+  const { payload, agencyNotes, monthLabel, lockedAt } = report;
+  const kpis = payload.kpis ?? {};
+  const lines: string[] = [
+    `# ${payload.domain} — Monthly Executive Report (${monthLabel})`,
+    `Prepared by: ${brandName} · Snapshot locked: ${new Date(lockedAt).toISOString().slice(0, 10)}`,
+    "",
+    "## Monthly KPIs",
+    `| Metric | Value |`,
+    `| --- | --- |`,
+    `| Search Clicks | ${fmt(kpis.clicks)} |`,
+    `| Search Impressions | ${fmt(kpis.impressions)} |`,
+    `| Website Sessions | ${fmt(kpis.sessions)} |`,
+    `| Site Health Score | ${kpis.healthScore != null ? `${kpis.healthScore}/100` : "—"} |`,
+    `| AI Mention Share | ${kpis.aiCitationSharePct != null ? `${kpis.aiCitationSharePct}%` : "—"} |`,
+    `| Referring Domains | ${fmt(kpis.referringDomains)} |`,
+    `| Verified Fixes | ${fmt(kpis.verifiedFixes ?? payload.fixes?.length ?? 0)} |`,
+    `| Regressions Caught | ${fmt(kpis.regressions ?? 0)} |`,
+  ];
+
+  if (payload.executiveSummary) {
+    lines.push("", "## Executive Summary");
+    if (payload.executiveSummary.wins.length) {
+      lines.push("### Wins This Month", ...payload.executiveSummary.wins.map((w) => `- ${w}`));
+    }
+    if (payload.executiveSummary.workCompleted.length) {
+      lines.push("", "### Work Verified Live", ...payload.executiveSummary.workCompleted.map((w) => `- ${w}`));
+    }
+    if (payload.executiveSummary.nextMonthFocus.length) {
+      lines.push("", "### Next Month Focus", ...payload.executiveSummary.nextMonthFocus.map((w) => `- ${w}`));
+    }
+  }
+
+  if (agencyNotes.trim()) {
+    lines.push("", "## Account Manager Commentary", agencyNotes.trim());
+  }
+
+  if (payload.topKeywords && payload.topKeywords.length > 0) {
+    lines.push(
+      "",
+      "## Top Search Keywords",
+      "| Keyword | Clicks | Impressions | Avg Position |",
+      "| --- | ---: | ---: | ---: |",
+      ...payload.topKeywords.slice(0, 15).map(
+        (k) => `| ${k.query.replace(/\|/g, "\\|")} | ${fmt(k.clicks)} | ${fmt(k.impressions)} | #${Number(k.position).toFixed(1)} |`,
+      ),
+    );
+  }
+
+  if (payload.fixes && payload.fixes.length > 0) {
+    lines.push(
+      "",
+      "## Verified Website Changes",
+      ...payload.fixes.slice(0, 20).map(
+        (f) => `- **${f.title}** (${f.status}) — \`${f.url}\`${f.pullRequestUrl ? ` · [PR](${f.pullRequestUrl})` : ""}`,
+      ),
+    );
+  }
+
+  if (payload.nextMonthPriorities && payload.nextMonthPriorities.length > 0) {
+    lines.push(
+      "",
+      "## Next Month Top Priorities",
+      ...payload.nextMonthPriorities.slice(0, 5).map(
+        (p, idx) => `${idx + 1}. **${p.title}** (${p.source} · ${p.potential} impact)${p.roiNote ? ` — ${p.roiNote}` : ""}`,
+      ),
+    );
+  }
+
+  return lines.join("\n") + "\n";
 }
 
 /**
@@ -32,6 +107,7 @@ export default function SharedMonthlyReportPage() {
   const [report, setReport] = useState<PublicSharedReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -81,9 +157,28 @@ export default function SharedMonthlyReportPage() {
 
   const { payload, agencyNotes, monthLabel, lockedAt } = report;
   const wl = payload.whiteLabel;
-  const brandName = wl?.enabled && wl.agencyName ? wl.agencyName : "GrowthX / Reigel AI";
+  const brandName = wl?.enabled && wl.agencyName ? wl.agencyName : "Reigel";
   const accent = wl?.enabled && wl.brandColor ? wl.brandColor : undefined;
   const kpis = payload.kpis ?? {};
+
+  const handleDownloadMarkdown = () => {
+    const md = buildSharedReportMarkdown(report, brandName);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${payload.domain}-${payload.month}-executive-report.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {}
+  };
 
   const handleExportCsv = () => {
     downloadCsvFile(`${payload.domain}-${payload.month}-executive-report.csv`, [
@@ -137,7 +232,23 @@ export default function SharedMonthlyReportPage() {
               Frozen Client Snapshot · {new Date(lockedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-surface-2 cursor-pointer"
+            >
+              {copiedLink ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+              <span>{copiedLink ? "Link copied" : "Copy link"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadMarkdown}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-surface-2 cursor-pointer"
+            >
+              <FileText size={13} />
+              <span>Download .md</span>
+            </button>
             <button
               type="button"
               onClick={handleExportCsv}

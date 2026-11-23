@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Query,
@@ -15,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../../database/prisma.service';
 import { FindingSyncService } from './finding-sync.service';
 import { LifecycleService } from './lifecycle.service';
+import { ManualVerificationService } from './manual-verification.service';
 import { measuredFinding } from './finding-evidence';
 
 @ApiTags('Findings')
@@ -26,6 +29,7 @@ export class FindingsController {
     private readonly prisma: PrismaService,
     private readonly syncService: FindingSyncService,
     private readonly lifecycleService: LifecycleService,
+    @Optional() private readonly manualVerification?: ManualVerificationService,
   ) {}
 
   private async assertProjectAccess(organizationId: string, projectId: string) {
@@ -166,6 +170,29 @@ export class FindingsController {
       {
         reason: body.reason,
         snoozeUntil: body.snoozeUntil ? new Date(body.snoozeUntil) : undefined,
+      },
+    );
+  }
+
+  @Post(':id/verify-manual')
+  @ApiOperation({ summary: 'Verify a manually implemented fix live against the target URL and log it to the Results Ledger' })
+  async verifyManual(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('id') id: string,
+    @Body() body: { url?: string; note?: string },
+  ) {
+    await this.assertProjectAccess(req.organizationId, projectId);
+    if (!this.manualVerification) {
+      throw new BadRequestException('Live manual verification is unavailable.');
+    }
+    return this.manualVerification.verifyManualFix(
+      projectId,
+      id,
+      { type: 'USER', id: req.user?.userId },
+      {
+        url: body?.url,
+        note: body?.note,
       },
     );
   }

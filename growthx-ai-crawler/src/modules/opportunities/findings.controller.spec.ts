@@ -122,4 +122,40 @@ describe('FindingsController', () => {
       );
     });
   });
+
+  describe('verifyManual', () => {
+    it('delegates live manual verification to ManualVerificationService after checking project access', async () => {
+      const mockManualVerification = {
+        verifyManualFix: jest.fn().mockResolvedValue({
+          findingId: 'finding-1',
+          verified: true,
+          url: 'https://example.com/',
+          httpStatus: 200,
+          lifecycle: FindingLifecycle.VERIFIED,
+        }),
+      };
+
+      const wiredController = new FindingsController(
+        mockPrisma as unknown as PrismaService,
+        mockSyncService as unknown as FindingSyncService,
+        mockLifecycleService as unknown as LifecycleService,
+        mockManualVerification as any,
+      );
+
+      const res = await wiredController.verifyManual(
+        { organizationId: 'org-1', user: { userId: 'user-1' } },
+        'proj-1',
+        'finding-1',
+        { url: 'https://example.com/', note: 'Shipped manually' },
+      );
+
+      expect(res.verified).toBe(true);
+      expect(mockManualVerification.verifyManualFix).toHaveBeenCalledWith(
+        'proj-1',
+        'finding-1',
+        { type: 'USER', id: 'user-1' },
+        { url: 'https://example.com/', note: 'Shipped manually' },
+      );
+    });
+  });
 });

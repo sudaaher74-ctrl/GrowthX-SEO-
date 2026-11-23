@@ -35,6 +35,25 @@ export interface StrategyEvidence {
     trackedPromptCount: number;
   };
   competitors: { domain: string; label: string | null }[];
+  searchConsole?: {
+    windowDays: number;
+    clicks: number;
+    impressions: number;
+    topQueries: { query: string; clicks: number; impressions: number; ctrPct: number; position: number }[];
+    lowCtrQueries: { query: string; clicks: number; impressions: number; ctrPct: number; position: number }[];
+  } | null;
+  analytics?: {
+    windowDays: number;
+    sessions: number;
+    users: number;
+    conversions: number | null;
+    topChannels: { channel: string; sessions: number; sharePct: number }[];
+  } | null;
+  backlinks?: {
+    verifiedCount: number;
+    referringDomains: number;
+    lostCount: number;
+  } | null;
 }
 
 /** The plan we ask the model to produce. */
@@ -214,6 +233,67 @@ export function buildEvidenceRecords(evidence: StrategyEvidence): KeyedEvidence[
     });
   }
 
+  if (evidence.searchConsole && (evidence.searchConsole.impressions > 0 || evidence.searchConsole.clicks > 0)) {
+    const gsc = evidence.searchConsole;
+    const ctrPct = gsc.impressions > 0 ? Number(((gsc.clicks / gsc.impressions) * 100).toFixed(2)) : 0;
+    records.push({
+      key: 'GSC-SUMMARY',
+      source: 'SEARCH_CONSOLE',
+      reference: `gsc:${gsc.windowDays}d`,
+      observedAt: new Date(),
+      summary: `Search Console (${gsc.windowDays}d): ${gsc.clicks} clicks across ${gsc.impressions} impressions (${ctrPct}% CTR).`,
+      payload: { clicks: gsc.clicks, impressions: gsc.impressions, ctrPct },
+    });
+
+    const highlightQueries = gsc.lowCtrQueries.length > 0 ? gsc.lowCtrQueries : gsc.topQueries;
+    highlightQueries.slice(0, 5).forEach((q, i) => {
+      records.push({
+        key: `GSC-QUERY-${i + 1}`,
+        source: 'SEARCH_CONSOLE',
+        reference: `gsc-query:${q.query}`,
+        observedAt: new Date(),
+        summary: `Query "${q.query}": ${q.clicks} clicks, ${q.impressions} impressions (${q.ctrPct}% CTR, avg pos ${q.position.toFixed(1)}).`,
+        payload: q,
+      });
+    });
+  }
+
+  if (evidence.analytics && evidence.analytics.sessions > 0) {
+    const ga = evidence.analytics;
+    const topChan = ga.topChannels[0]
+      ? ` Top channel: ${ga.topChannels[0].channel} (${ga.topChannels[0].sharePct}%).`
+      : '';
+    const convText =
+      ga.conversions === null
+        ? ' Key event conversions are not configured in GA4.'
+        : ` ${ga.conversions} recorded conversions.`;
+    records.push({
+      key: 'GA4-SUMMARY',
+      source: 'ANALYTICS',
+      reference: `ga4:${ga.windowDays}d`,
+      observedAt: new Date(),
+      summary: `Analytics 4 (${ga.windowDays}d): ${ga.sessions} sessions from ${ga.users} users.${topChan}${convText}`,
+      payload: {
+        sessions: ga.sessions,
+        users: ga.users,
+        conversions: ga.conversions,
+        topChannels: ga.topChannels.slice(0, 4),
+      },
+    });
+  }
+
+  if (evidence.backlinks && (evidence.backlinks.verifiedCount > 0 || evidence.backlinks.lostCount > 0)) {
+    const bl = evidence.backlinks;
+    records.push({
+      key: 'BACKLINKS',
+      source: 'CRAWL_PAGE',
+      reference: 'backlinks:verified',
+      observedAt: new Date(),
+      summary: `Backlink authority: ${bl.verifiedCount} verified backlinks across ${bl.referringDomains} referring domains (${bl.lostCount} lost links detected).`,
+      payload: bl,
+    });
+  }
+
   return records;
 }
 
@@ -225,7 +305,41 @@ export function renderEvidenceKeys(records: KeyedEvidence[]): string {
 
 /** Renders the evidence as the user turn of the strategy request. */
 export function buildStrategyPrompt(evidence: StrategyEvidence, records: KeyedEvidence[] = []): string {
-  const { business, site, aiVisibility, competitors } = evidence;
+  const { business, site, aiVisibility, competitors, searchConsole, analytics, backlinks } = evidence;
+
+  const gscSection =
+    searchConsole && (searchConsole.impressions > 0 || searchConsole.clicks > 0)
+      ? `# Search Console (${searchConsole.windowDays}d)\n` +
+        `Clicks: ${searchConsole.clicks} · Impressions: ${searchConsole.impressions}\n` +
+        `Top queries:\n${bullet(
+          searchConsole.topQueries.map(
+            (q) => `"${q.query}" — ${q.clicks} clicks, ${q.impressions} impr (${q.ctrPct}% CTR, pos ${q.position.toFixed(1)})`,
+          ),
+        )}\n` +
+        (searchConsole.lowCtrQueries.length > 0
+          ? `High-impression low-CTR queries (CTR opportunity):\n${bullet(
+              searchConsole.lowCtrQueries.map(
+                (q) => `"${q.query}" — ${q.impressions} impr, ${q.clicks} clicks (${q.ctrPct}% CTR, pos ${q.position.toFixed(1)})`,
+              ),
+            )}`
+          : '')
+      : '# Search Console\nNot connected or no search data synced yet. Treat Google Search clicks/CTR as unmeasured.';
+
+  const ga4Section =
+    analytics && analytics.sessions > 0
+      ? `# Google Analytics 4 (${analytics.windowDays}d)\n` +
+        `Sessions: ${analytics.sessions} · Users: ${analytics.users} · Conversions: ${
+          analytics.conversions === null ? 'Not configured (unmeasured)' : analytics.conversions
+        }\n` +
+        `Channel mix:\n${bullet(
+          analytics.topChannels.map((c) => `${c.channel}: ${c.sessions} sessions (${c.sharePct}%)`),
+        )}`
+      : '# Google Analytics 4\nNot connected or no traffic data synced yet. Treat website sessions and conversions as unmeasured.';
+
+  const backlinksSection =
+    backlinks && (backlinks.verifiedCount > 0 || backlinks.lostCount > 0)
+      ? `# Backlinks & Authority\nVerified backlinks: ${backlinks.verifiedCount} across ${backlinks.referringDomains} referring domains · Lost backlinks: ${backlinks.lostCount}`
+      : '# Backlinks & Authority\nNo verified backlink scan recorded yet. Treat off-page authority as unmeasured.';
 
   const sections = [
     `# Business\nName: ${business.projectName}\nDomains: ${business.domains.join(', ') || '(none)'}`,
@@ -237,6 +351,12 @@ export function buildStrategyPrompt(evidence: StrategyEvidence, records: KeyedEv
     `# Actual pages on the site\n${bullet(
       site.samplePages.map((p) => `${p.url} — "${p.title ?? 'untitled'}" (${p.wordCount} words)`),
     )}`,
+
+    gscSection,
+
+    ga4Section,
+
+    backlinksSection,
 
     `# AI assistant visibility\n` +
       (aiVisibility.trackedPromptCount === 0
@@ -261,10 +381,10 @@ export function buildStrategyPrompt(evidence: StrategyEvidence, records: KeyedEv
       renderEvidenceKeys(records),
 
     `# What to produce\n` +
-      `A plan for THIS business. Ground the market read in the pages listed above. ` +
+      `A plan for THIS business. Ground the market read in the pages, search console, analytics, and authority signals above. ` +
       `Sequence the SEO roadmap so the highest-impact fixes come first, using the ` +
-      `issue counts. Build the content plan around the prompts being lost to ` +
-      `competitors where those exist. Recommend social platforms that fit this ` +
+      `issue counts, high-impression low-CTR queries, and lost backlinks where observed. Build the content plan around the prompts being lost to ` +
+      `competitors and real search queries where those exist. Recommend social platforms that fit this ` +
       `audience, not a default list.`,
   ];
 

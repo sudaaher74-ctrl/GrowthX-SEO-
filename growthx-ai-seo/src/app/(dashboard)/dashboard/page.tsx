@@ -39,6 +39,7 @@ import { Card, CardHead, EmptyPrompt, LoadingLine, CardSkeletonShimmer, ChartSke
 import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary";
 import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
 import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
+import { WorkspacePipelineBar } from "@/components/dashboard/workspace-pipeline-bar";
 import { AiReferralsCard } from "@/components/analytics/ai-referrals-card";
 import {
   DEFAULT_WINDOW_DAYS,
@@ -400,6 +401,14 @@ export default function UnifiedDashboardPage() {
       )}
 
       {/* One step to everything: website in, competitors and full report out. */}
+
+      {/* Live 5-Stage Workspace Growth Pipeline Mission Control */}
+      <WorkspacePipelineBar
+        projectId={projectId}
+        pipeline={pipelineQuery.data}
+        onRetry={runFullPipeline}
+        retrying={pipelineBusy}
+      />
 
       {/* Executive Quick Actions Dock */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">

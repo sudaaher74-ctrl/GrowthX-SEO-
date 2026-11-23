@@ -3,14 +3,37 @@ import { useState } from "react";
 import Link from "next/link";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, FileCode2, FileText, GitPullRequest, Globe, Layers, RefreshCw, ShieldCheck, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Download,
+  FileCode2,
+  FileText,
+  GitPullRequest,
+  Globe,
+  Layers,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Zap,
+} from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
 import { BatchFixModal } from "@/components/fix-engine/batch-fix-modal";
-import { useFindings, useTransitionFinding, useWorkspace } from "@/hooks/use-growthx";
-import { api, type GrowthOpportunity } from "@/lib/api-client";
+import {
+  useFindings,
+  useTransitionFinding,
+  useVerifyManualFinding,
+  useWorkspace,
+} from "@/hooks/use-growthx";
+import { api, type GrowthOpportunity, type ManualVerificationResult } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { formatFindingAsBrief, formatSprintPackMarkdown } from "@/lib/implementation-specs";
 import { cn } from "@/lib/utils";
 
 /** The workflow's tabs, and which finding sources belong to each. */
@@ -68,6 +91,7 @@ export function PlanView({
   const [batchOpen, setBatchOpen] = useState(false);
   const findings = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
+  const verifyManual = useVerifyManualFinding(projectId);
   const queryClient = useQueryClient();
 
   const refresh = useMutation({
@@ -118,6 +142,19 @@ export function PlanView({
   const selectSafeAutoBatch = () => {
     const safeIds = autoFixableItems.slice(0, 10).map((f) => f.id);
     setSelectedIds(safeIds);
+  };
+
+  const handleExportSprintPack = () => {
+    const targetList = selectedFindings.length > 0 ? selectedFindings : active.slice(0, 15);
+    if (targetList.length === 0) return;
+    const md = formatSprintPackMarkdown(targetList, domain);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${domain || "website"}-sprint-handoff-${targetList.length}-fixes.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -255,6 +292,14 @@ export function PlanView({
                 </button>
                 <button
                   type="button"
+                  onClick={handleExportSprintPack}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
+                >
+                  <Download size={12} />
+                  <span>Export Sprint Pack (.md)</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setBatchOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
                 >
@@ -284,10 +329,14 @@ export function PlanView({
               <FindingRow
                 key={f.id}
                 finding={f}
+                domain={domain}
                 selected={selectedIds.includes(f.id)}
                 onToggleSelect={() => toggleSelectFinding(f.id)}
                 busy={transition.isPending}
                 onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
+                onVerifyManual={(url, note) =>
+                  verifyManual.mutateAsync({ id: f.id, url, note })
+                }
                 onOpenGitHubFixes={onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined}
                 onOpenCmsApply={() => setCmsFinding(f)}
                 onOpenContentStudio={onOpenContentStudio ? () => onOpenContentStudio(f) : undefined}
@@ -325,19 +374,23 @@ export function PlanView({
 
 function FindingRow({
   finding: f,
+  domain,
   selected,
   onToggleSelect,
   busy,
   onMove,
+  onVerifyManual,
   onOpenGitHubFixes,
   onOpenCmsApply,
   onOpenContentStudio,
 }: {
   finding: GrowthOpportunity;
+  domain: string | null;
   selected: boolean;
   onToggleSelect: () => void;
   busy: boolean;
   onMove: (to: string, reason?: string) => void;
+  onVerifyManual: (url?: string, note?: string) => Promise<ManualVerificationResult>;
   onOpenGitHubFixes?: () => void;
   onOpenCmsApply?: () => void;
   onOpenContentStudio?: () => void;
@@ -345,12 +398,42 @@ function FindingRow({
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [reason, setReason] = useState("");
+  const [copiedBrief, setCopiedBrief] = useState(false);
+  const [verifyingOpen, setVerifyingOpen] = useState(false);
+  const [verifyUrl, setVerifyUrl] = useState(
+    f.affectedPages?.[0] || (domain ? `https://${domain.replace(/^https?:\/\//i, "")}/` : ""),
+  );
+  const [verifyNote, setVerifyNote] = useState("");
+  const [verifyingBusy, setVerifyingBusy] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<ManualVerificationResult | null>(null);
   const group = groupOf(f.source);
   const cls = f.fixClass ? FIX_CLASS[f.fixClass] : null;
   const lifecycle = f.lifecycle ?? "DETECTED";
   const pages = f.affectedPages ?? [];
   const regressionEvidence = f.evidence.find((e) => e.label === "Regression detected");
   const roiEvidence = f.evidence.find((e) => e.label === "Site historical ROI");
+
+  const handleCopyBrief = async () => {
+    try {
+      await navigator.clipboard.writeText(formatFindingAsBrief(f, domain));
+      setCopiedBrief(true);
+      setTimeout(() => setCopiedBrief(false), 2000);
+    } catch {}
+  };
+
+  const handleRunManualVerify = async () => {
+    setVerifyingBusy(true);
+    setVerifyError(null);
+    try {
+      const res = await onVerifyManual(verifyUrl.trim() || undefined, verifyNote.trim() || undefined);
+      setVerifyResult(res);
+    } catch (err) {
+      setVerifyError(errorMessage(err));
+    } finally {
+      setVerifyingBusy(false);
+    }
+  };
 
   return (
     <li className="px-4 py-3">
@@ -438,6 +521,25 @@ function FindingRow({
             {lifecycle === "DETECTED" && (
               <ActionButton disabled={busy} onClick={() => onMove("QUEUED")}>Add to plan</ActionButton>
             )}
+            <ActionButton
+              variant="secondary"
+              icon={copiedBrief ? <Check size={12} className="text-success-600" /> : <Copy size={12} />}
+              onClick={handleCopyBrief}
+            >
+              {copiedBrief ? "Brief copied!" : "Copy Handoff Brief"}
+            </ActionButton>
+            {!["VERIFIED", "MEASURED"].includes(lifecycle) && (
+              <ActionButton
+                variant="secondary"
+                icon={<CheckCircle2 size={12} className="text-success-600" />}
+                onClick={() => {
+                  setVerifyingOpen((v) => !v);
+                  setVerifyError(null);
+                }}
+              >
+                {verifyingOpen ? "Hide Live Check" : "Mark Applied & Verify Live"}
+              </ActionButton>
+            )}
             {onOpenCmsApply && (
               <ActionButton
                 variant="primary"
@@ -466,7 +568,7 @@ function FindingRow({
               </ActionButton>
             )}
             {["DETECTED", "QUEUED"].includes(lifecycle) && !dismissing && (
-              <button type="button" onClick={() => setDismissing(true)} className={cn("text-[12px] font-semibold text-brand-500 hover:text-error-600")}>
+              <button type="button" onClick={() => setDismissing(true)} className={cn("text-[12px] font-semibold text-brand-500 hover:text-error-600 cursor-pointer")}>
                 Dismiss
               </button>
             )}
@@ -477,13 +579,89 @@ function FindingRow({
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Why? (required)"
                   aria-label="Reason for dismissing"
-                  className="h-8 w-56 rounded-lg border bg-white px-3 text-[12px] outline-none focus:border-primary-500"
+                  className="h-8 w-56 rounded-lg border border-brand-200 bg-surface-1 px-3 text-[12px] text-brand-950 outline-none focus:border-primary-500"
                 />
                 <ActionButton disabled={busy || reason.trim() === ""} onClick={() => onMove("DISMISSED", reason.trim())}>Confirm dismiss</ActionButton>
-                <button type="button" onClick={() => setDismissing(false)} className="text-[12px] text-brand-500 hover:underline">Cancel</button>
+                <button type="button" onClick={() => setDismissing(false)} className="text-[12px] text-brand-500 hover:underline cursor-pointer">Cancel</button>
               </span>
             )}
           </div>
+
+          {/* Closed-Loop Manual Fix Live Verification Drawer */}
+          {verifyingOpen && (
+            <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-3.5 space-y-2.5">
+              <div>
+                <p className="text-xs font-bold text-brand-950">
+                  Verify Manual Fix on Live URL
+                </p>
+                <p className="text-[11px] text-brand-500">
+                  Shipped this fix yourself or via a developer? We&apos;ll inspect the live HTML right now, confirm the change, and record verified proof in your Results Ledger.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  type="url"
+                  value={verifyUrl}
+                  onChange={(e) => setVerifyUrl(e.target.value)}
+                  placeholder="https://yourdomain.com/page"
+                  aria-label="Live URL to verify"
+                  className="h-9 rounded-lg border border-brand-200 bg-surface-1 px-3 font-mono text-[11.5px] text-brand-950 outline-none focus:border-primary-500"
+                />
+                <input
+                  type="text"
+                  value={verifyNote}
+                  onChange={(e) => setVerifyNote(e.target.value)}
+                  placeholder="Optional note (e.g. Updated in Shopify / Dev PR)"
+                  aria-label="Implementation note"
+                  className="h-9 rounded-lg border border-brand-200 bg-surface-1 px-3 text-[11.5px] text-brand-950 outline-none focus:border-primary-500"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <ActionButton
+                  variant="primary"
+                  disabled={verifyingBusy || !verifyUrl.trim()}
+                  icon={verifyingBusy ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+                  onClick={handleRunManualVerify}
+                >
+                  {verifyingBusy ? "Inspecting live URL…" : "Verify Live URL now"}
+                </ActionButton>
+              </div>
+
+              {verifyError && (
+                <p role="alert" className="text-[11.5px] font-medium text-error-600">
+                  {verifyError}
+                </p>
+              )}
+
+              {verifyResult && (
+                <div
+                  role="status"
+                  className={cn(
+                    "rounded-lg border p-3 text-[11.5px] space-y-1.5",
+                    verifyResult.verified
+                      ? "border-success-500/40 bg-success-50 text-success-700"
+                      : "border-warning-500/40 bg-warning-50 text-warning-700",
+                  )}
+                >
+                  <p className="font-bold flex items-center gap-1.5">
+                    {verifyResult.verified ? (
+                      <CheckCircle2 size={13} className="shrink-0" />
+                    ) : (
+                      <AlertTriangle size={13} className="shrink-0" />
+                    )}
+                    <span>{verifyResult.summary}</span>
+                  </p>
+                  <ul className="space-y-0.5 pl-4 list-disc text-[11px]">
+                    {verifyResult.checks.map((c) => (
+                      <li key={c.name}>
+                        <strong>{c.name}:</strong> {c.passed ? "Pass" : "Needs attention"} ({c.observed})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </li>

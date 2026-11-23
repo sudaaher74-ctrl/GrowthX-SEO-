@@ -11,6 +11,7 @@ import { GrowthConsultantService } from './growth-consultant.service';
 import { GrowthConsultantController } from './growth-consultant.controller';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { LifecycleService } from './lifecycle.service';
+import { ManualVerificationService } from './manual-verification.service';
 import { FindingsController } from './findings.controller';
 import { FindingSyncService } from './finding-sync.service';
 import { RoiLearningService } from './roi-learning.service';
@@ -39,6 +40,7 @@ import { TrafficAdapter } from './traffic.adapter';
     GrowthContextService,
     GrowthConsultantService,
     LifecycleService,
+    ManualVerificationService,
     WebsiteAuditAdapter,
     CompetitorAdapter,
     AiVisibilityAdapter,
@@ -58,6 +60,7 @@ import { TrafficAdapter } from './traffic.adapter';
     ExecutiveSummaryService,
     GrowthContextService,
     LifecycleService,
+    ManualVerificationService,
     RoiLearningService,
     FindingSyncService,
     WebsiteAuditAdapter,

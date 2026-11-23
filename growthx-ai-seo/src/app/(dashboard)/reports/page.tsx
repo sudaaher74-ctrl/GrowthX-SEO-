@@ -1,8 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Code2, FileText } from "lucide-react";
+import { ArrowRight, Check, Code2, Download, FileText, Loader2 } from "lucide-react";
 import { PageHeader, Panel } from "@/components/ui/console";
+import { useWorkspace } from "@/hooks/use-growthx";
+import { api } from "@/lib/api-client";
+import { buildAllInOnePlaybookMarkdown } from "@/lib/implementation-specs";
 
 /**
  * Every report in one place. Each document works completely standalone — with
@@ -20,7 +24,7 @@ const REPORTS: { title: string; about: string; href: string; step?: number; badg
   },
   {
     title: "Complete Improvement Plan",
-    about: "Every verified opportunity across all modules ranked by impact, with evidence and clear execution steps.",
+    about: "Master cross-module execution report with priority matrix, universal implementation briefs, Markdown/CSV/PDF exports, and Fix Engine sync.",
     href: "/reports/plan",
     badge: "Master Queue",
   },
@@ -62,12 +66,105 @@ const REPORTS: { title: string; about: string; href: string; step?: number; badg
 ];
 
 export default function ReportsPage() {
+  const { projectId, projects } = useWorkspace();
+  const domain = projects.find((p) => p.id === projectId)?.name ?? "website";
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleDownloadMasterPlaybook = async () => {
+    if (!projectId || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const [
+        auditRes,
+        googleRes,
+        compRes,
+        visRes,
+        visInsightsRes,
+        questionRes,
+        backlinksRes,
+        outreachRes,
+        findingsRes,
+      ] = await Promise.allSettled([
+        api.getLatestAuditReport(projectId),
+        api.getLatestGoogleReport(projectId),
+        api.getLatestCompetitorReport(projectId),
+        api.getVisibility(projectId, 28),
+        api.getVisibilityInsights(projectId),
+        api.getQuestionAnalysis(projectId),
+        api.backlinks.report(projectId, 0),
+        api.backlinkOutreach.list(projectId),
+        api.findings(projectId, { limit: 200 }),
+      ]);
+
+      const md = buildAllInOnePlaybookMarkdown({
+        domain,
+        auditReport: auditRes.status === "fulfilled" ? auditRes.value : null,
+        googleReport: googleRes.status === "fulfilled" ? googleRes.value : null,
+        competitorReport: compRes.status === "fulfilled" ? compRes.value : null,
+        visibilityReport: visRes.status === "fulfilled" ? visRes.value : null,
+        visibilityInsights: visInsightsRes.status === "fulfilled" ? visInsightsRes.value : null,
+        questionAnalysis: questionRes.status === "fulfilled" ? questionRes.value : null,
+        backlinkReport: backlinksRes.status === "fulfilled" ? backlinksRes.value : null,
+        backlinkOutreach: outreachRes.status === "fulfilled" ? outreachRes.value?.items ?? [] : null,
+        findings: findingsRes.status === "fulfilled" ? findingsRes.value.items : null,
+      });
+
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${domain.replace(/[^a-z0-9.-]+/gi, "-")}-complete-seo-playbook.md`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExported(true);
+      setTimeout(() => setExported(false), 3000);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Could not assemble master playbook.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-12">
       <PageHeader
         title="Reports & Implementation Guides"
         subtitle="Executive-ready and developer-ready reports built strictly from your live measured data. Download as PDF, Markdown, or CSV — every report works standalone even if Fix Engine is not connected."
+        actions={
+          <button
+            type="button"
+            disabled={!projectId || exporting}
+            onClick={handleDownloadMasterPlaybook}
+            className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 disabled:opacity-50 cursor-pointer"
+          >
+            {exporting ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Bundling Playbook…</span>
+              </>
+            ) : exported ? (
+              <>
+                <Check size={13} />
+                <span>Playbook Downloaded</span>
+              </>
+            ) : (
+              <>
+                <Download size={13} />
+                <span>Download All-in-One Playbook (.md)</span>
+              </>
+            )}
+          </button>
+        }
       />
+
+      {exportError && (
+        <div role="alert" className="rounded-xl border border-error-500/40 bg-error-50 px-4 py-2.5 text-xs font-medium text-error-700">
+          {exportError}
+        </div>
+      )}
 
       <Panel padded>
         <div className="flex items-start gap-3 text-[12px] text-brand-600">
@@ -79,7 +176,7 @@ export default function ReportsPage() {
               Built to hand directly to any developer, freelancer, or CMS editor
             </p>
             <p className="mt-0.5 leading-relaxed">
-              Every report below includes a <strong>Universal Implementation &amp; Handoff Guide</strong> using standard HTML, JSON-LD, HTTP 301 redirect maps, <code className="font-mono">/llms.txt</code>, and QA checklists — with zero framework lock-in and zero fabricated figures.
+              Every report below includes a <strong>Universal Implementation &amp; Handoff Guide</strong> using standard HTML, JSON-LD, HTTP 301 redirect maps, <code className="font-mono">/llms.txt</code>, and QA checklists — with zero framework lock-in and zero fabricated figures. Use <strong>Download All-in-One Playbook (.md)</strong> above to bundle all modules into one master document.
             </p>
           </div>
         </div>
