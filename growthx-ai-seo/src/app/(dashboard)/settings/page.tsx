@@ -925,7 +925,7 @@ function IntegrationsView() {
                   </div>
                   <p className="mt-0.5 truncate text-xs text-brand-500">
                     {shopifyQuery.data?.connected
-                      ? `${shopifyQuery.data.storeDomain}${shopifyQuery.data.shopName ? ` · ${shopifyQuery.data.shopName}` : ""}`
+                      ? `${shopifyQuery.data.shopDomain || ""}${shopifyQuery.data.shopName ? ` · ${shopifyQuery.data.shopName}` : ""}`
                       : "Update page, product & article SEO via Admin API"}
                   </p>
                 </div>
@@ -964,7 +964,7 @@ function IntegrationsView() {
                   </div>
                   <p className="mt-0.5 truncate text-xs text-brand-500">
                     {webflowQuery.data?.connected
-                      ? `${webflowQuery.data.siteName || webflowQuery.data.siteId}${webflowQuery.data.customDomain ? ` · ${webflowQuery.data.customDomain}` : ""}`
+                      ? `${webflowQuery.data.siteName || webflowQuery.data.siteId}${webflowQuery.data.siteUrl ? ` · ${webflowQuery.data.siteUrl}` : ""}`
                       : "Update page SEO & Open Graph via Webflow v2 API"}
                   </p>
                 </div>
@@ -996,9 +996,9 @@ function IntegrationsView() {
           existingUsername={wpQuery.data?.username}
           defaultSiteUrl={
             cmsModalPlatform === "shopify"
-              ? shopifyQuery.data?.storeDomain
+              ? shopifyQuery.data?.shopDomain
               : cmsModalPlatform === "webflow"
-                ? webflowQuery.data?.customDomain
+                ? webflowQuery.data?.siteUrl
                 : wpQuery.data?.siteUrl
           }
           onClose={() => setCmsModalPlatform(null)}

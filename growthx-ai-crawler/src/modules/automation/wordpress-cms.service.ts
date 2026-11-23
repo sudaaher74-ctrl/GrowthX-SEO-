@@ -125,23 +125,27 @@ export class WordPressCmsService {
     return lifecycle;
   }
 
-  private normalizeSiteUrl(rawUrl: string): string {
+  private normalizeSiteUrl(rawUrl: string, options: { requireHttps?: boolean } = {}): string {
     const trimmed = (rawUrl || '').trim();
     if (!trimmed) {
-      throw new BadRequestException('WordPress site URL is required.');
+      throw new BadRequestException('Site URL is required.');
     }
     const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     let parsed: URL;
     try {
       parsed = new URL(withProtocol);
     } catch {
-      throw new BadRequestException('Enter a valid WordPress site URL.');
+      throw new BadRequestException('Enter a valid site URL.');
     }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new BadRequestException('Only http:// and https:// WordPress site URLs are supported.');
+    if (options.requireHttps) {
+      if (parsed.protocol !== 'https:') {
+        throw new BadRequestException('HTTPS is required before CMS credentials can be sent.');
+      }
+    } else if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new BadRequestException('Only http:// and https:// site URLs are supported.');
     }
     if (parsed.username || parsed.password) {
-      throw new BadRequestException('Do not embed credentials inside the WordPress site URL.');
+      throw new BadRequestException('Do not embed credentials inside the site URL.');
     }
     try {
       assertPublicUrl(parsed.toString());
@@ -159,18 +163,75 @@ export class WordPressCmsService {
     return `${parsed.origin}${cleanPath}`;
   }
 
-  private async assertSafeOutboundUrl(targetUrl: string): Promise<URL> {
+  /**
+   * Ensures a stored or user-supplied Shopify Admin API target is strictly an
+   * HTTPS `*.myshopify.com` origin (no custom storefronts that might redirect
+   * and disclose `X-Shopify-Access-Token`).
+   */
+  private assertShopifyAdminOrigin(rawDomainOrUrl: string): string {
+    const trimmed = (rawDomainOrUrl || '').trim();
+    if (!trimmed) {
+      throw new BadRequestException('Shopify store domain (e.g. store.myshopify.com) is required.');
+    }
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    let parsed: URL;
+    try {
+      parsed = new URL(withScheme);
+    } catch {
+      throw new BadRequestException('Enter a valid Shopify myshopify.com domain.');
+    }
+    if (parsed.protocol !== 'https:') {
+      throw new BadRequestException('Shopify Admin API requests require HTTPS.');
+    }
+    if (parsed.username || parsed.password || parsed.port) {
+      throw new BadRequestException('Shopify store domain must not include credentials or custom ports.');
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com$/i.test(host)) {
+      throw new BadRequestException(
+        'Use your verified Shopify admin domain ending in .myshopify.com (for example, your-store.myshopify.com).',
+      );
+    }
+    try {
+      assertPublicUrl(`https://${host}`);
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
+    return `https://${host}`;
+  }
+
+  /**
+   * Enforces HTTPS on WordPress origins before sending reusable Basic credentials,
+   * covering both initial connections and previously saved database records.
+   */
+  private assertWordPressHttpsUrl(rawUrl: string): string {
+    return this.normalizeSiteUrl(rawUrl, { requireHttps: true });
+  }
+
+  private async assertSafeOutboundUrl(
+    targetUrl: string,
+    options?: { requireHttps?: boolean; allowedOrigin?: string },
+  ): Promise<URL> {
     let parsed: URL;
     try {
       parsed = new URL(targetUrl);
     } catch {
       throw new BadRequestException('Invalid target URL.');
     }
+    if (options?.requireHttps && parsed.protocol !== 'https:') {
+      throw new BadRequestException('HTTPS is required for credentialed CMS requests.');
+    }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw new BadRequestException('Only http:// and https:// URLs are allowed.');
     }
     if (parsed.username || parsed.password) {
       throw new BadRequestException('Credentials in URLs are not permitted.');
+    }
+    if (options?.allowedOrigin && parsed.origin !== options.allowedOrigin) {
+      throw new BadRequestException('Refusing to send credentials to an unverified origin.');
     }
     try {
       assertPublicUrl(parsed.toString());
@@ -191,19 +252,60 @@ export class WordPressCmsService {
 
   /**
    * Executes an outbound HTTP request after verifying that the target URL and
-   * any redirect hops resolve exclusively to public internet addresses. Strips
-   * Authorization headers if a redirect ever crosses origins.
+   * any redirect hops resolve exclusively to public internet addresses.
+   *
+   * Security controls:
+   * - Requires HTTPS before transmitting credential headers (never downgrades to HTTP).
+   * - Rejects cross-origin redirects on credentialed or state-changing requests so
+   *   Shopify/WordPress/Webflow credentials and write bodies are never disclosed.
+   * - Strips all sensitive headers on any permitted cross-origin redirect.
    */
-  private async safeFetch(url: string, init: RequestInit, timeoutMs = 15000): Promise<Response> {
+  private async safeFetch(
+    url: string,
+    init: RequestInit,
+    timeoutMs = 15000,
+    options?: { requireHttps?: boolean; rejectCrossOriginRedirects?: boolean; allowedOrigin?: string },
+  ): Promise<Response> {
+    const SENSITIVE_HEADERS = [
+      'authorization',
+      'x-shopify-access-token',
+      'cookie',
+      'proxy-authorization',
+      'x-api-key',
+    ];
+    const baseHeaders = new Headers(init.headers ?? {});
+    const hasCredentials = SENSITIVE_HEADERS.some((h) => baseHeaders.has(h));
+    const requireHttps = options?.requireHttps ?? hasCredentials;
+    const rejectCrossOrigin =
+      options?.rejectCrossOriginRedirects ??
+      (hasCredentials || (init.method ? !['GET', 'HEAD'].includes(init.method.toUpperCase()) : false));
+
     let currentUrl = url;
-    const initialOrigin = (await this.assertSafeOutboundUrl(currentUrl)).origin;
+    const initialParsed = await this.assertSafeOutboundUrl(currentUrl, {
+      requireHttps,
+      allowedOrigin: options?.allowedOrigin,
+    });
+    const initialOrigin = initialParsed.origin;
     const maxRedirects = 3;
 
     for (let hop = 0; hop <= maxRedirects; hop++) {
-      const currentParsed = hop === 0 ? new URL(currentUrl) : await this.assertSafeOutboundUrl(currentUrl);
+      const currentParsed =
+        hop === 0
+          ? initialParsed
+          : await this.assertSafeOutboundUrl(currentUrl, {
+              requireHttps,
+              allowedOrigin: options?.allowedOrigin,
+            });
       const headers = new Headers(init.headers ?? {});
       if (currentParsed.origin !== initialOrigin) {
-        headers.delete('Authorization');
+        if (rejectCrossOrigin) {
+          throw new BadRequestException(
+            `Refusing cross-origin redirect from ${initialOrigin} to ${currentParsed.origin} on a credentialed or write request.`,
+          );
+        }
+        for (const h of SENSITIVE_HEADERS) {
+          headers.delete(h);
+        }
       }
 
       const response = await fetch(currentUrl, {
@@ -219,7 +321,16 @@ export class WordPressCmsService {
         if (hop === maxRedirects) {
           throw new BadRequestException('Too many redirects from target site.');
         }
-        currentUrl = new URL(location, currentUrl).toString();
+        const nextUrl = new URL(location, currentUrl);
+        if (requireHttps && nextUrl.protocol !== 'https:') {
+          throw new BadRequestException('Refusing HTTPS-to-HTTP downgrade redirect on a credentialed request.');
+        }
+        if (rejectCrossOrigin && nextUrl.origin !== initialOrigin) {
+          throw new BadRequestException(
+            `Refusing cross-origin redirect from ${initialOrigin} to ${nextUrl.origin} on a credentialed or write request.`,
+          );
+        }
+        currentUrl = nextUrl.toString();
         continue;
       }
 
@@ -302,7 +413,7 @@ export class WordPressCmsService {
    * stores the encrypted password at rest.
    */
   async connectWordPress(projectId: string, input: ConnectWordPressInput) {
-    const siteUrl = this.normalizeSiteUrl(input.siteUrl);
+    const siteUrl = this.assertWordPressHttpsUrl(input.siteUrl);
     const username = (input.username || '').trim();
     const rawPassword = (input.appPassword || '').trim();
 
@@ -501,7 +612,7 @@ export class WordPressCmsService {
       throw new BadRequestException('Connect your WordPress site in Settings → Integrations first.');
     }
 
-    const siteUrl = integration.selectedResourceId;
+    const siteUrl = this.assertWordPressHttpsUrl(integration.selectedResourceId);
     const username = integration.googleAccountEmail || 'admin';
     const appPassword = this.security.decryptCredentials(integration.accessToken);
     if (!appPassword) {
@@ -588,32 +699,38 @@ export class WordPressCmsService {
       updateBody.meta = metaPayload;
     }
 
-    // If draft mode and title/content changed, use /autosaves endpoint so a revision is created without overwriting live content unreviewed,
-    // or update meta fields directly.
-    const targetEndpoint =
-      publishMode === 'draft' && (updateBody.title || updateBody.content)
-        ? `${siteUrl}/wp-json/wp/v2/${endpointType}/${wpItem.id}/autosaves`
-        : `${siteUrl}/wp-json/wp/v2/${endpointType}/${wpItem.id}`;
-
-    const updateRes = await this.safeFetch(targetEndpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'User-Agent': 'Reigel-SEO-Agent/1.0',
-      },
-      body: JSON.stringify(updateBody),
-    }, 15000);
-
-    if (!updateRes.ok) {
-      const errText = await updateRes.text().catch(() => '');
-      throw new BadRequestException(
-        `WordPress REST API rejected the update (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`,
+    // Draft mode NEVER modifies the live WordPress post or its live SEO plugin
+    // meta fields. Pending edits are staged locally in the database and require
+    // an explicit publish action before any write reaches WordPress.
+    let updatedWp: any = null;
+    if (publishMode === 'publish') {
+      const targetEndpoint = `${siteUrl}/wp-json/wp/v2/${endpointType}/${wpItem.id}`;
+      const updateRes = await this.safeFetch(
+        targetEndpoint,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'User-Agent': 'Reigel-SEO-Agent/1.0',
+          },
+          body: JSON.stringify(updateBody),
+        },
+        15000,
+        { requireHttps: true, rejectCrossOriginRedirects: true },
       );
+
+      if (!updateRes.ok) {
+        const errText = await updateRes.text().catch(() => '');
+        throw new BadRequestException(
+          `WordPress REST API rejected the update (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`,
+        );
+      }
+
+      updatedWp = (await updateRes.json()) as any;
     }
 
-    const updatedWp = (await updateRes.json()) as any;
     const wpAdminEditUrl = `${siteUrl}/wp-admin/post.php?post=${wpItem.id}&action=edit`;
 
     // Record in AutomationRun, FixSnapshot, and FixImpactLedgerEvent
@@ -640,12 +757,25 @@ export class WordPressCmsService {
           },
           {
             at: now.toISOString(),
-            step: 'wordpress-update',
+            step: publishMode === 'publish' ? 'wordpress-update' : 'wordpress-draft-staged',
             detail:
               publishMode === 'publish'
                 ? `Published ${input.field} directly via WordPress REST API (${endpointType} #${wpItem.id})`
-                : `Staged ${input.field} revision in WordPress (${endpointType} #${wpItem.id})`,
+                : `Staged ${input.field} locally for review without modifying the live WordPress ${endpointType} #${wpItem.id}`,
             ok: true,
+            stagedPayload:
+              publishMode === 'draft'
+                ? {
+                    findingId: input.findingId,
+                    targetUrl,
+                    field: input.field,
+                    beforeValue,
+                    afterValue: input.afterValue,
+                    findingTitle: input.findingTitle,
+                    wpPostId: wpItem.id,
+                    endpointType,
+                  }
+                : undefined,
             change: {
               issueId: input.findingId || `wp-${wpItem.id}`,
               url: targetUrl,
@@ -694,17 +824,21 @@ export class WordPressCmsService {
         title:
           publishMode === 'publish'
             ? `WordPress Fix Published: ${input.findingTitle || input.field}`
-            : `WordPress Revision Staged: ${input.findingTitle || input.field}`,
-        description: `Applied ${input.field} update on ${targetUrl} via WordPress REST API (${endpointType} #${wpItem.id}).`,
+            : `WordPress Draft Staged Locally: ${input.findingTitle || input.field}`,
+        description:
+          publishMode === 'publish'
+            ? `Published ${input.field} update on ${targetUrl} via WordPress REST API (${endpointType} #${wpItem.id}).`
+            : `Staged ${input.field} update locally for ${targetUrl} (${endpointType} #${wpItem.id}); live WordPress post was not modified.`,
         actor: 'WORDPRESS_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: wpAdminEditUrl,
-        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'AWAITING_REVIEW',
+        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
         evidenceData: {
           wpPostId: wpItem.id,
-          wpRevisionId: updatedWp?.id || wpItem.id,
+          wpRevisionId: updatedWp?.id ?? null,
           endpointType,
           publishMode,
+          liveModified: publishMode === 'publish',
           field: input.field,
           before: beforeValue,
           after: input.afterValue,
@@ -725,13 +859,54 @@ export class WordPressCmsService {
       wpPostId: wpItem.id,
       wpAdminEditUrl,
       publishMode,
+      liveModified: publishMode === 'publish',
       status:
         publishMode === 'publish'
           ? verifiedState === 'VERIFIED'
             ? 'VERIFIED_LIVE'
             : 'VERIFYING_LIVE'
-          : 'STAGED_IN_WORDPRESS',
+          : 'STAGED_LOCALLY',
     };
+  }
+
+  /**
+   * Explicitly publishes a previously staged local WordPress draft run to the
+   * live WordPress post/page.
+   */
+  async publishStagedWordPressFix(projectId: string, runId: string) {
+    const run = await this.prisma.automationRun.findFirst({
+      where: { id: runId, projectId },
+    });
+    if (!run) {
+      throw new NotFoundException(`Staged WordPress run ${runId} not found.`);
+    }
+    if (run.status !== AutomationRunStatus.AWAITING_REVIEW) {
+      throw new BadRequestException('Only locally staged WordPress drafts awaiting review can be published.');
+    }
+    const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
+    const staged = steps.find((s) => s?.stagedPayload)?.stagedPayload;
+    if (!staged?.targetUrl || !staged?.field || typeof staged?.afterValue !== 'string') {
+      throw new BadRequestException('Staged WordPress draft payload is missing or invalid.');
+    }
+
+    const published = await this.stageWordPressFix(projectId, {
+      findingId: staged.findingId,
+      targetUrl: staged.targetUrl,
+      field: staged.field,
+      beforeValue: staged.beforeValue,
+      afterValue: staged.afterValue,
+      findingTitle: staged.findingTitle,
+      publishMode: 'publish',
+    });
+
+    await this.prisma.automationRun
+      .update({
+        where: { id: runId },
+        data: { status: AutomationRunStatus.MERGED, finishedAt: new Date() },
+      })
+      .catch(() => null);
+
+    return published;
   }
 
   /**
@@ -945,7 +1120,7 @@ export class WordPressCmsService {
       throw new BadRequestException('Shopify store domain (e.g. store.myshopify.com) and Admin API access token are required.');
     }
 
-    const shopOrigin = this.normalizeSiteUrl(`https://${rawDomain}`);
+    const shopOrigin = this.assertShopifyAdminOrigin(rawDomain);
     const shopHost = new URL(shopOrigin).hostname;
 
     let shopData: { shop?: { name?: string; domain?: string; myshopify_domain?: string; email?: string } } | null = null;
@@ -957,7 +1132,7 @@ export class WordPressCmsService {
           Accept: 'application/json',
           'User-Agent': 'Reigel-SEO-Agent/1.0',
         },
-      }, 15000);
+      }, 15000, { requireHttps: true, rejectCrossOriginRedirects: true, allowedOrigin: shopOrigin });
 
       if (res.status === 401 || res.status === 403) {
         throw new BadRequestException(
@@ -1068,7 +1243,7 @@ export class WordPressCmsService {
       throw new BadRequestException('Connect your Shopify store in Settings → Integrations first.');
     }
 
-    const shopOrigin = integration.selectedResourceId;
+    const shopOrigin = this.assertShopifyAdminOrigin(integration.selectedResourceId);
     const accessToken = this.security.decryptCredentials(integration.accessToken);
     if (!accessToken) {
       throw new BadRequestException('Stored Shopify token could not be decrypted. Please reconnect Shopify in Settings.');
@@ -1828,7 +2003,7 @@ export class WordPressCmsService {
       if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
         throw new BadRequestException('Connect your WordPress site in Settings → Integrations first.');
       }
-      const siteUrl = integration.selectedResourceId;
+      const siteUrl = this.assertWordPressHttpsUrl(integration.selectedResourceId);
       const username = integration.googleAccountEmail || 'admin';
       const appPassword = this.security.decryptCredentials(integration.accessToken);
       if (!appPassword) {
@@ -1881,7 +2056,7 @@ export class WordPressCmsService {
       if (!integration || integration.status !== 'CONNECTED' || !integration.accessToken || !integration.selectedResourceId) {
         throw new BadRequestException('Connect your Shopify store in Settings → Integrations first.');
       }
-      const shopOrigin = this.normalizeSiteUrl(`https://${integration.selectedResourceId}`);
+      const shopOrigin = this.assertShopifyAdminOrigin(integration.selectedResourceId);
       const accessToken = this.security.decryptCredentials(integration.accessToken);
       if (!accessToken) {
         throw new BadRequestException('Stored Shopify credentials could not be decrypted. Please reconnect Shopify.');

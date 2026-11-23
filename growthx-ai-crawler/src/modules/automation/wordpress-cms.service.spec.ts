@@ -155,13 +155,9 @@ describe('WordPressCmsService', () => {
       });
       prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_1' });
 
-      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
-        if (init?.method === 'POST') {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ id: 99, title: { raw: 'New SEO Title' } }),
-          };
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation(async (_url: any, init: any) => {
+        if (init?.method && init.method !== 'GET') {
+          throw new Error('Draft mode must not send write requests to WordPress');
         }
         return {
           ok: true,
@@ -188,10 +184,115 @@ describe('WordPressCmsService', () => {
 
       expect(res.success).toBe(true);
       expect(res.wpPostId).toBe(42);
-      expect(res.status).toBe('STAGED_IN_WORDPRESS');
+      expect(res.status).toBe('STAGED_LOCALLY');
+      expect((res as any).liveModified).toBe(false);
+      // Must perform ONLY read-only lookup; zero writes to live WordPress post.
+      expect((fetchSpy.mock.calls as any[]).every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
       expect(prisma.automationRun.create).toHaveBeenCalled();
       expect(prisma.fixSnapshot.createMany).toHaveBeenCalled();
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalled();
+    });
+
+    it('never mutates live WordPress posts for META_DESCRIPTION or schema in draft mode and only writes on explicit publish', async () => {
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_wp_1',
+        projectId: 'proj_1',
+        provider: 'wordpress',
+        accessToken: 'enc_app_pass',
+        googleAccountEmail: 'admin',
+        selectedResourceId: 'https://example-wp.com',
+        status: 'CONNECTED',
+      });
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_wp_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_draft_1' });
+
+      const writeCalls: Array<{ url: string; method: string; body?: string }> = [];
+      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
+        const method = (init?.method || 'GET').toUpperCase();
+        if (method !== 'GET') {
+          writeCalls.push({ url: String(url), method, body: init?.body });
+          return { ok: true, status: 200, json: async () => ({ id: 42 }) };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{ id: 42, slug: 'pricing', title: { raw: 'Pricing' }, excerpt: { raw: 'Old desc' } }],
+        };
+      });
+
+      const draft = await service.stageWordPressFix('proj_1', {
+        targetUrl: 'https://example-wp.com/pricing',
+        field: 'META_DESCRIPTION',
+        afterValue: 'Draft Meta Description',
+        publishMode: 'draft',
+      });
+
+      expect(draft.status).toBe('STAGED_LOCALLY');
+      expect(writeCalls).toHaveLength(0);
+
+      // Explicit publish now sends the live write to WordPress.
+      const published = await service.stageWordPressFix('proj_1', {
+        targetUrl: 'https://example-wp.com/pricing',
+        field: 'META_DESCRIPTION',
+        afterValue: 'Published Meta Description',
+        publishMode: 'publish',
+      });
+
+      expect(published.liveModified).toBe(true);
+      expect(writeCalls).toHaveLength(1);
+      expect(writeCalls[0].url).toBe('https://example-wp.com/wp-json/wp/v2/pages/42');
+    });
+
+    it('rejects plain HTTP WordPress sites on both initial connect and previously saved DB rows before sending Basic credentials', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+
+      await expect(
+        service.connectWordPress('proj_1', {
+          siteUrl: 'http://example-wp.com',
+          username: 'admin',
+          appPassword: 'secret-app-password',
+        }),
+      ).rejects.toThrow(/HTTPS/i);
+
+      // Legacy DB record with http:// must also be rejected before any outbound request.
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_wp_http',
+        projectId: 'proj_1',
+        provider: 'wordpress',
+        accessToken: 'enc_secret-app-password',
+        googleAccountEmail: 'admin',
+        selectedResourceId: 'http://legacy-http-wp.com',
+        status: 'CONNECTED',
+      });
+
+      await expect(
+        service.stageWordPressFix('proj_1', {
+          targetUrl: 'http://legacy-http-wp.com/home',
+          field: 'META_TITLE',
+          afterValue: 'Title',
+          publishMode: 'publish',
+        }),
+      ).rejects.toThrow(/HTTPS/i);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects HTTPS-to-HTTP downgrade redirects on WordPress credentialed requests', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
+        ok: false,
+        status: 301,
+        headers: new Headers({ location: 'http://example-wp.com/wp-json/wp/v2/users/me' }),
+      });
+
+      await expect(
+        service.connectWordPress('proj_1', {
+          siteUrl: 'https://example-wp.com',
+          username: 'admin',
+          appPassword: 'secret-app-password',
+        }),
+      ).rejects.toThrow(/downgrade|HTTPS/i);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
     it('throws NotFoundException when matching page is not found in WordPress', async () => {
@@ -455,6 +556,72 @@ describe('WordPressCmsService', () => {
           data: expect.objectContaining({ actor: 'WEBFLOW_AGENT' }),
         }),
       );
+    });
+
+    it('rejects non-myshopify domains and blocks cross-origin redirects so Shopify tokens and write bodies are never disclosed', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+
+      // Arbitrary custom domain must be rejected before sending X-Shopify-Access-Token.
+      await expect(
+        service.connectShopify('proj_1', {
+          shopDomain: 'evil-storefront.example.com',
+          accessToken: 'shpat_secret_token',
+        }),
+      ).rejects.toThrow(/myshopify\.com/i);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      // Cross-origin redirect on credentialed connect must be rejected without contacting the redirect host.
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({ location: 'https://attacker.example.com/steal' }),
+      });
+
+      await expect(
+        service.connectShopify('proj_1', {
+          shopDomain: 'victim-shop.myshopify.com',
+          accessToken: 'shpat_secret_token',
+        }),
+      ).rejects.toThrow(/cross-origin redirect/i);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('https://victim-shop.myshopify.com/');
+
+      // Cross-origin redirect on Shopify write (PUT) must never replay token or write body to attacker host.
+      fetchSpy.mockReset();
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_shopify_1',
+        projectId: 'proj_1',
+        provider: 'shopify',
+        accessToken: 'enc_shpat_secret_token',
+        selectedResourceId: 'https://victim-shop.myshopify.com',
+        selectedResourceName: 'Victim Shop',
+        status: 'CONNECTED',
+      });
+      fetchSpy.mockImplementation(async (_url: any, init: any) => {
+        if (init?.method === 'PUT') {
+          return {
+            ok: false,
+            status: 307,
+            headers: new Headers({ location: 'https://attacker.example.com/capture-write' }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] }),
+        };
+      });
+
+      await expect(
+        service.stageShopifyFix('proj_1', {
+          targetUrl: 'https://victim-shop.myshopify.com/products/a2-milk',
+          field: 'META_TITLE',
+          afterValue: 'Sensitive Updated SEO Title',
+        }),
+      ).rejects.toThrow(/cross-origin redirect/i);
+
+      // Verify attacker host was NEVER called.
+      expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('attacker.example.com'))).toBe(false);
     });
   });
 });

@@ -454,13 +454,24 @@ export class AutomationController {
   }
 
   @Post('wordpress/apply')
-  @ApiOperation({ summary: 'Stage a draft revision or apply an SEO fix via WordPress REST API' })
+  @ApiOperation({ summary: 'Stage a draft locally or explicitly publish an SEO fix via WordPress REST API' })
   @ApiParam({ name: 'projectId' })
   stageWordPressFix(
     @Param('projectId') projectId: string,
     @Body() body: StageWordPressFixDto,
   ) {
     return this.wordpress!.stageWordPressFix(projectId, body);
+  }
+
+  @Post('wordpress/runs/:runId/publish')
+  @ApiOperation({ summary: 'Explicitly publish a previously locally staged WordPress draft fix to the live site' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  publishStagedWordPressFix(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.wordpress!.publishStagedWordPressFix(projectId, runId);
   }
 
   @Post('cms/verify-manual')

@@ -136,9 +136,42 @@ async function ensureCsrfToken(forceRefresh = false): Promise<string | null> {
   }
 }
 
+const LEGACY_CMS_STORAGE_PREFIXES = [
+  "growthx.wp.",
+  "growthx.shopify.",
+  "growthx.webflow.",
+  "growthx.cms.",
+];
+
+/**
+ * Purges retired browser-held CMS vault tokens and cached credentials on
+ * startup, sign-in, account switch, disconnect, and logout so copied or stale
+ * browser records cannot persist across sessions.
+ */
+export function clearLegacyCmsBrowserRecords(): void {
+  if (typeof window === "undefined") return;
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      const keysToDelete: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && LEGACY_CMS_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+          keysToDelete.push(key);
+        }
+      }
+      for (const key of keysToDelete) {
+        storage.removeItem(key);
+      }
+    } catch {
+      // Ignore storage access errors in restricted browser contexts.
+    }
+  }
+}
+
 export const auth = {
   /** Called after the API has set the session cookies. */
   markSignedIn() {
+    clearLegacyCmsBrowserRecords();
     window.localStorage.setItem(SESSION_FLAG_KEY, "1");
     csrfCache = null;
     notifyAuthChange();
@@ -159,6 +192,7 @@ export const auth = {
   },
   clear() {
     csrfCache = null;
+    clearLegacyCmsBrowserRecords();
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(TOKEN_KEY);
       window.localStorage.removeItem(REFRESH_KEY);
@@ -446,100 +480,6 @@ const put = <T>(path: string, body?: unknown) =>
 const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
 const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
-
-function recordLocalCmsProof(
-  projectId: string,
-  entry: {
-    runId: string;
-    title: string;
-    url: string;
-    file: string;
-    field: string;
-    beforeValue: string | null;
-    afterValue: string;
-    verificationStatus: string;
-    adminUrl: string | null;
-    actor: string;
-  },
-) {
-  if (typeof window === "undefined") return;
-  try {
-    const nowIso = new Date().toISOString();
-    const proofsKey = `growthx.cms.proofs.${projectId}`;
-    const ledgerKey = `growthx.cms.ledger.${projectId}`;
-
-    const existingProofs: import('./api-types').ProofOfImpactCard[] = JSON.parse(
-      window.localStorage.getItem(proofsKey) || "[]",
-    );
-    const card: import('./api-types').ProofOfImpactCard = {
-      runId: entry.runId,
-      title: entry.title,
-      url: entry.url,
-      file: entry.file,
-      field: entry.field,
-      targetElement: entry.field,
-      before: {
-        text: entry.beforeValue,
-        timeframe: "Before CMS update",
-        clicks: null,
-        impressions: null,
-        ctr: null,
-        aiVisibility: null,
-      },
-      after: {
-        text: entry.afterValue,
-        timeframe: "Applied via CMS",
-        clicks: null,
-        clicksDeltaPct: null,
-        impressions: null,
-        impressionsDeltaPct: null,
-        aiVisibility: null,
-        verificationStatus: entry.verificationStatus,
-        verifiedAt: entry.verificationStatus === "VERIFIED" ? nowIso : null,
-        pullRequestUrl: entry.adminUrl,
-      },
-      liftStatus: "MONITORING",
-      metrics30d: {
-        beforeClicks: null,
-        afterClicks: null,
-        clicksDeltaPct: null,
-        status: "MONITORING_30D",
-      },
-      metrics90d: {
-        beforeClicks: null,
-        afterClicks: null,
-        clicksDeltaPct: null,
-        status: "MONITORING_90D",
-      },
-    };
-    window.localStorage.setItem(
-      proofsKey,
-      JSON.stringify([card, ...existingProofs.filter((p) => p.runId !== entry.runId)].slice(0, 50)),
-    );
-
-    const existingLedger: import('./api-types').FixLedgerEntry[] = JSON.parse(
-      window.localStorage.getItem(ledgerKey) || "[]",
-    );
-    const ledgerItem: import('./api-types').FixLedgerEntry = {
-      id: `ledger-${entry.runId}`,
-      automationRunId: entry.runId,
-      eventType: entry.verificationStatus === "VERIFIED" ? "CMS_FIX_VERIFIED_LIVE" : "CMS_DRAFT_STAGED",
-      title: entry.title,
-      description: `Updated ${entry.field} on ${entry.url} via ${entry.actor}.`,
-      actor: entry.actor,
-      affectedUrl: entry.url,
-      pullRequestUrl: entry.adminUrl,
-      verificationStatus: entry.verificationStatus,
-      createdAt: nowIso,
-    };
-    window.localStorage.setItem(
-      ledgerKey,
-      JSON.stringify([ledgerItem, ...existingLedger].slice(0, 100)),
-    );
-  } catch {
-    // ignore storage quota errors
-  }
-}
 
 export const visibilityJourneyApi = {
   read: (projectId: string) => get<VisibilityJourneyResponse>(`/api/projects/${projectId}/ai-visibility/journey`),
@@ -1699,34 +1639,14 @@ export const api = {
       revertPullRequestUrl?: string;
       message: string;
     }>(`/api/projects/${projectId}/automation/runs/${runId}/rollback`, {}),
-  getFixImpactLedger: async (projectId: string) => {
-    const remote = await get<import('./api-types').FixLedgerEntry[]>(
+  getFixImpactLedger: async (projectId: string) =>
+    get<import('./api-types').FixLedgerEntry[]>(
       `/api/projects/${projectId}/automation/impact/ledger`,
-    ).catch(() => [] as import('./api-types').FixLedgerEntry[]);
-    if (typeof window === "undefined") return remote;
-    try {
-      const localRaw = window.localStorage.getItem(`growthx.cms.ledger.${projectId}`);
-      const localEntries: import('./api-types').FixLedgerEntry[] = localRaw ? JSON.parse(localRaw) : [];
-      const seenIds = new Set(remote.map((r) => r.id));
-      return [...localEntries.filter((e) => !seenIds.has(e.id)), ...remote];
-    } catch {
-      return remote;
-    }
-  },
-  getFixProofCards: async (projectId: string) => {
-    const remote = await get<import('./api-types').ProofOfImpactCard[]>(
+    ).catch(() => [] as import('./api-types').FixLedgerEntry[]),
+  getFixProofCards: async (projectId: string) =>
+    get<import('./api-types').ProofOfImpactCard[]>(
       `/api/projects/${projectId}/automation/impact/proof-cards`,
-    ).catch(() => [] as import('./api-types').ProofOfImpactCard[]);
-    if (typeof window === "undefined") return remote;
-    try {
-      const localRaw = window.localStorage.getItem(`growthx.cms.proofs.${projectId}`);
-      const localCards: import('./api-types').ProofOfImpactCard[] = localRaw ? JSON.parse(localRaw) : [];
-      const seenRuns = new Set(remote.map((r) => r.runId));
-      return [...localCards.filter((c) => !seenRuns.has(c.runId)), ...remote];
-    } catch {
-      return remote;
-    }
-  },
+    ).catch(() => [] as import('./api-types').ProofOfImpactCard[]),
   triggerImpactLoop: async (projectId: string, runId?: string) => {
     try {
       return await post<{ evaluatedRuns: number; improvedCount: number; loopTriggeredCount: number; results: unknown[] }>(
@@ -1758,41 +1678,19 @@ export const api = {
       `/api/projects/${projectId}/automation/impact/report${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`,
     ),
 
-  // ── WordPress & Non-GitHub CMS Publishing
+  // ── WordPress & Non-GitHub CMS Publishing (server-side authenticated API only)
   getWordPressConnection: async (projectId: string) => {
-    try {
-      return await get<{
-        connected: boolean;
-        siteUrl: string | null;
-        username: string | null;
-        displayName?: string | null;
-        seoPlugin: string | null;
-        status: string;
-        statusMessage: string | null;
-        lastSyncedAt: string | null;
-      }>(`/api/projects/${projectId}/automation/wordpress`);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.wp.${projectId}`);
-        if (cached) {
-          try {
-            return JSON.parse(cached);
-          } catch {
-            // ignore
-          }
-        }
-        return {
-          connected: false,
-          siteUrl: null,
-          username: null,
-          seoPlugin: null,
-          status: "DISCONNECTED",
-          statusMessage: null,
-          lastSyncedAt: null,
-        };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return get<{
+      connected: boolean;
+      siteUrl: string | null;
+      username: string | null;
+      displayName?: string | null;
+      seoPlugin: string | null;
+      status: string;
+      statusMessage: string | null;
+      lastSyncedAt: string | null;
+    }>(`/api/projects/${projectId}/automation/wordpress`);
   },
   connectWordPress: async (
     projectId: string,
@@ -1803,41 +1701,20 @@ export const api = {
       seoPlugin?: 'yoast' | 'rankmath' | 'aioseo' | 'core';
     },
   ) => {
-    try {
-      return await post<{
-        connected: boolean;
-        siteUrl: string;
-        username: string;
-        displayName: string;
-        seoPlugin: string;
-        status: string;
-        lastSyncedAt: string;
-      }>(`/api/projects/${projectId}/automation/wordpress/connect`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "connect-wordpress", ...body }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect WordPress.");
-        window.localStorage.setItem(`growthx.wp.${projectId}`, JSON.stringify(data));
-        return data;
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{
+      connected: boolean;
+      siteUrl: string;
+      username: string;
+      displayName: string;
+      seoPlugin: string;
+      status: string;
+      lastSyncedAt: string;
+    }>(`/api/projects/${projectId}/automation/wordpress/connect`, body);
   },
   disconnectWordPress: async (projectId: string) => {
-    try {
-      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/wordpress/disconnect`, {});
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        window.localStorage.removeItem(`growthx.wp.${projectId}`);
-        return { disconnected: true };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/wordpress/disconnect`, {});
   },
   stageWordPressFix: async (
     projectId: string,
@@ -1851,114 +1728,53 @@ export const api = {
       publishMode?: 'draft' | 'publish';
     },
   ) => {
-    try {
-      return await post<{
-        success: boolean;
-        runId: string;
-        wpPostId: number;
-        wpAdminEditUrl: string;
-        publishMode: string;
-        status: string;
-      }>(`/api/projects/${projectId}/automation/wordpress/apply`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.wp.${projectId}`);
-        const parsed = cached ? JSON.parse(cached) : null;
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "apply-wordpress",
-            vaultToken: parsed?.vaultToken,
-            ...body,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply WordPress fix.");
-        recordLocalCmsProof(projectId, {
-          runId: data.runId,
-          title: body.findingTitle || `WordPress ${body.field} update`,
-          url: body.targetUrl,
-          file: "wordpress-rest-api",
-          field: body.field,
-          beforeValue: body.beforeValue ?? null,
-          afterValue: body.afterValue,
-          verificationStatus: data.publishMode === "publish" ? "VERIFIED" : "PENDING_DEPLOYMENT",
-          adminUrl: data.wpAdminEditUrl,
-          actor: "WORDPRESS_REST_API",
-        });
-        return data;
-      }
-      throw err;
-    }
+    return post<{
+      success: boolean;
+      runId: string;
+      wpPostId: number;
+      wpAdminEditUrl: string;
+      publishMode: string;
+      status: string;
+      liveModified?: boolean;
+    }>(`/api/projects/${projectId}/automation/wordpress/apply`, body);
+  },
+  publishStagedWordPressFix: async (projectId: string, runId: string) => {
+    return post<{
+      success: boolean;
+      runId: string;
+      wpPostId: number;
+      wpAdminEditUrl: string;
+      publishMode: string;
+      status: string;
+      liveModified: boolean;
+    }>(`/api/projects/${projectId}/automation/wordpress/runs/${runId}/publish`, {});
   },
   getShopifyConnection: async (projectId: string) => {
-    try {
-      return await get<{
-        connected: boolean;
-        shopDomain: string | null;
-        shopName: string | null;
-        status: string;
-        lastSyncedAt: string | null;
-      }>(`/api/projects/${projectId}/automation/shopify`);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.shopify.${projectId}`);
-        if (cached) {
-          try {
-            return JSON.parse(cached);
-          } catch {
-            // ignore
-          }
-        }
-        return {
-          connected: false,
-          shopDomain: null,
-          shopName: null,
-          status: "DISCONNECTED",
-          lastSyncedAt: null,
-        };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return get<{
+      connected: boolean;
+      shopDomain: string | null;
+      shopName: string | null;
+      status: string;
+      lastSyncedAt: string | null;
+    }>(`/api/projects/${projectId}/automation/shopify`);
   },
   connectShopify: async (
     projectId: string,
     body: { shopDomain: string; accessToken: string },
   ) => {
-    try {
-      return await post<{
-        connected: boolean;
-        shopDomain: string;
-        shopName: string;
-        status: string;
-        lastSyncedAt: string;
-      }>(`/api/projects/${projectId}/automation/shopify/connect`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "connect-shopify", ...body }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect Shopify.");
-        window.localStorage.setItem(`growthx.shopify.${projectId}`, JSON.stringify(data));
-        return data;
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{
+      connected: boolean;
+      shopDomain: string;
+      shopName: string;
+      status: string;
+      lastSyncedAt: string;
+    }>(`/api/projects/${projectId}/automation/shopify/connect`, body);
   },
   disconnectShopify: async (projectId: string) => {
-    try {
-      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/shopify/disconnect`, {});
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        window.localStorage.removeItem(`growthx.shopify.${projectId}`);
-        return { disconnected: true };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/shopify/disconnect`, {});
   },
   stageShopifyFix: async (
     projectId: string,
@@ -1971,116 +1787,42 @@ export const api = {
       findingTitle?: string;
     },
   ) => {
-    try {
-      return await post<{
-        success: boolean;
-        runId: string;
-        shopifyResourceId: number;
-        adminEditUrl: string;
-        status: string;
-      }>(`/api/projects/${projectId}/automation/shopify/apply`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.shopify.${projectId}`);
-        const parsed = cached ? JSON.parse(cached) : null;
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "apply-shopify",
-            vaultToken: parsed?.vaultToken,
-            ...body,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply Shopify fix.");
-        recordLocalCmsProof(projectId, {
-          runId: data.runId,
-          title: body.findingTitle || `Shopify ${body.field} update`,
-          url: body.targetUrl,
-          file: "shopify-admin-api",
-          field: body.field,
-          beforeValue: body.beforeValue ?? null,
-          afterValue: body.afterValue,
-          verificationStatus: "VERIFIED",
-          adminUrl: data.adminEditUrl,
-          actor: "SHOPIFY_ADMIN_API",
-        });
-        return data;
-      }
-      throw err;
-    }
+    return post<{
+      success: boolean;
+      runId: string;
+      shopifyResourceId: number;
+      adminEditUrl: string;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/shopify/apply`, body);
   },
   getWebflowConnection: async (projectId: string) => {
-    try {
-      return await get<{
-        connected: boolean;
-        siteId: string | null;
-        siteName: string | null;
-        siteUrl: string | null;
-        status: string;
-        lastSyncedAt: string | null;
-      }>(`/api/projects/${projectId}/automation/webflow`);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.webflow.${projectId}`);
-        if (cached) {
-          try {
-            return JSON.parse(cached);
-          } catch {
-            // ignore
-          }
-        }
-        return {
-          connected: false,
-          siteId: null,
-          siteName: null,
-          siteUrl: null,
-          status: "DISCONNECTED",
-          lastSyncedAt: null,
-        };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return get<{
+      connected: boolean;
+      siteId: string | null;
+      siteName: string | null;
+      siteUrl: string | null;
+      status: string;
+      lastSyncedAt: string | null;
+    }>(`/api/projects/${projectId}/automation/webflow`);
   },
   connectWebflow: async (
     projectId: string,
     body: { siteId: string; apiToken: string; siteUrl?: string },
   ) => {
-    try {
-      return await post<{
-        connected: boolean;
-        siteId: string;
-        siteName: string;
-        siteUrl: string;
-        status: string;
-        lastSyncedAt: string;
-      }>(`/api/projects/${projectId}/automation/webflow/connect`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "connect-webflow", ...body }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not connect Webflow.");
-        window.localStorage.setItem(`growthx.webflow.${projectId}`, JSON.stringify(data));
-        return data;
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{
+      connected: boolean;
+      siteId: string;
+      siteName: string;
+      siteUrl: string;
+      status: string;
+      lastSyncedAt: string;
+    }>(`/api/projects/${projectId}/automation/webflow/connect`, body);
   },
   disconnectWebflow: async (projectId: string) => {
-    try {
-      return await post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/webflow/disconnect`, {});
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        window.localStorage.removeItem(`growthx.webflow.${projectId}`);
-        return { disconnected: true };
-      }
-      throw err;
-    }
+    clearLegacyCmsBrowserRecords();
+    return post<{ disconnected: boolean }>(`/api/projects/${projectId}/automation/webflow/disconnect`, {});
   },
   stageWebflowFix: async (
     projectId: string,
@@ -2093,45 +1835,13 @@ export const api = {
       findingTitle?: string;
     },
   ) => {
-    try {
-      return await post<{
-        success: boolean;
-        runId: string;
-        webflowPageId: string;
-        adminEditUrl: string;
-        status: string;
-      }>(`/api/projects/${projectId}/automation/webflow/apply`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && typeof window !== "undefined") {
-        const cached = window.localStorage.getItem(`growthx.webflow.${projectId}`);
-        const parsed = cached ? JSON.parse(cached) : null;
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "apply-webflow",
-            vaultToken: parsed?.vaultToken,
-            ...body,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not apply Webflow fix.");
-        recordLocalCmsProof(projectId, {
-          runId: data.runId,
-          title: body.findingTitle || `Webflow ${body.field} update`,
-          url: body.targetUrl,
-          file: "webflow-api-v2",
-          field: body.field,
-          beforeValue: body.beforeValue ?? null,
-          afterValue: body.afterValue,
-          verificationStatus: "PENDING_DEPLOYMENT",
-          adminUrl: data.adminEditUrl,
-          actor: "WEBFLOW_API",
-        });
-        return data;
-      }
-      throw err;
-    }
+    return post<{
+      success: boolean;
+      runId: string;
+      webflowPageId: string;
+      adminEditUrl: string;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/webflow/apply`, body);
   },
   verifyManualCmsFix: async (
     projectId: string,
@@ -2145,39 +1855,13 @@ export const api = {
       platform?: string;
     },
   ) => {
-    try {
-      return await post<{
-        verified: boolean;
-        runId: string;
-        targetUrl: string;
-        detectedLiveValue: string;
-        message: string;
-      }>(`/api/projects/${projectId}/automation/cms/verify-manual`, body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        const res = await fetch("/api/cms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify-manual", ...body }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new ApiError(res.status, data?.message || "Could not verify live HTML.");
-        recordLocalCmsProof(projectId, {
-          runId: data.runId,
-          title: body.findingTitle || `${body.platform || "CMS"} ${body.field} update`,
-          url: body.targetUrl,
-          file: `cms-${(body.platform || "manual").toLowerCase()}`,
-          field: body.field,
-          beforeValue: body.beforeValue ?? null,
-          afterValue: data.detectedLiveValue || body.expectedAfterValue,
-          verificationStatus: data.verified ? "VERIFIED" : "PENDING_DEPLOYMENT",
-          adminUrl: body.targetUrl,
-          actor: body.platform || "MANUAL_CMS",
-        });
-        return data;
-      }
-      throw err;
-    }
+    return post<{
+      verified: boolean;
+      runId: string;
+      targetUrl: string;
+      detectedLiveValue: string;
+      message: string;
+    }>(`/api/projects/${projectId}/automation/cms/verify-manual`, body);
   },
 
   // ── Admin
