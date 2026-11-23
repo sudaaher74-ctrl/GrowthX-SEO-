@@ -691,4 +691,38 @@ describe('EngineerAgentService', () => {
     expect(run.filesChanged).toEqual(['public/robots.txt']);
     expect(git.createPullRequest).toHaveBeenCalledTimes(1);
   });
+
+  it('challenges finish when a new comparison page is not yet wired into an existing file so the agent wires it and opens a PR', async () => {
+    const realValidation = new ValidationService();
+    const svc = new EngineerAgentService(
+      prisma,
+      router,
+      git,
+      { analyzeRepository: jest.fn().mockResolvedValue({ framework: 'React', packageManager: 'npm' }) } as any,
+      realValidation,
+      { decryptCredentials: jest.fn().mockReturnValue('ghp_realtoken123') } as any,
+    );
+
+    await fs.writeFile(
+      path.join(dir, 'app/App.jsx'),
+      "export default function App() {\n  return <main><h1>Acme Home</h1></main>;\n}\n",
+    );
+
+    replies.push(
+      act({ tool: 'create', path: 'app/ComparisonPage.jsx', content: 'export default function ComparisonPage() {\n  return <section><h2>Acme vs Rival</h2></section>;\n}\n' }),
+      // Model tries to finish without wiring ComparisonPage.jsx into any existing file
+      act({ tool: 'finish', summary: 'Created ComparisonPage.jsx.' }),
+      // Integration gate rejects finish and directs model to connect it -> reads App.jsx and imports/renders it!
+      act({ tool: 'read', path: 'app/App.jsx', start: 1, end: 10 }),
+      act({ tool: 'replace_lines', path: 'app/App.jsx', start: 1, end: 2, new: "import ComparisonPage from './ComparisonPage';\nexport default function App() {\n  return <main><h1>Acme Home</h1><ComparisonPage /></main>;" }),
+      act({ tool: 'finish', summary: 'Created ComparisonPage.jsx and wired it into App.jsx.' }),
+    );
+
+    const run = await svc.run('proj_1', 'org_1', 'Add comparison page for AI models cite Rival instead of your business');
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(run.filesChanged).toEqual(expect.arrayContaining(['app/ComparisonPage.jsx', 'app/App.jsx']));
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    const integrationPrompt = router.generate.mock.calls[2][0].prompt;
+    expect(integrationPrompt).toContain('without editing any existing website file');
+  });
 });

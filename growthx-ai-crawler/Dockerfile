@@ -37,6 +37,11 @@ ENV PORT=3000
 
 # Copy production dependencies instead of all dependencies
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+
+# Install Playwright chromium browser BEFORE copying app dist so source-only edits reuse this cached 115MB layer
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright install chromium && chown -R node:node /ms-playwright
+
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/package*.json ./
 COPY --from=builder --chown=node:node /app/prisma ./prisma
@@ -66,11 +71,6 @@ RUN chmod +x ./docker-entrypoint.sh
 # Creating it here with the right owner is what makes the runtime mkdir a no-op
 # rather than a permission error.
 RUN mkdir -p /app/storage/snapshots && chown -R node:node /app/storage
-
-# Install Playwright chromium browser for dynamic SPA rendering
-# Setting PLAYWRIGHT_BROWSERS_PATH guarantees they are cached securely
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx playwright install chromium && chown -R node:node /ms-playwright
 
 USER node
 EXPOSE 3000

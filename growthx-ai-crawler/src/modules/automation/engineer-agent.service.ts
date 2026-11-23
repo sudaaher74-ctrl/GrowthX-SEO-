@@ -270,6 +270,11 @@ export function parseAction(text: string): Action | null {
   return null;
 }
 
+const PUBLIC_SEO_ASSET_RE =
+  /(^|\/)(public\/)?(robots\.txt|sitemap[^/]*\.xml|llms\.txt)$/i;
+const isStandalonePublicSeoAsset = (file: string) =>
+  PUBLIC_SEO_ASSET_RE.test(file) || /(^|\/)\.well-known\//i.test(file);
+
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 /** Require complete, usable tool arguments; never repair a truncated code edit. */
@@ -563,12 +568,7 @@ export class EngineerAgentService {
       const hasExistingCodeEdit = steps.some(
         (step) => (step.step === 'edit' || step.step === 'replace_lines' || step.step === 'metadata') && step.ok,
       );
-      const isPublicSeoAssetOnly =
-        changed.length > 0 &&
-        changed.every((file) =>
-          /(^|\/)(public\/)?(robots\.txt|sitemap[^/]*\.xml|llms\.txt)$/i.test(file) ||
-          /(^|\/)\.well-known\//i.test(file),
-        );
+      const isPublicSeoAssetOnly = changed.length > 0 && changed.every(isStandalonePublicSeoAsset);
       if (!hasExistingCodeEdit && !isPublicSeoAssetOnly) {
         throw new Error('No existing website code was updated. New files alone do not demonstrate an integrated fix; nothing was pushed.');
       }
@@ -787,7 +787,34 @@ export class EngineerAgentService {
             continue;
           }
         }
-        if (box.changed.size > 0 && typeof this.validation.validateContentSyntax === 'function') {
+        if (box.changed.size > 0) {
+          const hasExistingEdit = steps.some(
+            (step) => (step.step === 'edit' || step.step === 'replace_lines' || step.step === 'metadata') && step.ok,
+          );
+          const createdFiles = [...box.changed];
+          const onlyStandaloneSeoAssets = createdFiles.every(isStandalonePublicSeoAsset);
+          if (!hasExistingEdit && !onlyStandaloneSeoAssets) {
+            const wireMsg = `Cannot finish yet — you created new file(s) (${createdFiles.join(', ')}) without editing any existing website file. A new component/page is unreachable until it is wired into an existing file! Use "read" on an existing router, layout, or public page from the Repository Map (for example App.jsx, Home.jsx, or SEOHead.jsx), connect/import/route your new file (or apply the improvement directly to an existing public page), then call "finish" again.`;
+            history.push({ call: 'integration check', result: wireMsg });
+            steps.push(this.step('integration_check', clip(wireMsg, 300), false));
+            if (++rejectedFinishes >= 2) {
+              throw new Error('No existing website code was updated. New files alone do not demonstrate an integrated fix; nothing was pushed.');
+            }
+            continue;
+          }
+        }
+        if (box.changed.size > 0 && typeof this.validation.validateFilesSyntax === 'function') {
+          const syntaxCheck = await this.validation.validateFilesSyntax(box.root, [...box.changed]);
+          if (!syntaxCheck.success) {
+            const msg = `Cannot finish yet — validation failed on modified files: ${syntaxCheck.output}\nRead the failing lines, fix the error cleanly, then call finish again.`;
+            history.push({ call: 'pre-finish syntax check', result: msg });
+            steps.push(this.step('validate_check', clip(syntaxCheck.output, 1500), false));
+            if (++rejectedFinishes >= 3) {
+              throw new Error(`The change failed validation before finish, so nothing was pushed. ${clip(syntaxCheck.output, 400)}`);
+            }
+            continue;
+          }
+        } else if (box.changed.size > 0 && typeof this.validation.validateContentSyntax === 'function') {
           const syntaxErrors: string[] = [];
           for (const relPath of box.changed) {
             try {
@@ -893,6 +920,10 @@ export class EngineerAgentService {
           failedEditsByFile.delete(actionPath);
           syntaxFailuresByFile.delete(actionPath);
           result += ` Syntax verified. Read the relevant section of ${actionPath} again before making another edit to this file — or call "finish" now if the fix is complete.`;
+        } else if (action.tool === 'create') {
+          result += isStandalonePublicSeoAsset(actionPath)
+            ? ` Syntax verified. Public SEO asset created — call "finish" now if the fix is complete.`
+            : ` Syntax verified. Do NOT call "create" on ${actionPath} again. Now connect it to an existing website file (such as a router, App.jsx, or public page from the Repository Map) using "read" + "edit"/"replace_lines" before calling "finish".`;
         }
         consecutiveFailures = 0;
       } catch (error: any) {
