@@ -87,13 +87,15 @@ You work by choosing ONE tool per turn and replying with JSON only. Tools:
 - {"tool":"read","path":"src/app/page.tsx","start":1,"end":120}   read a file with line numbers
 - {"tool":"search","pattern":"About us","path":"src"}   find text (plain text, not a pattern) in files
 - {"tool":"edit","path":"...","old":"exact existing text","new":"replacement"}   replace text that appears exactly once
-- {"tool":"replace_lines","path":"...","start":25,"end":27,"new":"replacement source"}   replace an inclusive range from your latest successful read; the tool rejects a changed file
+- {"tool":"replace_lines","path":"...","start":25,"end":27,"new":"replacement source"}   replace EVERY line from start through end inclusive from your latest successful read; the tool rejects a changed file
 - {"tool":"create","path":"...","content":"..."}       create a NEW file (never overwrites)
 - {"tool":"metadata","path":"src/pages/Policy.jsx","pattern":"/policy","new":"Refund Policy | Brand"} connect a document title in an existing React page with an existing HelmetProvider; pattern is the exact static route pathname (read the page and router first)
 - {"tool":"finish","summary":"what you changed and why, for the person reviewing it"}
 
 Rules:
 - Look before you change: find the right file, read it (in 60-100 line ranges), then edit. Prefer replace_lines for JSX/TSX and multi-line changes: copy only the replacement source, without line-number labels. Keep start/end inside the latest read range. The server verifies that the file is unchanged since that read.
+- CRITICAL FOR replace_lines: replace_lines DELETES EVERY line from start through end inclusive and replaces all of them with "new". NEVER pass a wide block (such as an entire return (...) or component body) unless "new" reproduces EVERY line you want to keep. To INSERT code (e.g. a JSON-LD <script> or a prop), choose a narrow 1-3 line anchor range and repeat those anchor lines plus your added lines in "new".
+- Before referencing any symbol, schema, or helper in JSX/JS/TS, confirm it is already imported at the top of that file (or add the import statement cleanly). Every edit must leave the file syntactically valid.
 - Always provide valid read ranges with both start and end specified (for example, start: 1, end: 80, or start: 260, end: 320). Never use start > end. Never omit "end" on large files.
 - To locate where to insert or update metadata or tags in large components, use {"tool":"search","pattern":"return (","path":"..."} first to get the exact line number of the JSX return, then read 60 lines around that line before editing.
 - If an edit fails because text was not found, read the exact target section again, then use replace_lines on the intended source lines instead of copying the old snippet again. Never retry without a fresh read.
@@ -165,6 +167,20 @@ function stripNullFields(obj: Record<string, unknown>): Action {
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value !== null) cleaned[key] = value;
+  }
+  for (const numKey of ['start', 'end'] as const) {
+    const raw = cleaned[numKey];
+    if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+      cleaned[numKey] = Number.parseInt(raw.trim(), 10);
+    }
+  }
+  if (
+    (cleaned.tool === 'replace_lines' || cleaned.tool === 'edit') &&
+    (cleaned.new === undefined || cleaned.new === '') &&
+    typeof cleaned.content === 'string' &&
+    cleaned.content.length > 0
+  ) {
+    cleaned.new = cleaned.content;
   }
   return cleaned as Action;
 }
@@ -403,7 +419,7 @@ export class EngineerAgentService {
       );
     } else if (isAiOrCompetitorFinding) {
       lines.push(
-        `\nGuidance: Focus ONLY on the primary public landing, home, or about/service pages (never cart, checkout, login, or account screens). Inspect the main public page or index.html and add grounded Organization/LocalBusiness/FAQPage JSON-LD structured data, clear factual offering summary, or comparison/FAQ copy using only real business details already present in the repository. Finish cleanly once 1-2 primary public files are updated so a pull request can be opened.`,
+        `\nGuidance: Focus ONLY on primary public landing, home, about/service pages, or shared SEO head/layout components (.jsx/.tsx/.js/.ts — never cart, checkout, login, account screens, or raw .html files in JS/React apps). Add grounded Organization/LocalBusiness/FAQPage JSON-LD structured data, clear factual offering summary, or comparison/FAQ copy using only real business details already present in the repository. When using replace_lines, replace ONLY 1-4 anchor lines (repeating those lines plus your addition) so surrounding JSX/braces stay intact. Finish cleanly once 1-2 primary public files are updated so a pull request can be opened.`,
       );
     } else {
       lines.push(
@@ -552,6 +568,7 @@ export class EngineerAgentService {
     const readAfterFailure = new Set<string>();
     const failedEditSignatures = new Set<string>();
     const failedEditsByFile = new Map<string, number>();
+    const syntaxFailuresByFile = new Map<string, number>();
     let editIndex = 0;
     let rejectedFinishes = 0;
     let consecutiveFailures = 0;
@@ -599,6 +616,16 @@ export class EngineerAgentService {
         turnNotice,
       ].filter(Boolean).join('\n\n');
 
+      const validateActionResponse = (text: string): boolean => {
+        if (isUsableAction(text)) return true;
+        const parsed = parseAction(text);
+        const keys = parsed ? Object.keys(parsed).join(',') : 'unparseable';
+        this.logger.warn(
+          `Rejected model action on turn ${turn}: tool=${parsed?.tool ?? 'none'} keys=[${keys}] chars=${text?.length ?? 0}`,
+        );
+        return false;
+      };
+
       const completion = await this.router.generate({
         prompt,
         systemInstruction: SYSTEM_PROMPT,
@@ -606,8 +633,8 @@ export class EngineerAgentService {
         organizationId,
         projectId,
         jsonSchema: ACTION_SCHEMA as unknown as Record<string, unknown>,
-        validateResponse: isUsableAction,
-        maxTokens: 8000,
+        validateResponse: validateActionResponse,
+        maxTokens: 2500,
         timeoutMs: 45000,
       });
 
@@ -631,6 +658,27 @@ export class EngineerAgentService {
           if (++rejectedFinishes >= 3) throw new Error('Metadata integration checks failed. No pull request was pushed.');
           continue;
         }
+        if (box.changed.size > 0 && typeof this.validation.validateContentSyntax === 'function') {
+          const syntaxErrors: string[] = [];
+          for (const relPath of box.changed) {
+            try {
+              const content = await box.source(relPath);
+              const check = await this.validation.validateContentSyntax(relPath, content);
+              if (!check.success) syntaxErrors.push(`${relPath}: ${check.output}`);
+            } catch {
+              // Final validationRepository will check unreadable files.
+            }
+          }
+          if (syntaxErrors.length) {
+            const msg = `Cannot finish yet — syntax errors in modified files:\n${syntaxErrors.join('\n')}\nRead the failing lines, fix the syntax error cleanly, then call finish again.`;
+            history.push({ call: 'pre-finish syntax check', result: msg });
+            steps.push(this.step('validate_check', clip(syntaxErrors.join('; '), 1500), false));
+            if (++rejectedFinishes >= 3) {
+              throw new Error(`The change failed syntax validation before finish, so nothing was pushed. ${clip(syntaxErrors.join('; '), 400)}`);
+            }
+            continue;
+          }
+        }
         const summary = clip(String(action.summary ?? '').trim() || 'No summary was given.', 2000);
         steps.push(this.step('finish', clip(summary, 200), true));
         return { summary };
@@ -638,8 +686,10 @@ export class EngineerAgentService {
 
       let result: string;
       let ok = true;
+      let syntaxReverted = false;
       const actionPath = (action.path ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
       const isEdit = action.tool === 'edit' || action.tool === 'replace_lines';
+      const isWriteTool = isEdit || action.tool === 'create' || action.tool === 'metadata';
       try {
         if ((isEdit || action.tool === 'metadata') && !readPaths.has(actionPath)) {
           throw new SandboxError(`Read ${actionPath} before editing it. A fresh read is required to inspect the exact lines.`);
@@ -664,7 +714,42 @@ export class EngineerAgentService {
         if ((action.tool === 'create' || isEdit) && (/\bSEO_FIX_[A-Z0-9_]+\b/.test(action.content ?? action.new ?? '') || /(^|\/)seo-fix-[^/]+\.[jt]sx?$/.test(actionPath))) {
           throw new SandboxError('Audit-message placeholder files are not a website fix. Edit the actual page or connected component.');
         }
+
+        const preWriteSnap =
+          isWriteTool && actionPath && typeof this.validation.validateContentSyntax === 'function'
+            ? await box.snapshot(actionPath).catch(() => null)
+            : null;
+
         result = await this.runTool(box, action);
+
+        if (isWriteTool && actionPath && typeof this.validation.validateContentSyntax === 'function') {
+          const nextContent = await box.source(actionPath).catch(() => null);
+          if (nextContent !== null) {
+            const nextSyntax = await this.validation.validateContentSyntax(actionPath, nextContent);
+            if (!nextSyntax.success) {
+              const prevWasValid =
+                !preWriteSnap?.existed ||
+                preWriteSnap.content === null ||
+                (await this.validation.validateContentSyntax(actionPath, preWriteSnap.content)).success;
+              if (prevWasValid && preWriteSnap) {
+                await box.restore(preWriteSnap);
+                syntaxReverted = true;
+                let rangeAdvice = '';
+                if (action.tool === 'replace_lines' && Number.isInteger(action.start) && Number.isInteger(action.end)) {
+                  const replacedCount = action.end! - action.start! + 1;
+                  const newCount = (action.new ?? '') === '' ? 0 : (action.new ?? '').split(/\r?\n/).length;
+                  if (replacedCount >= 8 && newCount * 2 < replacedCount) {
+                    rangeAdvice = ` You replaced ${replacedCount} lines (${action.start}-${action.end}) with only ${newCount} lines, deleting surrounding JSX/braces. Remember replace_lines deletes EVERY line from start through end inclusive — replace ONLY a narrow 1-4 line anchor range and preserve all surrounding tags and braces.`;
+                  }
+                }
+                throw new SandboxError(
+                  `Edit reverted (${actionPath} left unchanged) because it introduced a syntax error: ${nextSyntax.output}.${rangeAdvice}`,
+                );
+              }
+            }
+          }
+        }
+
         if (action.tool === 'read') {
           readPaths.add(actionPath);
           if (failedEditsByFile.has(actionPath)) readAfterFailure.add(actionPath);
@@ -673,14 +758,24 @@ export class EngineerAgentService {
           readPaths.delete(actionPath);
           readAfterFailure.delete(actionPath);
           failedEditsByFile.delete(actionPath);
-          result += ` Read the relevant section of ${actionPath} again before making another edit to this file — or call "finish" now if the fix is complete.`;
+          syntaxFailuresByFile.delete(actionPath);
+          result += ` Syntax verified. Read the relevant section of ${actionPath} again before making another edit to this file — or call "finish" now if the fix is complete.`;
         }
         consecutiveFailures = 0;
       } catch (error: any) {
         if (!(error instanceof SandboxError) && !['ENOENT', 'EISDIR', 'ENOTDIR'].includes(error?.code)) throw error;
         ok = false;
         result = `Error: ${error instanceof SandboxError ? error.message : `${action.path ?? ''} could not be used.`}`;
-        if (isEdit) {
+        if (syntaxReverted) {
+          const syntaxCount = (syntaxFailuresByFile.get(actionPath) ?? 0) + 1;
+          syntaxFailuresByFile.set(actionPath, syntaxCount);
+          if (syntaxCount >= 3) {
+            result += ` (Stop: ${syntaxCount} syntax-breaking edits in ${actionPath} were reverted. Call finish now and explain the limitation.)`;
+            recoveryLimitReached = true;
+          } else {
+            result += ` Your previous read of ${actionPath} is still intact; submit a narrower, syntactically valid edit now.`;
+          }
+        } else if (isEdit) {
           // Require a fresh read after failed edits
           readPaths.delete(actionPath);
           readAfterFailure.delete(actionPath);
@@ -693,11 +788,11 @@ export class EngineerAgentService {
           if (fileFailures >= 2) {
             result += ` (Stop: ${fileFailures} edits in ${actionPath} failed. Call finish now and explain the limitation; do not continue searching or retrying.)`;
           }
+          recoveryLimitReached = fileFailures >= 2;
         } else if (action.tool === 'metadata') {
           result += ` If the metadata tool cannot patch ${actionPath}, read the router to verify the static route or use the "edit" tool on ${actionPath} directly.`;
         }
         consecutiveFailures += 1;
-        recoveryLimitReached = isEdit && (failedEditsByFile.get(actionPath) ?? 0) >= 2;
         if (consecutiveFailures >= 5) {
           result += ` (Stop: 5 consecutive actions failed. Call finish now with a summary explaining what blocked the change.)`;
         }
@@ -733,8 +828,15 @@ export class EngineerAgentService {
       // Progress the page can show while the run is still going.
       await this.prisma.automationRun.update({ where: { id: runId }, data: { steps: steps as any } }).catch(() => undefined);
       if (recoveryLimitReached) {
-        steps.push(this.step('stopped', `recovery limit reached after two failed edits in ${actionPath}`, false));
-        return { summary: `Stopped after two failed edits to ${actionPath}; no pull request was created.` };
+        const reason = syntaxReverted
+          ? `recovery limit reached after three syntax-breaking edits in ${actionPath}`
+          : `recovery limit reached after two failed edits in ${actionPath}`;
+        steps.push(this.step('stopped', reason, false));
+        return {
+          summary: syntaxReverted
+            ? `Stopped after three syntax-breaking edits to ${actionPath}; no pull request was created.`
+            : `Stopped after two failed edits to ${actionPath}; no pull request was created.`,
+        };
       }
     }
 

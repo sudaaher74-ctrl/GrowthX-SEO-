@@ -154,11 +154,60 @@ export class ValidationService {
   }
 
   /**
+   * Validates the concrete syntax of a single file's content in memory (AST parse / JSON parse).
+   * Non-JS/TS/JSON files (e.g. markdown, css) return success so incremental edit checks do not block them.
+   */
+  async validateContentSyntax(relativePath: string, content: string): Promise<ValidationResult> {
+    const ext = path.extname(relativePath).toLowerCase();
+    if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+      const ts = await import('typescript');
+      const isJsx = ext === '.tsx' || ext === '.jsx';
+      const compilerOptions: ts.CompilerOptions = {
+        target: ts.ScriptTarget.Latest,
+      };
+      if (isJsx) {
+        compilerOptions.jsx = ts.JsxEmit.ReactJSX;
+      }
+      const result = ts.transpileModule(content, {
+        compilerOptions,
+        reportDiagnostics: true,
+        fileName: relativePath,
+      });
+      const diagnostics = result.diagnostics || [];
+      if (diagnostics.length > 0) {
+        const errors = diagnostics.map((d: ts.Diagnostic) => {
+          const pos = d.file && d.start != null ? d.file.getLineAndCharacterOfPosition(d.start) : { line: 0, character: 0 };
+          const message = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+          return `${path.basename(relativePath)} (${pos.line + 1}:${pos.character + 1}): ${message}`;
+        });
+        return {
+          success: false,
+          output: `Syntax error in generated fix: ${errors.join('; ')}`,
+        };
+      }
+      return { success: true, output: `Syntax valid for ${path.basename(relativePath)}` };
+    }
+
+    if (ext === '.json') {
+      try {
+        JSON.parse(content);
+      } catch (e: any) {
+        return {
+          success: false,
+          output: `Invalid JSON in ${path.basename(relativePath)}: ${e.message}`,
+        };
+      }
+      return { success: true, output: `Valid JSON in ${path.basename(relativePath)}` };
+    }
+
+    return { success: true, output: `Syntax check skipped for ${path.basename(relativePath)}` };
+  }
+
+  /**
    * Validates the concrete syntax of modified files (AST parse diagnostics).
    * Catches unclosed JSX tags, malformed expressions, and invalid JSON immediately.
    */
-  private async validateFilesSyntax(repoDir: string, files: string[]): Promise<ValidationResult> {
-    const ts = await import('typescript');
+  async validateFilesSyntax(repoDir: string, files: string[]): Promise<ValidationResult> {
     let checked = 0;
     const skipped: string[] = [];
     for (const relativePath of files) {
@@ -181,46 +230,10 @@ export class ValidationService {
       }
       checked++;
 
-      // TypeScript / JavaScript / JSX / TSX
-      if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
-        const isJsx = ext === '.tsx' || ext === '.jsx';
-        const compilerOptions: ts.CompilerOptions = {
-          target: ts.ScriptTarget.Latest,
-        };
-        if (isJsx) {
-          compilerOptions.jsx = ts.JsxEmit.ReactJSX;
-        }
-        const result = ts.transpileModule(content, {
-          compilerOptions,
-          reportDiagnostics: true,
-          fileName: relativePath,
-        });
-        const diagnostics = result.diagnostics || [];
-        if (diagnostics.length > 0) {
-          const errors = diagnostics.map((d: ts.Diagnostic) => {
-            const pos = d.file && d.start != null ? d.file.getLineAndCharacterOfPosition(d.start) : { line: 0, character: 0 };
-            const message = ts.flattenDiagnosticMessageText(d.messageText, '\n');
-            return `${path.basename(relativePath)} (${pos.line + 1}:${pos.character + 1}): ${message}`;
-          });
-          return {
-            success: false,
-            output: `Syntax error in generated fix: ${errors.join('; ')}`,
-          };
-        }
+      const fileResult = await this.validateContentSyntax(relativePath, content);
+      if (!fileResult.success) {
+        return fileResult;
       }
-
-      // JSON files
-      if (ext === '.json') {
-        try {
-          JSON.parse(content);
-        } catch (e: any) {
-          return {
-            success: false,
-            output: `Invalid JSON in ${path.basename(relativePath)}: ${e.message}`,
-          };
-        }
-      }
-
     }
 
     if (!checked || skipped.length) {

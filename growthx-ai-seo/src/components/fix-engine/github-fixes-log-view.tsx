@@ -192,12 +192,12 @@ function buildDirectEditRetryInstruction(ctx: ReturnType<typeof resolveRunContex
     /\b(ai models cite|citation|ai visibility|schema|json-ld|faq|llms\.txt)\b/.test(hay);
 
   const targetRule = isAiOrCompetitor
-    ? `1. TARGET FILES: Edit ONLY primary public landing, home, or about/service pages (or index.html). NEVER edit cart, checkout, login, or account screens.${pagesHint}`
+    ? `1. TARGET FILES: Edit ONLY primary public landing, home, about/service pages, or shared SEO head/layout components (.jsx/.tsx/.js/.ts). NEVER edit cart, checkout, login, or account screens.${pagesHint}`
     : `1. TARGET FILES: Locate the routed page files matching the affected URLs (e.g. src/pages/ or src/app/**/page.tsx). Do not modify internal screen fragments or route registries.${pagesHint}`;
 
   const editRule = isAiOrCompetitor
-    ? `3. BOUNDED REPLACE: Use replace_lines with start and end STRICTLY inside your latest read range (start >= readStart and end <= readEnd). Add grounded Organization/LocalBusiness/FAQPage JSON-LD or factual offering/FAQ copy using only real details already in the repository.`
-    : `3. BOUNDED REPLACE: Use {"tool":"search","pattern":"return (","path":"..."} to locate JSX return if needed, read a 60-90 line range covering ALL lines you will change, then call replace_lines with start and end STRICTLY inside that read range (never exceed the read end line).`;
+    ? `3. NARROW BOUNDED REPLACE: replace_lines deletes EVERY line from start to end inclusive. To insert JSON-LD or factual copy, replace ONLY 1-4 anchor lines (repeating those anchor lines plus your addition) inside your latest read range so surrounding JSX/braces stay intact. Use only real business details already in the repository.`
+    : `3. NARROW BOUNDED REPLACE: Use {"tool":"search","pattern":"return (","path":"..."} to locate JSX return if needed, read a 60-90 line range covering ALL lines you will change, then call replace_lines on a narrow 1-6 line range strictly inside that read range while preserving surrounding JSX/braces.`;
 
   const guidance = `
 RETRY EXECUTION GUIDANCE:

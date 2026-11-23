@@ -65,6 +65,69 @@ export class RepoSandbox {
     return content;
   }
 
+  /** Captures a pre-edit snapshot so a syntax-breaking write can be rolled back atomically. */
+  async snapshot(rel: string): Promise<{
+    path: string;
+    existed: boolean;
+    content: string | null;
+    wasChanged: boolean;
+    hadOriginal: boolean;
+    previousOriginal: string | null | undefined;
+    lastRead: { text: string; start: number; end: number } | undefined;
+    lastRangeEdit: { before: string; after: string } | undefined;
+  }> {
+    const p = this.clean(rel);
+    let existed = false;
+    let content: string | null = null;
+    try {
+      content = await this.source(p);
+      existed = true;
+    } catch {
+      existed = false;
+      content = null;
+    }
+    return {
+      path: p,
+      existed,
+      content,
+      wasChanged: this.changed.has(p),
+      hadOriginal: this.originals.has(p),
+      previousOriginal: this.originals.get(p),
+      lastRead: this.lastReads.get(p),
+      lastRangeEdit: this.lastRangeEdits.get(p),
+    };
+  }
+
+  /** Restores a file and sandbox tracking state after a rejected syntax-breaking edit. */
+  async restore(snap: {
+    path: string;
+    existed: boolean;
+    content: string | null;
+    wasChanged: boolean;
+    hadOriginal: boolean;
+    previousOriginal: string | null | undefined;
+    lastRead: { text: string; start: number; end: number } | undefined;
+    lastRangeEdit: { before: string; after: string } | undefined;
+  }): Promise<void> {
+    const abs = await this.inside(snap.path, false);
+    if (snap.existed && snap.content !== null) {
+      await fs.writeFile(abs, snap.content, 'utf8');
+    } else {
+      await fs.rm(abs, { force: true }).catch(() => undefined);
+    }
+    if (snap.wasChanged) this.changed.add(snap.path);
+    else this.changed.delete(snap.path);
+
+    if (snap.hadOriginal) this.originals.set(snap.path, snap.previousOriginal ?? null);
+    else this.originals.delete(snap.path);
+
+    if (snap.lastRead) this.lastReads.set(snap.path, snap.lastRead);
+    else this.lastReads.delete(snap.path);
+
+    if (snap.lastRangeEdit) this.lastRangeEdits.set(snap.path, snap.lastRangeEdit);
+    else this.lastRangeEdits.delete(snap.path);
+  }
+
   async title(rel: string, value: string, pathname?: string): Promise<string> {
     const p = this.clean(rel);
     this.assertWritable(p);

@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { AutomationRunStatus } from '@prisma/client';
+import { ValidationService } from '../autonomous-engineer/agents/validation/validation.service';
 import { EngineerAgentService, isUsableAction, parseAction } from './engineer-agent.service';
 
 const REPO = { id: 'repo_1', projectId: 'proj_1', owner: 'acme', name: 'site', defaultBranch: 'main', framework: 'nextjs', accessTokenEncrypted: 'enc' };
@@ -48,6 +49,14 @@ describe('parseAction', () => {
       path: 'src/App.jsx',
     });
     expect(isUsableAction('{"tool":"replace_lines","path":"src/a.jsx","start":null,"end":3,"new":"x"}')).toBe(false);
+    expect(parseAction('{"tool":"replace_lines","path":"src/a.jsx","start":"2","end":"4","new":"","content":"const x = 1;"}')).toMatchObject({
+      tool: 'replace_lines',
+      path: 'src/a.jsx',
+      start: 2,
+      end: 4,
+      new: 'const x = 1;',
+    });
+    expect(isUsableAction('{"tool":"replace_lines","path":"src/a.jsx","start":"2","end":"4","content":"const x = 1;"}')).toBe(true);
   });
 });
 
@@ -513,5 +522,75 @@ describe('EngineerAgentService', () => {
     const firstPrompt = router.generate.mock.calls[0][0].prompt;
     expect(firstPrompt).not.toContain('Cart.jsx');
     expect(firstPrompt).toContain('primary public landing');
+  });
+
+  it('reverts a destructive syntax-breaking replace_lines edit atomically so the agent recovers cleanly and opens a PR', async () => {
+    const realValidation = new ValidationService();
+    const svcWithRealValidation = new EngineerAgentService(
+      prisma,
+      router,
+      git,
+      { analyzeRepository: jest.fn().mockResolvedValue({ packageManager: 'npm' }) } as any,
+      realValidation,
+      { decryptCredentials: jest.fn().mockReturnValue('ghp_realtoken123') } as any,
+    );
+
+    const seoHeadPath = path.join(dir, 'app/SEOHead.jsx');
+    await fs.writeFile(
+      seoHeadPath,
+      [
+        "import { Helmet } from 'react-helmet-async';",
+        'export default function SEOHead() {',
+        '  const org = { "@context": "https://schema.org", "@type": "Organization", name: "Acme" };',
+        '  return (',
+        '    <Helmet>',
+        '      <title>Acme Home</title>',
+        '      <meta name="description" content="Fresh goods" />',
+        '      <meta name="robots" content="index,follow" />',
+        '      <meta property="og:title" content="Acme Home" />',
+        '      <meta property="og:site_name" content="Acme" />',
+        '    </Helmet>',
+        '  );',
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    replies.push(
+      act({ tool: 'read', path: 'app/SEOHead.jsx', start: 1, end: 20 }),
+      // Model mistakenly replaces the entire return (<Helmet>...</Helmet>); block (lines 4-13) with 2 bare JSX lines
+      act({
+        tool: 'replace_lines',
+        path: 'app/SEOHead.jsx',
+        start: 4,
+        end: 13,
+        new: '      <script type="application/ld+json">{JSON.stringify(org)}</script>',
+      }),
+      // Because the broken edit was reverted cleanly and read state stayed intact, model immediately submits a narrow valid edit
+      act({
+        tool: 'replace_lines',
+        path: 'app/SEOHead.jsx',
+        start: 10,
+        end: 11,
+        new: '      <meta property="og:site_name" content="Acme" />\n      <script type="application/ld+json">{JSON.stringify(org)}</script>\n    </Helmet>',
+      }),
+      act({ tool: 'finish', summary: 'Added Organization JSON-LD inside SEOHead Helmet.' }),
+    );
+
+    let committed = '';
+    git.commitAndPush.mockImplementation(async () => {
+      committed = await fs.readFile(seoHeadPath, 'utf8');
+    });
+
+    const run = await svcWithRealValidation.run('proj_1', 'org_1', 'Add Organization JSON-LD to SEOHead.jsx');
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+    expect(committed).toContain('<Helmet>');
+    expect(committed).toContain('<script type="application/ld+json">{JSON.stringify(org)}</script>');
+    expect(committed).toContain('</Helmet>');
+    const recoveryPrompt = router.generate.mock.calls[2][0].prompt;
+    expect(recoveryPrompt).toContain('Edit reverted (app/SEOHead.jsx left unchanged) because it introduced a syntax error');
+    expect(recoveryPrompt).toContain('deleting surrounding JSX/braces');
   });
 });
