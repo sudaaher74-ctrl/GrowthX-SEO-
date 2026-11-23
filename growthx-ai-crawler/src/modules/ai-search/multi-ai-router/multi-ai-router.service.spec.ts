@@ -772,3 +772,30 @@ describe('Perplexity', () => {
     expect(out.text).toContain('- https://acme.in/ghee');
   });
 });
+
+describe('CODE_GEN dedicated coding models', () => {
+  it('routes CODE_GEN to gemini-2.5-flash on Gemini while keeping FAST on GEMINI_MODEL, with fallback on model error', async () => {
+    const { service } = build({
+      ANTHROPIC_API_KEY: '',
+      OPENAI_API_KEY: '',
+      GEMINI_API_KEY: 'gm-real',
+    });
+    const gemini = geminiStub('{"tool":"finish","summary":"done"}');
+    stubClients(service, { gemini });
+
+    const codeRes = await service.generate({ prompt: 'patch code', task: AiTask.CODE_GEN });
+    expect(codeRes.model).toBe('gemini-2.5-flash');
+    expect(gemini.generateContent).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-2.5-flash' }));
+
+    const fastRes = await service.generate({ prompt: 'classify', task: AiTask.FAST });
+    expect(fastRes.model).toBe('gemini-3.1-flash-lite');
+
+    // Fallback to GEMINI_MODEL if code model fails
+    gemini.generateContent
+      .mockRejectedValueOnce(new Error('model not found'))
+      .mockResolvedValueOnce({ text: 'fallback ok', usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 2 } });
+    const fallbackRes = await service.generate({ prompt: 'patch code', task: AiTask.CODE_GEN });
+    expect(fallbackRes.model).toBe('gemini-3.1-flash-lite');
+    expect(fallbackRes.text).toBe('fallback ok');
+  });
+});

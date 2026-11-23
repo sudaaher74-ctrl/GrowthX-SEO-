@@ -55,12 +55,14 @@ export class MultiAiRouterService {
 
   private readonly anthropicModel: string;
   private readonly geminiModel: string;
+  private readonly geminiCodeModel: string;
   private readonly openaiModel: string;
   private readonly perplexityModel: string;
   private readonly groqModel: string;
   private readonly groqTemperature: number;
   private readonly groqMaxTokens: number;
   private readonly openrouterModel: string;
+  private readonly openrouterCodeModel: string;
   private readonly openrouterTemperature: number;
   private readonly openrouterMaxTokens: number;
   private readonly sarvamModel: string;
@@ -107,12 +109,14 @@ export class MultiAiRouterService {
   ) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
+    this.geminiCodeModel = this.config.get<string>('GEMINI_CODE_MODEL') || 'gemini-2.5-flash';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
     this.perplexityModel = this.config.get<string>('PERPLEXITY_MODEL') || 'sonar';
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
     this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
+    this.openrouterCodeModel = this.config.get<string>('OPENROUTER_CODE_MODEL') || 'openai/gpt-4.1-mini';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
     this.mammouthModel = this.config.get<string>('MAMMOUTH_DEFAULT_MODEL') || 'mammouth-recommended';
@@ -546,11 +550,11 @@ export class MultiAiRouterService {
       case AiProvider.OPENAI:
         return this.callOpenAi(request, modelOverride);
       case AiProvider.GEMINI:
-        return this.callGemini(request, modelOverride);
+        return this.callGemini(request, modelOverride, task);
       case AiProvider.GROQ:
         return this.callGroq(request);
       case AiProvider.OPENROUTER:
-        return this.callOpenRouter(request, modelOverride);
+        return this.callOpenRouter(request, modelOverride, task);
       case AiProvider.PERPLEXITY:
         return this.callPerplexity(request, modelOverride);
     }
@@ -622,36 +626,50 @@ export class MultiAiRouterService {
 
   // ------------------------------------------------------------------- Gemini
 
-  private async callGemini(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
+  private async callGemini(request: AiRequest, modelOverride?: string, task?: AiTask): Promise<AiCompletion> {
     if (!this.gemini) throw new ServiceUnavailableException('GEMINI_API_KEY is not configured.');
 
-    const targetModel = modelOverride || request.model || this.geminiModel;
-    const response = await this.gemini.models.generateContent({
-      model: targetModel,
-      contents: request.prompt,
-      config: {
-        systemInstruction: request.systemInstruction,
-        temperature: 0.2,
-        ...(request.maxTokens ? { maxOutputTokens: request.maxTokens } : {}),
-        ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
-        ...(request.jsonSchema
-          ? { responseMimeType: 'application/json', responseSchema: request.jsonSchema as any }
-          : {}),
-      },
-    });
+    const isCodeTask = task ? profileFor(task) === RoutingProfile.CODE_GEN : false;
+    const preferredModel = modelOverride || request.model || (isCodeTask ? this.geminiCodeModel : this.geminiModel);
 
-    const metadata: any = (response as any).usageMetadata ?? {};
-    return {
-      provider: AiProvider.GEMINI,
-      model: targetModel,
-      text: response.text || '',
-      usage: this.usage(
-        metadata.promptTokenCount ?? 0,
-        metadata.candidatesTokenCount ?? 0,
-        this.envRate('GEMINI'),
-      ),
-      refused: false,
+    const invokeModel = async (targetModel: string): Promise<AiCompletion> => {
+      const response = await this.gemini!.models.generateContent({
+        model: targetModel,
+        contents: request.prompt,
+        config: {
+          systemInstruction: request.systemInstruction,
+          temperature: 0.2,
+          ...(request.maxTokens ? { maxOutputTokens: request.maxTokens } : {}),
+          ...(request.timeoutMs ? { httpOptions: { timeout: request.timeoutMs } } : {}),
+          ...(request.jsonSchema
+            ? { responseMimeType: 'application/json', responseSchema: request.jsonSchema as any }
+            : {}),
+        },
+      });
+
+      const metadata: any = (response as any).usageMetadata ?? {};
+      return {
+        provider: AiProvider.GEMINI,
+        model: targetModel,
+        text: response.text || '',
+        usage: this.usage(
+          metadata.promptTokenCount ?? 0,
+          metadata.candidatesTokenCount ?? 0,
+          this.envRate('GEMINI'),
+        ),
+        refused: false,
+      };
     };
+
+    try {
+      return await invokeModel(preferredModel);
+    } catch (error: any) {
+      if (isCodeTask && !modelOverride && !request.model && preferredModel !== this.geminiModel) {
+        this.logger.warn(`GEMINI code model ${preferredModel} failed (${error?.message ?? error}); retrying with ${this.geminiModel}.`);
+        return invokeModel(this.geminiModel);
+      }
+      throw error;
+    }
   }
 
   // ---------------------------------------------------------------------- Groq
@@ -743,8 +761,11 @@ export class MultiAiRouterService {
    * `openai/gpt-4o-mini`) behind one API, so it is treated as a
    * last-resort fallback in every task chain.
    */
-  private async callOpenRouter(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
+  private async callOpenRouter(request: AiRequest, modelOverride?: string, task?: AiTask): Promise<AiCompletion> {
     if (!this.openrouter) throw new ServiceUnavailableException('OPENROUTER_API_KEY is not configured.');
+
+    const isCodeTask = task ? profileFor(task) === RoutingProfile.CODE_GEN : false;
+    const preferredModel = modelOverride || request.model || (isCodeTask ? this.openrouterCodeModel : this.openrouterModel);
 
     const messages: any[] = [];
     let system = request.systemInstruction;
@@ -756,28 +777,40 @@ export class MultiAiRouterService {
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: request.prompt });
 
-    const body = {
-      model: modelOverride || this.openrouterModel,
-      messages,
-      temperature: this.openrouterTemperature,
-      max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
-      ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
-    };
-    const response = request.timeoutMs
-      ? await this.openrouter.chat.completions.create(body as any, { timeout: request.timeoutMs, maxRetries: 0 })
-      : await this.openrouter.chat.completions.create(body as any);
+    const invokeModel = async (targetModel: string): Promise<AiCompletion> => {
+      const body = {
+        model: targetModel,
+        messages,
+        temperature: this.openrouterTemperature,
+        max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
+        ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
+      };
+      const response = request.timeoutMs
+        ? await this.openrouter!.chat.completions.create(body as any, { timeout: request.timeoutMs, maxRetries: 0 })
+        : await this.openrouter!.chat.completions.create(body as any);
 
-    return {
-      provider: AiProvider.OPENROUTER,
-      model: response.model ?? this.openrouterModel,
-      text: response.choices[0]?.message?.content ?? '',
-      usage: this.usage(
-        response.usage?.prompt_tokens ?? 0,
-        response.usage?.completion_tokens ?? 0,
-        this.envRate('OPENROUTER'),
-      ),
-      refused: false,
+      return {
+        provider: AiProvider.OPENROUTER,
+        model: response.model ?? targetModel,
+        text: response.choices[0]?.message?.content ?? '',
+        usage: this.usage(
+          response.usage?.prompt_tokens ?? 0,
+          response.usage?.completion_tokens ?? 0,
+          this.envRate('OPENROUTER'),
+        ),
+        refused: false,
+      };
     };
+
+    try {
+      return await invokeModel(preferredModel);
+    } catch (error: any) {
+      if (isCodeTask && !modelOverride && !request.model && preferredModel !== this.openrouterModel) {
+        this.logger.warn(`OPENROUTER code model ${preferredModel} failed (${error?.message ?? error}); retrying with ${this.openrouterModel}.`);
+        return invokeModel(this.openrouterModel);
+      }
+      throw error;
+    }
   }
 
   // ------------------------------------------------------------------ Sarvam AI

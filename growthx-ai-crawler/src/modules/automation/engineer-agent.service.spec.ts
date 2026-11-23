@@ -592,6 +592,7 @@ describe('EngineerAgentService', () => {
     const recoveryPrompt = router.generate.mock.calls[2][0].prompt;
     expect(recoveryPrompt).toContain('Edit reverted (app/SEOHead.jsx left unchanged) because it introduced a syntax error');
     expect(recoveryPrompt).toContain('deleting surrounding JSX/braces');
+    expect(recoveryPrompt).toContain('Current intact lines');
   });
 
   it('does not discard already-valid changes when a follow-up edit hits a pre-read reminder and a no-op replacement', async () => {

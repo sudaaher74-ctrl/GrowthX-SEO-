@@ -746,7 +746,7 @@ export class EngineerAgentService {
         projectId,
         jsonSchema: ACTION_SCHEMA as unknown as Record<string, unknown>,
         validateResponse: validateActionResponse,
-        maxTokens: 2500,
+        maxTokens: 4096,
         timeoutMs: 45000,
       });
 
@@ -901,8 +901,25 @@ export class EngineerAgentService {
                     rangeAdvice = ` You replaced ${replacedCount} lines (${action.start}-${action.end}) with only ${newCount} lines, deleting surrounding JSX/braces. Remember replace_lines deletes EVERY line from start through end inclusive — replace ONLY a narrow 1-4 line anchor range and preserve all surrounding tags and braces.`;
                   }
                 }
+                let lineContext = '';
+                if (preWriteSnap.content) {
+                  const errLineMatch = nextSyntax.output.match(/\((\d+):\d+\)/);
+                  const focusLine = errLineMatch
+                    ? Number.parseInt(errLineMatch[1], 10)
+                    : Number.isInteger(action.start)
+                      ? action.start!
+                      : 1;
+                  const origLines = preWriteSnap.content.split(/\r?\n/);
+                  const fromLine = Math.max(1, focusLine - 4);
+                  const toLine = Math.min(origLines.length, focusLine + 4);
+                  const snippet = origLines
+                    .slice(fromLine - 1, toLine)
+                    .map((l, idx) => `${fromLine + idx}: ${l}`)
+                    .join('\n');
+                  lineContext = `\nCurrent intact lines ${fromLine}-${toLine} of ${actionPath}:\n${snippet}\nCheck commas, quotes, and closing braces/tags against those exact lines.`;
+                }
                 throw new SandboxError(
-                  `Edit reverted (${actionPath} left unchanged) because it introduced a syntax error: ${nextSyntax.output}.${rangeAdvice}`,
+                  `Edit reverted (${actionPath} left unchanged) because it introduced a syntax error: ${nextSyntax.output}.${rangeAdvice}${lineContext}`,
                 );
               }
             }
