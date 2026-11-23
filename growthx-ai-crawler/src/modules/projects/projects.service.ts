@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, Project } from '@prisma/client';
 import { decryptToken } from '../integrations/google/token-crypto';
-import { google } from '../integrations/google/google-apis';
 
 @Injectable()
 export class ProjectsService {
@@ -26,84 +25,45 @@ export class ProjectsService {
     });
   }
 
-  /**
-   * Deletes a project and everything hung off it.
-   *
-   * 1. Revokes connected Google OAuth grants so Google settings do not show
-   *    a phantom connection to a deleted project.
-   * 2. Cancels active/pending crawl jobs.
-   * 3. Deletes competitor websites tied to this project scope.
-   * 4. Cascades remaining project rows via Prisma transaction.
-   */
   async deleteProject(id: string): Promise<void> {
-    // 1. Best-effort Google grant revocation before deletion
-    try {
-      const integrations = await this.prisma.integration.findMany({
-        where: { projectId: id },
-      });
-      for (const integration of integrations) {
-        if (integration.refreshToken) {
-          try {
-            const raw = decryptToken(integration.refreshToken);
-            const client = new google.auth.OAuth2(
-              process.env.GOOGLE_CLIENT_ID,
-              process.env.GOOGLE_CLIENT_SECRET,
-            );
-            await client.revokeToken(raw);
-          } catch (err: any) {
-            this.logger.warn(`Could not revoke Google grant on project deletion: ${err.message}`);
-          }
-        }
-      }
-    } catch (err: any) {
-      this.logger.warn(`Failed reading integrations for project deletion: ${err.message}`);
-    }
-
-    // 2. Mark any active/pending crawl jobs as CANCELLED (own site & competitor sites)
-    try {
-      await this.prisma.crawlJob.updateMany({
-        where: {
-          OR: [
-            { website: { projectId: id } },
-            { website: { scope: `competitor:${id}` } },
-          ],
-          status: { in: ['PENDING', 'RUNNING'] },
-        },
-        data: { status: 'CANCELLED' },
-      });
-    } catch {
-      // Best-effort job cancellation
-    }
-
-    // 3. Clean up uncascaded auxiliary project records
-    try {
-      await Promise.allSettled([
-        this.prisma.autopilotRun.deleteMany({ where: { projectId: id } }),
-        this.prisma.auditReportSnapshot.deleteMany({ where: { projectId: id } }),
-        this.prisma.competitorReportSnapshot.deleteMany({ where: { projectId: id } }),
-        this.prisma.googleReportSnapshot.deleteMany({ where: { projectId: id } }),
-        this.prisma.businessStrategySnapshot.deleteMany({ where: { projectId: id } }),
-        this.prisma.savedPlan.deleteMany({ where: { projectId: id } }),
-        this.prisma.actionStepDone.deleteMany({ where: { projectId: id } }),
-        this.prisma.fixIntervention.deleteMany({ where: { projectId: id } }),
-      ]);
-    } catch (err: any) {
-      this.logger.warn(`Auxiliary project record cleanup warning: ${err.message}`);
-    }
-
-    // 4. Clean up Recommendation and Evidence explicitly to avoid ON DELETE RESTRICT foreign key violations
-    try {
-      await this.prisma.recommendation.deleteMany({ where: { projectId: id } });
-      await this.prisma.evidence.deleteMany({ where: { projectId: id } });
-    } catch (err: any) {
-      this.logger.warn(`Recommendation/Evidence cleanup warning: ${err.message}`);
-    }
-
-    // 5. Atomically remove competitor websites, client websites and project
-    await this.prisma.$transaction([
+    const where = { projectId: id };
+    const [integrations] = await this.prisma.$transaction([
+      this.prisma.integration.findMany({ where, select: { refreshToken: true } }),
+      this.prisma.autopilotRun.deleteMany({ where }),
+      this.prisma.auditReportSnapshot.deleteMany({ where }),
+      this.prisma.competitorReportSnapshot.deleteMany({ where }),
+      this.prisma.googleReportSnapshot.deleteMany({ where }),
+      this.prisma.businessStrategySnapshot.deleteMany({ where }),
+      this.prisma.savedPlan.deleteMany({ where }),
+      this.prisma.actionStepDone.deleteMany({ where }),
+      this.prisma.fixIntervention.deleteMany({ where }),
+      // A recommendation's primary evidence has an ON DELETE RESTRICT foreign key.
+      this.prisma.recommendation.deleteMany({ where }),
+      this.prisma.evidence.deleteMany({ where }),
+      // Website deletion cascades to crawl jobs. Workers discard work for missing jobs.
       this.prisma.website.deleteMany({ where: { scope: `competitor:${id}` } }),
-      this.prisma.website.deleteMany({ where: { projectId: id } }),
+      this.prisma.website.deleteMany({ where }),
       this.prisma.project.delete({ where: { id } }),
     ]);
+
+    // Only revoke Google grants after the database commits. Bound the total wait
+    // so an unavailable Google endpoint cannot stall project deletion.
+    const signal = AbortSignal.timeout(5_000);
+    await Promise.all(integrations.map(async ({ refreshToken }) => {
+      if (!refreshToken) return;
+
+      try {
+        const response = await fetch('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          body: new URLSearchParams({ token: decryptToken(refreshToken) }),
+          signal,
+        });
+        if (!response.ok) {
+          this.logger.warn(`Google rejected grant revocation on project deletion (HTTP ${response.status})`);
+        }
+      } catch {
+        this.logger.warn('Could not revoke Google grant on project deletion');
+      }
+    }));
   }
 }
