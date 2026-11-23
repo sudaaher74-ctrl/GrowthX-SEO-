@@ -17,7 +17,7 @@ The worker reconciles pending records every 30 seconds to recover an API exit be
 
 ## Required deployment validation
 
-Run API tests/build, frontend typecheck/lint/build and the metadata regression fixture before deployment. Deploy committed source with `scripts/deploy-compose-release.py`; API and worker must use the same image. Preserve private configuration and data volumes, verify the PostgreSQL backup and migration state, and retain rollback configuration. The backup defaults to custom-format compression 0 to avoid the compression bottleneck on this host; `DEPLOY_BACKUP_COMPRESSION` may select 0–9.
+Run API tests/build, frontend typecheck/lint/build and the metadata regression fixture before deployment. Deploy committed source with `scripts/deploy-compose-release.py`; API and worker must use the same image. Preserve private configuration and data volumes, verify the PostgreSQL backup and migration state, and retain rollback configuration. The backup defaults to fast custom-format compression `1` (`DEPLOY_BACKUP_COMPRESSION` may select `0`–`9`), verifies at least `DEPLOY_MIN_FREE_GIB` (default `15` GiB) free space (including `/mnt/c` on WSL2) before running `pg_dump`, and removes partial unverified archives on failure.
 
 After deployment check API health, worker registration, queue counts, an authenticated real engine run and its PR preview. Do not merge a customer PR that fails navigation checks.
 
