@@ -161,6 +161,14 @@ function escapeRawControlCharsInStrings(raw: string): string {
   return out;
 }
 
+function stripNullFields(obj: Record<string, unknown>): Action {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== null) cleaned[key] = value;
+  }
+  return cleaned as Action;
+}
+
 /** Pulls the first JSON object out of a model reply, tolerating fences, raw newlines in strings, and chatter. */
 export function parseAction(text: string): Action | null {
   const cleaned = (text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
@@ -173,7 +181,9 @@ export function parseAction(text: string): Action | null {
   try {
     const candidate = escapeRawControlCharsInStrings(source.slice(start, end + 1));
     const parsed = JSON.parse(candidate);
-    if (parsed && typeof parsed === 'object') return parsed as Action;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return stripNullFields(parsed as Record<string, unknown>);
+    }
   } catch {
     // Fallback: scan for the first balanced {...} JSON object in case multiple objects or trailing braces exist
     let depth = 0;
@@ -201,7 +211,9 @@ export function parseAction(text: string): Action | null {
             try {
               const candidate = escapeRawControlCharsInStrings(source.slice(start, i + 1));
               const parsed = JSON.parse(candidate);
-              if (parsed && typeof parsed === 'object') return parsed as Action;
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                return stripNullFields(parsed as Record<string, unknown>);
+              }
             } catch {
               break;
             }
@@ -370,9 +382,34 @@ export class EngineerAgentService {
         `${i + 1}. [${f.source}] ${f.title}${pagesPart}\n   Problem: ${clip(f.summary, 180)}\n   Fix: ${clip(f.recommendedAction, 260)}`,
       );
     }
-    lines.push(
-      `\nGuidance: Update 2-3 primary routed page components cleanly (such as Cart.jsx, MyAccount.jsx, Policy.jsx in frontend-react/src/pages/ or src/app/**/page.tsx). Use {"tool":"search","pattern":"return (","path":"..."} to locate the JSX return in large files, read 60 lines around it with both start and end specified, and add or update <Helmet><title>...</title></Helmet> inside the JSX return. Do not edit internal screen fragments or route registries. Finish once 2-3 key pages are updated so a pull request can be opened.`,
-    );
+    const combinedText = findingsContext
+      .map((f) => `${f.source} ${f.title} ${f.summary} ${f.recommendedAction}`)
+      .join(' ')
+      .toLowerCase();
+    const isMetadataOrTitleFinding =
+      /\b(same name|duplicate title|missing title|page title|meta description|title tag|h1|canonical)\b/.test(
+        combinedText,
+      );
+    const isAiOrCompetitorFinding =
+      findingsContext.some((f) =>
+        ['AI_VISIBILITY', 'COMPETITOR', 'COMPETITORS', 'MARKET_INTELLIGENCE'].includes(
+          (f.source || '').toUpperCase(),
+        ),
+      ) || /\b(ai models cite|citation|ai visibility|schema|json-ld|faq|llms\.txt)\b/.test(combinedText);
+
+    if (isMetadataOrTitleFinding && !isAiOrCompetitorFinding) {
+      lines.push(
+        `\nGuidance: Locate the routed page components matching the affected pages (such as pages under src/pages/ or src/app/**/page.tsx). Use {"tool":"search","pattern":"return (","path":"..."} to locate the JSX return in large files, read 60 lines around it with both start and end specified, and update unique <Helmet><title>...</title></Helmet> or metadata exports cleanly. Do not edit internal UI fragments or route registries. Finish cleanly once 1-3 key pages are updated so a pull request can be opened.`,
+      );
+    } else if (isAiOrCompetitorFinding) {
+      lines.push(
+        `\nGuidance: Focus ONLY on the primary public landing, home, or about/service pages (never cart, checkout, login, or account screens). Inspect the main public page or index.html and add grounded Organization/LocalBusiness/FAQPage JSON-LD structured data, clear factual offering summary, or comparison/FAQ copy using only real business details already present in the repository. Finish cleanly once 1-2 primary public files are updated so a pull request can be opened.`,
+      );
+    } else {
+      lines.push(
+        `\nGuidance: Locate the exact public page or layout file matching the affected URLs (never edit unrelated cart/account screens). Read 60-100 lines around the target section with explicit start and end, apply the smallest clean fix using replace_lines, and call finish as soon as the targeted fix is in place.`,
+      );
+    }
 
     const instruction = clip(lines.join('\n'), MAX_INSTRUCTION);
     return this.start(projectId, organizationId, instruction, findingsContext);
@@ -635,7 +672,8 @@ export class EngineerAgentService {
         if (isEdit || action.tool === 'metadata') {
           readPaths.delete(actionPath);
           readAfterFailure.delete(actionPath);
-          result += ` Read the relevant section of ${actionPath} again before making another edit to this file.`;
+          failedEditsByFile.delete(actionPath);
+          result += ` Read the relevant section of ${actionPath} again before making another edit to this file — or call "finish" now if the fix is complete.`;
         }
         consecutiveFailures = 0;
       } catch (error: any) {

@@ -41,6 +41,14 @@ describe('parseAction', () => {
     expect(parseAction('I will now edit the file')).toBeNull();
     expect(parseAction('{broken')).toBeNull();
   });
+  it('strips null optional fields emitted by JSON-schema models like Gemini', () => {
+    expect(isUsableAction('{"tool":"list","path":null,"start":null,"end":null}')).toBe(true);
+    expect(parseAction('{"tool":"read","path":"src/App.jsx","start":null,"end":null}')).toEqual({
+      tool: 'read',
+      path: 'src/App.jsx',
+    });
+    expect(isUsableAction('{"tool":"replace_lines","path":"src/a.jsx","start":null,"end":3,"new":"x"}')).toBe(false);
+  });
 });
 
 describe('EngineerAgentService', () => {
@@ -461,5 +469,49 @@ describe('EngineerAgentService', () => {
     const savedSteps = prisma.automationRun.update.mock.calls.at(-1)[0].data.steps;
     expect(savedSteps.some((step: any) => step.step === 'stopped' && /recovery limit reached after two failed edits/.test(step.detail))).toBe(true);
     expect(git.createPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('resets per-file failure count after a successful edit recovery so later work is not discarded', async () => {
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: 'wrong-text', new: 'New title' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 1 }),
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>First fix</title>' }),
+      // Model tries another replace_lines before reading again (1 fresh failure, NOT 2)
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>Second fix</title>' }),
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 1 }),
+      act({ tool: 'replace_lines', path: 'app/page.tsx', start: 1, end: 1, new: '<title>Second fix</title>' }),
+      act({ tool: 'finish', summary: 'Applied both fixes cleanly.' }),
+    );
+    const run = await service.run('proj_1', 'org_1', INSTRUCTION);
+    expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    expect(git.createPullRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives AI Visibility findings public-page guidance rather than targeting Cart.jsx', async () => {
+    prisma.growthOpportunity = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'finding_ai_1',
+          source: 'AI_VISIBILITY',
+          title: 'AI models cite Rival instead of your business',
+          summary: 'Assistants recommend Rival for delivery queries.',
+          recommendedAction: 'Add Organization and FAQPage JSON-LD to the homepage.',
+          affectedPages: ['https://acme.in/'],
+        },
+      ]),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    replies.push(
+      act({ tool: 'read', path: 'app/page.tsx', start: 1, end: 2 }),
+      act({ tool: 'edit', path: 'app/page.tsx', old: '<title>Old title</title>', new: '<title>Acme Official</title>' }),
+      act({ tool: 'finish', summary: 'Updated homepage.' }),
+    );
+    const { done } = await service.startForFindings('proj_1', 'org_1', { findingIds: ['finding_ai_1'] });
+    const finished: any = await done;
+    expect(finished.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+    const firstPrompt = router.generate.mock.calls[0][0].prompt;
+    expect(firstPrompt).not.toContain('Cart.jsx');
+    expect(firstPrompt).toContain('primary public landing');
   });
 });

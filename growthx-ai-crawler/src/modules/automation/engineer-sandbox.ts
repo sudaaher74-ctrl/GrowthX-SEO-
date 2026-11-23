@@ -365,7 +365,14 @@ export class RepoSandbox {
     this.lastReads.delete(p);
     this.lastRangeEdits.set(p, { before, after });
     this.changed.add(p);
-    return `Replaced lines ${start}-${end} in ${p}.`;
+    const updatedLines = next.split(/\r?\n/);
+    const ctxStart = Math.max(1, start - 2);
+    const ctxEnd = Math.min(updatedLines.length, start + Math.max(inserted.length, 1) + 2);
+    const preview = updatedLines
+      .slice(ctxStart - 1, Math.min(ctxEnd, ctxStart + 15))
+      .map((line, i) => `${ctxStart + i}: ${line}`)
+      .join('\n');
+    return `Replaced lines ${start}-${end} in ${p}.\nUpdated lines ${ctxStart}-${Math.min(ctxEnd, ctxStart + 15)}:\n${preview}`;
   }
 
   /** Replaces one exact piece of text. It must occur exactly once, so the change is unambiguous. */
