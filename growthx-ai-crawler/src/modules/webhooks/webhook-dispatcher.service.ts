@@ -10,7 +10,7 @@ import { createHmac } from 'crypto';
 import * as net from 'net';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
-import { assertPublicUrl, browserMayLoad, isPrivateAddress, SsrfBlockedError } from '../security/ssrf';
+import { assertPublicUrl, isPrivateAddress, safePublicFetch, SsrfBlockedError } from '../security/ssrf';
 
 export type WebhookChannel = 'SLACK' | 'DISCORD' | 'REST';
 
@@ -432,10 +432,6 @@ export class WebhookDispatcherService {
 
     try {
       assertPublicUrl(targetUrl);
-      const allowed = await browserMayLoad(targetUrl);
-      if (!allowed) {
-        throw new Error(`Blocked internal or non-public address: ${host}`);
-      }
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -447,12 +443,14 @@ export class WebhookDispatcherService {
         headers['X-Reigel-Signature'] = `sha256=${sig}`;
       }
 
-      const res = await fetch(targetUrl, {
+      const res = await safePublicFetch(targetUrl, {
         method: 'POST',
         headers,
         body: rawBody,
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
+        maxRedirects: 0,
+        timeoutMs: 10000,
+        maxBytes: 64 * 1024,
+        rejectCrossOriginRedirects: true,
       });
 
       statusCode = res.status;

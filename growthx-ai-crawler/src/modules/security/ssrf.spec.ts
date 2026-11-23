@@ -1,4 +1,15 @@
-import { blockedHostname, browserMayLoad, isPrivateAddress, publicAxios, safeLookup, SSRF_ERROR_CODE } from './ssrf';
+import {
+  blockedHostname,
+  browserMayLoad,
+  handleBrowserPublicRoute,
+  isPrivateAddress,
+  publicAxios,
+  ResponseTooLargeError,
+  safeLookup,
+  safePublicFetch,
+  SSRF_ERROR_CODE,
+} from './ssrf';
+import { SecurityService } from './security.service';
 import { FetchService } from '../crawler/fetch/fetch.service';
 import { startFixtureServer, FixtureServer } from '../crawler/testing/fixture-server';
 
@@ -132,10 +143,119 @@ describe('SSRF guard', () => {
     });
   });
 
-  it('keeps the browser off internal hosts but lets it load public and inline resources', async () => {
+  it('keeps the browser off internal hosts, fails closed on DNS errors, and allows inline resources', async () => {
     await expect(browserMayLoad('http://169.254.169.254/')).resolves.toBe(false);
     await expect(browserMayLoad('http://localhost:3000/')).resolves.toBe(false);
+    await expect(browserMayLoad('http://metadata.google.internal/computeMetadata/v1/')).resolves.toBe(false);
+    await expect(browserMayLoad('ws://example.com/socket')).resolves.toBe(false);
+    // Unresolvable host must fail CLOSED (false), never open.
+    await expect(browserMayLoad('https://nonexistent.invalid.example.test/')).resolves.toBe(false);
     await expect(browserMayLoad('https://8.8.8.8/')).resolves.toBe(true);
     await expect(browserMayLoad('data:text/plain,hi')).resolves.toBe(true);
+  });
+
+  describe('safePublicFetch connection-time controls (HTTP client)', () => {
+    let server: FixtureServer | undefined;
+    afterEach(async () => {
+      await server?.close();
+      server = undefined;
+    });
+
+    it('blocks private/loopback/metadata destinations before connecting and on redirects', async () => {
+      server = await startFixtureServer({
+        '/': { body: 'internal secret' },
+        '/redirect-meta': { status: 302, headers: { location: 'http://169.254.169.254/latest/meta-data/' } },
+      });
+
+      await expect(safePublicFetch(server.url('/'))).rejects.toMatchObject({ code: SSRF_ERROR_CODE });
+      expect(server.requests).toHaveLength(0);
+
+      process.env.SSRF_ALLOWED_HOSTS = '127.0.0.1';
+      await expect(safePublicFetch(server.url('/redirect-meta'))).rejects.toMatchObject({ code: SSRF_ERROR_CODE });
+    });
+
+    it('enforces hard response size limits and timeouts', async () => {
+      server = await startFixtureServer({
+        '/huge': { body: 'A'.repeat(4096) },
+      });
+      process.env.SSRF_ALLOWED_HOSTS = '127.0.0.1';
+
+      await expect(
+        safePublicFetch(server.url('/huge'), { maxBytes: 512, timeoutMs: 5000 }),
+      ).rejects.toBeInstanceOf(ResponseTooLargeError);
+    });
+
+    it('blocks domain ownership verification against private or metadata addresses without connecting', async () => {
+      server = await startFixtureServer({
+        '/': { body: '<meta name="growthx-verification" content="tok123">' },
+      });
+      process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+      const sec = new SecurityService();
+
+      const verified = await sec.verifyDomainOwnership(new URL(server.url('/')).host, 'tok123');
+      expect(verified).toBe(false);
+      expect(server.requests).toHaveLength(0);
+    });
+  });
+
+  describe('handleBrowserPublicRoute (Chromium egress controls)', () => {
+    let server: FixtureServer | undefined;
+    afterEach(async () => {
+      await server?.close();
+      server = undefined;
+    });
+
+    it('aborts internal, metadata, and non-HTTP schemes in browser routes without contacting them', async () => {
+      for (const badUrl of [
+        'http://127.0.0.1:8080/admin',
+        'http://169.254.169.254/latest/meta-data/',
+        'http://metadata.google.internal/',
+        'ws://127.0.0.1:3000/socket.io',
+        'file:///etc/passwd',
+      ]) {
+        const abort = jest.fn().mockResolvedValue(undefined);
+        const fulfill = jest.fn().mockResolvedValue(undefined);
+        const cont = jest.fn().mockResolvedValue(undefined);
+        await handleBrowserPublicRoute({
+          request: () => ({ url: () => badUrl, method: () => 'GET', headers: () => ({}), resourceType: () => 'document' }),
+          abort,
+          fulfill,
+          continue: cont,
+        });
+        expect(abort).toHaveBeenCalledWith('blockedbyclient');
+        expect(fulfill).not.toHaveBeenCalled();
+        expect(cont).not.toHaveBeenCalled();
+      }
+    });
+
+    it('fulfills allowed browser requests through connection-time safePublicFetch and aborts redirects to metadata', async () => {
+      server = await startFixtureServer({
+        '/ok': { body: '<html><title>Public</title></html>', headers: { 'content-type': 'text/html' } },
+        '/evil-redir': { status: 302, headers: { location: 'http://169.254.169.254/latest/meta-data/' } },
+      });
+      process.env.SSRF_ALLOWED_HOSTS = '127.0.0.1';
+
+      const okFulfill = jest.fn().mockResolvedValue(undefined);
+      const okAbort = jest.fn().mockResolvedValue(undefined);
+      await handleBrowserPublicRoute({
+        request: () => ({ url: () => server!.url('/ok'), method: () => 'GET', headers: () => ({}), resourceType: () => 'document' }),
+        abort: okAbort,
+        fulfill: okFulfill,
+        continue: jest.fn(),
+      });
+      expect(okAbort).not.toHaveBeenCalled();
+      expect(okFulfill).toHaveBeenCalledWith(expect.objectContaining({ status: 200 }));
+
+      const redirFulfill = jest.fn().mockResolvedValue(undefined);
+      const redirAbort = jest.fn().mockResolvedValue(undefined);
+      await handleBrowserPublicRoute({
+        request: () => ({ url: () => server!.url('/evil-redir'), method: () => 'GET', headers: () => ({}), resourceType: () => 'document' }),
+        abort: redirAbort,
+        fulfill: redirFulfill,
+        continue: jest.fn(),
+      });
+      expect(redirAbort).toHaveBeenCalledWith('blockedbyclient');
+      expect(redirFulfill).not.toHaveBeenCalled();
+    });
   });
 });

@@ -1,9 +1,9 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as dns from 'dns';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { encryptionKey } from '../../config/secrets';
+import { safePublicFetch } from './ssrf';
 
 @Injectable()
 export class SecurityService {
@@ -78,21 +78,32 @@ export class SecurityService {
       this.logger.debug(`DNS TXT verification failed or not found for ${domain}`, dnsError);
     }
 
-    // 2. Try HTML Meta Tag check on homepage
+    // 2. Try HTML Meta Tag check on homepage (connection-time SSRF-hardened, bounded size & redirects)
     try {
-      const protocol = domain.startsWith('http') ? '' : 'https://';
-      const targetUrl = `${protocol}${domain}`;
-      const response = await axios.get(targetUrl, {
-        timeout: 5000,
-        headers: { 'User-Agent': 'GrowthX-AI-Verifier/1.0' },
+      const cleaned = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      if (!cleaned || /[@\s]/.test(cleaned)) {
+        this.logger.warn(`Refusing invalid domain ownership verification target: ${domain}`);
+        return false;
+      }
+      const targetUrl = `https://${cleaned}/`;
+      const response = await safePublicFetch(targetUrl, {
+        method: 'GET',
+        timeoutMs: 5000,
+        maxRedirects: 3,
+        maxBytes: 512 * 1024,
+        headers: { 'User-Agent': 'GrowthX-AI-Verifier/1.0', Accept: 'text/html' },
       });
-      if (response.status === 200 && response.data) {
-        const $ = cheerio.load(response.data);
-        const metaTag = $('meta[name="growthx-verification"]').attr('content') || 
-                        $('meta[name="growthx-site-verification"]').attr('content');
-        if (metaTag && metaTag.trim() === token) {
-          this.logger.log(`Domain ${domain} ownership verified via HTML meta tag.`);
-          return true;
+      if (response.status === 200) {
+        const html = await response.text();
+        if (html) {
+          const $ = cheerio.load(html);
+          const metaTag =
+            $('meta[name="growthx-verification"]').attr('content') ||
+            $('meta[name="growthx-site-verification"]').attr('content');
+          if (metaTag && metaTag.trim() === token) {
+            this.logger.log(`Domain ${domain} ownership verified via HTML meta tag.`);
+            return true;
+          }
         }
       }
     } catch (httpError) {

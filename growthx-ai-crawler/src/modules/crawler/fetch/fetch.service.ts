@@ -1,4 +1,4 @@
-import { blockedHostname, browserMayLoad, publicOnly } from '../../security/ssrf';
+import { blockedHostname, handleBrowserPublicRoute, publicOnly } from '../../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { BrowserPoolService, DEFAULT_CHROME_UA } from './browser-pool.service';
@@ -406,23 +406,22 @@ export class FetchService {
       //
       // Scripts and same-origin stylesheets are always allowed: a site whose
       // application bundle is served from a CDN must still be able to render.
-      await page.route('**/*', async (route) => {
-        const request = route.request();
-        const type = request.resourceType();
-        if (type === 'font' || type === 'image' || type === 'media') return route.abort();
-        // The browser does its own DNS, so the agents' check does not reach it.
-        // Without this, a page's script, iframe or redirect could make the
-        // render tier fetch an internal address.
-        if (!(await browserMayLoad(request.url()))) return route.abort('blockedbyclient');
-        if (type === 'stylesheet') {
-          try {
-            if (new URL(request.url()).host !== new URL(targetUrl).host) return route.abort();
-          } catch {
-            return route.abort();
-          }
-        }
-        return route.continue();
-      }).catch(() => {});
+      let targetHost: string | undefined;
+      try {
+        targetHost = new URL(targetUrl).host;
+      } catch {
+        targetHost = undefined;
+      }
+      await page
+        .route('**/*', (route) =>
+          handleBrowserPublicRoute(route as any, {
+            targetHost,
+            blockMedia: true,
+            blockThirdPartyStylesheets: true,
+            timeoutMs,
+          }),
+        )
+        .catch(() => {});
 
       let documentStatus: number | undefined;
 

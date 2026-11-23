@@ -1,5 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WordPressCmsService } from './wordpress-cms.service';
+import { ssrfTransport } from '../security/ssrf';
+
+function hopRes(status: number, body: unknown, headers: Record<string, string> = {}) {
+  const raw = typeof body === 'string' ? body : JSON.stringify(body);
+  return {
+    status,
+    headers: new Headers(headers),
+    bodyBuffer: Buffer.from(raw, 'utf8'),
+  };
+}
 
 describe('WordPressCmsService', () => {
   let service: WordPressCmsService;
@@ -25,6 +35,8 @@ describe('WordPressCmsService', () => {
       },
       automationRun: {
         create: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
       },
       fixSnapshot: {
         createMany: jest.fn(),
@@ -90,19 +102,11 @@ describe('WordPressCmsService', () => {
 
   describe('connectWordPress', () => {
     it('verifies credentials against /wp-json/wp/v2/users/me and stores encrypted password', async () => {
-      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any) => {
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url) => {
         if (String(url).includes('/users/me')) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ id: 1, name: 'Site Admin', slug: 'admin' }),
-          };
+          return hopRes(200, { id: 1, name: 'Site Admin', slug: 'admin' });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ namespaces: ['wp/v2', 'yoast/v1'] }),
-        };
+        return hopRes(200, { namespaces: ['wp/v2', 'yoast/v1'] });
       });
 
       prisma.integration.upsert.mockResolvedValue({ id: 'int_wp_1' });
@@ -113,7 +117,7 @@ describe('WordPressCmsService', () => {
         appPassword: 'abcd efgh ijkl mnop',
       });
 
-      expect(fetchSpy).toHaveBeenCalled();
+      expect(hopSpy).toHaveBeenCalled();
       expect(result.connected).toBe(true);
       expect(result.siteUrl).toBe('https://example-wp.com');
       expect(result.seoPlugin).toBe('yoast');
@@ -123,10 +127,7 @@ describe('WordPressCmsService', () => {
     });
 
     it('throws BadRequestException when WordPress returns 401', async () => {
-      jest.spyOn(global, 'fetch' as any).mockResolvedValue({
-        ok: false,
-        status: 401,
-      });
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(hopRes(401, {}));
 
       await expect(
         service.connectWordPress('proj_1', {
@@ -139,7 +140,7 @@ describe('WordPressCmsService', () => {
   });
 
   describe('stageWordPressFix', () => {
-    it('stages a draft revision in WordPress and logs run, snapshots, and impact ledger event', async () => {
+    it('stages a draft locally without modifying the live WordPress post and logs run, snapshots, and ledger', async () => {
       prisma.integration.findUnique.mockResolvedValue({
         id: 'int_wp_1',
         projectId: 'proj_1',
@@ -155,22 +156,18 @@ describe('WordPressCmsService', () => {
       });
       prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_1' });
 
-      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation(async (_url: any, init: any) => {
-        if (init?.method && init.method !== 'GET') {
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (_url, opts) => {
+        if (opts.method !== 'GET') {
           throw new Error('Draft mode must not send write requests to WordPress');
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => [
-            {
-              id: 42,
-              slug: 'services',
-              title: { raw: 'Old Title' },
-              excerpt: { raw: 'Old Excerpt' },
-            },
-          ],
-        };
+        return hopRes(200, [
+          {
+            id: 42,
+            slug: 'services',
+            title: { raw: 'Old Title' },
+            excerpt: { raw: 'Old Excerpt' },
+          },
+        ]);
       });
 
       const res = await service.stageWordPressFix('proj_1', {
@@ -186,8 +183,7 @@ describe('WordPressCmsService', () => {
       expect(res.wpPostId).toBe(42);
       expect(res.status).toBe('STAGED_LOCALLY');
       expect((res as any).liveModified).toBe(false);
-      // Must perform ONLY read-only lookup; zero writes to live WordPress post.
-      expect((fetchSpy.mock.calls as any[]).every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+      expect(hopSpy.mock.calls.every(([, opts]) => opts.method === 'GET')).toBe(true);
       expect(prisma.automationRun.create).toHaveBeenCalled();
       expect(prisma.fixSnapshot.createMany).toHaveBeenCalled();
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalled();
@@ -207,17 +203,12 @@ describe('WordPressCmsService', () => {
       prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_draft_1' });
 
       const writeCalls: Array<{ url: string; method: string; body?: string }> = [];
-      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
-        const method = (init?.method || 'GET').toUpperCase();
-        if (method !== 'GET') {
-          writeCalls.push({ url: String(url), method, body: init?.body });
-          return { ok: true, status: 200, json: async () => ({ id: 42 }) };
+      jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
+        if (opts.method !== 'GET') {
+          writeCalls.push({ url: String(url), method: opts.method, body: String(opts.body ?? '') });
+          return hopRes(200, { id: 42 });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => [{ id: 42, slug: 'pricing', title: { raw: 'Pricing' }, excerpt: { raw: 'Old desc' } }],
-        };
+        return hopRes(200, [{ id: 42, slug: 'pricing', title: { raw: 'Pricing' }, excerpt: { raw: 'Old desc' } }]);
       });
 
       const draft = await service.stageWordPressFix('proj_1', {
@@ -230,7 +221,6 @@ describe('WordPressCmsService', () => {
       expect(draft.status).toBe('STAGED_LOCALLY');
       expect(writeCalls).toHaveLength(0);
 
-      // Explicit publish now sends the live write to WordPress.
       const published = await service.stageWordPressFix('proj_1', {
         targetUrl: 'https://example-wp.com/pricing',
         field: 'META_DESCRIPTION',
@@ -244,7 +234,7 @@ describe('WordPressCmsService', () => {
     });
 
     it('rejects plain HTTP WordPress sites on both initial connect and previously saved DB rows before sending Basic credentials', async () => {
-      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop');
 
       await expect(
         service.connectWordPress('proj_1', {
@@ -254,7 +244,6 @@ describe('WordPressCmsService', () => {
         }),
       ).rejects.toThrow(/HTTPS/i);
 
-      // Legacy DB record with http:// must also be rejected before any outbound request.
       prisma.integration.findUnique.mockResolvedValue({
         id: 'int_wp_http',
         projectId: 'proj_1',
@@ -274,15 +263,13 @@ describe('WordPressCmsService', () => {
         }),
       ).rejects.toThrow(/HTTPS/i);
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(hopSpy).not.toHaveBeenCalled();
     });
 
     it('rejects HTTPS-to-HTTP downgrade redirects on WordPress credentialed requests', async () => {
-      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
-        ok: false,
-        status: 301,
-        headers: new Headers({ location: 'http://example-wp.com/wp-json/wp/v2/users/me' }),
-      });
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValueOnce(
+        hopRes(301, '', { location: 'http://example-wp.com/wp-json/wp/v2/users/me' }),
+      );
 
       await expect(
         service.connectWordPress('proj_1', {
@@ -292,7 +279,7 @@ describe('WordPressCmsService', () => {
         }),
       ).rejects.toThrow(/downgrade|HTTPS/i);
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(hopSpy).toHaveBeenCalledTimes(1);
     });
 
     it('throws NotFoundException when matching page is not found in WordPress', async () => {
@@ -306,11 +293,7 @@ describe('WordPressCmsService', () => {
         status: 'CONNECTED',
       });
 
-      jest.spyOn(global, 'fetch' as any).mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => [],
-      });
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(hopRes(200, []));
 
       await expect(
         service.stageWordPressFix('proj_1', {
@@ -330,12 +313,12 @@ describe('WordPressCmsService', () => {
       });
       prisma.automationRun.create.mockResolvedValue({ id: 'run_cms_1' });
 
-      jest.spyOn(global, 'fetch' as any).mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () =>
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(
+          200,
           '<html><head><title>Updated Organic Title</title><meta name="description" content="Updated Meta Desc"></head><body></body></html>',
-      });
+        ),
+      );
 
       const res = await service.verifyManualCmsFix('proj_1', {
         findingId: 'finding_2',
@@ -352,11 +335,11 @@ describe('WordPressCmsService', () => {
     });
 
     it('refuses SSRF attempts targeting loopback, private RFC1918, or cloud metadata IPs before sending any request', async () => {
-      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop');
 
       await expect(
         service.connectWordPress('proj_1', {
-          siteUrl: 'http://169.254.169.254/latest/meta-data/',
+          siteUrl: 'https://169.254.169.254/latest/meta-data/',
           username: 'admin',
           appPassword: 'secret',
         }),
@@ -378,15 +361,13 @@ describe('WordPressCmsService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(hopSpy).not.toHaveBeenCalled();
     });
 
     it('refuses open redirects that point to internal or cloud metadata addresses', async () => {
-      jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
-        ok: false,
-        status: 302,
-        headers: new Headers({ location: 'http://169.254.169.254/latest/meta-data/' }),
-      });
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValueOnce(
+        hopRes(302, '', { location: 'http://169.254.169.254/latest/meta-data/' }),
+      );
 
       await expect(
         service.verifyManualCmsFix('proj_1', {
@@ -411,20 +392,12 @@ describe('WordPressCmsService', () => {
       prisma.automationRun.create.mockResolvedValue({ id: 'run_wp_2' });
 
       let capturedBody = '';
-      jest.spyOn(global, 'fetch' as any).mockImplementation(async (_url: any, init: any) => {
-        if (init?.method === 'POST') {
-          capturedBody = String(init.body || '');
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ id: 100 }),
-          };
+      jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (_url, opts) => {
+        if (opts.method === 'POST') {
+          capturedBody = String(opts.body || '');
+          return hopRes(200, { id: 100 });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => [{ id: 42, slug: 'home', content: { raw: '<p>Welcome</p>' } }],
-        };
+        return hopRes(200, [{ id: 42, slug: 'home', content: { raw: '<p>Welcome</p>' } }]);
       });
 
       await service.stageWordPressFix('proj_1', {
@@ -442,26 +415,14 @@ describe('WordPressCmsService', () => {
 
   describe('Shopify & Webflow Direct Connectors', () => {
     it('verifies Shopify Admin API credentials and applies SEO title update', async () => {
-      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
+      jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
         if (String(url).includes('/shop.json')) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ shop: { name: 'MilQuu Store', email: 'owner@milquu.in' } }),
-          };
+          return hopRes(200, { shop: { name: 'MilQuu Store', email: 'owner@milquu.in' } });
         }
-        if (init?.method === 'PUT') {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ product: { id: 777 } }),
-          };
+        if (opts.method === 'PUT') {
+          return hopRes(200, { product: { id: 777 } });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] }),
-        };
+        return hopRes(200, { products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] });
       });
 
       prisma.integration.upsert.mockResolvedValue({ id: 'int_shopify_1' });
@@ -499,28 +460,16 @@ describe('WordPressCmsService', () => {
     });
 
     it('verifies Webflow Data API v2 credentials and applies page SEO metadata update', async () => {
-      jest.spyOn(global, 'fetch' as any).mockImplementation(async (url: any, init: any) => {
-        if (init?.method === 'PUT') {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ id: 'page_wf_1' }),
-          };
+      jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
+        if (opts.method === 'PUT') {
+          return hopRes(200, { id: 'page_wf_1' });
         }
         if (String(url).endsWith('/pages')) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              pages: [{ id: 'page_wf_1', slug: 'pricing', title: 'Pricing', seo: { title: 'Pricing' } }],
-            }),
-          };
+          return hopRes(200, {
+            pages: [{ id: 'page_wf_1', slug: 'pricing', title: 'Pricing', seo: { title: 'Pricing' } }],
+          });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ id: 'site_wf_1', displayName: 'MilQuu Webflow', shortName: 'milquu' }),
-        };
+        return hopRes(200, { id: 'site_wf_1', displayName: 'MilQuu Webflow', shortName: 'milquu' });
       });
 
       prisma.integration.upsert.mockResolvedValue({ id: 'int_wf_1' });
@@ -559,23 +508,19 @@ describe('WordPressCmsService', () => {
     });
 
     it('rejects non-myshopify domains and blocks cross-origin redirects so Shopify tokens and write bodies are never disclosed', async () => {
-      const fetchSpy = jest.spyOn(global, 'fetch' as any);
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop');
 
-      // Arbitrary custom domain must be rejected before sending X-Shopify-Access-Token.
       await expect(
         service.connectShopify('proj_1', {
           shopDomain: 'evil-storefront.example.com',
           accessToken: 'shpat_secret_token',
         }),
       ).rejects.toThrow(/myshopify\.com/i);
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(hopSpy).not.toHaveBeenCalled();
 
-      // Cross-origin redirect on credentialed connect must be rejected without contacting the redirect host.
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
-        status: 302,
-        headers: new Headers({ location: 'https://attacker.example.com/steal' }),
-      });
+      hopSpy.mockResolvedValueOnce(
+        hopRes(302, '', { location: 'https://attacker.example.com/steal' }),
+      );
 
       await expect(
         service.connectShopify('proj_1', {
@@ -583,11 +528,10 @@ describe('WordPressCmsService', () => {
           accessToken: 'shpat_secret_token',
         }),
       ).rejects.toThrow(/cross-origin redirect/i);
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      expect(String(fetchSpy.mock.calls[0][0])).toContain('https://victim-shop.myshopify.com/');
+      expect(hopSpy).toHaveBeenCalledTimes(1);
+      expect(String(hopSpy.mock.calls[0][0])).toContain('https://victim-shop.myshopify.com/');
 
-      // Cross-origin redirect on Shopify write (PUT) must never replay token or write body to attacker host.
-      fetchSpy.mockReset();
+      hopSpy.mockReset();
       prisma.integration.findUnique.mockResolvedValue({
         id: 'int_shopify_1',
         projectId: 'proj_1',
@@ -597,19 +541,11 @@ describe('WordPressCmsService', () => {
         selectedResourceName: 'Victim Shop',
         status: 'CONNECTED',
       });
-      fetchSpy.mockImplementation(async (_url: any, init: any) => {
-        if (init?.method === 'PUT') {
-          return {
-            ok: false,
-            status: 307,
-            headers: new Headers({ location: 'https://attacker.example.com/capture-write' }),
-          };
+      hopSpy.mockImplementation(async (_url, opts) => {
+        if (opts.method === 'PUT') {
+          return hopRes(307, '', { location: 'https://attacker.example.com/capture-write' });
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] }),
-        };
+        return hopRes(200, { products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] });
       });
 
       await expect(
@@ -620,8 +556,7 @@ describe('WordPressCmsService', () => {
         }),
       ).rejects.toThrow(/cross-origin redirect/i);
 
-      // Verify attacker host was NEVER called.
-      expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('attacker.example.com'))).toBe(false);
+      expect(hopSpy.mock.calls.some(([url]) => String(url).includes('attacker.example.com'))).toBe(false);
     });
   });
 });

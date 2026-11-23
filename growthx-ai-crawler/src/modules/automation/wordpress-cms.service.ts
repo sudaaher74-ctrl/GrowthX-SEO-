@@ -2,7 +2,15 @@ import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundEx
 import { AutomationRunKind, AutomationRunStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
-import { assertPublicUrl, browserMayLoad, SsrfBlockedError } from '../security/ssrf';
+import {
+  assertPublicUrl,
+  CrossOriginRedirectBlockedError,
+  HttpsDowngradeBlockedError,
+  ResponseTooLargeError,
+  safePublicFetch,
+  SafePublicResponse,
+  SsrfBlockedError,
+} from '../security/ssrf';
 import { VerificationEngineService } from '../crawler/verification-engine.service';
 import { FindingSyncService } from '../opportunities/finding-sync.service';
 
@@ -211,133 +219,42 @@ export class WordPressCmsService {
     return this.normalizeSiteUrl(rawUrl, { requireHttps: true });
   }
 
-  private async assertSafeOutboundUrl(
-    targetUrl: string,
-    options?: { requireHttps?: boolean; allowedOrigin?: string },
-  ): Promise<URL> {
-    let parsed: URL;
-    try {
-      parsed = new URL(targetUrl);
-    } catch {
-      throw new BadRequestException('Invalid target URL.');
-    }
-    if (options?.requireHttps && parsed.protocol !== 'https:') {
-      throw new BadRequestException('HTTPS is required for credentialed CMS requests.');
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new BadRequestException('Only http:// and https:// URLs are allowed.');
-    }
-    if (parsed.username || parsed.password) {
-      throw new BadRequestException('Credentials in URLs are not permitted.');
-    }
-    if (options?.allowedOrigin && parsed.origin !== options.allowedOrigin) {
-      throw new BadRequestException('Refusing to send credentials to an unverified origin.');
-    }
-    try {
-      assertPublicUrl(parsed.toString());
-    } catch (err) {
-      if (err instanceof SsrfBlockedError) {
-        throw new BadRequestException(err.message);
-      }
-      throw err;
-    }
-    const allowed = await browserMayLoad(parsed.toString());
-    if (!allowed) {
-      throw new BadRequestException(
-        `Refusing to connect to an internal or reserved address: ${parsed.hostname}`,
-      );
-    }
-    return parsed;
-  }
-
   /**
-   * Executes an outbound HTTP request after verifying that the target URL and
-   * any redirect hops resolve exclusively to public internet addresses.
-   *
-   * Security controls:
-   * - Requires HTTPS before transmitting credential headers (never downgrades to HTTP).
-   * - Rejects cross-origin redirects on credentialed or state-changing requests so
-   *   Shopify/WordPress/Webflow credentials and write bodies are never disclosed.
-   * - Strips all sensitive headers on any permitted cross-origin redirect.
+   * Executes an outbound HTTP(S) request through `safePublicFetch`, enforcing
+   * connection-time public IP resolution on every hop, HTTPS before credentials,
+   * cross-origin redirect rejection on credentialed/write calls, timeouts, and
+   * bounded response sizes.
    */
   private async safeFetch(
     url: string,
     init: RequestInit,
     timeoutMs = 15000,
     options?: { requireHttps?: boolean; rejectCrossOriginRedirects?: boolean; allowedOrigin?: string },
-  ): Promise<Response> {
-    const SENSITIVE_HEADERS = [
-      'authorization',
-      'x-shopify-access-token',
-      'cookie',
-      'proxy-authorization',
-      'x-api-key',
-    ];
-    const baseHeaders = new Headers(init.headers ?? {});
-    const hasCredentials = SENSITIVE_HEADERS.some((h) => baseHeaders.has(h));
-    const requireHttps = options?.requireHttps ?? hasCredentials;
-    const rejectCrossOrigin =
-      options?.rejectCrossOriginRedirects ??
-      (hasCredentials || (init.method ? !['GET', 'HEAD'].includes(init.method.toUpperCase()) : false));
-
-    let currentUrl = url;
-    const initialParsed = await this.assertSafeOutboundUrl(currentUrl, {
-      requireHttps,
-      allowedOrigin: options?.allowedOrigin,
-    });
-    const initialOrigin = initialParsed.origin;
-    const maxRedirects = 3;
-
-    for (let hop = 0; hop <= maxRedirects; hop++) {
-      const currentParsed =
-        hop === 0
-          ? initialParsed
-          : await this.assertSafeOutboundUrl(currentUrl, {
-              requireHttps,
-              allowedOrigin: options?.allowedOrigin,
-            });
-      const headers = new Headers(init.headers ?? {});
-      if (currentParsed.origin !== initialOrigin) {
-        if (rejectCrossOrigin) {
-          throw new BadRequestException(
-            `Refusing cross-origin redirect from ${initialOrigin} to ${currentParsed.origin} on a credentialed or write request.`,
-          );
-        }
-        for (const h of SENSITIVE_HEADERS) {
-          headers.delete(h);
-        }
-      }
-
-      const response = await fetch(currentUrl, {
-        ...init,
-        headers,
-        redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
+  ): Promise<SafePublicResponse> {
+    try {
+      return await safePublicFetch(url, {
+        method: init.method || 'GET',
+        headers: init.headers as Record<string, string> | Headers | undefined,
+        body: typeof init.body === 'string' || Buffer.isBuffer(init.body) ? init.body : undefined,
+        timeoutMs,
+        maxRedirects: 3,
+        maxBytes: 2 * 1024 * 1024,
+        requireHttps: options?.requireHttps,
+        rejectCrossOriginRedirects: options?.rejectCrossOriginRedirects,
+        allowedOrigin: options?.allowedOrigin,
       });
-
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) return response;
-        if (hop === maxRedirects) {
-          throw new BadRequestException('Too many redirects from target site.');
-        }
-        const nextUrl = new URL(location, currentUrl);
-        if (requireHttps && nextUrl.protocol !== 'https:') {
-          throw new BadRequestException('Refusing HTTPS-to-HTTP downgrade redirect on a credentialed request.');
-        }
-        if (rejectCrossOrigin && nextUrl.origin !== initialOrigin) {
-          throw new BadRequestException(
-            `Refusing cross-origin redirect from ${initialOrigin} to ${nextUrl.origin} on a credentialed or write request.`,
-          );
-        }
-        currentUrl = nextUrl.toString();
-        continue;
+    } catch (err: any) {
+      if (
+        err instanceof SsrfBlockedError ||
+        err instanceof CrossOriginRedirectBlockedError ||
+        err instanceof HttpsDowngradeBlockedError ||
+        err instanceof ResponseTooLargeError
+      ) {
+        throw new BadRequestException(err.message);
       }
-
-      return response;
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(err?.message || 'Outbound CMS request failed.');
     }
-
-    throw new BadRequestException('Too many redirects from target site.');
   }
 
   /**

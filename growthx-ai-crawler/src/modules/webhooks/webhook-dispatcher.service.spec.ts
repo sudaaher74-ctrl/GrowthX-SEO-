@@ -59,4 +59,29 @@ describe('WebhookDispatcherService', () => {
     await service.dispatchProjectEvent('proj_1', 'regressionDetected', 'Regression found');
     expect(prisma.webhookDeliveryLog.create).not.toHaveBeenCalled();
   });
+
+  it('refuses delivering webhooks to loopback/private/metadata destinations at connection time without sending a request', async () => {
+    const prev = process.env.ALLOW_PRIVATE_CRAWL_TARGETS;
+    delete process.env.ALLOW_PRIVATE_CRAWL_TARGETS;
+    try {
+      prisma.projectWebhookConfig.findUnique.mockResolvedValue({
+        enabled: true,
+        restUrl: 'http://169.254.169.254/latest/meta-data/',
+        events: { regressionDetected: true },
+      });
+
+      await service.dispatchProjectEvent('proj_1', 'regressionDetected', 'Test event');
+      expect(prisma.webhookDeliveryLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'FAILED',
+            error: expect.stringMatching(/internal or reserved|Refusing/i),
+          }),
+        }),
+      );
+    } finally {
+      if (prev === undefined) delete process.env.ALLOW_PRIVATE_CRAWL_TARGETS;
+      else process.env.ALLOW_PRIVATE_CRAWL_TARGETS = prev;
+    }
+  });
 });

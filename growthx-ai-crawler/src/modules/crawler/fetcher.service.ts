@@ -1,4 +1,4 @@
-import { assertPublicUrl, SsrfBlockedError, browserMayLoad, publicAxios } from '../security/ssrf';
+import { assertPublicUrl, SsrfBlockedError, handleBrowserPublicRoute, publicAxios } from '../security/ssrf';
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { chromium, Browser, BrowserContext } from 'playwright';
@@ -266,12 +266,13 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       let contentType = 'text/html';
 
       try {
-        // The browser resolves names itself, past the agents' address check;
-        // this keeps a page's redirects, scripts and frames off internal hosts.
-        await page.route('**/*', async (route) => {
-          if (!(await browserMayLoad(route.request().url()))) return route.abort('blockedbyclient');
-          return route.continue();
-        }).catch(() => {});
+        // Fulfill all browser network traffic via connection-time SSRF-hardened
+        // fetch so Chromium cannot bypass DNS validation or connect internally.
+        await page
+          .route('**/*', (route) =>
+            handleBrowserPublicRoute(route as any, { timeoutMs: 20_000 }),
+          )
+          .catch(() => {});
 
         page.on('response', (res) => {
           if (res.url() === targetUrl || res.url() === page.url()) {
