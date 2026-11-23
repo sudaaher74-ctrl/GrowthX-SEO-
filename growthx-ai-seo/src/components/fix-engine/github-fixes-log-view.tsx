@@ -180,19 +180,31 @@ function buildDirectEditRetryInstruction(ctx: ReturnType<typeof resolveRunContex
   const base = (ctx.rawInstruction || ctx.headline || "")
     .split("EXECUTION PLAN")[0]
     .split("RETRY EXECUTION GUIDANCE")[0]
+    .split("\nGuidance:")[0]
     .split("IMPORTANT:")[0]
     .trim();
 
   const targetPages = ctx.matchedFindings[0]?.affectedPages?.slice(0, 3).join(", ") || "";
-  const pagesHint = targetPages ? ` Focus on primary pages: ${targetPages}.` : "";
+  const pagesHint = targetPages ? ` Focus on affected public pages: ${targetPages}.` : "";
+  const hay = `${ctx.moduleId} ${ctx.headline} ${base}`.toLowerCase();
+  const isAiOrCompetitor =
+    ["AI_VISIBILITY", "COMPETITOR", "COMPETITORS"].includes(ctx.moduleId.toUpperCase()) ||
+    /\b(ai models cite|citation|ai visibility|schema|json-ld|faq|llms\.txt)\b/.test(hay);
+
+  const targetRule = isAiOrCompetitor
+    ? `1. TARGET FILES: Edit ONLY primary public landing, home, or about/service pages (or index.html). NEVER edit cart, checkout, login, or account screens.${pagesHint}`
+    : `1. TARGET FILES: Locate the routed page files matching the affected URLs (e.g. src/pages/ or src/app/**/page.tsx). Do not modify internal screen fragments or route registries.${pagesHint}`;
+
+  const editRule = isAiOrCompetitor
+    ? `3. BOUNDED REPLACE: Use replace_lines with start and end STRICTLY inside your latest read range (start >= readStart and end <= readEnd). Add grounded Organization/LocalBusiness/FAQPage JSON-LD or factual offering/FAQ copy using only real details already in the repository.`
+    : `3. BOUNDED REPLACE: Use {"tool":"search","pattern":"return (","path":"..."} to locate JSX return if needed, read a 60-90 line range covering ALL lines you will change, then call replace_lines with start and end STRICTLY inside that read range (never exceed the read end line).`;
 
   const guidance = `
 RETRY EXECUTION GUIDANCE:
-1. TARGET FILES: Look for top-level page components in frontend-react/src/pages/*.jsx (such as Cart.jsx, MyAccount.jsx, Policy.jsx, or src/app/**/page.tsx). Do not modify internal screen fragments (e.g. daily/screens/) or route registry files.${pagesHint}
-2. SAFE READING: ALWAYS specify BOTH "start" and "end" in every "read" call with a 60-80 line range (e.g. {"tool":"read","path":"...","start":1,"end":80}). Never omit "end" as reading too many lines will exceed output limits.
-3. SEARCH FIRST: To find where to insert or update the <title> or <Helmet>, use {"tool":"search","pattern":"return (","path":"..."} first to get the exact line number of the JSX return, then read 60 lines around that line before calling edit.
-4. EXACT EDIT: Copy the exact lines from your read output into "old". Never guess indentation or text. Add or update <Helmet><title>Page Title | Brand</title></Helmet> inside the JSX return, and import { Helmet } from 'react-helmet-async' at the top. Keep titles under 60 characters.
-5. FINISH CLEANLY: Update 2-3 key routed pages cleanly, verify with read, then call finish with a 1-sentence summary so a Pull Request can be created.`;
+${targetRule}
+2. SAFE READING: Always specify BOTH "start" and "end" in every "read" call (e.g. start: 220, end: 310) so the entire edit target sits comfortably inside the read range.
+${editRule}
+4. FINISH CLEANLY: Once 1-2 target files are updated, call {"tool":"finish","summary":"..."} immediately so a Pull Request can be opened.`;
 
   return `${base.slice(0, 1950 - guidance.length)}\n${guidance}`;
 }
