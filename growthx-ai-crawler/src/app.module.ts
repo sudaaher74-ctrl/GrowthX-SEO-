@@ -35,6 +35,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PlatformAdminModule } from './modules/admin/platform-admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
 import { ImpactModule } from './modules/impact/impact.module';
 import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
@@ -90,6 +91,7 @@ import { CsrfGuard } from './modules/auth/csrf.guard';
     }),
     ObservabilityModule,
     DatabaseModule,
+    PlatformAdminModule,
     AgentsModule,
     StorageModule,
     SecurityModule,

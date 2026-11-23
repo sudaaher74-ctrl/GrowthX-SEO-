@@ -4,6 +4,7 @@ import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
+import { PlatformAdminService } from '../admin/platform-admin.service';
 
 /**
  * The body used to accept `Prisma.ProjectCreateInput` directly, which meant the
@@ -34,6 +35,7 @@ export class ProjectsController {
     private projectsService: ProjectsService,
     private readonly orgContext: OrgContextService,
     private readonly quotaService: SubscriptionQuotaService,
+    private readonly platformAdmin: PlatformAdminService,
   ) {}
 
   @Post()
@@ -74,12 +76,7 @@ export class ProjectsController {
     const project = await this.projectsService.getProjectById(id);
     if (!project) throw new NotFoundException('Project not found');
 
-    const userEmail = req.user?.email?.toLowerCase();
-    const platformAdmins = (process.env.PLATFORM_ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((e: string) => e.trim().toLowerCase())
-      .filter(Boolean);
-    const isPlatformAdmin = Boolean(userEmail && platformAdmins.includes(userEmail));
+    const isPlatformAdmin = await this.platformAdmin.isPlatformAdmin(req.user?.userId);
 
     if (!isPlatformAdmin) {
       try {

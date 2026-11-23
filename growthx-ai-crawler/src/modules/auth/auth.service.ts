@@ -241,6 +241,8 @@ export class AuthService {
         passwordHash,
         firstName: data.firstName?.trim() || undefined,
         lastName: data.lastName?.trim() || undefined,
+        emailVerifiedAt: null,
+        isPlatformAdmin: false,
       });
     } catch (error: any) {
       // Two sign-ups for the same address at the same moment: the second hits

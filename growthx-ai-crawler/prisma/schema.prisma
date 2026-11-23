@@ -400,16 +400,20 @@ model AIRecommendation {
 }
 
 model User {
-  id           String               @id @default(uuid())
-  email        String               @unique
-  passwordHash String
-  firstName    String?
-  lastName     String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  auditLogs    AuditLog[]
-  memberships  OrganizationMember[]
-  sessions     RefreshSession[]
+  id                     String               @id @default(uuid())
+  email                  String               @unique
+  passwordHash           String
+  firstName              String?
+  lastName               String?
+  emailVerifiedAt        DateTime?
+  isPlatformAdmin        Boolean              @default(false)
+  platformAdminGrantedAt DateTime?
+  platformAdminRevokedAt DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  auditLogs              AuditLog[]
+  memberships            OrganizationMember[]
+  sessions               RefreshSession[]
 }
 
 /// One row per refresh token issued. The token's `jti` is this id, so a token

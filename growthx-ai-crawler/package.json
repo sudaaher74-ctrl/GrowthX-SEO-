@@ -30,6 +30,7 @@
     "prisma:migrate": "prisma migrate dev",
     "script:reset-data": "node scripts/reset-data.js",
     "script:backfill-issue-identity": "npm run build && node scripts/backfill-issue-identity.js",
+    "admin:operators": "node scripts/manage-platform-admins.js",
     "postinstall": "prisma generate",
     "build:render": "npm install && npx prisma generate && npm run build",
     "start:render": "npx prisma migrate deploy && npm run start:prod"

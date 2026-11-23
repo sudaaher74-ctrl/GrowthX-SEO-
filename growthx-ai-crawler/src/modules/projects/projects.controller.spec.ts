@@ -5,11 +5,13 @@ import { ProjectsService } from './projects.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 import { PrismaService } from '../../database/prisma.service';
+import { PlatformAdminService } from '../admin/platform-admin.service';
 
 describe('ProjectsController', () => {
   let controller: ProjectsController;
   let projects: { createProject: jest.Mock; getProjectsByOrganization: jest.Mock; getProjectById: jest.Mock; deleteProject: jest.Mock };
   let orgContext: { assertMembership: jest.Mock; assertCanWrite: jest.Mock; assertManager: jest.Mock };
+  let platformAdmin: { isPlatformAdmin: jest.Mock };
 
   const alice = { user: { userId: 'user_alice' } };
 
@@ -23,6 +25,7 @@ describe('ProjectsController', () => {
     orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined),
       assertManager: jest.fn().mockResolvedValue(undefined),
     };
+    platformAdmin = { isPlatformAdmin: jest.fn().mockResolvedValue(false) };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProjectsController],
@@ -36,6 +39,7 @@ describe('ProjectsController', () => {
             assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: PlatformAdminService, useValue: platformAdmin },
         { provide: PrismaService, useValue: {} },
       ],
     }).compile();
@@ -110,5 +114,30 @@ describe('ProjectsController', () => {
     projects.getProjectById.mockResolvedValue(null);
     await expect(controller.deleteProject(alice, 'nope')).rejects.toThrow(NotFoundException);
     expect(projects.deleteProject).not.toHaveBeenCalled();
+  });
+
+  it('refuses cross-org deletion even when PLATFORM_ADMIN_EMAILS contains the caller email', async () => {
+    const prev = process.env.PLATFORM_ADMIN_EMAILS;
+    process.env.PLATFORM_ADMIN_EMAILS = 'operator@example.com,milquufresh@gmail.com';
+    try {
+      denyMembership();
+      platformAdmin.isPlatformAdmin.mockResolvedValue(false);
+      await expect(
+        controller.deleteProject({ user: { userId: 'unverified_signup', email: 'milquufresh@gmail.com' } }, 'p1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(platformAdmin.isPlatformAdmin).toHaveBeenCalledWith('unverified_signup');
+      expect(projects.deleteProject).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.PLATFORM_ADMIN_EMAILS;
+      else process.env.PLATFORM_ADMIN_EMAILS = prev;
+    }
+  });
+
+  it('allows an explicitly verified platform admin to delete a project across organizations', async () => {
+    denyMembership();
+    platformAdmin.isPlatformAdmin.mockResolvedValue(true);
+    await expect(controller.deleteProject({ user: { userId: 'verified_op_1' } }, 'p1')).resolves.toEqual({ success: true });
+    expect(platformAdmin.isPlatformAdmin).toHaveBeenCalledWith('verified_op_1');
+    expect(projects.deleteProject).toHaveBeenCalledWith('p1');
   });
 });
