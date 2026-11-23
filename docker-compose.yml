@@ -70,6 +70,8 @@ services:
       - MAX_RENDER_CONCURRENCY=${MAX_RENDER_CONCURRENCY:-2}
       - MAX_PLAYWRIGHT_CONCURRENCY=${MAX_PLAYWRIGHT_CONCURRENCY:-2}
       - CRAWL_JOB_LOCK_MS=${CRAWL_JOB_LOCK_MS:-180000}
+      - GIT_CLONE_TIMEOUT_MS=${GIT_CLONE_TIMEOUT_MS:-300000}
+      - GIT_FORCE_IPV4=${GIT_FORCE_IPV4:-false}
       # Required, and never committed: a key in this file is a public key.
       # Generate each with `openssl rand -hex 32` and put them in .env.
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (openssl rand -hex 32)}
@@ -155,6 +157,8 @@ services:
       - MAX_RENDER_CONCURRENCY=${MAX_RENDER_CONCURRENCY:-2}
       - MAX_PLAYWRIGHT_CONCURRENCY=${MAX_PLAYWRIGHT_CONCURRENCY:-2}
       - CRAWL_JOB_LOCK_MS=${CRAWL_JOB_LOCK_MS:-180000}
+      - GIT_CLONE_TIMEOUT_MS=${GIT_CLONE_TIMEOUT_MS:-300000}
+      - GIT_FORCE_IPV4=${GIT_FORCE_IPV4:-false}
       # Tokens must be configured identically for the API and the worker: both
       # run AI calls, and two processes disagreeing about limits would meter
       # the same organization two ways. Left empty, the built-in defaults apply.

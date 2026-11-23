@@ -16,14 +16,27 @@ jest.mock('simple-git', () => ({
   })),
 }));
 
+import { simpleGit } from 'simple-git';
 import { GitService } from './git.service';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 
 describe('GitService', () => {
   let service: GitService;
+  const mockSimpleGit = simpleGit as jest.Mock;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.GIT_FORCE_IPV4;
+    delete process.env.GIT_CLONE_TIMEOUT_MS;
+    mockSimpleGit.mockImplementation(() => ({
+      clone: jest.fn().mockResolvedValue(undefined),
+      checkoutLocalBranch: jest.fn().mockResolvedValue(undefined),
+      add: jest.fn().mockResolvedValue(undefined),
+      addConfig: jest.fn().mockResolvedValue(undefined),
+      commit: jest.fn().mockResolvedValue(undefined),
+      push: jest.fn().mockResolvedValue(undefined),
+    }));
     service = new GitService();
   });
 
@@ -59,5 +72,59 @@ describe('GitService', () => {
     await service.cleanupRepository(dir);
     await expect(fs.access(dir)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(service.cleanupRepository(os.tmpdir())).rejects.toThrow('outside the Fix Engine');
+  });
+
+  it('configures HTTP/1.1, non-interactive prompts, and --progress on clone', async () => {
+    const clone = jest.fn().mockResolvedValue(undefined);
+    const env = jest.fn().mockReturnThis();
+    mockSimpleGit.mockReturnValue({ clone, env });
+
+    const dir = await service.cloneRepository('https://github.com/o/r.git', 'ghp_secret', 'r');
+
+    expect(mockSimpleGit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeout: { block: 300_000 },
+        config: expect.arrayContaining(['http.version=HTTP/1.1', 'http.lowSpeedLimit=1000']),
+      }),
+    );
+    expect(env).toHaveBeenCalledWith(
+      expect.objectContaining({ GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' }),
+    );
+    expect(clone).toHaveBeenCalledWith(
+      expect.stringContaining('github.com/o/r.git'),
+      dir,
+      expect.arrayContaining(['--depth', '1', '--single-branch', '--no-tags', '--progress']),
+    );
+    await service.cleanupRepository(dir);
+  });
+
+  it('retries clone automatically with --ipv4 when the first attempt hits block timeout reached', async () => {
+    const clone = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('block timeout reached'))
+      .mockResolvedValueOnce(undefined);
+    mockSimpleGit.mockReturnValue({ clone });
+
+    const dir = await service.cloneRepository('https://github.com/o/r.git', 'ghp_secret', 'r');
+
+    expect(clone).toHaveBeenCalledTimes(2);
+    expect(clone.mock.calls[0][2]).not.toContain('--ipv4');
+    expect(clone.mock.calls[1][2]).toContain('--ipv4');
+    await service.cleanupRepository(dir);
+  });
+
+  it('throws an actionable redacted error when both clone attempts time out', async () => {
+    const clone = jest.fn().mockRejectedValue(new Error('block timeout reached for https://x-access-token:ghp_secret@github.com/o/r.git'));
+    mockSimpleGit.mockReturnValue({ clone });
+
+    await expect(
+      service.cloneRepository('https://github.com/o/r.git', 'ghp_secret', 'r'),
+    ).rejects.toThrow(/GitHub clone timed out for https:\/\/github\.com\/o\/r\.git/);
+
+    try {
+      await service.cloneRepository('https://github.com/o/r.git', 'ghp_secret', 'r');
+    } catch (err: any) {
+      expect(err.message).not.toContain('ghp_secret');
+    }
   });
 });

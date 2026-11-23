@@ -5,9 +5,73 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+const DEFAULT_GIT_BLOCK_TIMEOUT_MS = 300_000;
+const TRANSIENT_GIT_ERROR_RE =
+  /block timeout reached|operation too slow|connection timed out|could not resolve|failed to connect|rpc failed|early eof|gnutls|ssl_error_syscall|recv failure|timed out|unable to access/i;
+
+function resolveGitBlockTimeoutMs(): number {
+  const raw = Number(process.env.GIT_CLONE_TIMEOUT_MS);
+  if (Number.isFinite(raw) && raw >= 30_000 && raw <= 1_800_000) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_GIT_BLOCK_TIMEOUT_MS;
+}
+
+function redactToken(text: string, token?: string): string {
+  let out = text.replace(/x-access-token:[^@\s]+@/gi, 'x-access-token:***@');
+  if (token?.trim()) {
+    out = out.split(token.trim()).join('***');
+  }
+  return out;
+}
+
 @Injectable()
 export class GitService {
   private readonly logger = new Logger(GitService.name);
+
+  /**
+   * Builds a hardened SimpleGit instance for Docker / self-hosted PC servers:
+   * - Forces HTTP/1.1 to avoid silent HTTP/2 stalls over Docker bridge / NAT / PPPoE MTUs.
+   * - Disables interactive terminal prompts so bad tokens fail fast instead of hanging.
+   * - Uses low-speed detection so truly dead sockets fail cleanly and trigger IPv4 retry.
+   */
+  private createGit(baseDir?: string, timeoutMs = resolveGitBlockTimeoutMs()): SimpleGit {
+    const git = simpleGit({
+      ...(baseDir ? { baseDir } : {}),
+      timeout: { block: timeoutMs },
+      config: [
+        'http.version=HTTP/1.1',
+        'http.postBuffer=524288000',
+        'http.lowSpeedLimit=1000',
+        'http.lowSpeedTime=90',
+        'protocol.version=2',
+        'credential.helper=',
+      ],
+    });
+    if (typeof git.env === 'function') {
+      git.env({
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+      });
+    }
+    return git;
+  }
+
+  private formatGitError(operation: 'clone' | 'push', repoLabel: string, error: unknown, token?: string): Error {
+    const raw = redactToken(error instanceof Error ? error.message : String(error ?? 'Unknown git error'), token);
+    if (/authentication failed|could not read username|invalid username or password|returned error:\s*40[13]/i.test(raw)) {
+      return new Error(
+        `GitHub rejected the saved access token during ${operation} for ${repoLabel}. Reconnect the repository in Fix Engine with a valid token that has repo write access.`,
+      );
+    }
+    if (/block timeout reached|operation too slow|timed out/i.test(raw)) {
+      return new Error(
+        `GitHub ${operation} timed out for ${repoLabel} on the server. Check outbound internet/DNS/firewall access to github.com from the worker container (or set GIT_FORCE_IPV4=true / higher GIT_CLONE_TIMEOUT_MS in .env and restart worker).`,
+      );
+    }
+    return new Error(`GitHub ${operation} failed for ${repoLabel}: ${raw}`);
+  }
 
   /** Read immutable PR revisions. Never follow arbitrary URLs with the customer's token. */
   async readPullRequestEvidence(token: string, owner: string, repo: string, number: number) {
@@ -48,27 +112,51 @@ export class GitService {
 
   /**
    * Clones a repository to a local temporary directory.
+   * Passes `--progress` so Git streams progress output to stderr in non-TTY Docker
+   * containers (preventing false `block timeout reached` kills on active clones) and
+   * automatically retries once with `--ipv4` if IPv6/NAT stalls on a self-hosted PC.
    */
   async cloneRepository(repoUrl: string, token: string, _repoName: string): Promise<string> {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
-
     // GitHub's documented form for a token over HTTPS. The token is URL-encoded, so a
     // character that is not valid in a URL cannot corrupt the address (git reports that
     // as "URL using bad/illegal format").
     const url = new URL(repoUrl);
     url.username = 'x-access-token';
     url.password = token.trim();
-    const git: SimpleGit = simpleGit({ timeout: { block: 120000 } });
 
-    this.logger.log(`Cloning ${repoUrl} to ${targetDir}...`);
-    try {
-      await git.clone(url.toString(), targetDir, ['--depth', '1', '--single-branch', '--no-tags']);
-    } catch (error) {
-      await this.cleanupRepository(targetDir);
-      throw error;
+    const forceIpv4 = process.env.GIT_FORCE_IPV4 === 'true';
+    const baseArgs = ['--depth', '1', '--single-branch', '--no-tags', '--progress'];
+    const attempts: string[][] = forceIpv4
+      ? [[...baseArgs, '--ipv4']]
+      : [baseArgs, [...baseArgs, '--ipv4']];
+
+    let lastError: unknown;
+    for (let i = 0; i < attempts.length; i++) {
+      const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-engineer-'));
+      const args = attempts[i];
+      const git = this.createGit();
+
+      this.logger.log(
+        `Cloning ${repoUrl} to ${targetDir}${args.includes('--ipv4') ? ' (IPv4)' : ''} (attempt ${i + 1}/${attempts.length})...`,
+      );
+
+      try {
+        await git.clone(url.toString(), targetDir, args);
+        return targetDir;
+      } catch (error) {
+        lastError = error;
+        await this.cleanupRepository(targetDir).catch(() => null);
+        const msg = redactToken(error instanceof Error ? error.message : String(error), token);
+        const canRetry = i + 1 < attempts.length && TRANSIENT_GIT_ERROR_RE.test(msg);
+        if (canRetry) {
+          this.logger.warn(`Clone of ${repoUrl} stalled (${msg}); retrying over IPv4...`);
+          continue;
+        }
+        throw this.formatGitError('clone', repoUrl, error, token);
+      }
     }
 
-    return targetDir;
+    throw this.formatGitError('clone', repoUrl, lastError, token);
   }
 
   /** Remove only workspaces this service created under the host temp directory. */
@@ -110,7 +198,7 @@ export class GitService {
    * Creates a new feature branch for the automated fix.
    */
   async createFeatureBranch(repoDir: string, branchName: string): Promise<void> {
-    const git: SimpleGit = simpleGit(repoDir);
+    const git = this.createGit(repoDir, 60_000);
     this.logger.log(`Checking out new branch: ${branchName}`);
     await git.checkoutLocalBranch(branchName);
   }
@@ -119,19 +207,35 @@ export class GitService {
    * Commits the changes and pushes to the remote.
    */
   async commitAndPush(repoDir: string, branchName: string, commitMessage: string): Promise<void> {
-    const git: SimpleGit = simpleGit(repoDir);
-    
+    const git = this.createGit(repoDir);
+
     this.logger.log(`Committing changes: "${commitMessage}"`);
     await git.add('.');
-    
+
     // Setup git config for commit
     await git.addConfig('user.name', 'GrowthX AI Engineer');
     await git.addConfig('user.email', 'engineer@growthx.ai');
-    
+
     await git.commit(commitMessage);
-    
+
     this.logger.log(`Pushing branch ${branchName} to remote...`);
-    await git.push('origin', branchName);
+    const forceIpv4 = process.env.GIT_FORCE_IPV4 === 'true';
+    const pushArgs = forceIpv4 ? ['--progress', '--ipv4'] : ['--progress'];
+    try {
+      await git.push('origin', branchName, pushArgs);
+    } catch (error) {
+      const msg = redactToken(error instanceof Error ? error.message : String(error));
+      if (!forceIpv4 && TRANSIENT_GIT_ERROR_RE.test(msg)) {
+        this.logger.warn(`Push of ${branchName} stalled (${msg}); retrying over IPv4...`);
+        try {
+          await git.push('origin', branchName, ['--progress', '--ipv4']);
+          return;
+        } catch (retryError) {
+          throw this.formatGitError('push', branchName, retryError);
+        }
+      }
+      throw this.formatGitError('push', branchName, error);
+    }
   }
 
   /**
@@ -224,7 +328,7 @@ export class GitService {
     const repoDir = await this.cloneRepository(repoUrl, token, repo);
 
     try {
-      const git: SimpleGit = simpleGit(repoDir);
+      const git = this.createGit(repoDir);
       await git.checkout(baseBranch);
       await git.checkoutLocalBranch(revertBranch);
       await git.addConfig('user.name', 'GrowthX AI Engineer');
@@ -239,7 +343,7 @@ export class GitService {
         await git.raw(['revert', '--no-edit', mergeSha]);
       }
 
-      await git.push('origin', revertBranch);
+      await git.push('origin', revertBranch, ['--progress']);
       const revertPullRequestUrl = await this.createPullRequest(
         token,
         owner,
