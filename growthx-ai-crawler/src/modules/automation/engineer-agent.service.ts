@@ -12,6 +12,7 @@ import { EngineerQueueService } from './engineer-queue.service';
 import { metadataAcceptance } from './metadata-acceptance';
 import { AutomationService } from './automation.service';
 import { measuredFinding } from '../opportunities/finding-evidence';
+import { assertActorCanUseRepository, assertRepositoryAuthorized } from './repository-auth';
 
 interface RunStep {
   at: string;
@@ -332,13 +333,22 @@ export class EngineerAgentService {
     instructionInput: string,
     findingsContext: FindingRunContext[] = [],
     operation?: { type: 'approved_fixes' | 'content'; ids?: string[] },
+    actorUserId?: string,
   ) {
     const instruction = (instructionInput ?? '').trim();
     if (instruction.length < MIN_INSTRUCTION) throw new BadRequestException('Describe the change you want in a sentence or two.');
     if (instruction.length > MAX_INSTRUCTION) throw new BadRequestException(`Keep the instruction under ${MAX_INSTRUCTION} characters.`);
 
+    if (this.prisma.project?.findUnique) {
+      const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } });
+      if (!project || project.organizationId !== organizationId) {
+        throw new BadRequestException('Project workspace does not match the requesting organization.');
+      }
+    }
     const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });
     if (!repo) throw new BadRequestException('Connect the website repository first.');
+    assertRepositoryAuthorized(repo, projectId, organizationId);
+    await assertActorCanUseRepository(this.prisma, organizationId, actorUserId);
     if (this.running.has(projectId)) throw new ConflictException('The engineer is already working on this site. Wait for it to finish.');
 
     if (this.queue) {
@@ -347,7 +357,7 @@ export class EngineerAgentService {
         const active = await tx.automationRun.findFirst({ where: { projectId, status: { in: ['PENDING', 'RUNNING'] } } });
         if (active) throw new ConflictException('A fix is already queued or running for this site.');
         return tx.automationRun.create({ data: { repositoryId: repo.id, projectId, kind: operation?.type === 'content' ? AutomationRunKind.CONTENT : AutomationRunKind.FIXES, status: AutomationRunStatus.PENDING,
-          steps: [{ step: 'engineer_request', ok: true, at: new Date().toISOString(), request: { organizationId, instruction, findingsContext, operation } }, { step: 'instruction', ok: true, at: new Date().toISOString(), detail: instruction }] as any } });
+          steps: [{ step: 'engineer_request', ok: true, at: new Date().toISOString(), request: { organizationId, actorUserId, repositoryId: repo.id, instruction, findingsContext, operation } }, { step: 'instruction', ok: true, at: new Date().toISOString(), detail: instruction }] as any } });
       });
       try { await this.queue.enqueue(run.id); }
       catch (error) {
@@ -389,6 +399,7 @@ export class EngineerAgentService {
     projectId: string,
     organizationId: string,
     options?: { findingIds?: string[]; sourceModule?: string },
+    actorUserId?: string,
   ) {
     if (options?.findingIds && options.findingIds.length > 8) throw new BadRequestException('Select at most 8 findings per run. Remaining findings can be queued in a later run.');
     const where: Record<string, unknown> = { projectId };
@@ -472,23 +483,23 @@ export class EngineerAgentService {
     }
 
     const instruction = clip(lines.join('\n'), MAX_INSTRUCTION);
-    return this.start(projectId, organizationId, instruction, findingsContext);
+    return this.start(projectId, organizationId, instruction, findingsContext, undefined, actorUserId);
   }
 
   /** Starts a run and waits for it to finish. */
-  async run(projectId: string, organizationId: string, instruction: string) {
-    const { done } = await this.start(projectId, organizationId, instruction);
+  async run(projectId: string, organizationId: string, instruction: string, actorUserId?: string) {
+    const { done } = await this.start(projectId, organizationId, instruction, [], undefined, actorUserId);
     return done;
   }
 
   queueStatus() { return this.queue?.status() ?? { available: false, waiting: null, active: null, workers: 0 }; }
 
-  startApprovedFixes(projectId: string, organizationId: string, ids?: string[]) {
-    return this.start(projectId, organizationId, 'Prepare supported low-risk fixes from the actual open Website Audit issues. Unsupported changes must be reported as skipped.', [], { type: 'approved_fixes', ids });
+  startApprovedFixes(projectId: string, organizationId: string, ids?: string[], actorUserId?: string) {
+    return this.start(projectId, organizationId, 'Prepare supported low-risk fixes from the actual open Website Audit issues. Unsupported changes must be reported as skipped.', [], { type: 'approved_fixes', ids }, actorUserId);
   }
 
-  startContent(projectId: string, organizationId: string, ids?: string[]) {
-    return this.start(projectId, organizationId, 'Prepare a draft pull request from the actual drafted content selected for this project.', [], { type: 'content', ids });
+  startContent(projectId: string, organizationId: string, ids?: string[], actorUserId?: string) {
+    return this.start(projectId, organizationId, 'Prepare a draft pull request from the actual drafted content selected for this project.', [], { type: 'content', ids }, actorUserId);
   }
 
   /** Only the durable worker invokes this; compare-and-set prevents duplicate execution. */
@@ -497,7 +508,27 @@ export class EngineerAgentService {
     if (!run || run.status !== 'PENDING') return;
     const request = (run.steps as any[])?.find(step => step.step === 'engineer_request')?.request;
     const project = await this.prisma.project.findUnique({ where: { id: run.projectId }, select: { organizationId: true } });
-    if (!request || project?.organizationId !== request.organizationId) throw new BadRequestException('Queued request workspace does not match the project.');
+    const failQueued = async (message: string) => {
+      await this.prisma.automationRun.updateMany({
+        where: { id: runId, status: 'PENDING' },
+        data: { status: 'FAILED', error: message, finishedAt: new Date() },
+      }).catch(() => undefined);
+    };
+    if (!request || !project || project.organizationId !== request.organizationId) {
+      await failQueued('Queued request workspace does not match the project.');
+      throw new BadRequestException('Queued request workspace does not match the project.');
+    }
+    if (!run.repository || (request.repositoryId && run.repository.id !== request.repositoryId)) {
+      await failQueued('Queued run repository connection is no longer valid.');
+      throw new BadRequestException('Queued run repository connection is no longer valid.');
+    }
+    try {
+      assertRepositoryAuthorized(run.repository, run.projectId, project.organizationId);
+      await assertActorCanUseRepository(this.prisma, project.organizationId, request.actorUserId);
+    } catch (error: any) {
+      await failQueued(String(error?.message ?? 'Repository authorization failed.'));
+      throw error;
+    }
     const claim = await this.prisma.automationRun.updateMany({ where: { id: runId, status: 'PENDING' }, data: { status: 'RUNNING', startedAt: new Date() } });
     if (!claim.count) return;
     if (request.operation) {
@@ -523,6 +554,7 @@ export class EngineerAgentService {
     let token = '';
 
     try {
+      assertRepositoryAuthorized(repo, projectId, organizationId);
       token = this.security.decryptCredentials(repo.accessTokenEncrypted);
       if (!token) throw new Error('The saved GitHub token could not be read. Reconnect the repository.');
 

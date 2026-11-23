@@ -13,6 +13,11 @@ import { scheduledJobsEnabled } from '../scheduler/scheduler.module';
 import { OWN_SCOPE } from '../crawler/website-scope';
 import { WordPressCmsService } from './wordpress-cms.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
+import {
+  assertRepositoryAuthorized,
+  GITHUB_CREDENTIAL_PROVENANCE_EXPLICIT,
+  isExplicitlyAuthorizedRepository,
+} from './repository-auth';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 
@@ -118,6 +123,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       where: {
         owner: { equals: owner, mode: 'insensitive' },
         name: { equals: repoName, mode: 'insensitive' },
+        credentialProvenance: GITHUB_CREDENTIAL_PROVENANCE_EXPLICIT,
       },
       select: { id: true, projectId: true },
     });
@@ -204,6 +210,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
   async rollbackRun(
     projectId: string,
     runId: string,
+    organizationId?: string,
   ): Promise<{
     success: boolean;
     mode: 'GITHUB' | 'CMS';
@@ -250,7 +257,20 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
       if (!prMatch || !run.repository?.accessTokenEncrypted) {
         throw new BadRequestException('Cannot roll back this GitHub run: repository credentials or PR URL missing.');
       }
+      const resolvedOrgId =
+        organizationId ||
+        (await this.prisma.project?.findUnique?.({
+          where: { id: projectId },
+          select: { organizationId: true },
+        }))?.organizationId;
+      assertRepositoryAuthorized(run.repository, projectId, resolvedOrgId);
       const [, owner, repo, prNumStr] = prMatch;
+      if (
+        owner.toLowerCase() !== (run.repository.owner || '').toLowerCase() ||
+        repo.toLowerCase() !== (run.repository.name || '').toLowerCase()
+      ) {
+        throw new BadRequestException('Pull request repository does not match the connected project repository.');
+      }
       const pullNumber = Number(prNumStr);
       const token = this.security.decryptCredentials(run.repository.accessTokenEncrypted);
       const gitRes = await this.git.rollbackPullRequest(
@@ -852,10 +872,22 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
     if (changes.length === 0) {
       return { success: false, verificationStatus: 'NOT_CHECKED', message: 'This run has no page-level change evidence, so Reigel cannot safely verify it automatically.' };
     }
-    const repository = await this.prisma.siteRepository.findUnique({ where: { projectId } });
+    const [repository, project] = await Promise.all([
+      this.prisma.siteRepository.findUnique({ where: { projectId } }),
+      this.prisma.project?.findUnique
+        ? this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } })
+        : Promise.resolve(null),
+    ]);
     const pr = run.pullRequestUrl?.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
     if (!repository || !pr || pr[1].toLowerCase() !== repository.owner?.toLowerCase() || pr[2].toLowerCase() !== repository.name?.toLowerCase()) {
       return { success: false, verificationStatus: 'NOT_CHECKED', message: 'A pull request in the connected repository is required for deployment verification.' };
+    }
+    if (!isExplicitlyAuthorizedRepository(repository, projectId, project?.organizationId)) {
+      return {
+        success: false,
+        verificationStatus: 'NOT_CHECKED',
+        message: 'GitHub connection requires explicit workspace authorization before deployment verification.',
+      };
     }
     let mergedAt: string | null | undefined;
     try {

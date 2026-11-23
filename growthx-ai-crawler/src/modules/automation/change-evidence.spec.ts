@@ -8,7 +8,7 @@ describe('Fix Engine change evidence', () => {
   const change = { issueId: 'issue', url: 'https://client.test/contact', field: 'META_TITLE', before: 'Home', after: 'Contact', why: 'Each page needs its own title', file: 'contact.jsx', measuredAt: before.toISOString() };
   function setup(pages: any[], steps: any[] = [{ step: 'change', change }]) {
     const run = { id: 'run', status: 'AWAITING_REVIEW', pullRequestUrl: 'https://github.com/customer/website/pull/10', steps, filesChanged: ['contact.jsx', 'contact.jsx'], startedAt: before, finishedAt: finished };
-    const prisma = { siteRepository: { findUnique: jest.fn().mockResolvedValue({ id: 'repo', owner: 'customer', name: 'website', accessTokenEncrypted: 'encrypted' }) }, automationRun: { findMany: jest.fn().mockResolvedValue([run]) }, page: { findMany: jest.fn().mockResolvedValue(pages) } };
+    const prisma = { siteRepository: { findUnique: jest.fn().mockResolvedValue({ id: 'repo', projectId: 'customer', owner: 'customer', name: 'website', accessTokenEncrypted: 'encrypted', connectedOrganizationId: 'org_1', connectedByUserId: 'user_1', credentialProvenance: 'EXPLICIT' }) }, automationRun: { findMany: jest.fn().mockResolvedValue([run]) }, page: { findMany: jest.fn().mockResolvedValue(pages) } };
     const service = new AutomationService(prisma as any, null!, null!, null!, null!, null!, null!, null!);
     Object.assign(service, { git: { readPullRequestEvidence: jest.fn().mockResolvedValue({ state: 'MERGED', mergedAt: finished.toISOString(), files: [], routers: [] }) }, security: { decryptCredentials: () => 'test-token' } });
     return { service, prisma };
@@ -44,7 +44,7 @@ describe('Fix Engine change evidence', () => {
     const { service, prisma } = setup([page('Contact'), page('Home', new Date('2025-12-31T00:00:00Z'))], []);
     const run = (await prisma.automationRun.findMany())[0];
     run.pullRequestUrl = 'https://github.com/customer/website/pull/10';
-    prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo', owner: 'customer', name: 'website', accessTokenEncrypted: 'encrypted' } as never);
+    prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo', projectId: 'customer', owner: 'customer', name: 'website', accessTokenEncrypted: 'encrypted', connectedOrganizationId: 'org_1', connectedByUserId: 'user_1', credentialProvenance: 'EXPLICIT' } as never);
     const read = jest.fn().mockResolvedValue({ state: 'MERGED', mergedAt: finished.toISOString(), baseSha: 'base', headSha: 'head',
       files: [{ file: 'frontend/src/pages/Contact.jsx', before: 'export default function Contact(){return <p>Contact</p>}', after: 'export default function Contact(){return <title>{"Contact"}</title>}' }],
       routers: [{ file: 'frontend/src/router.jsx', content: 'const Contact=lazy(()=>import("./pages/Contact"));const router=createBrowserRouter([{path:"/",children:[{path:"contact",element:<Contact/>}]}]);' }],

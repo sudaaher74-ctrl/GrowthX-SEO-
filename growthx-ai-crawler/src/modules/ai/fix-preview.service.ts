@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
+import { isExplicitlyAuthorizedRepository } from '../automation/repository-auth';
 import { AutoFixService } from './auto-fix.service';
 import {
   candidatePaths,
@@ -146,12 +147,17 @@ export class FixPreviewService {
     }
 
     const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });
-    if (!repo) {
+    const project = this.prisma.project?.findUnique
+      ? await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } })
+      : null;
+    if (!repo || !isExplicitlyAuthorizedRepository(repo, projectId, project?.organizationId ?? repo.connectedOrganizationId)) {
       return {
         path: null,
         source: 'derived',
         candidates,
-        note: 'No repository is connected to this project, so these paths are inferred from the URL.',
+        note: repo
+          ? 'The saved repository connection requires reconnection to verify workspace provenance; these paths are inferred from the URL.'
+          : 'No repository is connected to this project, so these paths are inferred from the URL.',
       };
     }
 

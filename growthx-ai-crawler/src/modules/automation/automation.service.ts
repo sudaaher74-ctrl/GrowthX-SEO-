@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   AutomationRunKind,
   AutomationRunStatus,
@@ -10,6 +10,12 @@ import * as os from 'os';
 import { readTitleEvidence, readTitleVariants } from './pr-title-evidence';
 import { isSafeFixType, unsafeFixReason } from './fix-safety';
 import { resolveReactRoute } from './react-route';
+import {
+  assertRepositoryAuthorized,
+  GITHUB_CREDENTIAL_PROVENANCE_EXPLICIT,
+  GITHUB_REUSE_SENTINELS,
+  isExplicitlyAuthorizedRepository,
+} from './repository-auth';
 import { isPublishableSeoText } from '../ai/fix-generator';
 import { OWN_SCOPE } from '../crawler/website-scope';
 import { PrismaService } from '../../database/prisma.service';
@@ -89,6 +95,7 @@ export class AutomationService {
       contentDir?: string;
       autoMerge?: boolean;
     },
+    actorContext?: { organizationId?: string; userId?: string },
   ) {
     if (!input.owner || !input.name) {
       throw new BadRequestException('owner, name and accessToken are required.');
@@ -97,20 +104,47 @@ export class AutomationService {
     const owner = input.owner.trim();
     const name = input.name.trim().replace(/\.git$/i, '');
 
+    let organizationId = actorContext?.organizationId;
+    if (this.prisma.project?.findUnique) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { organizationId: true },
+      });
+      if (!project) {
+        throw new ForbiddenException('Project not found or not accessible.');
+      }
+      if (organizationId && project.organizationId !== organizationId) {
+        throw new ForbiddenException('Project does not belong to the requesting workspace.');
+      }
+      organizationId = project.organizationId;
+    }
+    const actorUserId = actorContext?.userId?.trim();
+    if (!organizationId || !actorUserId) {
+      throw new ForbiddenException('An authenticated workspace user is required to connect a GitHub repository.');
+    }
+
     // Tolerate what people paste: stray spaces or a line break, or the word "Bearer".
     let accessToken = (input.accessToken ?? '').replace(/^\s*(bearer|token)\s+/i, '').trim();
-    if (!accessToken || accessToken === 'ghp_oauth_session_verified' || accessToken === '__REUSE_LINKED_GITHUB_TOKEN__') {
-      const existingRepo = await this.prisma.siteRepository.findFirst?.({
-        where: { owner },
-        orderBy: { updatedAt: 'desc' },
+    const wantsReconnectReuse = !accessToken || GITHUB_REUSE_SENTINELS.has(accessToken);
+    if (wantsReconnectReuse) {
+      // ONLY ever allow reusing a credential already explicitly authorized on THIS exact project
+      // and THIS exact organization — never look up another project or tenant by GitHub owner.
+      const existingRepo = await this.prisma.siteRepository.findUnique({
+        where: { projectId },
       });
-      if (existingRepo?.accessTokenEncrypted) {
+      if (
+        existingRepo &&
+        existingRepo.owner.toLowerCase() === owner.toLowerCase() &&
+        isExplicitlyAuthorizedRepository(existingRepo, projectId, organizationId)
+      ) {
         const decrypted = this.security.decryptCredentials(existingRepo.accessTokenEncrypted);
         if (decrypted) accessToken = decrypted.trim();
       }
     }
-    if (!accessToken || accessToken === 'ghp_oauth_session_verified' || accessToken === '__REUSE_LINKED_GITHUB_TOKEN__') {
-      throw new BadRequestException('owner, name and accessToken are required.');
+    if (!accessToken || GITHUB_REUSE_SENTINELS.has(accessToken)) {
+      throw new BadRequestException(
+        'An explicit GitHub access token is required for this project. Saved credentials cannot be reused across projects or when connection provenance is unverified.',
+      );
     }
     if (/\s/.test(accessToken)) {
       throw new BadRequestException('The token contains spaces or line breaks. Paste only the token itself.');
@@ -133,6 +167,10 @@ export class AutomationService {
       owner,
       name,
       accessTokenEncrypted: this.security.encryptCredentials(accessToken),
+      connectedOrganizationId: organizationId,
+      connectedByUserId: actorUserId,
+      credentialProvenance: GITHUB_CREDENTIAL_PROVENANCE_EXPLICIT,
+      credentialVerifiedAt: new Date(),
       defaultBranch: input.defaultBranch?.trim() || verified.defaultBranch,
       framework: input.framework ?? 'unknown',
       contentDir: input.contentDir ?? null,
@@ -169,9 +207,10 @@ export class AutomationService {
   }
 
   /** The token must never leave the server. */
-  private redact<T extends { accessTokenEncrypted: string }>(repo: T) {
+  private redact<T extends { accessTokenEncrypted: string; credentialProvenance?: string | null }>(repo: T) {
     const { accessTokenEncrypted: _omitted, ...safe } = repo;
-    return { ...safe, tokenConfigured: true };
+    const provenanceVerified = repo.credentialProvenance === GITHUB_CREDENTIAL_PROVENANCE_EXPLICIT;
+    return { ...safe, tokenConfigured: provenanceVerified, reconnectRequired: !provenanceVerified };
   }
 
   // ───────────────────────────────────────────────────────────── the run
@@ -186,7 +225,7 @@ export class AutomationService {
    */
   async runFixes(projectId: string, organizationId: string, issueIds?: string[], queuedRunId?: string) {
 
-    const repo = await this.requireRepository(projectId);
+    const repo = await this.requireRepository(projectId, organizationId);
     const run = queuedRunId ? await this.prisma.automationRun.findUnique({ where: { id: queuedRunId } }) : await this.startRun(repo.id, projectId, AutomationRunKind.FIXES);
     if (!run || (queuedRunId && (run.projectId !== projectId || run.repositoryId !== repo.id || run.status !== 'RUNNING'))) throw new BadRequestException('Queued fix run does not match this repository.');
     const steps: RunStep[] = [];
@@ -406,7 +445,7 @@ export class AutomationService {
    */
   async runContent(projectId: string, organizationId: string, pieceIds?: string[], queuedRunId?: string) {
 
-    const repo = await this.requireRepository(projectId);
+    const repo = await this.requireRepository(projectId, organizationId);
     const run = queuedRunId ? await this.prisma.automationRun.findUnique({ where: { id: queuedRunId } }) : await this.startRun(repo.id, projectId, AutomationRunKind.CONTENT);
     if (!run || (queuedRunId && (run.projectId !== projectId || run.repositoryId !== repo.id || run.status !== 'RUNNING'))) throw new BadRequestException('Queued content run does not match this repository.');
     const steps: RunStep[] = [];
@@ -529,13 +568,19 @@ export class AutomationService {
     return { dismissedCount: res.count };
   }
 
-  async listChanges(projectId: string) {
+  async listChanges(projectId: string, organizationId?: string) {
     const runs = await this.listRuns(projectId);
     const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });
+    let resolvedOrgId = organizationId;
+    if (!resolvedOrgId && this.prisma.project?.findUnique) {
+      const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } });
+      resolvedOrgId = project?.organizationId;
+    }
+    const repoAuthorized = isExplicitlyAuthorizedRepository(repo, projectId, resolvedOrgId ?? repo?.connectedOrganizationId);
     const reviews = new Map<string, Awaited<ReturnType<GitService['readPullRequestEvidence']>>>();
     const evidenceErrors = new Set<string>();
     for (const run of runs) {
-      if (!repo || !run.pullRequestUrl) continue;
+      if (!repo || !repoAuthorized || !run.pullRequestUrl) continue;
       const match = run.pullRequestUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
       if (!match || match[1].toLowerCase() !== repo.owner.toLowerCase() || match[2].toLowerCase() !== repo.name.toLowerCase()) continue;
       try {
@@ -681,13 +726,23 @@ export class AutomationService {
 
   // ─────────────────────────────────────────────────────────────── helpers
 
-  private async requireRepository(projectId: string) {
+  private async requireRepository(projectId: string, organizationId: string) {
+    if (this.prisma.project?.findUnique) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { organizationId: true },
+      });
+      if (!project || project.organizationId !== organizationId) {
+        throw new ForbiddenException('Project does not belong to the requesting workspace.');
+      }
+    }
     const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });
     if (!repo) {
       throw new BadRequestException(
         'Connect this client\'s repository first — the agent needs somewhere to write the changes.',
       );
     }
+    assertRepositoryAuthorized(repo, projectId, organizationId);
     return repo;
   }
 

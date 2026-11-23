@@ -61,10 +61,21 @@ describe('ProofOfImpactService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       project: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'proj_1', name: 'Acme SEO', websites: [{ id: 'w1', domain: 'acme.com' }] }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'proj_1', organizationId: 'org_1', name: 'Acme SEO', websites: [{ id: 'w1', domain: 'acme.com' }] }),
       },
       siteRepository: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'repo_1', owner: 'acme', name: 'repo', accessTokenEncrypted: 'encrypted', defaultBranch: 'main', framework: 'nextjs' }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'repo_1',
+          projectId: 'proj_1',
+          owner: 'acme',
+          name: 'repo',
+          accessTokenEncrypted: 'encrypted',
+          defaultBranch: 'main',
+          framework: 'nextjs',
+          connectedOrganizationId: 'org_1',
+          connectedByUserId: 'user_1',
+          credentialProvenance: 'EXPLICIT',
+        }),
       },
       page: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -636,7 +647,17 @@ describe('ProofOfImpactService', () => {
         branch: 'fix/meta-title',
         pullRequestUrl: 'https://github.com/acme/site/pull/42',
         steps: [{ change: { url: 'https://example.com/pricing', field: 'META_TITLE' } }],
-        repository: { accessTokenEncrypted: 'enc-token', defaultBranch: 'main' },
+        repository: {
+          id: 'repo_1',
+          projectId: 'proj_1',
+          owner: 'acme',
+          name: 'site',
+          accessTokenEncrypted: 'enc-token',
+          defaultBranch: 'main',
+          connectedOrganizationId: 'org_1',
+          connectedByUserId: 'user_1',
+          credentialProvenance: 'EXPLICIT',
+        },
       });
       prisma.growthOpportunity.updateMany = jest.fn().mockResolvedValue({ count: 1 });
       (service as any).security = { decryptCredentials: jest.fn().mockReturnValue('ghp_secret') };
@@ -664,6 +685,61 @@ describe('ProofOfImpactService', () => {
         }),
       );
       expect(prisma.growthOpportunity.updateMany).toHaveBeenCalled();
+    });
+
+    it('refuses GitHub rollback when repository credential provenance is legacy or cross-tenant', async () => {
+      const decryptCredentials = jest.fn().mockReturnValue('ghp_stolen');
+      const rollbackPullRequest = jest.fn();
+      (service as any).security = { decryptCredentials };
+      (service as any).git = { rollbackPullRequest };
+
+      prisma.automationRun.findFirst = jest.fn().mockResolvedValue({
+        id: 'run_legacy',
+        projectId: 'proj_1',
+        branch: 'fix/meta-title',
+        pullRequestUrl: 'https://github.com/acme/site/pull/42',
+        steps: [],
+        repository: {
+          id: 'repo_legacy',
+          projectId: 'proj_1',
+          owner: 'acme',
+          name: 'site',
+          accessTokenEncrypted: 'enc-token',
+          defaultBranch: 'main',
+          credentialProvenance: 'LEGACY_UNVERIFIED',
+        },
+      });
+
+      await expect(service.rollbackRun('proj_1', 'run_legacy', 'org_1')).rejects.toThrow(/provenance|suspended|Reconnect/i);
+      expect(decryptCredentials).not.toHaveBeenCalled();
+      expect(rollbackPullRequest).not.toHaveBeenCalled();
+    });
+
+    it('refuses to decrypt legacy/unverified repository token during verifyDeployment', async () => {
+      const decryptCredentials = jest.fn().mockReturnValue('ghp_stolen');
+      const readPullRequestEvidence = jest.fn();
+      (service as any).security = { decryptCredentials };
+      (service as any).git = { readPullRequestEvidence };
+      prisma.automationRun.findUnique.mockResolvedValue({
+        id: 'run_unverified',
+        projectId: 'proj_1',
+        pullRequestUrl: 'https://github.com/acme/repo/pull/42',
+        steps: [{ change: { url: 'https://acme.com/', field: 'META_TITLE', after: 'New' } }],
+      });
+      prisma.siteRepository.findUnique.mockResolvedValue({
+        id: 'repo_1',
+        projectId: 'proj_1',
+        owner: 'acme',
+        name: 'repo',
+        accessTokenEncrypted: 'encrypted',
+        credentialProvenance: 'LEGACY_UNVERIFIED',
+      });
+
+      const res = await service.verifyDeployment('proj_1', 'run_unverified');
+      expect(res.success).toBe(false);
+      expect(res.verificationStatus).toBe('NOT_CHECKED');
+      expect(decryptCredentials).not.toHaveBeenCalled();
+      expect(readPullRequestEvidence).not.toHaveBeenCalled();
     });
   });
 });

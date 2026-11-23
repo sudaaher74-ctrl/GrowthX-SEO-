@@ -750,7 +750,14 @@ model SiteRepository {
   name                 String
   defaultBranch        String          @default("main")
   /// Encrypted with ENCRYPTION_KEY. Never returned by the API.
-  accessTokenEncrypted String
+  accessTokenEncrypted    String
+  /// Owning organization at the time an explicit credential was verified.
+  connectedOrganizationId String?
+  /// Authenticated user who explicitly authorized this repository credential.
+  connectedByUserId       String?
+  /// "EXPLICIT" once verified with project/org/user provenance; older rows default to "LEGACY_UNVERIFIED".
+  credentialProvenance    String          @default("LEGACY_UNVERIFIED")
+  credentialVerifiedAt    DateTime?
   /// "nextjs" | "static-html" | "unknown" — decides which patch strategy runs.
   framework            String          @default("unknown")
   /// Where new content pages are written, e.g. "content/blog" or "src/app".

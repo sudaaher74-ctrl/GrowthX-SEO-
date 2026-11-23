@@ -204,8 +204,11 @@ export class AutomationController {
       },
     },
   })
-  connectRepository(@Param('projectId') projectId: string, @Body() body: ConnectRepoDto) {
-    return this.automation.connectRepository(projectId, body);
+  connectRepository(@Req() req: any, @Param('projectId') projectId: string, @Body() body: ConnectRepoDto) {
+    return this.automation.connectRepository(projectId, body, {
+      organizationId: req.organizationId,
+      userId: req.user?.userId,
+    });
   }
 
   @Delete('repository')
@@ -263,7 +266,7 @@ export class AutomationController {
   @ApiParam({ name: 'projectId' })
   @ApiBody({ required: false, schema: { type: 'object', properties: { issueIds: { type: 'array', items: { type: 'string' } } } } })
   runFixes(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: RunSelectionsDto) {
-    return this.engineer.startApprovedFixes(projectId, req.organizationId, body?.issueIds).then(r => r.run);
+    return this.engineer.startApprovedFixes(projectId, req.organizationId, body?.issueIds, req.user?.userId).then(r => r.run);
   }
 
   @Post('runs/engineer')
@@ -272,7 +275,7 @@ export class AutomationController {
   @ApiBody({ schema: { type: 'object', required: ['instruction'], properties: { instruction: { type: 'string', example: 'Change the homepage title to "Fresh A2 milk delivered in Pune"' } } } })
   runEngineer(@Req() req: any, @Param('projectId') projectId: string, @Body() body: EngineerRunDto) {
     // Returns at once with the run (RUNNING); it finishes in the background and shows in GET runs.
-    return this.engineer.start(projectId, req.organizationId, body.instruction).then((r) => r.run);
+    return this.engineer.start(projectId, req.organizationId, body.instruction, [], undefined, req.user?.userId).then((r) => r.run);
   }
 
   @Post('runs/plan-fixes')
@@ -293,7 +296,7 @@ export class AutomationController {
     @Param('projectId') projectId: string,
     @Body() body?: PlanFixesDto,
   ) {
-    return this.engineer.startForFindings(projectId, req.organizationId, body).then((r) => r.run);
+    return this.engineer.startForFindings(projectId, req.organizationId, body, req.user?.userId).then((r) => r.run);
   }
 
   @Post('runs/content')
@@ -301,7 +304,7 @@ export class AutomationController {
   @ApiParam({ name: 'projectId' })
   @ApiBody({ required: false, schema: { type: 'object', properties: { pieceIds: { type: 'array', items: { type: 'string' } } } } })
   runContent(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: RunSelectionsDto) {
-    return this.engineer.startContent(projectId, req.organizationId, body?.pieceIds).then(r => r.run);
+    return this.engineer.startContent(projectId, req.organizationId, body?.pieceIds, req.user?.userId).then(r => r.run);
   }
 
   @Get('runs')
@@ -331,8 +334,8 @@ export class AutomationController {
 
   @Get('changes')
   @ApiOperation({ summary: 'Saved before/after fix evidence and subsequent crawl measurements' })
-  listChanges(@Param('projectId') projectId: string) {
-    return this.automation.listChanges(projectId);
+  listChanges(@Req() req: any, @Param('projectId') projectId: string) {
+    return this.automation.listChanges(projectId, req.organizationId);
   }
 
   // ── Proof of Impact (Fix Engine 2.0)
@@ -377,8 +380,9 @@ export class AutomationController {
   rollbackRun(
     @Param('projectId') projectId: string,
     @Param('runId') runId: string,
+    @Req() req: any,
   ) {
-    return this.proofOfImpact.rollbackRun(projectId, runId);
+    return this.proofOfImpact.rollbackRun(projectId, runId, req.organizationId);
   }
 
   @Get('impact/ledger')

@@ -9,7 +9,18 @@ import { AutomationRunStatus } from '@prisma/client';
 import { ValidationService } from '../autonomous-engineer/agents/validation/validation.service';
 import { EngineerAgentService, isUsableAction, parseAction } from './engineer-agent.service';
 
-const REPO = { id: 'repo_1', projectId: 'proj_1', owner: 'acme', name: 'site', defaultBranch: 'main', framework: 'nextjs', accessTokenEncrypted: 'enc' };
+const REPO = {
+  id: 'repo_1',
+  projectId: 'proj_1',
+  owner: 'acme',
+  name: 'site',
+  defaultBranch: 'main',
+  framework: 'nextjs',
+  accessTokenEncrypted: 'enc',
+  connectedOrganizationId: 'org_1',
+  connectedByUserId: 'user_1',
+  credentialProvenance: 'EXPLICIT',
+};
 const act = (a: object) => ({ text: JSON.stringify(a), refused: false });
 
 describe('parseAction', () => {
@@ -165,10 +176,42 @@ describe('EngineerAgentService', () => {
     await expect(queued.start('proj_1', 'org_1', INSTRUCTION)).rejects.toThrow('already queued');
   });
 
-  it('checks the workspace before a queued job can consume repository credentials', async () => {
-    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({ id: 'queued', projectId: 'proj_1', status: 'PENDING', steps: [{ step: 'engineer_request', request: { organizationId: 'other-org' } }] });
+  it('checks the workspace, repository provenance, and actor membership before a queued job can consume repository credentials', async () => {
+    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'queued',
+      projectId: 'proj_1',
+      repositoryId: 'repo_1',
+      status: 'PENDING',
+      repository: REPO,
+      steps: [{ step: 'engineer_request', request: { organizationId: 'other-org', actorUserId: 'user_1', repositoryId: 'repo_1' } }],
+    });
     prisma.project = { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org_1' }) };
     await expect(service.executeQueued('queued')).rejects.toThrow('workspace');
+    expect(git.cloneRepository).not.toHaveBeenCalled();
+
+    // Legacy unverified repository provenance must be refused at queued execution time
+    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'queued_legacy',
+      projectId: 'proj_1',
+      repositoryId: 'repo_1',
+      status: 'PENDING',
+      repository: { ...REPO, connectedOrganizationId: null, connectedByUserId: null, credentialProvenance: 'LEGACY_UNVERIFIED' },
+      steps: [{ step: 'engineer_request', request: { organizationId: 'org_1', actorUserId: 'user_1', repositoryId: 'repo_1', instruction: INSTRUCTION } }],
+    });
+    await expect(service.executeQueued('queued_legacy')).rejects.toThrow(/predates verified workspace provenance/i);
+    expect(git.cloneRepository).not.toHaveBeenCalled();
+
+    // Actor downgraded to VIEWER after queuing must be refused before cloning
+    prisma.automationRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'queued_revoked',
+      projectId: 'proj_1',
+      repositoryId: 'repo_1',
+      status: 'PENDING',
+      repository: REPO,
+      steps: [{ step: 'engineer_request', request: { organizationId: 'org_1', actorUserId: 'user_1', repositoryId: 'repo_1', instruction: INSTRUCTION } }],
+    });
+    prisma.organizationMember = { findUnique: jest.fn().mockResolvedValue({ role: 'VIEWER' }) };
+    await expect(service.executeQueued('queued_revoked')).rejects.toThrow(/no longer has write access/i);
     expect(git.cloneRepository).not.toHaveBeenCalled();
   });
 

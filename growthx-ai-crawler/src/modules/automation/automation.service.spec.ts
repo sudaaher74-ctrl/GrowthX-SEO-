@@ -25,10 +25,15 @@ const REPO = {
   name: 'website',
   defaultBranch: 'main',
   accessTokenEncrypted: 'enc:token',
+  connectedOrganizationId: 'org_1',
+  connectedByUserId: 'user_1',
+  credentialProvenance: 'EXPLICIT',
   framework: 'static-html',
   contentDir: 'content/blog',
   autoMerge: false,
 };
+
+const ACTOR = { organizationId: 'org_1', userId: 'user_1' };
 
 function issue(overrides: Record<string, any> = {}) {
   return {
@@ -122,55 +127,130 @@ describe('AutomationService', () => {
   });
 
   describe('repository connection', () => {
-    it('encrypts the token and never returns it', async () => {
-      const result = await service.connectRepository('proj_1', {
-        owner: 'acme',
-        name: 'website',
-        accessToken: 'ghp_supersecret',
-      });
+    it('encrypts the token, stamps workspace provenance, and never returns it', async () => {
+      const result = await service.connectRepository(
+        'proj_1',
+        {
+          owner: 'acme',
+          name: 'website',
+          accessToken: 'ghp_supersecret',
+        },
+        ACTOR,
+      );
 
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.accessTokenEncrypted).toBe('enc:ghp_supersecret');
+      expect(prisma.siteRepository.upsert.mock.calls[0][0].create.connectedOrganizationId).toBe('org_1');
+      expect(prisma.siteRepository.upsert.mock.calls[0][0].create.connectedByUserId).toBe('user_1');
+      expect(prisma.siteRepository.upsert.mock.calls[0][0].create.credentialProvenance).toBe('EXPLICIT');
       expect(JSON.stringify(result)).not.toContain('ghp_supersecret');
-      expect(result).toMatchObject({ tokenConfigured: true });
+      expect(result).toMatchObject({ tokenConfigured: true, reconnectRequired: false });
     });
 
     it('defaults autoMerge to off — publishing live must be deliberate', async () => {
-      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' });
+      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' }, ACTOR);
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.autoMerge).toBe(false);
     });
 
     it('never turns autoMerge on, even when asked', async () => {
-      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't', autoMerge: true });
+      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't', autoMerge: true }, ACTOR);
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.autoMerge).toBe(false);
     });
 
     it('checks the token against GitHub, and uses the repository\'s real default branch', async () => {
-      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' });
+      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' }, ACTOR);
       expect(git.verifyAccess).toHaveBeenCalledWith('t', 'a', 'b');
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.defaultBranch).toBe('trunk');
     });
 
     it('cleans up what people paste: a Bearer prefix, spaces and a trailing .git', async () => {
-      await service.connectRepository('proj_1', { owner: ' a ', name: 'b.git', accessToken: 'Bearer  ghp_abc \n' });
+      await service.connectRepository('proj_1', { owner: ' a ', name: 'b.git', accessToken: 'Bearer  ghp_abc \n' }, ACTOR);
       expect(git.verifyAccess).toHaveBeenCalledWith('ghp_abc', 'a', 'b');
     });
 
     it('refuses a token GitHub rejects, with GitHub\'s reason, and saves nothing', async () => {
       git.verifyAccess.mockRejectedValue(new Error('GitHub did not accept this token.'));
-      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' })).rejects.toThrow(/did not accept/);
+      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' }, ACTOR)).rejects.toThrow(/did not accept/);
       expect(prisma.siteRepository.upsert).not.toHaveBeenCalled();
     });
 
     it('refuses a token that can read but not write', async () => {
       git.verifyAccess.mockResolvedValue({ defaultBranch: 'main', canPush: false });
-      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' })).rejects.toThrow(/cannot write/);
+      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' }, ACTOR)).rejects.toThrow(/cannot write/);
       expect(prisma.siteRepository.upsert).not.toHaveBeenCalled();
     });
 
     it('rejects an incomplete connection', async () => {
       await expect(
-        service.connectRepository('proj_1', { owner: 'a', name: '', accessToken: 't' }),
+        service.connectRepository('proj_1', { owner: 'a', name: '', accessToken: 't' }, ACTOR),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('blocks cross-tenant GitHub credential reuse between two unrelated organizations sharing the same GitHub owner', async () => {
+      const reposByProject = new Map<string, any>();
+      prisma.project = {
+        findUnique: jest.fn(({ where }: any) =>
+          Promise.resolve(where.id === 'proj_org_a' ? { organizationId: 'org_a' } : { organizationId: 'org_b' }),
+        ),
+      };
+      prisma.siteRepository.findFirst = jest.fn().mockImplementation(() => {
+        throw new Error('Cross-project findFirst must never be called');
+      });
+      prisma.siteRepository.findUnique = jest.fn(({ where }: any) => Promise.resolve(reposByProject.get(where.projectId) ?? null));
+      prisma.siteRepository.upsert = jest.fn(({ where, create }: any) => {
+        const saved = { id: `repo_${where.projectId}`, ...create };
+        reposByProject.set(where.projectId, saved);
+        return Promise.resolve(saved);
+      });
+
+      // Org A connects a repo under GitHub owner "shared-owner" with its own token
+      await service.connectRepository(
+        'proj_org_a',
+        { owner: 'shared-owner', name: 'private-app', accessToken: 'ghp_org_a_secret' },
+        { organizationId: 'org_a', userId: 'user_a' },
+      );
+      expect(git.verifyAccess).toHaveBeenCalledWith('ghp_org_a_secret', 'shared-owner', 'private-app');
+      git.verifyAccess.mockClear();
+
+      // Org B attempts to connect another repo under "shared-owner" using reuse sentinels or blank token
+      for (const sentinel of ['', 'ghp_oauth_session_verified', '__REUSE_LINKED_GITHUB_TOKEN__']) {
+        await expect(
+          service.connectRepository(
+            'proj_org_b',
+            { owner: 'shared-owner', name: 'private-app', accessToken: sentinel },
+            { organizationId: 'org_b', userId: 'user_b' },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      }
+      expect(git.verifyAccess).not.toHaveBeenCalled();
+      expect(prisma.siteRepository.findFirst).not.toHaveBeenCalled();
+      expect(reposByProject.has('proj_org_b')).toBe(false);
+
+      // Legitimate reconnect by Org A on its own project still works
+      const reconnected = await service.connectRepository(
+        'proj_org_a',
+        { owner: 'shared-owner', name: 'second-app', accessToken: '__REUSE_LINKED_GITHUB_TOKEN__' },
+        { organizationId: 'org_a', userId: 'user_a' },
+      );
+      expect(git.verifyAccess).toHaveBeenCalledWith('ghp_org_a_secret', 'shared-owner', 'second-app');
+      expect(reconnected).toMatchObject({ owner: 'shared-owner', name: 'second-app', tokenConfigured: true });
+    });
+
+    it('rejects reuse and automation execution for legacy connections with unverified provenance', async () => {
+      prisma.siteRepository.findUnique.mockResolvedValue({
+        ...REPO,
+        connectedOrganizationId: null,
+        connectedByUserId: null,
+        credentialProvenance: 'LEGACY_UNVERIFIED',
+      });
+      await expect(
+        service.connectRepository(
+          'proj_1',
+          { owner: 'acme', name: 'website', accessToken: '__REUSE_LINKED_GITHUB_TOKEN__' },
+          ACTOR,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(service.runFixes('proj_1', 'org_1')).rejects.toThrow(/predates verified workspace provenance/i);
+      expect(git.cloneRepository).not.toHaveBeenCalled();
     });
 
     it('disconnects a repository and cleans up associated runs for the project', async () => {
