@@ -32,6 +32,21 @@ export class UsersService {
     });
   }
 
+  async findByGoogleSub(googleSub: string): Promise<User | null> {
+    const normalized = String(googleSub ?? '').trim();
+    if (!normalized) return null;
+    return this.prisma.user.findUnique({
+      where: { googleSub: normalized },
+    });
+  }
+
+  async updateUser(id: string, data: Prisma.UserUpdateInput): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({
       data,
@@ -106,6 +121,11 @@ export class UsersService {
     await this.prisma.refreshSession.deleteMany({
       where: { userId },
     });
+    if (this.prisma.identityRecoveryChallenge?.deleteMany) {
+      await this.prisma.identityRecoveryChallenge.deleteMany({
+        where: { userId },
+      });
+    }
 
     // 4. Delete the user
     await this.prisma.user.delete({

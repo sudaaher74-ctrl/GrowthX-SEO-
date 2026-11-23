@@ -60,10 +60,25 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: any,
   ): Promise<any> {
     const { name, emails } = profile || {};
-    const email = emails?.[0]?.value;
+    const primaryEmail = emails?.[0];
+    const email = typeof primaryEmail?.value === 'string' ? primaryEmail.value.trim() : '';
+    const googleSub = String(profile?.id || profile?._json?.sub || '').trim();
+    const emailVerified =
+      primaryEmail?.verified === true ||
+      primaryEmail?.verified === 'true' ||
+      profile?._json?.email_verified === true ||
+      profile?._json?.email_verified === 'true';
+
+    if (!googleSub) {
+      throw new UnauthorizedException('Google account did not provide a stable subject identifier');
+    }
 
     if (!email) {
       throw new UnauthorizedException('No email address returned from Google account');
+    }
+
+    if (!emailVerified) {
+      throw new UnauthorizedException('Google account email must be verified before signing in');
     }
 
     const firstName = name?.givenName;
@@ -71,6 +86,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
     const user = await this.authService.validateGoogleUser({
       email,
+      googleSub,
+      emailVerified: true,
       firstName,
       lastName,
     });

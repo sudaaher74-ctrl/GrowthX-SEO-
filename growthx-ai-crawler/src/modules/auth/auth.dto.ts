@@ -51,3 +51,22 @@ export class ExchangeCodeDto {
   @MaxLength(256)
   code!: string;
 }
+
+export class GoogleLinkWithPasswordDto {
+  @IsString({ message: 'A recovery token is required.' })
+  @MinLength(1, { message: 'A recovery token is required.' })
+  @MaxLength(256)
+  recoveryToken!: string;
+
+  @IsString({ message: 'Enter your existing account password to prove control.' })
+  @MinLength(1, { message: 'Enter your existing account password to prove control.' })
+  @MaxLength(200)
+  password!: string;
+}
+
+export class GoogleReclaimAccountDto {
+  @IsString({ message: 'A recovery token is required.' })
+  @MinLength(1, { message: 'A recovery token is required.' })
+  @MaxLength(256)
+  recoveryToken!: string;
+}

@@ -151,6 +151,7 @@ async function main() {
           data: {
             isPlatformAdmin: false,
             platformAdminRevokedAt: now,
+            sessionsInvalidatedAt: now,
           },
         }),
         prisma.refreshSession.updateMany({

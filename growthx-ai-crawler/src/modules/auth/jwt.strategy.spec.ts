@@ -56,4 +56,18 @@ describe('JwtStrategy', () => {
     const principal = await strategy.validate({ sub: ALICE });
     expect(principal.organizationId).toBeUndefined();
   });
+
+  it('rejects access tokens issued before sessionsInvalidatedAt', async () => {
+    const invalidatedAt = new Date('2026-11-23T12:00:00Z');
+    users.findById.mockResolvedValue({
+      id: ALICE,
+      email: 'alice@example.com',
+      sessionsInvalidatedAt: invalidatedAt,
+    });
+    const issuedBefore = Math.floor(invalidatedAt.getTime() / 1000) - 60;
+    await expect(strategy.validate({ sub: ALICE, iat: issuedBefore })).rejects.toThrow(UnauthorizedException);
+
+    const issuedAfter = Math.floor(invalidatedAt.getTime() / 1000) + 60;
+    await expect(strategy.validate({ sub: ALICE, iat: issuedAfter })).resolves.toMatchObject({ userId: ALICE });
+  });
 });

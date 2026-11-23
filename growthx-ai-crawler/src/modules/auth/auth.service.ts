@@ -10,6 +10,9 @@ import { refreshLifetimeDays } from './session-lifetime';
 /** How long the Google sign-in redirect's one-time code may be exchanged. */
 const LOGIN_CODE_TTL_MS = 60_000;
 
+/** How long a Google account-linking / recovery challenge stays valid. */
+const RECOVERY_CHALLENGE_TTL_MS = 10 * 60_000;
+
 /**
  * A refresh token presented again this soon after it was rotated is taken for
  * two tabs racing, not theft: that request is refused, nothing else is revoked.
@@ -30,7 +33,8 @@ export class AuthService {
   async validateUser(email: string, pass: string): Promise<any> {
     if (typeof email !== 'string' || typeof pass !== 'string' || !email.trim() || !pass) return null;
     const user = await this.usersService.findByEmail(normaliseEmail(email));
-    if (user && await bcrypt.compare(pass, user.passwordHash)) {
+    if (!user || user.passwordAuthEnabled === false) return null;
+    if (await bcrypt.compare(pass, user.passwordHash)) {
       const { passwordHash: _passwordHash, ...result } = user;
       return result;
     }
@@ -260,56 +264,229 @@ export class AuthService {
     return this.issueTokens({ id: user.id, email: user.email });
   }
 
-  async validateGoogleUser(profile: { email: string; firstName?: string; lastName?: string }): Promise<any> {
-    let user = await this.usersService.findByEmail(profile.email);
-    
-    if (!user) {
-      // Create user with a random dummy password since they authenticate via Google
-      const saltOrRounds = 10;
+  private async ensureDefaultWorkspace(userId: string, preferredFirstName?: string | null): Promise<void> {
+    const orgs = await this.organizationsService.getOrganizationsForUser(userId);
+    if (orgs.length > 0) return;
+
+    const slugSuffix = (userId || '').replace(/-/g, '').substring(0, 10) || Math.random().toString(36).substring(2, 8);
+    try {
+      await this.organizationsService.createOrganization(userId, {
+        name: `${preferredFirstName || 'My'} Workspace`,
+        slug: `workspace-${slugSuffix}`,
+      });
+    } catch {
+      await this.organizationsService.createOrganization(userId, {
+        name: `${preferredFirstName || 'My'} Workspace`,
+        slug: `workspace-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`,
+      });
+    }
+  }
+
+  async validateGoogleUser(profile: {
+    email: string;
+    googleSub: string;
+    emailVerified: boolean;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<any> {
+    const googleSub = String(profile?.googleSub ?? '').trim();
+    const email = normaliseEmail(profile?.email ?? '');
+    if (!googleSub) {
+      throw new UnauthorizedException('Google account did not provide a stable subject identifier.');
+    }
+    if (!email) {
+      throw new UnauthorizedException('No email address returned from Google account.');
+    }
+    if (profile?.emailVerified !== true) {
+      throw new UnauthorizedException('Google account email must be verified before signing in.');
+    }
+
+    const now = new Date();
+
+    // 1. Always look up by immutable provider subject first so pre-registration
+    // or later email changes cannot hijack an already-linked identity.
+    const linkedUser = await this.usersService.findByGoogleSub?.(googleSub);
+    if (linkedUser) {
+      await this.ensureDefaultWorkspace(linkedUser.id, linkedUser.firstName || profile.firstName);
+      const { passwordHash: _passwordHash, ...result } = linkedUser;
+      return result;
+    }
+
+    // 2. Check for an existing account with the same normalized email.
+    const existingByEmail = await this.usersService.findByEmail(email);
+
+    if (!existingByEmail) {
       const randomPassword = randomBytes(32).toString('hex');
-      const passwordHash = await bcrypt.hash(randomPassword, saltOrRounds);
-      
-      user = await this.usersService.createUser({
-        email: profile.email,
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+      const user = await this.usersService.createUser({
+        email,
         passwordHash,
+        passwordAuthEnabled: false,
+        googleSub,
+        emailVerifiedAt: now,
+        googleEmailVerifiedAt: now,
+        isPlatformAdmin: false,
         firstName: profile.firstName,
         lastName: profile.lastName,
       });
 
-      // Auto-create a default workspace with collision resilience
-      const slugSuffix = (user.id || '').replace(/-/g, '').substring(0, 10) || Math.random().toString(36).substring(2, 8);
-      try {
-        await this.organizationsService.createOrganization(user.id, {
-          name: `${profile.firstName || 'My'} Workspace`,
-          slug: `workspace-${slugSuffix}`,
+      await this.ensureDefaultWorkspace(user.id, profile.firstName);
+      const { passwordHash: _passwordHash, ...result } = user;
+      return result;
+    }
+
+    if (existingByEmail.googleSub && existingByEmail.googleSub !== googleSub) {
+      throw new UnauthorizedException('This email address is already linked to a different Google account.');
+    }
+
+    // 3. Existing account with no bound googleSub:
+    // If it was created as a verified passwordless account, bind the subject directly.
+    if (existingByEmail.emailVerifiedAt && existingByEmail.passwordAuthEnabled === false) {
+      const updated = await this.usersService.updateUser(existingByEmail.id, {
+        googleSub,
+        googleEmailVerifiedAt: now,
+      });
+      await this.ensureDefaultWorkspace(updated.id, updated.firstName || profile.firstName);
+      const { passwordHash: _passwordHash, ...result } = updated;
+      return result;
+    }
+
+    // 4. Existing unverified or password-enabled account without googleSub:
+    // Never silently merge and leave the previously registered password active.
+    // Issue a short-lived single-use recovery challenge requiring either proof of
+    // password control (`link-with-password`) or explicit account reclaim
+    // (`reclaim-account`) that disables the old password and revokes all sessions.
+    const recoveryToken = randomBytes(32).toString('base64url');
+    await this.prisma.identityRecoveryChallenge.create({
+      data: {
+        id: sha256(recoveryToken),
+        userId: existingByEmail.id,
+        provider: 'google',
+        providerSub: googleSub,
+        email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        expiresAt: new Date(Date.now() + RECOVERY_CHALLENGE_TTL_MS),
+      },
+    });
+    void this.prisma.identityRecoveryChallenge
+      .deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 3_600_000) } } })
+      .catch(() => undefined);
+
+    return {
+      recoveryRequired: true,
+      recoveryToken,
+      email,
+    };
+  }
+
+  /**
+   * Proof-of-control linking: a user who already owns an existing password
+   * account proves knowledge of its password to link their verified Google subject.
+   */
+  async linkGoogleWithPassword(recoveryToken: string, password: string) {
+    const id = sha256(typeof recoveryToken === 'string' ? recoveryToken : '');
+    const challenge = await this.prisma.identityRecoveryChallenge.findUnique({ where: { id } });
+    if (!challenge || challenge.usedAt || challenge.expiresAt <= new Date() || challenge.provider !== 'google') {
+      throw new UnauthorizedException('That account-linking request has expired. Please sign in with Google again.');
+    }
+
+    const user = await this.usersService.findById(challenge.userId);
+    if (!user || user.passwordAuthEnabled === false) {
+      throw new UnauthorizedException('Password verification is unavailable for this account.');
+    }
+    if (user.googleSub && user.googleSub !== challenge.providerSub) {
+      throw new UnauthorizedException('This account is already linked to a different Google identity.');
+    }
+
+    const passwordValid = typeof password === 'string' && password.length > 0 && await bcrypt.compare(password, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Incorrect password. Account linking requires proof of control.');
+    }
+
+    const claimed = await this.prisma.identityRecoveryChallenge.updateMany({
+      where: { id, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new UnauthorizedException('That account-linking request has already been used or expired.');
+    }
+
+    const now = new Date();
+    const updated = await this.usersService.updateUser(user.id, {
+      googleSub: challenge.providerSub,
+      emailVerifiedAt: user.emailVerifiedAt ?? now,
+      googleEmailVerifiedAt: now,
+    });
+    await this.ensureDefaultWorkspace(updated.id, updated.firstName || challenge.firstName);
+    return this.issueTokens({ id: updated.id, email: updated.email });
+  }
+
+  /**
+   * Explicit recovery/reclaim for an ambiguous or pre-registered unverified
+   * password account. Permanently disables the old password, rotates the stored
+   * password hash, invalidates all existing sessions, detaches any shared
+   * unverified pre-registration workspaces, and binds the verified Google subject.
+   */
+  async reclaimAccountWithGoogle(recoveryToken: string) {
+    const id = sha256(typeof recoveryToken === 'string' ? recoveryToken : '');
+    const claimed = await this.prisma.identityRecoveryChallenge.updateMany({
+      where: { id, usedAt: null, expiresAt: { gt: new Date() }, provider: 'google' },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new UnauthorizedException('That account recovery link has expired or was already used. Please sign in with Google again.');
+    }
+
+    const challenge = await this.prisma.identityRecoveryChallenge.findUnique({ where: { id } });
+    const user = challenge ? await this.usersService.findById(challenge.userId) : null;
+    if (!challenge || !user) {
+      throw new UnauthorizedException('That account no longer exists.');
+    }
+    if (user.googleSub && user.googleSub !== challenge.providerSub) {
+      throw new UnauthorizedException('This account is already linked to a different Google identity.');
+    }
+
+    const now = new Date();
+    const randomPasswordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 10);
+
+    // Revoke all refresh sessions and invalidate previously issued access tokens.
+    await this.revokeAllSessions(user.id);
+
+    // If the pre-registered account was never verified and shares a workspace
+    // with other members (e.g. a pre-registrant invited themselves), detach the
+    // reclaimed mailbox owner from those workspaces so the pre-registrant cannot
+    // observe future activity.
+    if (!user.emailVerifiedAt && this.prisma.organizationMember?.findMany) {
+      const memberships = await this.prisma.organizationMember.findMany({
+        where: { userId: user.id },
+        select: { organizationId: true },
+      });
+      for (const m of memberships) {
+        const otherMembers = await this.prisma.organizationMember.count({
+          where: { organizationId: m.organizationId, userId: { not: user.id } },
         });
-      } catch {
-        await this.organizationsService.createOrganization(user.id, {
-          name: `${profile.firstName || 'My'} Workspace`,
-          slug: `workspace-${Date.now().toString(36)}`,
-        });
-      }
-    } else {
-      // Ensure existing user has at least one organization
-      const orgs = await this.organizationsService.getOrganizationsForUser(user.id);
-      if (orgs.length === 0) {
-        const slugSuffix = (user.id || '').replace(/-/g, '').substring(0, 10) || Math.random().toString(36).substring(2, 8);
-        try {
-          await this.organizationsService.createOrganization(user.id, {
-            name: `${user.firstName || profile.firstName || 'My'} Workspace`,
-            slug: `workspace-${slugSuffix}`,
-          });
-        } catch {
-          await this.organizationsService.createOrganization(user.id, {
-            name: `${user.firstName || profile.firstName || 'My'} Workspace`,
-            slug: `workspace-${Date.now().toString(36)}`,
+        if (otherMembers > 0) {
+          await this.prisma.organizationMember.deleteMany({
+            where: { userId: user.id, organizationId: m.organizationId },
           });
         }
       }
     }
-    
-    const { passwordHash: _passwordHash, ...result } = user;
-    return result;
+
+    const updated = await this.usersService.updateUser(user.id, {
+      googleSub: challenge.providerSub,
+      emailVerifiedAt: now,
+      googleEmailVerifiedAt: now,
+      passwordAuthEnabled: false,
+      passwordHash: randomPasswordHash,
+      sessionsInvalidatedAt: now,
+      ...(user.emailVerifiedAt ? {} : { isPlatformAdmin: false }),
+    });
+
+    await this.ensureDefaultWorkspace(updated.id, updated.firstName || challenge.firstName);
+    return this.issueTokens({ id: updated.id, email: updated.email });
   }
 }
 

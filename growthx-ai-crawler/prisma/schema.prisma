@@ -400,20 +400,45 @@ model AIRecommendation {
 }
 
 model User {
-  id                     String               @id @default(uuid())
-  email                  String               @unique
+  id                     String                      @id @default(uuid())
+  email                  String                      @unique
   passwordHash           String
   firstName              String?
   lastName               String?
   emailVerifiedAt        DateTime?
-  isPlatformAdmin        Boolean              @default(false)
+  googleSub              String?                     @unique
+  googleEmailVerifiedAt  DateTime?
+  passwordAuthEnabled    Boolean                     @default(true)
+  sessionsInvalidatedAt  DateTime?
+  isPlatformAdmin        Boolean                     @default(false)
   platformAdminGrantedAt DateTime?
   platformAdminRevokedAt DateTime?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
   auditLogs              AuditLog[]
   memberships            OrganizationMember[]
   sessions               RefreshSession[]
+  recoveryChallenges     IdentityRecoveryChallenge[]
+}
+
+/// Expiring single-use challenge issued when a verified external provider login
+/// collides with an unverified or password-enabled existing account.
+/// Prevents silent account inheritance where a pre-registrant retains password access.
+model IdentityRecoveryChallenge {
+  id          String    @id
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String
+  providerSub String
+  email       String
+  firstName   String?
+  lastName    String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// One row per refresh token issued. The token's `jti` is this id, so a token

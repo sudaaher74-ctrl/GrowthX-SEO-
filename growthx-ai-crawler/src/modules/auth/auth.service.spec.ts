@@ -43,10 +43,27 @@ describe('AuthService', () => {
   let service: AuthService;
   let users: any;
   let jwt: { sign: jest.Mock; verify: jest.Mock };
-  let prisma: { refreshSession: ReturnType<typeof fakeTable>; loginCode: ReturnType<typeof fakeTable>; $transaction: jest.Mock };
+  let prisma: {
+    refreshSession: ReturnType<typeof fakeTable>;
+    loginCode: ReturnType<typeof fakeTable>;
+    identityRecoveryChallenge: ReturnType<typeof fakeTable>;
+    organizationMember: { findMany: jest.Mock; count: jest.Mock; deleteMany: jest.Mock };
+    $transaction: jest.Mock;
+  };
+  let orgsService: { createOrganization: jest.Mock; getOrganizationsForUser: jest.Mock };
 
   beforeEach(async () => {
-    users = { findByEmail: jest.fn(), createUser: jest.fn(), findById: jest.fn() };
+    users = {
+      findByEmail: jest.fn(),
+      findByGoogleSub: jest.fn().mockResolvedValue(null),
+      createUser: jest.fn(),
+      updateUser: jest.fn(),
+      findById: jest.fn(),
+    };
+    orgsService = {
+      createOrganization: jest.fn().mockResolvedValue({ id: 'org_1' }),
+      getOrganizationsForUser: jest.fn().mockResolvedValue([{ id: 'org_1' }]),
+    };
     jwt = {
       // Distinguishes the two tokens so a test can tell them apart; the real
       // difference is the `type` claim and the expiry, asserted below.
@@ -54,16 +71,26 @@ describe('AuthService', () => {
       verify: jest.fn(),
     };
 
-    prisma = { refreshSession: fakeTable(), loginCode: fakeTable(), $transaction: jest.fn(async run => {
-      const saved = prisma.refreshSession.rows.map(row => ({ ...row }));
-      try { return await run(prisma); } catch (error) { prisma.refreshSession.rows.splice(0, prisma.refreshSession.rows.length, ...saved); throw error; }
-    }) };
+    prisma = {
+      refreshSession: fakeTable(),
+      loginCode: fakeTable(),
+      identityRecoveryChallenge: fakeTable(),
+      organizationMember: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: jest.fn(async run => {
+        const saved = prisma.refreshSession.rows.map(row => ({ ...row }));
+        try { return await run(prisma); } catch (error) { prisma.refreshSession.rows.splice(0, prisma.refreshSession.rows.length, ...saved); throw error; }
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         // AuthService creates a default organization on registration.
-        { provide: OrganizationsService, useValue: { createOrganization: jest.fn().mockResolvedValue({ id: 'org_1' }) } },
+        { provide: OrganizationsService, useValue: orgsService },
         { provide: UsersService, useValue: users },
         { provide: JwtService, useValue: jwt },
         { provide: PrismaService, useValue: prisma },
@@ -327,6 +354,146 @@ describe('AuthService', () => {
       const code = await service.createLoginCode('u1');
       prisma.loginCode.rows[0].expiresAt = new Date(Date.now() - 1000);
       await expect(service.exchangeLoginCode(code)).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('Google identity verification and pre-registration protection', () => {
+    it('rejects Google sign-in when email is not verified or subject is missing', async () => {
+      await expect(
+        service.validateGoogleUser({
+          email: 'victim@example.com',
+          googleSub: 'google-sub-1',
+          emailVerified: false,
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      await expect(
+        service.validateGoogleUser({
+          email: 'victim@example.com',
+          googleSub: '',
+          emailVerified: true,
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('prevents a pre-registered password attacker from silently retaining access after Google sign-in', async () => {
+      // 1. Attacker pre-registers victim@example.com with a password they know.
+      let storedUser: any = null;
+      users.findByEmail.mockImplementation(async (email: string) =>
+        storedUser && storedUser.email === email ? storedUser : null,
+      );
+      users.findById.mockImplementation(async (id: string) =>
+        storedUser && storedUser.id === id ? storedUser : null,
+      );
+      users.findByGoogleSub.mockImplementation(async (sub: string) =>
+        storedUser && storedUser.googleSub === sub ? storedUser : null,
+      );
+      users.createUser.mockImplementation(async (data: any) => {
+        storedUser = {
+          id: 'user_pre_reg',
+          passwordAuthEnabled: true,
+          emailVerifiedAt: null,
+          googleSub: null,
+          sessionsInvalidatedAt: null,
+          ...data,
+        };
+        return storedUser;
+      });
+      users.updateUser.mockImplementation(async (_id: string, data: any) => {
+        storedUser = { ...storedUser, ...data };
+        return storedUser;
+      });
+
+      const attackerPassword = 'attacker-known-password-123';
+      await service.register({ email: 'victim@example.com', password: attackerPassword });
+      expect(prisma.refreshSession.rows).toHaveLength(1);
+      expect(await service.validateUser('victim@example.com', attackerPassword)).not.toBeNull();
+
+      // Attacker also invited a second attacker account into the pre-registered workspace.
+      prisma.organizationMember.findMany.mockResolvedValue([{ organizationId: 'org_attacker_trap' }]);
+      prisma.organizationMember.count.mockResolvedValue(1);
+      orgsService.getOrganizationsForUser.mockResolvedValueOnce([]);
+
+      // 2. Real mailbox owner later signs in via verified Google identity.
+      const googleOutcome = await service.validateGoogleUser({
+        email: 'victim@example.com',
+        googleSub: 'google-sub-real-owner',
+        emailVerified: true,
+        firstName: 'Victim',
+      });
+
+      // Must NOT silently sign into the pre-registered password account.
+      expect(googleOutcome.recoveryRequired).toBe(true);
+      expect(typeof googleOutcome.recoveryToken).toBe('string');
+      expect(storedUser.googleSub).toBeNull();
+
+      // 3. Real mailbox owner reclaims the account through explicit recovery.
+      const reclaimedTokens = await service.reclaimAccountWithGoogle(googleOutcome.recoveryToken);
+      expect(reclaimedTokens.access_token).toBe('signed.jwt.token');
+
+      // Attacker's previously registered password must NEVER work again.
+      expect(await service.validateUser('victim@example.com', attackerPassword)).toBeNull();
+      expect(storedUser.passwordAuthEnabled).toBe(false);
+      expect(storedUser.googleSub).toBe('google-sub-real-owner');
+      expect(storedUser.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(storedUser.sessionsInvalidatedAt).toBeInstanceOf(Date);
+
+      // Attacker's refresh session is revoked and shared pre-registration workspace detached.
+      expect(prisma.refreshSession.rows[0].revokedAt).toBeInstanceOf(Date);
+      expect(prisma.organizationMember.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user_pre_reg', organizationId: 'org_attacker_trap' },
+      });
+
+      // Recovery token is single-use.
+      await expect(service.reclaimAccountWithGoogle(googleOutcome.recoveryToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      // Subsequent Google sign-ins resolve directly by immutable googleSub.
+      const repeat = await service.validateGoogleUser({
+        email: 'victim@example.com',
+        googleSub: 'google-sub-real-owner',
+        emailVerified: true,
+      });
+      expect(repeat.id).toBe('user_pre_reg');
+      expect(repeat.recoveryRequired).toBeUndefined();
+    });
+
+    it('requires valid password proof of control before linking Google to an existing password account', async () => {
+      const passwordHash = await bcrypt.hash('owner-real-password', 10);
+      let storedUser: any = {
+        id: 'user_existing',
+        email: 'owner@example.com',
+        passwordHash,
+        passwordAuthEnabled: true,
+        emailVerifiedAt: null,
+        googleSub: null,
+      };
+      users.findByEmail.mockResolvedValue(storedUser);
+      users.findById.mockImplementation(async () => storedUser);
+      users.updateUser.mockImplementation(async (_id: string, data: any) => {
+        storedUser = { ...storedUser, ...data };
+        return storedUser;
+      });
+
+      const outcome = await service.validateGoogleUser({
+        email: 'owner@example.com',
+        googleSub: 'google-sub-owner',
+        emailVerified: true,
+      });
+      expect(outcome.recoveryRequired).toBe(true);
+
+      // Wrong password must fail and NOT bind googleSub.
+      await expect(service.linkGoogleWithPassword(outcome.recoveryToken, 'wrong-password')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(storedUser.googleSub).toBeNull();
+
+      // Correct password proves control and binds googleSub.
+      const linked = await service.linkGoogleWithPassword(outcome.recoveryToken, 'owner-real-password');
+      expect(linked.access_token).toBe('signed.jwt.token');
+      expect(storedUser.googleSub).toBe('google-sub-owner');
+      expect(storedUser.emailVerifiedAt).toBeInstanceOf(Date);
     });
   });
 });

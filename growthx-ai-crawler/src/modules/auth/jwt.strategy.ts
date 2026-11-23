@@ -36,6 +36,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
+    if (
+      user.sessionsInvalidatedAt &&
+      typeof payload?.iat === 'number' &&
+      payload.iat * 1000 < user.sessionsInvalidatedAt.getTime()
+    ) {
+      throw new UnauthorizedException('Your session has been invalidated. Please sign in again.');
+    }
+
     return {
       userId: payload.sub,
       email: payload.email,

@@ -1,7 +1,14 @@
 import { Controller, Logger, Post, Delete, Body, UnauthorizedException, Get, UseGuards, Req, Res, UseFilters } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
-import { ExchangeCodeDto, LoginDto, RefreshDto, RegisterDto } from './auth.dto';
+import {
+  ExchangeCodeDto,
+  GoogleLinkWithPasswordDto,
+  GoogleReclaimAccountDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+} from './auth.dto';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GoogleAuthGuard } from './google-auth.guard';
@@ -107,12 +114,46 @@ export class AuthController {
       if (!req.user) {
         throw new UnauthorizedException('No user information received from Google');
       }
+      if (req.user.recoveryRequired && req.user.recoveryToken) {
+        return res.redirect(
+          `${frontendUrl}/login?recovery=google&token=${encodeURIComponent(req.user.recoveryToken)}&email=${encodeURIComponent(req.user.email || '')}`,
+        );
+      }
       const code = await this.authService.createLoginCode(req.user.id);
       return res.redirect(`${frontendUrl}/auth/callback?code=${encodeURIComponent(code)}`);
     } catch (err: any) {
       const message = err?.message || 'Google authentication failed';
       return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(message)}`);
     }
+  }
+
+  /** Completes Google account linking after the caller proves password control. */
+  @Post('google/link-with-password')
+  @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
+  async linkGoogleWithPassword(
+    @Body() body: GoogleLinkWithPasswordDto,
+    @Res({ passthrough: true }) res?: Response,
+    @Req() req?: Request,
+  ) {
+    const result = await this.authService.linkGoogleWithPassword(body.recoveryToken, body.password);
+    if (res) setAuthCookies(res, result);
+    return sessionBody(result, req);
+  }
+
+  /**
+   * Reclaims an ambiguous or pre-registered unverified account for the verified
+   * Google mailbox owner by disabling password login and revoking all sessions.
+   */
+  @Post('google/reclaim-account')
+  @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
+  async reclaimAccountWithGoogle(
+    @Body() body: GoogleReclaimAccountDto,
+    @Res({ passthrough: true }) res?: Response,
+    @Req() req?: Request,
+  ) {
+    const result = await this.authService.reclaimAccountWithGoogle(body.recoveryToken);
+    if (res) setAuthCookies(res, result);
+    return sessionBody(result, req);
   }
 
   @Get('me')
