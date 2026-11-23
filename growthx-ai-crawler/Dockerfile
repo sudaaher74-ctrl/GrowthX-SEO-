@@ -1,5 +1,5 @@
 # Base stage for dependencies and Playwright browser binaries
-FROM node:20-bookworm-slim AS base
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS base
 WORKDIR /app
 # git is not in node:20-bookworm-slim, and the autonomous engineer shells out to
 # it through simple-git to clone a customer's repository, branch, commit and
