@@ -45,15 +45,11 @@ export class GitService {
         'http.lowSpeedLimit=1000',
         'http.lowSpeedTime=90',
         'protocol.version=2',
-        'credential.helper=',
       ],
     });
     if (typeof git.env === 'function') {
-      git.env({
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0',
-        GCM_INTERACTIVE: 'never',
-      });
+      git.env('GIT_TERMINAL_PROMPT', '0');
+      git.env('GCM_INTERACTIVE', 'never');
     }
     return git;
   }

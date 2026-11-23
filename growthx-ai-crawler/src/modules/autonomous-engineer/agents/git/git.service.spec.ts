@@ -87,9 +87,10 @@ describe('GitService', () => {
         config: expect.arrayContaining(['http.version=HTTP/1.1', 'http.lowSpeedLimit=1000']),
       }),
     );
-    expect(env).toHaveBeenCalledWith(
-      expect.objectContaining({ GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' }),
-    );
+    const passedConfig = mockSimpleGit.mock.calls[0][0].config as string[];
+    expect(passedConfig.some((entry) => entry.startsWith('credential.helper'))).toBe(false);
+    expect(env).toHaveBeenCalledWith('GIT_TERMINAL_PROMPT', '0');
+    expect(env).toHaveBeenCalledWith('GCM_INTERACTIVE', 'never');
     expect(clone).toHaveBeenCalledWith(
       expect.stringContaining('github.com/o/r.git'),
       dir,
