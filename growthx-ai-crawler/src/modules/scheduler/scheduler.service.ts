@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CrawlFrequency } from '@prisma/client';
-import { timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { OWN_SCOPE } from '../crawler/website-scope';
@@ -58,23 +58,111 @@ export interface AutomationSettingsResponse {
   }>;
 }
 
+export interface StaggeredScheduleSlot {
+  /** UTC hour of day (0..23) */
+  hour: number;
+  /** UTC day of week (0=Sun..6=Sat) for WEEKLY crawls */
+  dayOfWeek: number;
+  /** Two UTC days of month (1..14 and 15..28) for BIWEEKLY crawls */
+  biweeklyDays: [number, number];
+  /** UTC day of month (1..28) for MONTHLY crawls */
+  dayOfMonth: number;
+}
+
+/**
+ * Deterministic, uniformly distributed UTC schedule slot derived from a
+ * website's ID and cadence. Spreads scheduled crawls across 24 daily hours,
+ * 168 weekly slots, 336 biweekly slots, and 672 monthly slots so all users do
+ * not fire simultaneously at midnight UTC.
+ */
+export function scheduledSlotForWebsite(
+  websiteId: string,
+  frequency: CrawlFrequency,
+): StaggeredScheduleSlot {
+  const digest = createHash('sha256').update(`${websiteId}:${frequency}`).digest();
+  const hour = digest.readUInt16BE(0) % 24;
+  const dayOfWeek = digest.readUInt16BE(2) % 7;
+  const biweeklyOffset = digest.readUInt16BE(4) % 14;
+  const dayOfMonth = (digest.readUInt16BE(6) % 28) + 1;
+  return {
+    hour,
+    dayOfWeek,
+    biweeklyDays: [biweeklyOffset + 1, biweeklyOffset + 15],
+    dayOfMonth,
+  };
+}
+
+/** Whether a website's deterministic staggered slot falls in `now`'s UTC hour. */
+export function matchesStaggeredSlot(
+  websiteId: string,
+  frequency: CrawlFrequency,
+  now: Date,
+): boolean {
+  if (frequency === CrawlFrequency.OFF) return false;
+  const slot = scheduledSlotForWebsite(websiteId, frequency);
+  if (now.getUTCHours() !== slot.hour) return false;
+  if (frequency === CrawlFrequency.DAILY) return true;
+  if (frequency === CrawlFrequency.WEEKLY) return now.getUTCDay() === slot.dayOfWeek;
+  if (frequency === CrawlFrequency.BIWEEKLY) {
+    const dom = now.getUTCDate();
+    return dom === slot.biweeklyDays[0] || dom === slot.biweeklyDays[1];
+  }
+  return now.getUTCDate() === slot.dayOfMonth;
+}
+
 /**
  * Pure UTC calculator for the next cron firing timestamp matching the
  * `@Cron` expressions in SchedulerService:
- * - DAILY: 00:00 UTC every day
- * - WEEKLY: Monday 01:00 UTC
- * - BIWEEKLY: 1st and 15th of month 02:00 UTC
- * - MONTHLY: 1st of month 02:00 UTC
+ * - When `websiteId` is supplied (and `CRAWL_STAGGER_SCHEDULES !== 'false'`),
+ *   returns that site's deterministic staggered UTC slot.
+ * - Otherwise returns the legacy fixed UTC schedule:
+ *   DAILY 00:00, WEEKLY Monday 01:00, BIWEEKLY 1st/15th 02:00, MONTHLY 1st 02:00.
  */
 export function computeNextScheduledRun(
   frequency: CrawlFrequency,
   now: Date = new Date(),
+  websiteId?: string,
 ): string | null {
   if (frequency === CrawlFrequency.OFF) return null;
 
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
   const date = now.getUTCDate();
+
+  if (websiteId && process.env.CRAWL_STAGGER_SCHEDULES !== 'false') {
+    const slot = scheduledSlotForWebsite(websiteId, frequency);
+
+    if (frequency === CrawlFrequency.DAILY) {
+      const todaySlot = new Date(Date.UTC(year, month, date, slot.hour, 0, 0, 0));
+      if (todaySlot.getTime() > now.getTime()) return todaySlot.toISOString();
+      return new Date(Date.UTC(year, month, date + 1, slot.hour, 0, 0, 0)).toISOString();
+    }
+
+    if (frequency === CrawlFrequency.WEEKLY) {
+      const day = now.getUTCDay();
+      let daysAhead = (slot.dayOfWeek - day + 7) % 7;
+      const candidate = new Date(Date.UTC(year, month, date + daysAhead, slot.hour, 0, 0, 0));
+      if (candidate.getTime() <= now.getTime()) {
+        daysAhead = daysAhead === 0 ? 7 : daysAhead + 7;
+        return new Date(Date.UTC(year, month, date + daysAhead, slot.hour, 0, 0, 0)).toISOString();
+      }
+      return candidate.toISOString();
+    }
+
+    if (frequency === CrawlFrequency.BIWEEKLY) {
+      const [day1, day2] = slot.biweeklyDays;
+      const candidates = [
+        new Date(Date.UTC(year, month, day1, slot.hour, 0, 0, 0)),
+        new Date(Date.UTC(year, month, day2, slot.hour, 0, 0, 0)),
+        new Date(Date.UTC(year, month + 1, day1, slot.hour, 0, 0, 0)),
+      ];
+      return (candidates.find((d) => d.getTime() > now.getTime()) ?? candidates[2]).toISOString();
+    }
+
+    const thisMonth = new Date(Date.UTC(year, month, slot.dayOfMonth, slot.hour, 0, 0, 0));
+    if (thisMonth.getTime() > now.getTime()) return thisMonth.toISOString();
+    return new Date(Date.UTC(year, month + 1, slot.dayOfMonth, slot.hour, 0, 0, 0)).toISOString();
+  }
 
   if (frequency === CrawlFrequency.DAILY) {
     return new Date(Date.UTC(year, month, date + 1, 0, 0, 0, 0)).toISOString();
@@ -123,10 +211,81 @@ export class SchedulerService {
   ) {}
 
   /**
+   * Staggered hourly Cron trigger (active when `CRAWL_STAGGER_SCHEDULES=true`).
+   * Dispatches only websites whose deterministic SHA-256 UTC slot matches the
+   * current UTC hour, flattening midnight/Monday/1st-of-month crawl spikes.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleStaggeredHourlyCrawls(now: Date = new Date()): Promise<void> {
+    if (process.env.CRAWL_STAGGER_SCHEDULES !== 'true') return;
+    try {
+      const websites = await this.prisma.website.findMany({
+        where: {
+          isVerified: true,
+          crawlFrequency: {
+            in: [
+              CrawlFrequency.DAILY,
+              CrawlFrequency.WEEKLY,
+              CrawlFrequency.BIWEEKLY,
+              CrawlFrequency.MONTHLY,
+            ],
+          },
+        },
+        select: {
+          id: true,
+          domain: true,
+          projectId: true,
+          crawlFrequency: true,
+          project: {
+            select: {
+              id: true,
+              organizationId: true,
+              automationSettings: {
+                select: {
+                  pipelineMode: true,
+                  maxDepth: true,
+                  maxConcurrency: true,
+                  useSitemap: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const due = websites.filter((site) =>
+        matchesStaggeredSlot(site.id, site.crawlFrequency, now),
+      );
+      if (due.length === 0) {
+        this.logger.debug(
+          `No staggered crawls due for UTC hour ${now.getUTCHours()} (checked ${websites.length} scheduled site(s)).`,
+        );
+        return;
+      }
+
+      const maxPerHour = Math.max(1, Number(process.env.SCHEDULER_MAX_PER_HOUR || 50));
+      const batch = due.slice(0, maxPerHour);
+      if (due.length > maxPerHour) {
+        this.logger.warn(
+          `Staggered hourly batch capped at ${maxPerHour} of ${due.length} due websites for UTC hour ${now.getUTCHours()}.`,
+        );
+      }
+
+      await this.dispatchScheduledWebsites(batch, `STAGGERED_H${now.getUTCHours()}`);
+    } catch (err) {
+      this.logger.error('Error during staggered hourly scheduled crawls trigger', err);
+    }
+  }
+
+  /**
    * Daily Cron trigger at midnight UTC for scheduled websites
    */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDailyScheduledCrawls(): Promise<void> {
+    if (process.env.CRAWL_STAGGER_SCHEDULES === 'true') {
+      this.logger.debug('Skipping bulk daily cron; CRAWL_STAGGER_SCHEDULES=true uses hourly staggered dispatch.');
+      return;
+    }
     this.logger.log('Running daily scheduled crawl check...');
     await this.triggerScheduledCrawls(CrawlFrequency.DAILY);
   }
@@ -136,6 +295,10 @@ export class SchedulerService {
    */
   @Cron('0 1 * * 1')
   async handleWeeklyScheduledCrawls(): Promise<void> {
+    if (process.env.CRAWL_STAGGER_SCHEDULES === 'true') {
+      this.logger.debug('Skipping bulk weekly cron; CRAWL_STAGGER_SCHEDULES=true uses hourly staggered dispatch.');
+      return;
+    }
     this.logger.log('Running weekly scheduled crawl check...');
     await this.triggerScheduledCrawls(CrawlFrequency.WEEKLY);
   }
@@ -145,6 +308,10 @@ export class SchedulerService {
    */
   @Cron('0 2 1,15 * *')
   async handleBiweeklyScheduledCrawls(): Promise<void> {
+    if (process.env.CRAWL_STAGGER_SCHEDULES === 'true') {
+      this.logger.debug('Skipping bulk biweekly cron; CRAWL_STAGGER_SCHEDULES=true uses hourly staggered dispatch.');
+      return;
+    }
     this.logger.log('Running bi-weekly scheduled crawl check...');
     await this.triggerScheduledCrawls(CrawlFrequency.BIWEEKLY);
   }
@@ -154,6 +321,10 @@ export class SchedulerService {
    */
   @Cron('0 2 1 * *')
   async handleMonthlyScheduledCrawls(): Promise<void> {
+    if (process.env.CRAWL_STAGGER_SCHEDULES === 'true') {
+      this.logger.debug('Skipping bulk monthly cron; CRAWL_STAGGER_SCHEDULES=true uses hourly staggered dispatch.');
+      return;
+    }
     this.logger.log('Running monthly scheduled crawl check...');
     await this.triggerScheduledCrawls(CrawlFrequency.MONTHLY);
   }
@@ -249,7 +420,7 @@ export class SchedulerService {
         saved?.agentAutonomy && typeof saved.agentAutonomy === 'object'
           ? (saved.agentAutonomy as AgentAutonomyConfig)
           : {},
-      nextScheduledRunAt: computeNextScheduledRun(crawlFrequency),
+      nextScheduledRunAt: computeNextScheduledRun(crawlFrequency, new Date(), primaryWebsite?.id),
       lastScheduledRunAt: saved?.lastScheduledRunAt?.toISOString() ?? null,
       lastScheduledStatus: saved?.lastScheduledStatus ?? null,
       updatedAt: saved?.updatedAt?.toISOString() ?? null,
@@ -465,92 +636,115 @@ export class SchedulerService {
         return;
       }
 
-      let started = 0;
-      let skipped = 0;
-
-      for (const site of websites) {
-        const projectId = site.project?.id ?? site.projectId ?? undefined;
-        try {
-          const organizationId = site.project?.organizationId;
-
-          // An unparented site has no plan to check and no one to bill the
-          // pages to, so it is not something to crawl unattended.
-          if (!organizationId) {
-            this.logger.warn(`Skipping ${site.domain}: not attached to an organization.`);
-            skipped++;
-            continue;
-          }
-
-          // A crawl that outlives its own interval would otherwise stack up,
-          // and on a small instance a pile-up is what takes the API down.
-          const inFlight = await this.prisma.crawlJob.findFirst({
-            where: { websiteId: site.id, status: { in: ['PENDING', 'RUNNING'] } },
-            select: { id: true },
-          });
-          if (inFlight) {
-            this.logger.log(`Skipping ${site.domain}: crawl ${inFlight.id} is still running.`);
-            skipped++;
-            continue;
-          }
-
-          const settings = site.project?.automationSettings;
-          if (
-            settings?.pipelineMode === 'FULL_PIPELINE' &&
-            projectId &&
-            this.autopilotService
-          ) {
-            const actor = this.prisma.organizationMember?.findFirst
-              ? await this.prisma.organizationMember.findFirst({
-                  where: { organizationId, role: { in: ['OWNER', 'ADMIN', 'MEMBER'] } },
-                  orderBy: { createdAt: 'asc' },
-                  select: { userId: true },
-                })
-              : null;
-            if (actor?.userId) {
-              this.logger.log(
-                `Dispatching ${frequency} scheduled FULL_PIPELINE for domain: ${site.domain}`,
-              );
-              await this.autopilotService.start({
-                userId: actor.userId,
-                organizationId,
-                domain: site.domain,
-                projectId,
-                forceRefresh: true,
-              });
-              await this.recordScheduleStatus(projectId, `STARTED_PIPELINE (${frequency})`);
-              started++;
-              continue;
-            }
-          }
-
-          this.logger.log(`Dispatching ${frequency} scheduled crawl for domain: ${site.domain}`);
-          if (settings) {
-            await this.crawlerService.startCrawlJob(site.id, {
-              pageLimit: settings.maxDepth,
-              maxConcurrency: settings.maxConcurrency,
-              useSitemap: settings.useSitemap,
-            });
-          } else {
-            await this.crawlerService.startCrawlJob(site.id);
-          }
-          await this.recordScheduleStatus(projectId, `STARTED_CRAWL (${frequency})`);
-          started++;
-        } catch (err) {
-          this.logger.error(`Failed to start scheduled crawl for ${site.domain}`, err);
-          await this.recordScheduleStatus(
-            projectId,
-            `FAILED: ${(err as Error)?.message ?? 'Unknown error'}`,
-          );
-          skipped++;
-        }
-      }
-
-      this.logger.log(
-        `${frequency} scheduled crawls: ${started} started, ${skipped} skipped, ${websites.length} on this schedule.`,
-      );
+      await this.dispatchScheduledWebsites(websites, frequency);
     } catch (err) {
       this.logger.error(`Error during ${frequency} scheduled crawls trigger`, err);
     }
+  }
+
+  private async dispatchScheduledWebsites(
+    websites: Array<{
+      id: string;
+      domain: string;
+      projectId?: string | null;
+      crawlFrequency?: CrawlFrequency;
+      project?: {
+        id?: string;
+        organizationId?: string | null;
+        automationSettings?: {
+          pipelineMode?: string | null;
+          maxDepth?: number;
+          maxConcurrency?: number;
+          useSitemap?: boolean;
+        } | null;
+      } | null;
+    }>,
+    scheduleLabel: string,
+  ): Promise<void> {
+    let started = 0;
+    let skipped = 0;
+
+    for (const site of websites) {
+      const projectId = site.project?.id ?? site.projectId ?? undefined;
+      const effectiveFreq = site.crawlFrequency ?? scheduleLabel;
+      try {
+        const organizationId = site.project?.organizationId;
+
+        // An unparented site has no plan to check and no one to bill the
+        // pages to, so it is not something to crawl unattended.
+        if (!organizationId) {
+          this.logger.warn(`Skipping ${site.domain}: not attached to an organization.`);
+          skipped++;
+          continue;
+        }
+
+        // A crawl that outlives its own interval would otherwise stack up,
+        // and on a small instance a pile-up is what takes the API down.
+        const inFlight = await this.prisma.crawlJob.findFirst({
+          where: { websiteId: site.id, status: { in: ['PENDING', 'RUNNING'] } },
+          select: { id: true },
+        });
+        if (inFlight) {
+          this.logger.log(`Skipping ${site.domain}: crawl ${inFlight.id} is still running.`);
+          skipped++;
+          continue;
+        }
+
+        const settings = site.project?.automationSettings;
+        if (
+          settings?.pipelineMode === 'FULL_PIPELINE' &&
+          projectId &&
+          this.autopilotService
+        ) {
+          const actor = this.prisma.organizationMember?.findFirst
+            ? await this.prisma.organizationMember.findFirst({
+                where: { organizationId, role: { in: ['OWNER', 'ADMIN', 'MEMBER'] } },
+                orderBy: { createdAt: 'asc' },
+                select: { userId: true },
+              })
+            : null;
+          if (actor?.userId) {
+            this.logger.log(
+              `Dispatching ${effectiveFreq} scheduled FULL_PIPELINE for domain: ${site.domain}`,
+            );
+            await this.autopilotService.start({
+              userId: actor.userId,
+              organizationId,
+              domain: site.domain,
+              projectId,
+              forceRefresh: true,
+            });
+            await this.recordScheduleStatus(projectId, `STARTED_PIPELINE (${effectiveFreq})`);
+            started++;
+            continue;
+          }
+        }
+
+        this.logger.log(`Dispatching ${effectiveFreq} scheduled crawl for domain: ${site.domain}`);
+        if (settings) {
+          await this.crawlerService.startCrawlJob(site.id, {
+            pageLimit: settings.maxDepth,
+            maxConcurrency: settings.maxConcurrency,
+            useSitemap: settings.useSitemap,
+          });
+        } else {
+          await this.crawlerService.startCrawlJob(site.id);
+        }
+        await this.recordScheduleStatus(projectId, `STARTED_CRAWL (${effectiveFreq})`);
+        started++;
+      } catch (err) {
+        this.logger.error(`Failed to start scheduled crawl for ${site.domain}`, err);
+        await this.recordScheduleStatus(
+          projectId,
+          `FAILED: ${(err as Error)?.message ?? 'Unknown error'}`,
+        );
+        skipped++;
+      }
+    }
+
+    this.logger.log(
+      `${scheduleLabel} scheduled crawls: ${started} started, ${skipped} skipped, ${websites.length} due.`,
+    );
   }
 
   /**
