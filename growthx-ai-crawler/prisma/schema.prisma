@@ -836,14 +836,24 @@ model ContentPiece {
   format           String?
   targetQuery      String?
   rationale        String?
-  /// The generated page body (Markdown/MDX), once drafted.
-  body             String?
-  metaDescription  String?
-  generatedByModel String?
+  /// Generated page body (Markdown/MDX), once drafted.
+  body                 String?
+  metaDescription      String?
+  generatedByModel     String?
   /// Path written in the customer's repository.
-  filePath         String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  filePath             String?
+  /// SHA-256 of canonical (kind, title, slug, metaDescription, body).
+  revisionHash         String?
+  /// Exact revisionHash approved by a human reviewer; invalidated on any edit.
+  approvedRevisionHash String?
+  approvedAt           DateTime?
+  approvedByUserId     String?
+  /// Atomic single-flight lock token while a live CMS publish is in progress.
+  publishClaimToken    String?
+  publishClaimedAt     DateTime?
+  publishedAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
   project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   run              AutomationRun?     @relation(fields: [runId], references: [id])
   sourceEvidence   Evidence?          @relation(fields: [sourceEvidenceId], references: [id], onDelete: SetNull)

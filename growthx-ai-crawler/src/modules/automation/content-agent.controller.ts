@@ -135,10 +135,11 @@ export class ContentAgentController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })
   review(
+    @Req() req: any,
     @Param('projectId') projectId: string,
     @Param('pieceId') pieceId: string,
     @Body() body: ReviewDecisionDto,
   ) {
-    return this.contentAgent.review(projectId, pieceId, body.decision);
+    return this.contentAgent.review(projectId, pieceId, body.decision, req?.user?.userId);
   }
 }

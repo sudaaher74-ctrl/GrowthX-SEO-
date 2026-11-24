@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
 import { AgentKind, ContentPieceKind, ContentPieceStatus, EvidenceSource } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
@@ -81,6 +83,26 @@ const FORMAT_INSTRUCTIONS: Record<ContentPieceKind, string> = {
     'properties evidenced by the page content supplied.',
 };
 
+export function computeContentRevisionHash(piece: {
+  kind?: string | null;
+  title?: string | null;
+  slug?: string | null;
+  metaDescription?: string | null;
+  body?: string | null;
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        piece.kind ?? '',
+        piece.title ?? '',
+        piece.slug ?? '',
+        piece.metaDescription ?? '',
+        piece.body ?? '',
+      ]),
+    )
+    .digest('hex');
+}
+
 @Injectable()
 export class ContentAgentService {
   private readonly logger = new Logger(ContentAgentService.name);
@@ -133,19 +155,33 @@ export class ContentAgentService {
         }
 
         const body = this.validateBody(request.kind, parsed.body);
+        const title = parsed.title.trim();
+        const slug = await this.uniqueSlug(projectId, parsed.title);
+        const metaDescription = parsed.metaDescription?.trim() || null;
+        const revisionHash = computeContentRevisionHash({
+          kind: request.kind,
+          title,
+          slug,
+          metaDescription,
+          body,
+        });
 
         const piece = await this.prisma.contentPiece.create({
           data: {
             projectId,
             kind: request.kind,
             status: ContentPieceStatus.DRAFTED,
-            title: parsed.title.trim(),
-            slug: await this.uniqueSlug(projectId, parsed.title),
+            title,
+            slug,
             format: request.kind,
             targetQuery: request.targetQuery ?? null,
             rationale: grounding.rationale,
-            metaDescription: parsed.metaDescription?.trim() || null,
+            metaDescription,
             body,
+            revisionHash,
+            approvedRevisionHash: null,
+            approvedAt: null,
+            approvedByUserId: null,
             generatedByModel: completion.model,
             sourceEvidenceId: evidence.id,
           },
@@ -312,24 +348,37 @@ export class ContentAgentService {
   }
 
   /**
-   * The review gate. A draft only leaves DRAFTED because a person moved it.
-   *
-   * Approval is deliberately not something the agent can do to its own output:
-   * this material goes out under the customer's name, on their listing or their
-   * site, so the last step before publication is a human one.
+   * The review gate. A draft only leaves DRAFTED because a person moved it, and
+   * approval is cryptographically bound to the exact content revision hash.
    */
-  async review(projectId: string, pieceId: string, decision: 'APPROVE' | 'REJECT') {
+  async review(projectId: string, pieceId: string, decision: 'APPROVE' | 'REJECT', reviewerUserId?: string) {
     const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
     if (!piece) throw new NotFoundException('Content piece not found');
     if (piece.status !== ContentPieceStatus.DRAFTED) {
       throw new BadRequestException(`Only a DRAFTED piece can be reviewed; this one is ${piece.status}.`);
     }
 
+    const currentHash = computeContentRevisionHash(piece);
+    const now = new Date();
+
     return this.prisma.contentPiece.update({
       where: { id: pieceId },
-      data: {
-        status: decision === 'APPROVE' ? ContentPieceStatus.COMMITTED : ContentPieceStatus.REJECTED,
-      },
+      data:
+        decision === 'APPROVE'
+          ? {
+              status: ContentPieceStatus.COMMITTED,
+              revisionHash: currentHash,
+              approvedRevisionHash: currentHash,
+              approvedAt: now,
+              approvedByUserId: reviewerUserId ?? null,
+            }
+          : {
+              status: ContentPieceStatus.REJECTED,
+              revisionHash: currentHash,
+              approvedRevisionHash: null,
+              approvedAt: null,
+              approvedByUserId: null,
+            },
     });
   }
 
@@ -352,7 +401,11 @@ export class ContentAgentService {
     });
   }
 
-  /** Allows a human reviewer to edit title, meta description, or body before approval/publish. */
+  /**
+   * Allows a human reviewer to edit title, meta description, or body before approval/publish.
+   * Any content change invalidates a previous approval and returns the piece to DRAFTED so
+   * the edited revision must be explicitly re-approved before publication.
+   */
   async updateDraft(
     projectId: string,
     pieceId: string,
@@ -360,27 +413,56 @@ export class ContentAgentService {
   ) {
     const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
     if (!piece) throw new NotFoundException('Content piece not found');
+    if (piece.status === ContentPieceStatus.PUBLISHED || piece.publishedAt) {
+      throw new BadRequestException('A published content piece cannot be edited in place.');
+    }
+    if (piece.publishClaimToken) {
+      throw new ConflictException('This content piece is currently being published and cannot be edited.');
+    }
 
+    const nextTitle = input.title !== undefined && input.title.trim() ? input.title.trim() : piece.title;
+    const nextMeta =
+      input.metaDescription !== undefined ? input.metaDescription?.trim() || null : piece.metaDescription;
     const nextBody =
-      input.body !== undefined ? this.validateBody(piece.kind, input.body) : undefined;
+      input.body !== undefined ? this.validateBody(piece.kind, input.body) : piece.body;
+
+    const changed =
+      nextTitle !== piece.title || nextMeta !== piece.metaDescription || nextBody !== piece.body;
+    const nextHash = computeContentRevisionHash({
+      kind: piece.kind,
+      title: nextTitle,
+      slug: piece.slug,
+      metaDescription: nextMeta,
+      body: nextBody,
+    });
 
     return this.prisma.contentPiece.update({
       where: { id: pieceId },
       data: {
-        ...(input.title !== undefined && input.title.trim() ? { title: input.title.trim() } : {}),
-        ...(input.metaDescription !== undefined
-          ? { metaDescription: input.metaDescription?.trim() || null }
+        title: nextTitle,
+        metaDescription: nextMeta,
+        body: nextBody,
+        revisionHash: nextHash,
+        ...(changed
+          ? {
+              status: ContentPieceStatus.DRAFTED,
+              approvedRevisionHash: null,
+              approvedAt: null,
+              approvedByUserId: null,
+            }
           : {}),
-        ...(nextBody !== undefined ? { body: nextBody } : {}),
       },
       include: { sourceEvidence: true },
     });
   }
 
   /**
-   * Publishes a Content Studio draft directly to WordPress, Shopify, or Webflow
-   * (as draft or live), records a FixImpactLedgerEvent for Proof of Impact, and
-   * updates the piece status honestly.
+   * Publishes an approved Content Studio revision directly to WordPress, Shopify,
+   * or Webflow. Enforces:
+   *  1. Explicit human approval (`status === COMMITTED` + non-null `approvedAt`)
+   *  2. Exact revision binding (`approvedRevisionHash === computeContentRevisionHash(piece)`)
+   *  3. Atomic single-flight publication claim (`updateMany`) so concurrent calls
+   *     or retries cannot double-publish the same piece.
    */
   async publishDraftToCms(
     projectId: string,
@@ -395,23 +477,75 @@ export class ContentAgentService {
     if (!piece.body?.trim()) {
       throw new BadRequestException('Draft has no content body to publish.');
     }
+    if (piece.status === ContentPieceStatus.PUBLISHED || piece.publishedAt) {
+      throw new ConflictException('This content piece has already been published.');
+    }
+    if (piece.status === ContentPieceStatus.REJECTED) {
+      throw new BadRequestException('Rejected content cannot be published.');
+    }
+    if (piece.status !== ContentPieceStatus.COMMITTED || !piece.approvedAt || !piece.approvedRevisionHash) {
+      throw new BadRequestException('This content piece must be explicitly approved before publishing.');
+    }
+
+    const currentHash = computeContentRevisionHash(piece);
+    if (piece.approvedRevisionHash !== currentHash) {
+      throw new BadRequestException(
+        'This draft was modified after approval. Review and approve the current revision before publishing.',
+      );
+    }
+
+    // Atomic single-flight claim so concurrent requests cannot publish twice.
+    const claimToken = randomBytes(16).toString('hex');
+    const claim = await this.prisma.contentPiece.updateMany({
+      where: {
+        id: pieceId,
+        projectId,
+        status: ContentPieceStatus.COMMITTED,
+        approvedRevisionHash: currentHash,
+        publishClaimToken: null,
+        publishedAt: null,
+      },
+      data: {
+        publishClaimToken: claimToken,
+        publishClaimedAt: new Date(),
+      },
+    });
+    if (claim.count !== 1) {
+      throw new ConflictException(
+        'This content piece is already being published, has already been published, or its approval changed.',
+      );
+    }
 
     const bodyHtml = this.markdownToSafeHtml(piece.kind, piece.body);
     const publishMode = input.publishMode || 'draft';
 
-    const publishResult = await this.cms.publishContentDraftToCms(projectId, {
-      platform: input.platform,
-      title: piece.title,
-      slug: piece.slug,
-      metaDescription: piece.metaDescription,
-      bodyHtml,
-      publishMode,
-    });
+    let publishResult: Awaited<ReturnType<WordPressCmsService['publishContentDraftToCms']>>;
+    try {
+      publishResult = await this.cms.publishContentDraftToCms(projectId, {
+        platform: input.platform,
+        title: piece.title,
+        slug: piece.slug,
+        metaDescription: piece.metaDescription,
+        bodyHtml,
+        publishMode,
+      });
+    } catch (err) {
+      await this.prisma.contentPiece
+        .updateMany({
+          where: { id: pieceId, projectId, publishClaimToken: claimToken },
+          data: { publishClaimToken: null, publishClaimedAt: null },
+        })
+        .catch(() => null);
+      throw err;
+    }
 
     const updated = await this.prisma.contentPiece.update({
       where: { id: pieceId },
       data: {
         status: publishMode === 'publish' ? ContentPieceStatus.PUBLISHED : ContentPieceStatus.COMMITTED,
+        ...(publishMode === 'publish' ? { publishedAt: new Date() } : {}),
+        publishClaimToken: null,
+        publishClaimedAt: null,
       },
       include: { sourceEvidence: true },
     });
