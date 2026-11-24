@@ -44,7 +44,7 @@ export class ProjectsController {
     // id they cared to type, including one they have never been a member of.
     await this.orgContext.assertCanWrite(req.user.userId, body.organizationId);
 
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForOrganization(body.organizationId);
     await this.quotaService.assertWebsiteQuota(body.organizationId, tier);
 
     return this.projectsService.createProject({

@@ -498,6 +498,9 @@ model Organization {
   /// spend on models with no published rate cannot be counted, and the service
   /// reports how many such calls it had to ignore rather than guessing.
   aiMonthlyBudgetUsd Float?
+  /// Server-owned subscription plan tier ('founder_free' | 'starter' | 'growth' | 'agency').
+  /// Entitlements and quotas are derived exclusively from this column, never from client headers.
+  subscriptionTier   String               @default("founder_free")
   /// Agency white-labeling configuration (Agency plan only)
   whiteLabelEnabled  Boolean              @default(false)
   agencyName         String?

@@ -9,8 +9,33 @@
  * shared that customer's own audit.
  */
 
-/** A customer's own website. One per domain, so a domain stays with whoever registered it. */
+/** A customer's verified exclusive own website. One per domain globally. */
 export const OWN_SCOPE = 'own';
+
+/**
+ * A temporary, unverified domain claim scoped to a single organization.
+ *
+ * Unverified registrations live under `claim:<organizationId>` so an unverified
+ * claimant can never block the genuine domain owner from registering and
+ * proving ownership via DNS TXT / meta verification. Upon verification, the
+ * claim is promoted atomically to `OWN_SCOPE`.
+ */
+export function claimScope(organizationId: string): string {
+  if (!organizationId) throw new Error('A domain claim belongs to an organization.');
+  return `claim:${organizationId}`;
+}
+
+export function isClaimScope(scope: string | null | undefined): boolean {
+  return typeof scope === 'string' && scope.startsWith('claim:');
+}
+
+export function isCompetitorScope(scope: string | null | undefined): boolean {
+  return typeof scope === 'string' && scope.startsWith('competitor:');
+}
+
+export function isOwnOrClaimScope(scope: string | null | undefined): boolean {
+  return scope === OWN_SCOPE || isClaimScope(scope);
+}
 
 /** A competitor's website as tracked by one project, and only that project. */
 export function competitorScope(projectId: string): string {

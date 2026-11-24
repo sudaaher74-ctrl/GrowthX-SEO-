@@ -158,7 +158,14 @@ export class OrganizationsService {
     await this.prisma.organizationMember.delete({ where: { id: memberId } });
   }
 
-  async getWhiteLabel(organizationId: string): Promise<WhiteLabelSettings> {
+  async getWhiteLabel(organizationId: string, requesterId: string): Promise<WhiteLabelSettings> {
+    if (!requesterId) throw new NotFoundException('Organization not found');
+    const requester = await this.prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId: requesterId, organizationId } },
+      select: { id: true },
+    });
+    if (!requester) throw new NotFoundException('Organization not found');
+
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: {

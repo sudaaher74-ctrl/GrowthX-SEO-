@@ -119,18 +119,31 @@ const MODEL = JSON.stringify({
 });
 
 describe('AutopilotService', () => {
-  it('sets up a new customer, starts their crawl and offers only real competitors', async () => {
+  const previousAllowUnverified = process.env.ALLOW_UNVERIFIED_DOMAINS;
+  beforeEach(() => {
+    delete process.env.ALLOW_UNVERIFIED_DOMAINS;
+  });
+  afterAll(() => {
+    if (previousAllowUnverified === undefined) delete process.env.ALLOW_UNVERIFIED_DOMAINS;
+    else process.env.ALLOW_UNVERIFIED_DOMAINS = previousAllowUnverified;
+  });
+
+  it('sets up a new customer under an org-scoped claim, defers unverified own-site crawl, and offers only real competitors', async () => {
     const { service, prisma, crawler, router } = setup(MODEL);
     const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'https://BrandKettle.co.in/' });
 
     expect(prisma.project.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ name: 'brandkettle.co.in' }) }));
-    // Their own site's record, never a competitor record of the same domain.
+    // Checks verified OWN_SCOPE first, then org-scoped claim, using ownership-conditioned upsert (Medium #17 & #18).
     expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'brandkettle.co.in', scope: 'own' } });
     expect(prisma.website.upsert.mock.calls[0][0]).toMatchObject({
-      where: { domain_scope: { domain: 'brandkettle.co.in', scope: 'own' } },
-      create: { domain: 'brandkettle.co.in', scope: 'own', projectId: 'p-new' },
+      where: {
+        domain_scope: { domain: 'brandkettle.co.in', scope: 'claim:o1' },
+        OR: [{ projectId: null }, { project: { organizationId: 'o1' } }],
+      },
+      create: { domain: 'brandkettle.co.in', scope: 'claim:o1', projectId: 'p-new', isVerified: false },
     });
-    expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-own', expect.any(Object));
+    // Unverified domain claim must NOT start an own-site crawl until ownership is proven (Medium #18).
+    expect(crawler.startCrawlJob).not.toHaveBeenCalled();
     expect(view).toMatchObject({ projectId: 'p-new', domain: 'brandkettle.co.in', status: 'DISCOVERING' });
 
     await service.discover(view.id);
@@ -140,10 +153,48 @@ describe('AutopilotService', () => {
     expect(router.generate.mock.calls[0][0].prompt).toContain('Premium Assam tea');
   });
 
-  it('refuses a website another account owns', async () => {
+  it('starts the own-site crawl when the organization owns a verified domain', async () => {
+    const { service, prisma, crawler } = setup(MODEL);
+    prisma.website.findUnique.mockResolvedValueOnce({
+      id: 'w-verified',
+      isVerified: true,
+      projectId: 'p-verified',
+      project: { organizationId: 'o1' },
+    });
+    await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
+    expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-verified', expect.any(Object));
+  });
+
+  it('refuses a verified website another account owns', async () => {
     const { service, prisma } = setup(MODEL);
-    prisma.website.findUnique.mockResolvedValue({ id: 'w', projectId: 'px', project: { organizationId: 'other' } });
+    prisma.website.findUnique.mockResolvedValue({
+      id: 'w',
+      isVerified: true,
+      projectId: 'px',
+      project: { organizationId: 'other' },
+    });
     await expect(service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' })).rejects.toThrow('another account');
+  });
+
+  it('rejects concurrent onboarding uniqueness conflict without reassigning another tenant website (Medium #17)', async () => {
+    const { service, prisma } = setup(MODEL);
+    prisma.website.upsert.mockRejectedValueOnce(Object.assign(new Error('Unique constraint'), { code: 'P2002' }));
+
+    await expect(service.start({ userId: 'u1', organizationId: 'o1', domain: 'race-domain.in' })).rejects.toThrow(
+      'another account',
+    );
+  });
+
+  it('checks write role in the destination project organization when projectId is specified (Medium #16)', async () => {
+    const { service, prisma } = setup(MODEL);
+    prisma.project.findUnique.mockResolvedValue({ organizationId: 'org-viewer' });
+    (service as any).orgContext.assertCanWrite.mockRejectedValueOnce(new Error('view-only'));
+
+    await expect(
+      service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in', projectId: 'proj-viewer' }),
+    ).rejects.toThrow('view-only');
+    expect((service as any).orgContext.assertCanWrite).toHaveBeenCalledWith('u1', 'org-viewer');
+    expect(prisma.website.upsert).not.toHaveBeenCalled();
   });
 
   it('adds and crawls the confirmed competitors, then writes the report once every crawl is done', async () => {
@@ -246,7 +297,7 @@ describe('AutopilotService', () => {
 
     const wheres = prisma.crawlJob.findMany.mock.calls.map((c: any[]) => c[0].where.website);
     expect(wheres).toEqual([
-      { domain: 'brandkettle.co.in', projectId: 'p-new', scope: 'own' },
+      { domain: 'brandkettle.co.in', projectId: 'p-new', scope: { in: ['own', 'claim:o1'] } },
       { domain: 'teabox.com', scope: 'competitor:p-new' },
     ]);
   });

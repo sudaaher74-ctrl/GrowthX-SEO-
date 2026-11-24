@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { PlatformAdminModule } from '../admin/platform-admin.module';
 import { TokensAdminController, TokensController } from './tokens.controller';
 import { TokensService } from './tokens.service';
 
@@ -9,7 +10,7 @@ import { TokensService } from './tokens.service';
  * this and charges through `TokensService`.
  */
 @Module({
-  imports: [OrganizationsModule],
+  imports: [OrganizationsModule, PlatformAdminModule],
   controllers: [TokensController, TokensAdminController],
   providers: [TokensService],
   exports: [TokensService],

@@ -229,7 +229,7 @@ export class CompetitorActionEngineController {
     @Param('projectId') projectId: string,
     @Body() body: CompetitorDto,
   ) {
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     await this.quotaService.assertCompetitorQuota(projectId, tier);
     const limits = this.quotaService.getLimits(tier);
     return this.setup.create(req.user?.organizationId || req.organizationId, projectId, body, limits.competitors);

@@ -71,7 +71,7 @@ describe('CrawlController — cross-tenant access', () => {
         {
           provide: SubscriptionQuotaService,
           useValue: {
-            resolveTier: jest.fn().mockReturnValue('founder_free'),
+            resolveTierForOrganization: jest.fn().mockResolvedValue('founder_free'),
             assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
             clampCrawlPageLimit: jest.fn().mockImplementation((limit: number) => limit ?? 5000),
           },
@@ -122,11 +122,11 @@ describe('CrawlController — cross-tenant access', () => {
   });
 
   describe('website registration', () => {
-    it("does not let a differently-typed domain take over another organization's site", async () => {
+    it("does not let a differently-typed domain take over another organization's verified site", async () => {
       prisma.website.findUnique.mockImplementation(({ where }: any) =>
         Promise.resolve(
           where.domain_scope?.domain === 'victim.com' && where.domain_scope.scope === 'own'
-            ? { id: 'w_victim', project: { organizationId: 'org_other' } }
+            ? { id: 'w_victim', isVerified: true, project: { organizationId: 'org_other' } }
             : null,
         ),
       );
@@ -137,19 +137,94 @@ describe('CrawlController — cross-tenant access', () => {
       expect(prisma.website.upsert).not.toHaveBeenCalled();
     });
 
-    it("registers a site of your own without taking over anybody's competitor record of it", async () => {
-      // A domain can also be on file as a competitor for other projects, crawls
-      // and all. Registering it as your own site used to claim that record.
+    it("registers an unverified site under an org-scoped claim without taking over competitor or exclusive own slots (Medium #18)", async () => {
       await controller.registerWebsiteRoute(REQ, { url: 'https://rival.com', domain: 'rival.com' });
 
       expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'rival.com', scope: 'own' } });
       const upsert = prisma.website.upsert.mock.calls[0][0];
-      // Still keyed on the caller's own record, and only updatable while unowned or ours.
       expect(upsert.where).toEqual({
-        domain_scope: { domain: 'rival.com', scope: 'own' },
+        domain_scope: { domain: 'rival.com', scope: 'claim:org_1' },
         OR: [{ projectId: null }, { project: { organizationId: 'org_1' } }],
       });
-      expect(upsert.create).toMatchObject({ domain: 'rival.com', scope: 'own' });
+      expect(upsert.create).toMatchObject({ domain: 'rival.com', scope: 'claim:org_1', isVerified: false });
+    });
+
+    it('allows the legitimate domain owner to register and verify even if another org holds an unverified claim (Medium #18)', async () => {
+      // Another org has a legacy unverified OWN_SCOPE row; Org 1 must NOT be blocked from creating its own claim.
+      prisma.website.findUnique.mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          where.domain_scope?.domain === 'realowner.com' && where.domain_scope.scope === 'own'
+            ? { id: 'w_squat', isVerified: false, project: { organizationId: 'org_squatter' } }
+            : null,
+        ),
+      );
+
+      const claimed = await controller.registerWebsiteRoute(REQ, {
+        url: 'https://realowner.com',
+        domain: 'realowner.com',
+      });
+      expect(claimed.scope).toBe('claim:org_1');
+      expect(claimed.isVerified).toBe(false);
+
+      // Now Org 1 proves DNS TXT ownership and gets promoted atomically to exclusive OWN_SCOPE.
+      prisma.website.findUnique.mockImplementation(({ where }: any) => {
+        if (where.id === 'w1') {
+          return Promise.resolve({
+            id: 'w1',
+            domain: 'realowner.com',
+            scope: 'claim:org_1',
+            isVerified: false,
+            verificationToken: 'token',
+            project: { organizationId: 'org_1' },
+          });
+        }
+        if (where.domain_scope?.domain === 'realowner.com' && where.domain_scope.scope === 'own') {
+          return Promise.resolve({
+            id: 'w_squat',
+            isVerified: false,
+            project: { organizationId: 'org_squatter' },
+          });
+        }
+        return Promise.resolve(null);
+      });
+      prisma.website.update = jest.fn().mockImplementation(({ where, data }: any) =>
+        Promise.resolve({ id: where.id, domain: 'realowner.com', ...data }),
+      );
+      (controller as any).securityService.verifyDomainOwnership = jest.fn().mockResolvedValue(true);
+
+      const verified = await controller.verifyDomain(REQ, 'w1');
+      expect(verified.success).toBe(true);
+      expect(verified.isVerified).toBe(true);
+      // Legacy unverified squat was demoted before promoting Org 1 to exclusive OWN_SCOPE
+      expect(prisma.website.update).toHaveBeenCalledWith({
+        where: { id: 'w_squat' },
+        data: { scope: 'legacy-unverified:w_squat' },
+      });
+      expect(prisma.website.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'w1' },
+          data: expect.objectContaining({ scope: 'own', isVerified: true }),
+        }),
+      );
+    });
+
+    it('checks write role and quota in the destination project organization, blocking a viewer in Org B who is owner in Org A (Medium #16)', async () => {
+      prisma.project.findUnique.mockResolvedValue({ organizationId: 'org_viewer' });
+      orgContext.assertCanWrite.mockImplementation((_user: string, org: string) =>
+        org === 'org_1' ? Promise.resolve() : Promise.reject(new ForbiddenException('view-only in org_viewer')),
+      );
+      orgContext.assertMembership.mockResolvedValue(undefined); // Caller IS a member (VIEWER) of org_viewer!
+
+      await expect(
+        controller.registerWebsiteRoute(REQ, {
+          url: 'https://new.com',
+          domain: 'new.com',
+          projectId: 'proj_in_org_viewer',
+        }),
+      ).rejects.toThrow(/view-only/i);
+
+      expect(orgContext.assertCanWrite).toHaveBeenCalledWith('user_1', 'org_viewer');
+      expect(prisma.website.upsert).not.toHaveBeenCalled();
     });
 
     it('refuses the claim when another organization registered the domain in the meantime', async () => {

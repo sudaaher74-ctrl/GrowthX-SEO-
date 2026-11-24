@@ -104,7 +104,8 @@ describe('OrganizationsService', () => {
   });
 
   describe('White-Label Settings', () => {
-    it('retrieves white label settings', async () => {
+    it('retrieves white label settings for an authorized organization member', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue({ id: 'mem_1' });
       prisma.organization.findUnique.mockResolvedValue({
         whiteLabelEnabled: true,
         agencyName: 'Apex Growth Agency',
@@ -114,9 +115,21 @@ describe('OrganizationsService', () => {
         footerText: 'Prepared by Apex',
       });
 
-      const res = await service.getWhiteLabel('org_1');
+      const res = await service.getWhiteLabel('org_1', 'u1');
       expect(res.agencyName).toBe('Apex Growth Agency');
       expect(res.whiteLabelEnabled).toBe(true);
+      expect(prisma.organizationMember.findUnique).toHaveBeenCalledWith({
+        where: { userId_organizationId: { userId: 'u1', organizationId: 'org_1' } },
+        select: { id: true },
+      });
+    });
+
+    it('rejects reading white-label branding for an unrelated user or user with no organization (Low #24)', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+      await expect(service.getWhiteLabel('org_other', 'u_outsider')).rejects.toThrow('Organization not found');
+      await expect(service.getWhiteLabel('org_other', '')).rejects.toThrow('Organization not found');
+      expect(prisma.organization.findUnique).not.toHaveBeenCalled();
     });
 
     it('rejects enabling white-label on Starter or Growth plans', async () => {

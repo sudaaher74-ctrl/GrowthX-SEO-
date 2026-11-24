@@ -35,7 +35,7 @@ describe('ProjectsController', () => {
         {
           provide: SubscriptionQuotaService,
           useValue: {
-            resolveTier: jest.fn().mockReturnValue('founder_free'),
+            resolveTierForOrganization: jest.fn().mockResolvedValue('founder_free'),
             assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
           },
         },

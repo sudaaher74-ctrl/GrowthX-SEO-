@@ -19,6 +19,15 @@ const REQ = { user: { userId: 'user_1' }, organizationId: 'org_1' };
 
 /** The shared crawl workers must not be monopolised by one account or one site. */
 describe('crawl capacity', () => {
+  const previousAllowUnverified = process.env.ALLOW_UNVERIFIED_DOMAINS;
+  beforeEach(() => {
+    delete process.env.ALLOW_UNVERIFIED_DOMAINS;
+  });
+  afterAll(() => {
+    if (previousAllowUnverified === undefined) delete process.env.ALLOW_UNVERIFIED_DOMAINS;
+    else process.env.ALLOW_UNVERIFIED_DOMAINS = previousAllowUnverified;
+  });
+
   describe('starting an audit from the app', () => {
     let controller: CrawlController;
     let prisma: any;
@@ -27,7 +36,13 @@ describe('crawl capacity', () => {
     beforeEach(async () => {
       prisma = {
         website: {
-          findUnique: jest.fn().mockResolvedValue({ id: 'w_new', domain: 'new.in', project: { organizationId: 'org_1' } }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'w_new',
+            domain: 'new.in',
+            scope: 'own',
+            isVerified: true,
+            project: { organizationId: 'org_1' },
+          }),
         },
         crawlJob: { findMany: jest.fn().mockResolvedValue([]) },
       };
@@ -48,9 +63,9 @@ describe('crawl capacity', () => {
           {
             provide: SubscriptionQuotaService,
             useValue: {
-              resolveTier: jest.fn().mockReturnValue('founder_free'),
+              resolveTierForOrganization: jest.fn().mockResolvedValue('founder_free'),
               assertWebsiteQuota: jest.fn().mockResolvedValue(undefined),
-              clampCrawlPageLimit: jest.fn().mockImplementation((limit: number) => limit ?? 5000),
+              clampCrawlPageLimit: jest.fn().mockImplementation((limit: number) => Math.min(limit ?? 5000, 5000)),
             },
           },
           { provide: FixPreviewService, useValue: {} },
@@ -82,6 +97,33 @@ describe('crawl capacity', () => {
       await controller.startCrawlJob(REQ, { websiteId: 'w_new' });
       expect(prisma.crawlJob.findMany.mock.calls[0][0].where.website).toEqual({ scope: 'own', project: { organizationId: 'org_1' } });
     });
+
+    it('rejects manual crawl for an unverified domain claim (Medium #18)', async () => {
+      prisma.website.findUnique.mockResolvedValue({
+        id: 'w_unverified',
+        domain: 'unverified.in',
+        scope: 'claim:org_1',
+        isVerified: false,
+        project: { organizationId: 'org_1' },
+      });
+
+      await expect(controller.startCrawlJob(REQ, { websiteId: 'w_unverified' })).rejects.toThrow(
+        /must be verified/i,
+      );
+      expect(crawler.startCrawlJob).not.toHaveBeenCalled();
+    });
+
+    it('clamps crawl pageLimit using server-owned org tier even when x-subscription-tier header claims agency (Medium #15)', async () => {
+      const reqWithForgedHeader = {
+        ...REQ,
+        headers: { 'x-subscription-tier': 'agency' },
+      };
+      await controller.startCrawlJob(reqWithForgedHeader, { websiteId: 'w_new', pageLimit: 100000 });
+      expect(crawler.startCrawlJob).toHaveBeenCalledWith(
+        'w_new',
+        expect.objectContaining({ pageLimit: 5000 }),
+      );
+    });
   });
 
   describe('CrawlerService.startCrawlJob', () => {
@@ -91,11 +133,23 @@ describe('crawl capacity', () => {
       if (previousUnlimited === undefined) delete process.env.CRAWL_UNLIMITED_PAGES;
       else process.env.CRAWL_UNLIMITED_PAGES = previousUnlimited;
     });
-    function fakeService(inFlight: { id: string } | null) {
+    function fakeService(inFlight: { id: string } | null, websiteOverrides: Record<string, any> = {}) {
       const created: any[] = [];
       const self: any = {
         prisma: {
-          website: { findUnique: jest.fn().mockResolvedValue({ id: 'w1', domain: 'shop.in', url: 'https://shop.in', maxConcurrency: 5, maxDepth: 10, rateLimitDelayMs: 500 }) },
+          website: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'w1',
+              domain: 'shop.in',
+              scope: 'own',
+              isVerified: true,
+              url: 'https://shop.in',
+              maxConcurrency: 5,
+              maxDepth: 10,
+              rateLimitDelayMs: 500,
+              ...websiteOverrides,
+            }),
+          },
           crawlJob: {
             findFirst: jest.fn().mockResolvedValue(inFlight),
             create: jest.fn(async ({ data }: any) => {
@@ -109,6 +163,19 @@ describe('crawl capacity', () => {
       };
       return { self, created, start: (opts: any = {}) => (CrawlerService.prototype.startCrawlJob as any).call(self, 'w1', opts) };
     }
+
+    it('refuses to queue an own-site or claim crawl when domain ownership is unverified (Medium #18)', async () => {
+      const { start, created, self } = fakeService(null, { scope: 'claim:org_1', isVerified: false });
+      await expect(start()).rejects.toThrow(/must be verified/i);
+      expect(created).toEqual([]);
+      expect(self.queue.addCrawlJob).not.toHaveBeenCalled();
+    });
+
+    it('permits bounded public competitor audits without domain verification (Medium #18)', async () => {
+      const { start, created } = fakeService(null, { scope: 'competitor:proj_1', isVerified: false });
+      await expect(start({ pageLimit: 25 })).resolves.toBe('job_new');
+      expect(created[0].pageLimit).toBe(25);
+    });
 
     it('hands back the crawl already running for the site instead of starting a second', async () => {
       const { start, created, self } = fakeService({ id: 'job_running' });

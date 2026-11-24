@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { isCompetitorScope } from './website-scope';
 import { StorageService } from '../../storage/storage.service';
 import * as cheerio from 'cheerio';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
@@ -315,6 +316,16 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const website = await this.prisma.website.findUnique({ where: { id: websiteId } });
     if (!website) {
       throw new NotFoundException(`Website with ID ${websiteId} not found`);
+    }
+
+    // Separate public competitor audits (bounded by pageLimit and project-scoped)
+    // from own-site crawls, which require proven domain ownership.
+    const allowUnverifiedDev =
+      process.env.NODE_ENV !== 'production' && process.env.ALLOW_UNVERIFIED_DOMAINS === 'true';
+    if (!isCompetitorScope(website.scope) && !website.isVerified && !allowUnverifiedDev) {
+      throw new ForbiddenException(
+        `Domain ${website.domain} must be verified before starting an own-site crawl.`,
+      );
     }
 
     // One crawl of a site at a time. Pressing "Run audit" again while one is

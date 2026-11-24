@@ -2,9 +2,10 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { ModuleRef } from '@nestjs/core';
 import { AutopilotRun } from '@prisma/client';
 import { crawlToShow } from '../crawler/crawl-selection';
-import { OWN_SCOPE, competitorScope, websiteKey } from '../crawler/website-scope';
+import { OWN_SCOPE, claimScope, competitorScope, websiteKey } from '../crawler/website-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { FetchService } from '../crawler/fetch/fetch.service';
 import { AiProvider, AiRequest, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
@@ -126,6 +127,7 @@ export class AutopilotService {
     @Optional() private readonly backlinkDiscovery?: BacklinkDiscovery,
     @Optional() private readonly findingSync?: FindingSyncService,
     @Optional() private readonly opportunityDetection?: OpportunityDetectionService,
+    @Optional() private readonly quotaService?: SubscriptionQuotaService,
   ) {}
 
   private resolveOptional<T>(direct: T | undefined, token: new (...args: any[]) => T): T | undefined {
@@ -148,9 +150,33 @@ export class AutopilotService {
   }): Promise<AutopilotView> {
     const domain = websiteDomain(input.domain);
     if (!normaliseCandidate(domain)) throw new BadRequestException(`"${input.domain}" doesn't look like a website address.`);
-    await this.orgContext.assertCanWrite(input.userId, input.organizationId);
 
-    const { projectId, websiteId } = await this.resolveProject(input.organizationId, input.userId, domain, input.projectId);
+    // Resolve destination organization first if a target projectId was passed,
+    // so write-role and server-owned quota checks apply to the destination workspace.
+    let targetOrganizationId = input.organizationId;
+    if (input.projectId) {
+      const targetProject = await this.prisma.project.findUnique({
+        where: { id: input.projectId },
+        select: { organizationId: true },
+      });
+      if (!targetProject) throw new NotFoundException('Project not found');
+      targetOrganizationId = targetProject.organizationId;
+    }
+
+    await this.orgContext.assertCanWrite(input.userId, targetOrganizationId);
+
+    const quota = this.resolveOptional(this.quotaService, SubscriptionQuotaService);
+    const tier = quota ? await quota.resolveTierForOrganization(targetOrganizationId) : 'founder_free';
+    if (quota) {
+      await quota.assertWebsiteQuota(targetOrganizationId, tier, domain);
+    }
+
+    const { projectId, websiteId, isVerified } = await this.resolveProject(
+      targetOrganizationId,
+      input.userId,
+      domain,
+      input.projectId,
+    );
 
     const active = await this.prisma.autopilotRun.findFirst({
       where: { projectId, status: { in: ACTIVE } },
@@ -158,7 +184,12 @@ export class AutopilotService {
     });
     if (active) return this.view(active);
 
-    const ownCrawlJobId = await this.ensureOwnCrawl(websiteId, Boolean(input.forceRefresh));
+    const ownCrawlJobId = await this.ensureOwnCrawl(
+      websiteId,
+      isVerified,
+      tier,
+      Boolean(input.forceRefresh),
+    );
 
     // Zero-touch full refresh: when explicitly requested on a project that already has
     // tracked competitors, skip re-confirming rivals and launch the full parallel pipeline.
@@ -173,7 +204,11 @@ export class AutopilotService {
         const competitors: ConfirmedCompetitor[] = [];
         const logMessages: string[] = [
           `Started full workspace pipeline for ${domain}.`,
-          ownCrawlJobId ? `Started reading ${domain}.` : `Using the recent read of ${domain}.`,
+          ownCrawlJobId
+            ? `Started reading ${domain}.`
+            : isVerified
+              ? `Using the recent read of ${domain}.`
+              : `Verify ownership of ${domain} to start a full own-site crawl.`,
         ];
 
         for (const rival of tracked) {
@@ -184,7 +219,7 @@ export class AutopilotService {
             continue;
           }
           try {
-            await this.competitorCrawl.startCrawl(input.organizationId, projectId, rival.id);
+            await this.competitorCrawl.startCrawl(targetOrganizationId, projectId, rival.id);
             logMessages.push(`Started reading ${name}'s website.`);
           } catch (err) {
             logMessages.push(`Couldn't start reading ${name}: ${(err as Error).message}`);
@@ -197,7 +232,7 @@ export class AutopilotService {
         const run = await this.prisma.autopilotRun.create({
           data: {
             projectId,
-            organizationId: input.organizationId,
+            organizationId: targetOrganizationId,
             userId: input.userId,
             domain,
             status: 'RUNNING',
@@ -214,7 +249,7 @@ export class AutopilotService {
     const run = await this.prisma.autopilotRun.create({
       data: {
         projectId,
-        organizationId: input.organizationId,
+        organizationId: targetOrganizationId,
         userId: input.userId,
         domain,
         status: 'DISCOVERING',
@@ -222,7 +257,13 @@ export class AutopilotService {
         ownCrawlJobId,
         log: [
           entry(`Set up ${domain}.`),
-          entry(ownCrawlJobId ? `Started reading ${domain}.` : `Using the recent read of ${domain}.`),
+          entry(
+            ownCrawlJobId
+              ? `Started reading ${domain}.`
+              : isVerified
+                ? `Using the recent read of ${domain}.`
+                : `Verify ownership of ${domain} to start a full own-site crawl.`,
+          ),
           entry('Looking for your competitors.'),
         ],
       },
@@ -235,20 +276,43 @@ export class AutopilotService {
   /**
    * The project this website belongs to: the caller's current one when it
    * already holds this site or has none yet, another of their projects that
-   * holds it, or a new one. A domain another organization already owns is
-   * refused, as the website registration route refuses it.
+   * holds it, or a new one.
+   *
+   * Only a verified exclusive `OWN_SCOPE` record blocks another organization.
+   * New/unverified domains are stored under an organization-scoped claim
+   * (`claim:<organizationId>`) with an ownership-conditioned upsert so
+   * concurrent onboarding by two organizations can never reassign a website
+   * across tenants or block the genuine owner from verifying.
    */
   private async resolveProject(organizationId: string, userId: string, domain: string, projectId?: string | null) {
-    // Somebody's own website only. A competitor record of the same domain is
-    // another project's, with its crawls, and is never taken over.
-    const existing = await this.prisma.website.findUnique({
+    const existingOwn = await this.prisma.website.findUnique({
       where: websiteKey(domain, OWN_SCOPE),
-      select: { id: true, projectId: true, project: { select: { organizationId: true } } },
+      select: { id: true, isVerified: true, projectId: true, project: { select: { organizationId: true } } },
     });
-    if (existing?.project && existing.project.organizationId !== organizationId) {
-      throw new ForbiddenException(`${domain} is already registered to another account.`);
+    if (existingOwn?.project && existingOwn.project.organizationId !== organizationId) {
+      if (existingOwn.isVerified) {
+        throw new ForbiddenException(`${domain} is already registered to another account.`);
+      }
+    } else if (existingOwn?.projectId) {
+      return {
+        projectId: existingOwn.projectId,
+        websiteId: existingOwn.id,
+        isVerified: Boolean(existingOwn.isVerified),
+      };
     }
-    if (existing?.projectId) return { projectId: existing.projectId, websiteId: existing.id };
+
+    const orgClaimScope = claimScope(organizationId);
+    const existingClaim = await this.prisma.website.findUnique({
+      where: websiteKey(domain, orgClaimScope),
+      select: { id: true, isVerified: true, projectId: true, project: { select: { organizationId: true } } },
+    });
+    if (existingClaim?.projectId && existingClaim.project?.organizationId === organizationId) {
+      return {
+        projectId: existingClaim.projectId,
+        websiteId: existingClaim.id,
+        isVerified: Boolean(existingClaim.isVerified),
+      };
+    }
 
     let target: string | null = null;
     if (projectId) {
@@ -257,7 +321,7 @@ export class AutopilotService {
         select: { organizationId: true, websites: { select: { id: true }, take: 1 } },
       });
       if (!project) throw new NotFoundException('Project not found');
-      await this.orgContext.assertMembership(userId, project.organizationId);
+      await this.orgContext.assertCanWrite(userId, project.organizationId);
       if (project.organizationId === organizationId && project.websites.length === 0) target = projectId;
     }
     if (!target) {
@@ -269,15 +333,36 @@ export class AutopilotService {
       target = empty?.id ?? (await this.prisma.project.create({ data: { name: domain, organization: { connect: { id: organizationId } } } })).id;
     }
 
-    const website = await this.prisma.website.upsert({
-      where: websiteKey(domain, OWN_SCOPE),
-      update: { projectId: target },
-      create: { domain, scope: OWN_SCOPE, url: `https://${domain}`, isVerified: false, projectId: target },
-    });
-    return { projectId: target, websiteId: website.id };
+    let website;
+    try {
+      website = await this.prisma.website.upsert({
+        where: {
+          ...websiteKey(domain, orgClaimScope),
+          OR: [{ projectId: null }, { project: { organizationId } }],
+        },
+        update: { projectId: target },
+        create: { domain, scope: orgClaimScope, url: `https://${domain}`, isVerified: false, projectId: target },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ForbiddenException(`${domain} is already registered to another account.`);
+      }
+      throw err;
+    }
+    return { projectId: target, websiteId: website.id, isVerified: Boolean(website.isVerified) };
   }
 
-  private async ensureOwnCrawl(websiteId: string, forceRefresh = false): Promise<string | null> {
+  private async ensureOwnCrawl(
+    websiteId: string,
+    isVerified: boolean,
+    tier: 'founder_free' | 'starter' | 'growth' | 'agency',
+    forceRefresh = false,
+  ): Promise<string | null> {
+    const allowUnverifiedDev =
+      process.env.NODE_ENV !== 'production' && process.env.ALLOW_UNVERIFIED_DOMAINS === 'true';
+    if (!isVerified && !allowUnverifiedDev) {
+      return null;
+    }
     const latest = await this.prisma.crawlJob.findFirst({
       where: { websiteId },
       orderBy: { createdAt: 'desc' },
@@ -288,7 +373,12 @@ export class AutopilotService {
     if (latest?.status === 'COMPLETED' && latest.finishedAt && Date.now() - latest.finishedAt.getTime() < freshnessWindow) {
       return null;
     }
-    return this.crawler.startCrawlJob(websiteId, OWN_SITE_CRAWL);
+    const quota = this.resolveOptional(this.quotaService, SubscriptionQuotaService);
+    const pageLimit = quota ? quota.clampCrawlPageLimit(undefined, tier) : undefined;
+    return this.crawler.startCrawlJob(websiteId, {
+      ...OWN_SITE_CRAWL,
+      ...(pageLimit !== undefined ? { pageLimit } : {}),
+    });
   }
 
   /**
@@ -419,7 +509,12 @@ export class AutopilotService {
       // Carry on with whatever the crawl knows.
     }
     const pages = await this.prisma.page.findMany({
-      where: { crawlJob: { website: { domain, projectId, scope: OWN_SCOPE } }, title: { not: null } },
+      where: {
+        crawlJob: {
+          website: { domain, projectId, scope: { in: [OWN_SCOPE, claimScope(organizationId)] } },
+        },
+        title: { not: null },
+      },
       select: { title: true },
       take: 40,
     });
@@ -753,7 +848,7 @@ export class AutopilotService {
     // failed recrawl must not read as "failed, 0 pages" for a site already read.
     // Always this project's own records: the same domain can be on file for
     // other customers too, with crawls this one never ran.
-    const jobFor = async (website: { domain: string; projectId?: string; scope: string }) =>
+    const jobFor = async (website: { domain: string; projectId?: string; scope: string | { in: string[] } }) =>
       crawlToShow(
         await this.prisma.crawlJob.findMany({
           where: { website },
@@ -762,7 +857,11 @@ export class AutopilotService {
           select: { status: true, pagesCrawled: true },
         }),
       ).shown;
-    const own = await jobFor({ domain: run.domain, projectId: run.projectId, scope: OWN_SCOPE });
+    const own = await jobFor({
+      domain: run.domain,
+      projectId: run.projectId,
+      scope: { in: [OWN_SCOPE, claimScope(run.organizationId)] },
+    });
     const out: AutopilotSite[] = [
       { domain: run.domain, name: 'Your website', role: 'you', crawl: own?.status ?? 'NONE', pagesCrawled: own?.pagesCrawled ?? 0 },
     ];

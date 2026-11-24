@@ -54,8 +54,8 @@ export class OrganizationsController {
   }
 
   @Get(':id/white-label')
-  async getWhiteLabel(@Param('id') id: string) {
-    return this.organizationsService.getWhiteLabel(id);
+  async getWhiteLabel(@Request() req: any, @Param('id') id: string) {
+    return this.organizationsService.getWhiteLabel(id, req.user.userId);
   }
 
   @Patch(':id/white-label')
@@ -64,7 +64,7 @@ export class OrganizationsController {
     @Param('id') id: string,
     @Body() body: UpdateWhiteLabelDto,
   ) {
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForOrganization(id);
     return this.organizationsService.updateWhiteLabel(id, req.user.userId, tier, body);
   }
 }

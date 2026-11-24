@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { OWN_SCOPE } from '../crawler/website-scope';
+import { OWN_SCOPE, claimScope } from '../crawler/website-scope';
 
 export type SubscriptionTier = 'founder_free' | 'starter' | 'growth' | 'agency';
 
@@ -23,23 +23,43 @@ export const PLAN_LIMITS: Record<SubscriptionTier, PlanLimits> = {
 export class SubscriptionQuotaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Resolves the plan tier from request headers, defaulting to founder_free.
-   */
-  resolveTier(req: any): SubscriptionTier {
-    const raw = (
-      req?.headers?.['x-subscription-tier'] ||
-      req?.headers?.['x-subscription-plan'] ||
-      ''
-    )
-      .toString()
-      .toLowerCase()
-      .trim();
-
-    if (raw === 'growth') return 'growth';
-    if (raw === 'agency') return 'agency';
-    if (raw === 'starter') return 'starter';
+  normalizeTier(raw: unknown): SubscriptionTier {
+    const normalized = typeof raw === 'string' ? raw.toLowerCase().trim() : '';
+    if (normalized === 'growth') return 'growth';
+    if (normalized === 'agency') return 'agency';
+    if (normalized === 'starter') return 'starter';
     return 'founder_free';
+  }
+
+  /**
+   * Resolves the subscription tier exclusively from the server-owned
+   * Organization record in PostgreSQL. Client-supplied headers such as
+   * `x-subscription-tier` are never trusted.
+   */
+  async resolveTierForOrganization(organizationId: string | null | undefined): Promise<SubscriptionTier> {
+    if (!organizationId || !this.prisma?.organization?.findUnique) {
+      return 'founder_free';
+    }
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { subscriptionTier: true },
+    });
+    return this.normalizeTier(org?.subscriptionTier);
+  }
+
+  /**
+   * Resolves the subscription tier for a project from its owning
+   * Organization record in PostgreSQL.
+   */
+  async resolveTierForProject(projectId: string | null | undefined): Promise<SubscriptionTier> {
+    if (!projectId || !this.prisma?.project?.findUnique) {
+      return 'founder_free';
+    }
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organization: { select: { subscriptionTier: true } } },
+    });
+    return this.normalizeTier(project?.organization?.subscriptionTier);
   }
 
   getLimits(tier: SubscriptionTier): PlanLimits {
@@ -47,18 +67,21 @@ export class SubscriptionQuotaService {
   }
 
   /**
-   * Enforces website quota when registering a new own website or creating a project.
+   * Enforces website quota when registering a new own website, claiming a domain,
+   * or creating a project. Counts both verified own sites and unverified claims
+   * owned by the organization.
    */
   async assertWebsiteQuota(organizationId: string, tier: SubscriptionTier, checkingDomain?: string) {
     if (!organizationId) return;
     const limits = this.getLimits(tier);
+    const orgScopes = [OWN_SCOPE, claimScope(organizationId)];
 
-    // If checking a specific domain, see if it is already registered for this org
+    // If checking a specific domain, see if it is already registered or claimed by this org
     if (checkingDomain) {
       const existing = await this.prisma.website.findFirst({
         where: {
           domain: checkingDomain,
-          scope: OWN_SCOPE,
+          scope: { in: orgScopes },
           project: { organizationId },
         },
         select: { id: true },
@@ -68,7 +91,7 @@ export class SubscriptionQuotaService {
 
     const currentCount = await this.prisma.website.count({
       where: {
-        scope: OWN_SCOPE,
+        scope: { in: orgScopes },
         project: { organizationId },
       },
     });

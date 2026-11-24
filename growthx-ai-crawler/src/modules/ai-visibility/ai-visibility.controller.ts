@@ -35,15 +35,15 @@ export class AiVisibilityController {
   }
 
   @Post('journey')
-  async prepareJourney(@Req() req: any, @Param('projectId') projectId: string) {
-    const tier = this.quotaService.resolveTier(req);
+  async prepareJourney(@Req() _req: any, @Param('projectId') projectId: string) {
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.workflow.prepare(projectId);
   }
 
   @Post('journey/:journeyId/check')
-  async checkJourney(@Req() req: any, @Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
-    const tier = this.quotaService.resolveTier(req);
+  async checkJourney(@Req() _req: any, @Param('projectId') projectId: string, @Param('journeyId') journeyId: string, @Body('brief') brief?: unknown) {
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.workflow.check(projectId, journeyId, brief);
   }
@@ -115,8 +115,8 @@ export class AiVisibilityController {
   }
 
   @Post('sweep')
-  async runSweep(@Req() req: any, @Param('projectId') projectId: string) {
-    const tier = this.quotaService.resolveTier(req);
+  async runSweep(@Req() _req: any, @Param('projectId') projectId: string) {
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     await this.quotaService.assertAiVisibilityQuota(projectId, tier);
     return this.aiVisibilityService.runScanForProject(projectId);
   }
@@ -204,16 +204,16 @@ export class AiVisibilityController {
 
   @Get('suggested-prompts-from-gsc')
   async getSuggestedPromptsFromGsc(
-    @Req() req: any,
+    @Req() _req: any,
     @Param('projectId') projectId: string,
   ) {
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     return this.promptEngineService.suggestPromptsFromGsc(projectId, tier);
   }
 
   @Post('prompts/from-suggestions')
   async addPromptsFromSuggestions(
-    @Req() req: any,
+    @Req() _req: any,
     @Param('projectId') projectId: string,
     @Body('prompts') prompts: Array<{
       text: string;
@@ -222,7 +222,7 @@ export class AiVisibilityController {
       sourceQuery?: string;
     }>,
   ) {
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     return this.promptEngineService.addPromptsFromSuggestions(projectId, prompts, tier);
   }
 
@@ -238,12 +238,12 @@ export class AiVisibilityController {
 
   @Post('prompts')
   async addPrompts(
-    @Req() req: any,
+    @Req() _req: any,
     @Param('projectId') projectId: string,
     @Body('prompts') prompts: { text: string; cluster?: string; category?: string; sourceQuery?: string }[],
   ) {
     if (!Array.isArray(prompts)) return { added: 0 };
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForProject(projectId);
     await this.quotaService.assertPromptQuota(projectId, tier, prompts.length);
     for (const p of prompts) {
       await this.prisma.aiVisibilityPrompt.create({
@@ -421,6 +421,8 @@ export class AiVisibilityController {
     @Body('domain') domain: string,
     @Body('label') label?: string,
   ) {
+    const tier = await this.quotaService.resolveTierForProject(projectId);
+    await this.quotaService.assertCompetitorQuota(projectId, tier);
     const competitor = await this.prisma.competitorDomain.create({
       data: {
         projectId,

@@ -363,10 +363,6 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   headers["x-auth-mode"] = "cookie";
   if (orgId) {
     headers["x-organization-id"] = orgId;
-    const sub = subscriptionEngine.getClaimedSubscription(orgId);
-    if (sub?.tierId) {
-      headers["x-subscription-tier"] = sub.tierId;
-    }
   }
   if (csrfToken) headers["x-csrf-token"] = csrfToken;
 

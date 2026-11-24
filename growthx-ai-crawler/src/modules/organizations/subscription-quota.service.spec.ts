@@ -7,6 +7,12 @@ describe('SubscriptionQuotaService', () => {
 
   beforeEach(() => {
     prisma = {
+      organization: {
+        findUnique: jest.fn(),
+      },
+      project: {
+        findUnique: jest.fn(),
+      },
       website: {
         findFirst: jest.fn(),
         count: jest.fn(),
@@ -21,17 +27,36 @@ describe('SubscriptionQuotaService', () => {
     service = new SubscriptionQuotaService(prisma);
   });
 
-  describe('resolveTier', () => {
-    it('defaults to founder_free when header is missing', () => {
-      expect(service.resolveTier({})).toBe('founder_free');
-      expect(service.resolveTier({ headers: {} })).toBe('founder_free');
+  describe('server-owned tier resolution (Medium #15)', () => {
+    it('resolves tier exclusively from Organization.subscriptionTier in PostgreSQL', async () => {
+      prisma.organization.findUnique.mockResolvedValueOnce({ subscriptionTier: 'growth' });
+      await expect(service.resolveTierForOrganization('org-1')).resolves.toBe('growth');
+      expect(prisma.organization.findUnique).toHaveBeenCalledWith({
+        where: { id: 'org-1' },
+        select: { subscriptionTier: true },
+      });
+
+      prisma.organization.findUnique.mockResolvedValueOnce({ subscriptionTier: 'agency' });
+      await expect(service.resolveTierForOrganization('org-2')).resolves.toBe('agency');
     });
 
-    it('resolves valid tiers correctly', () => {
-      expect(service.resolveTier({ headers: { 'x-subscription-tier': 'growth' } })).toBe('growth');
-      expect(service.resolveTier({ headers: { 'x-subscription-tier': 'agency' } })).toBe('agency');
-      expect(service.resolveTier({ headers: { 'x-subscription-tier': 'starter' } })).toBe('starter');
-      expect(service.resolveTier({ headers: { 'x-subscription-tier': 'founder_free' } })).toBe('founder_free');
+    it('defaults to founder_free when organization is missing or has an unknown tier', async () => {
+      prisma.organization.findUnique.mockResolvedValueOnce(null);
+      await expect(service.resolveTierForOrganization('org-missing')).resolves.toBe('founder_free');
+
+      prisma.organization.findUnique.mockResolvedValueOnce({ subscriptionTier: 'enterprise_forged' });
+      await expect(service.resolveTierForOrganization('org-weird')).resolves.toBe('founder_free');
+    });
+
+    it('resolves project tier from its owning organization record', async () => {
+      prisma.project.findUnique.mockResolvedValueOnce({
+        organization: { subscriptionTier: 'starter' },
+      });
+      await expect(service.resolveTierForProject('proj-1')).resolves.toBe('starter');
+    });
+
+    it('does not expose any header-based tier resolver', () => {
+      expect((service as any).resolveTier).toBeUndefined();
     });
   });
 

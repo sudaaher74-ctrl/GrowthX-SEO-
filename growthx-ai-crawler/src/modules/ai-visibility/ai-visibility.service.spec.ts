@@ -81,7 +81,7 @@ describe('AI visibility dashboard contract', () => {
     const result = { checksRun: 5, checksFailed: 0, citations: 0, skippedAssistants: [] };
     const service: any = { runScanForProject: jest.fn().mockResolvedValue(result) };
     const quotaService: any = {
-      resolveTier: jest.fn().mockReturnValue('agency'),
+      resolveTierForProject: jest.fn().mockResolvedValue('agency'),
       assertAiVisibilityQuota: jest.fn().mockResolvedValue(undefined),
     };
     const controller = new AiVisibilityController(service, {} as any, {} as any, {} as any, quotaService);

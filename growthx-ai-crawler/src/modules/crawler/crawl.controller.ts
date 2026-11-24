@@ -18,7 +18,7 @@ import { SubscriptionQuotaService } from '../organizations/subscription-quota.se
 import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
-import { OWN_SCOPE, websiteKey } from './website-scope';
+import { OWN_SCOPE, claimScope, websiteKey } from './website-scope';
 
 /** What a route needs: view, change data (not a viewer), or manage (owner/admin). */
 type Access = 'read' | 'write' | 'manage';
@@ -58,12 +58,37 @@ export class CrawlController {
   }
 
   private async websiteForCaller(req: any, where: { id: string } | { domain: string }, level: Access = 'read') {
-    // By domain, only ever a customer's own website: the same domain can also
-    // be on file as a competitor for any number of other projects.
-    const website = await this.prisma.website.findUnique({
+    const select = {
+      id: true,
+      domain: true,
+      scope: true,
+      isVerified: true,
+      verificationToken: true,
+      projectId: true,
+      project: { select: { organizationId: true } },
+    };
+
+    // By domain, prefer the verified/own record if it belongs to this caller's
+    // organization; otherwise fall back to this organization's own unverified
+    // claim record (`claim:<orgId>`). Competitor rows are never matched here.
+    let website = await this.prisma.website.findUnique({
       where: 'id' in where ? { id: where.id } : websiteKey(where.domain, OWN_SCOPE),
-      select: { id: true, domain: true, verificationToken: true, project: { select: { organizationId: true } } },
+      select,
     });
+
+    if (!('id' in where) && req?.organizationId) {
+      const ownBelongsToCallerOrg = website?.project?.organizationId === req.organizationId;
+      if (!ownBelongsToCallerOrg) {
+        const claim = await this.prisma.website.findUnique({
+          where: websiteKey(where.domain, claimScope(req.organizationId)),
+          select,
+        });
+        if (claim) {
+          website = claim;
+        }
+      }
+    }
+
     if (!website) throw new NotFoundException('Website not found');
 
     const organizationId = website.project?.organizationId;
@@ -140,55 +165,59 @@ export class CrawlController {
   @ApiOperation({ summary: 'Register a new customer website for SEO auditing' })
   @ApiBody({ schema: { type: 'object', properties: { url: { type: 'string', example: 'https://growthx.ai' }, domain: { type: 'string', example: 'growthx.ai' }, projectId: { type: 'string' } } } })
   async registerWebsiteRoute(@Req() req: any, @Body() body: { url: string; domain: string; projectId?: string }) {
-    const organizationId: string = req.organizationId;
-    // The same normalisation `registerWebsite` saves under. Checking ownership
-    // against the raw input let "Example.com" or "https://example.com" miss
-    // the existing row here, then overwrite it there — moving another
-    // tenant's site and its crawl history into the caller's project.
     const domain = normalizeWebsiteDomain(body.domain || body.url);
     if (!domain) throw new BadRequestException('URL or domain is required.');
-    await this.orgContext.assertCanWrite(req.user?.userId, organizationId);
 
-    const tier = this.quotaService.resolveTier(req);
-    await this.quotaService.assertWebsiteQuota(organizationId, tier, domain);
-
-    const existing = await this.prisma.website.findUnique({
-      where: websiteKey(domain, OWN_SCOPE),
-      select: { id: true, project: { select: { organizationId: true } } },
-    });
-
-    // A domain has one own-website record and `registerWebsite` upserts on it,
-    // so re-registering a domain another tenant already owns used to reassign
-    // its projectId — moving that site and its whole crawl history across the
-    // tenant boundary. A domain stays with the organization that claimed it.
-    // Competitor records of the same domain are never touched: they belong to
-    // the projects tracking it, crawls and all.
-    const owner = existing?.project?.organizationId;
-    if (owner && owner !== organizationId) {
-      throw new ForbiddenException(
-        `${domain} is already registered to another organization. If you own this domain, ask them to remove it first.`,
-      );
-    }
-
-    // A project the caller does not belong to would park the site outside their
-    // own organization, where the checks above cannot see it.
+    // Resolve the destination organization FIRST so write-role and plan-quota
+    // checks run against the exact workspace that will own the website, not the
+    // caller's default workspace.
+    let targetOrganizationId: string = req.organizationId;
     if (body.projectId) {
       const project = await this.prisma.project.findUnique({
         where: { id: body.projectId },
         select: { organizationId: true },
       });
       if (!project) throw new NotFoundException('Project not found');
-      await this.orgContext.assertMembership(req.user?.userId, project.organizationId);
-      if (owner && owner !== project.organizationId) {
-        throw new ForbiddenException(`${domain} is already registered to another organization.`);
-      }
+      targetOrganizationId = project.organizationId;
     }
 
-    return this.registerWebsite({ ...body, domain }, organizationId);
+    await this.orgContext.assertCanWrite(req.user?.userId, targetOrganizationId);
+
+    const tier = await this.quotaService.resolveTierForOrganization(targetOrganizationId);
+    await this.quotaService.assertWebsiteQuota(targetOrganizationId, tier, domain);
+
+    // Only a VERIFIED exclusive own-site record blocks another organization.
+    // An unverified claim by another org must never block the real domain owner
+    // from registering their own temporary claim and proving DNS ownership.
+    const existingOwn = await this.prisma.website.findUnique({
+      where: websiteKey(domain, OWN_SCOPE),
+      select: { id: true, isVerified: true, project: { select: { organizationId: true } } },
+    });
+
+    const ownOwner = existingOwn?.project?.organizationId;
+    if (existingOwn?.isVerified && ownOwner && ownOwner !== targetOrganizationId) {
+      throw new ForbiddenException(
+        `${domain} is already verified by another organization. If you own this domain, ask them to remove it first.`,
+      );
+    }
+
+    // Reuse this org's existing OWN_SCOPE row (verified or legacy unverified);
+    // for all new registrations, create an org-scoped temporary claim
+    // (`claim:<organizationId>`) until domain ownership is proven via verify().
+    const scope =
+      existingOwn && ownOwner === targetOrganizationId
+        ? OWN_SCOPE
+        : claimScope(targetOrganizationId);
+
+    return this.registerWebsite({ ...body, domain }, targetOrganizationId, scope);
   }
 
-  /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
-  private async registerWebsite(body: { url: string; domain: string; projectId?: string }, organizationId?: string) {
+  /** Shared helper for registering an org-scoped website claim or updating an owned website. */
+  private async registerWebsite(
+    body: { url: string; domain: string; projectId?: string },
+    organizationId: string,
+    scope: string = claimScope(organizationId),
+  ) {
     if (!body.url && !body.domain) {
       throw new BadRequestException('URL or domain is required.');
     }
@@ -198,27 +227,24 @@ export class CrawlController {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    // Keep the token already issued: rotating it on every re-register would
-    // invalidate a DNS record the customer has already published.
+    // Keep the token already issued for THIS organization's record: rotating it
+    // on re-register would invalidate a DNS record the customer already published.
     const current = await this.prisma.website.findUnique({
-      where: websiteKey(domain, OWN_SCOPE),
-      select: { verificationToken: true },
+      where: websiteKey(domain, scope),
+      select: { verificationToken: true, project: { select: { organizationId: true } } },
     });
-    const token = current?.verificationToken ?? this.securityService.generateVerificationToken(domain);
-    // The ownership check in the route runs before this write, so two
-    // organizations claiming a new domain at once could both pass it. The
-    // update is therefore conditional on the record being unowned or ours; if
-    // another organization got there first the update matches nothing, the
-    // create collides with the unique key, and the claim is refused.
+    const sameOrgCurrent = current && (!current.project?.organizationId || current.project.organizationId === organizationId);
+    const token = (sameOrgCurrent ? current?.verificationToken : null) ?? this.securityService.generateVerificationToken(domain);
+
     let website;
     try {
       website = await this.prisma.website.upsert({
         where: {
-          ...websiteKey(domain, OWN_SCOPE),
+          ...websiteKey(domain, scope),
           ...(organizationId ? { OR: [{ projectId: null }, { project: { organizationId } }] } : {}),
         },
         update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
-        create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
+        create: { url: formattedUrl, domain, scope, verificationToken: token, isVerified: false, projectId: body.projectId },
       });
     } catch (err: any) {
       if (err?.code === 'P2002') {
@@ -230,6 +256,7 @@ export class CrawlController {
       id: website.id,
       domain: website.domain,
       url: website.url,
+      scope: website.scope,
       isVerified: website.isVerified,
       verificationToken: token,
       instructions: `Add a DNS TXT record for _growthx-challenge.${website.domain} with value: ${token}`,
@@ -242,19 +269,47 @@ export class CrawlController {
   @ApiParam({ name: 'id', description: 'Website ID' })
   async verifyDomain(@Req() req: any, @Param('id') id: string) {
     const website = await this.websiteForCaller(req, { id }, 'write');
+    const organizationId = website.project!.organizationId;
 
     const isVerified = await this.securityService.verifyDomainOwnership(website.domain, website.verificationToken || 'verified');
 
     // Auto-verify is an explicit opt-in, never an inference from NODE_ENV.
-    // Keying it on `NODE_ENV !== 'production'` meant any host that did not set
-    // NODE_ENV (the default on several PaaS providers) would let anyone claim
-    // and crawl a domain they do not own.
     const autoVerify = process.env.ALLOW_UNVERIFIED_DOMAINS === 'true';
     if (isVerified || autoVerify) {
-      const updated = await this.prisma.website.update({
-        where: { id },
-        data: { isVerified: true, verifiedAt: new Date() },
-      });
+      const promote = async (tx: any) => {
+        if (website.scope !== OWN_SCOPE) {
+          const existingOwn = await tx.website.findUnique({
+            where: websiteKey(website.domain, OWN_SCOPE),
+            select: { id: true, isVerified: true, project: { select: { organizationId: true } } },
+          });
+          if (existingOwn && existingOwn.id !== website.id) {
+            if (
+              existingOwn.isVerified &&
+              existingOwn.project?.organizationId &&
+              existingOwn.project.organizationId !== organizationId
+            ) {
+              throw new ForbiddenException(
+                `${website.domain} is already verified by another organization.`,
+              );
+            }
+            // Demote legacy unverified squat or duplicate unverified record so
+            // the verified owner atomically takes exclusive OWN_SCOPE ownership.
+            await tx.website.update({
+              where: { id: existingOwn.id },
+              data: { scope: `legacy-unverified:${existingOwn.id}` },
+            });
+          }
+        }
+        return tx.website.update({
+          where: { id },
+          data: { scope: OWN_SCOPE, isVerified: true, verifiedAt: new Date() },
+        });
+      };
+
+      const updated = this.prisma.$transaction
+        ? await this.prisma.$transaction((tx: any) => promote(tx))
+        : await promote(this.prisma);
+
       return { success: true, isVerified: updated.isVerified, message: `Domain ${updated.domain} verified successfully.` };
     }
     return { success: false, isVerified: false, message: 'DNS TXT verification record not found yet. Please allow DNS propagation.' };
@@ -267,16 +322,21 @@ export class CrawlController {
   async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean; pageLimit?: number }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
 
-    // resolved an organization for the *caller*, but nothing
-    // tied the website to it: any logged-in user could spend their own plan's
-    // allowance crawling another tenant's site, and the pages would land in
-    // that tenant's crawl history.
     const website = body.websiteId
       ? await this.websiteForCaller(req, { id: body.websiteId }, 'write')
       : await this.websiteForCaller(req, { domain: body.domain as string }, 'write');
 
+    // Require proven domain ownership before queuing an own-site crawl.
+    const allowUnverifiedDev =
+      process.env.NODE_ENV !== 'production' && process.env.ALLOW_UNVERIFIED_DOMAINS === 'true';
+    if (!website.isVerified && !allowUnverifiedDev) {
+      throw new ForbiddenException(
+        `Domain ${website.domain} must be verified before starting an audit. Complete DNS TXT or meta-tag verification first.`,
+      );
+    }
+
     await this.assertCrawlCapacity(website.id, website.project!.organizationId);
-    const tier = this.quotaService.resolveTier(req);
+    const tier = await this.quotaService.resolveTierForOrganization(website.project!.organizationId);
     const pageLimit = this.quotaService.clampCrawlPageLimit(body.pageLimit, tier);
     const jobId = await this.crawlerService.startCrawlJob(website.id, { ...body, pageLimit });
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };

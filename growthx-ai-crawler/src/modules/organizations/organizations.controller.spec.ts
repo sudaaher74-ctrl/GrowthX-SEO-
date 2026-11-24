@@ -12,7 +12,7 @@ describe('OrganizationsController', () => {
     getWhiteLabel: jest.Mock;
     updateWhiteLabel: jest.Mock;
   };
-  let quotaService: { resolveTier: jest.Mock };
+  let quotaService: { resolveTierForOrganization: jest.Mock };
 
   beforeEach(async () => {
     organizations = {
@@ -23,7 +23,7 @@ describe('OrganizationsController', () => {
     };
 
     quotaService = {
-      resolveTier: jest.fn().mockReturnValue('agency'),
+      resolveTierForOrganization: jest.fn().mockResolvedValue('agency'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -49,22 +49,24 @@ describe('OrganizationsController', () => {
     expect(organizations.createOrganization).toHaveBeenCalledWith('u1', { name: 'Acme', slug: 'acme' });
   });
 
-  it('retrieves white label settings for an organization', async () => {
-    await expect(controller.getWhiteLabel('org_1')).resolves.toEqual({
+  it('passes authenticated requester userId when retrieving white label settings (Low #24)', async () => {
+    const req = { user: { userId: 'u1' } };
+    await expect(controller.getWhiteLabel(req, 'org_1')).resolves.toEqual({
       whiteLabelEnabled: true,
       agencyName: 'Apex Agency',
     });
-    expect(organizations.getWhiteLabel).toHaveBeenCalledWith('org_1');
+    expect(organizations.getWhiteLabel).toHaveBeenCalledWith('org_1', 'u1');
   });
 
-  it('updates white label settings with resolved subscription tier', async () => {
+  it('updates white label settings using server-owned organization tier, ignoring client headers (Medium #15)', async () => {
+    quotaService.resolveTierForOrganization.mockResolvedValueOnce('founder_free');
     const req = { user: { userId: 'u1' }, headers: { 'x-subscription-tier': 'agency' } };
     await controller.updateWhiteLabel(req, 'org_1', {
       whiteLabelEnabled: true,
       agencyName: 'Apex Agency',
     });
-    expect(quotaService.resolveTier).toHaveBeenCalledWith(req);
-    expect(organizations.updateWhiteLabel).toHaveBeenCalledWith('org_1', 'u1', 'agency', {
+    expect(quotaService.resolveTierForOrganization).toHaveBeenCalledWith('org_1');
+    expect(organizations.updateWhiteLabel).toHaveBeenCalledWith('org_1', 'u1', 'founder_free', {
       whiteLabelEnabled: true,
       agencyName: 'Apex Agency',
     });
