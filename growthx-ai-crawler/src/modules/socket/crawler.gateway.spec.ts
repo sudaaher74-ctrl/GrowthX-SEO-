@@ -5,13 +5,16 @@ const SECRET = 'test-secret-value-for-gateway-spec-0123456789';
 
 jest.mock('../../config/secrets', () => ({ jwtSecret: () => 'test-secret-value-for-gateway-spec-0123456789' }));
 
-function fakeSocket(auth: any, cookie?: string) {
+function fakeSocket(auth: any, cookie?: string, extraHeaders: Record<string, string> = {}) {
+  const headers: Record<string, string> = { ...extraHeaders };
+  if (cookie) headers.cookie = cookie;
   return {
-    id: 's1',
+    id: `s-${Math.random().toString(36).slice(2, 8)}`,
     data: {} as any,
-    handshake: { auth, headers: cookie ? { cookie } : {} },
+    handshake: { auth, headers },
     disconnect: jest.fn(),
     join: jest.fn(),
+    leave: jest.fn(),
   } as any;
 }
 
@@ -27,6 +30,10 @@ describe('CrawlerGateway', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     gateway = new CrawlerGateway(prisma);
+  });
+
+  afterEach(async () => {
+    await gateway.onModuleDestroy();
   });
 
   it('disconnects a client with no token', () => {
@@ -47,11 +54,95 @@ describe('CrawlerGateway', () => {
     expect(s.disconnect).toHaveBeenCalled();
   });
 
-  it('accepts a valid token from the HttpOnly cookie', () => {
-    const s = fakeSocket({}, `a=b; access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: '5m' })}`);
+  it('accepts a valid token from the HttpOnly cookie when Origin is allowed', () => {
+    const s = fakeSocket(
+      {},
+      `a=b; access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: '5m' })}`,
+      { origin: 'http://localhost:3001' },
+    );
     gateway.handleConnection(s);
     expect(s.disconnect).not.toHaveBeenCalled();
     expect(s.data.userId).toBe('u1');
+  });
+
+  it('rejects a cross-site WebSocket handshake carrying an HttpOnly session cookie (Medium #20)', () => {
+    const s = fakeSocket(
+      {},
+      `access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: '5m' })}`,
+      { origin: 'https://evil.attacker.example' },
+    );
+    gateway.handleConnection(s);
+    expect(s.disconnect).toHaveBeenCalledWith(true);
+    expect(s.data.userId).toBeUndefined();
+  });
+
+  it('rejects a cookie-authenticated WebSocket handshake when Origin header is missing (Medium #20)', () => {
+    const s = fakeSocket(
+      {},
+      `access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: '5m' })}`,
+    );
+    gateway.handleConnection(s);
+    expect(s.disconnect).toHaveBeenCalledWith(true);
+    expect(s.data.userId).toBeUndefined();
+  });
+
+  it('disconnects an already-connected socket automatically when its JWT expires (Medium #20)', () => {
+    jest.useFakeTimers();
+    try {
+      const s = fakeSocket(
+        {},
+        `access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: 2 })}`,
+        { origin: 'http://localhost:3001' },
+      );
+      gateway.handleConnection(s);
+      expect(s.disconnect).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(2500);
+      expect(s.disconnect).toHaveBeenCalledWith(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('evicts an already-subscribed socket from organization crawl and project rooms when membership is revoked (Medium #20)', async () => {
+    const s = fakeSocket(
+      {},
+      `access_token=${jwt.sign({ sub: 'u1' }, SECRET, { expiresIn: '5m' })}`,
+      { origin: 'http://localhost:3001' },
+    );
+    gateway.handleConnection(s);
+
+    prisma.crawlJob.findUnique.mockResolvedValue({ website: { scope: 'own', project: { organizationId: 'orgA' } } });
+    prisma.project.findUnique.mockResolvedValue({ organizationId: 'orgA' });
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+
+    expect(await gateway.subscribeCrawl(s, { jobId: 'job-12345678' })).toEqual({ ok: true });
+    expect(await gateway.subscribeProject(s, { projectId: 'proj-12345678' })).toEqual({ ok: true });
+    expect(s.join).toHaveBeenCalledWith('crawl:job-12345678');
+    expect(s.join).toHaveBeenCalledWith('project:proj-12345678');
+
+    // Member is removed from orgA — active subscriptions must be revoked immediately.
+    gateway.revokeOrganizationAccess('u1', 'orgA');
+    expect(s.leave).toHaveBeenCalledWith('crawl:job-12345678');
+    expect(s.leave).toHaveBeenCalledWith('project:proj-12345678');
+  });
+
+  it('disconnects a socket whose token predates User.sessionsInvalidatedAt (Medium #20)', async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    prisma.user = {
+      findUnique: jest.fn().mockResolvedValue({
+        sessionsInvalidatedAt: new Date((nowSec + 10) * 1000),
+      }),
+    };
+    const s = fakeSocket(
+      {},
+      `access_token=${jwt.sign({ sub: 'u1', iat: nowSec }, SECRET, { expiresIn: '5m' })}`,
+      { origin: 'http://localhost:3001' },
+    );
+    gateway.handleConnection(s);
+    await new Promise((r) => setImmediate(r));
+    expect(s.disconnect).toHaveBeenCalledWith(true);
+    delete prisma.user;
   });
 
   it('refuses to join a crawl room for another organization', async () => {

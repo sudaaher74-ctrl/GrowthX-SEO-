@@ -23,6 +23,41 @@ import { OWN_SCOPE, claimScope, websiteKey } from './website-scope';
 /** What a route needs: view, change data (not a viewer), or manage (owner/admin). */
 type Access = 'read' | 'write' | 'manage';
 
+/**
+ * Explicit public fields for serialized Website rows on crawl status endpoints.
+ * Secrets (`webhookSecret`, `authCredentials`, `verificationToken`) are never
+ * selected or returned to readers/viewers.
+ */
+const PUBLIC_WEBSITE_SELECT = {
+  id: true,
+  domain: true,
+  scope: true,
+  url: true,
+  isVerified: true,
+  verifiedAt: true,
+  rateLimitDelayMs: true,
+  maxConcurrency: true,
+  maxDepth: true,
+  crawlFrequency: true,
+  projectId: true,
+  createdAt: true,
+  updatedAt: true,
+  project: { select: { organizationId: true } },
+} as const;
+
+function stripWebsiteSecrets<T extends { website?: Record<string, any> | null } | null | undefined>(
+  job: T,
+): T {
+  if (!job || !job.website || typeof job.website !== 'object') return job;
+  const {
+    webhookSecret: _webhookSecret,
+    authCredentials: _authCredentials,
+    verificationToken: _verificationToken,
+    ...safeWebsite
+  } = job.website;
+  return { ...job, website: safeWebsite };
+}
+
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
 @Controller('api')
@@ -133,7 +168,7 @@ export class CrawlController {
   private async crawlJobForCaller(req: any, jobId: string, level: Access = 'read') {
     const job = await this.prisma.crawlJob.findUnique({
       where: { id: jobId },
-      include: { website: { include: { project: { select: { organizationId: true } } } } },
+      include: { website: { select: PUBLIC_WEBSITE_SELECT } },
     });
     if (!job) throw new NotFoundException('Crawl job not found');
 
@@ -145,7 +180,7 @@ export class CrawlController {
     }
 
     await this.assertAccess(req, organizationId, level);
-    return job;
+    return stripWebsiteSecrets(job);
   }
 
   /**
@@ -377,7 +412,7 @@ export class CrawlController {
       where: { websiteId: website.id },
       orderBy: { createdAt: 'desc' },
       take: 6,
-      include: { website: true },
+      include: { website: { select: PUBLIC_WEBSITE_SELECT } },
     });
     let { shown, failedAttempt, lastUsable } = crawlToShow(recent);
     if (!lastUsable && recent.length === 6) {
@@ -385,14 +420,14 @@ export class CrawlController {
       lastUsable = await this.prisma.crawlJob.findFirst({
         where: { websiteId: website.id, ...USABLE_CRAWL },
         orderBy: { createdAt: 'desc' },
-        include: { website: true },
+        include: { website: { select: PUBLIC_WEBSITE_SELECT } },
       });
       if (lastUsable && shown && shown.status !== 'PENDING' && shown.status !== 'RUNNING') {
         failedAttempt = shown;
         shown = lastUsable;
       }
     }
-    const latest = shown;
+    const latest = stripWebsiteSecrets(shown);
 
     if (latest && latest.status === 'COMPLETED' && latest.healthScore === null) {
       try {

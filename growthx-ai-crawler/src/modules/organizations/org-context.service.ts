@@ -98,7 +98,20 @@ export class OrgContextService {
   async assertCrawlJobAccess(userId: string, jobId: string) {
     const job = await this.prisma.crawlJob.findUnique({
       where: { id: jobId },
-      include: { website: { include: { project: { select: { organizationId: true } } } } },
+      include: {
+        website: {
+          select: {
+            id: true,
+            domain: true,
+            scope: true,
+            url: true,
+            isVerified: true,
+            verifiedAt: true,
+            projectId: true,
+            project: { select: { organizationId: true } },
+          },
+        },
+      },
     });
     if (!job) throw new NotFoundException('Crawl job not found');
 

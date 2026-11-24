@@ -14,8 +14,12 @@ import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../database/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { jwtSecret } from '../../config/secrets';
+import { allowedBrowserOrigins } from '../../config/allowed-origins';
 
 export const REALTIME_PUBSUB_CHANNEL = 'growthx:realtime:events';
+
+/** Fallback upper bound when a valid token omits an `exp` claim (15 minutes). */
+const MAX_SOCKET_SESSION_MS = 15 * 60 * 1000;
 
 export interface FindingsUpdatedPayload {
   sources: string[];
@@ -31,37 +35,70 @@ type RealtimeBroadcastMessage =
   | { kind: 'crawl.progress'; jobId: string; payload: unknown }
   | { kind: 'crawl.completed'; jobId: string; payload: unknown }
   | { kind: 'findings.updated'; projectId: string; payload: FindingsUpdatedPayload }
-  | { kind: 'aiva.progress'; sessionId: string; payload: { tool: string; status: string; message: string; data?: unknown } };
+  | { kind: 'aiva.progress'; sessionId: string; payload: { tool: string; status: string; message: string; data?: unknown } }
+  | { kind: 'access.revoked'; userId: string; organizationId?: string };
 
-function allowedOrigins(): string[] | boolean {
-  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+function normalizeOrigin(origin: string | undefined): string | null {
+  if (!origin || typeof origin !== 'string') return null;
+  const trimmed = origin.trim().replace(/\/+$/, '');
+  return trimmed || null;
+}
 
-  if (configured.length > 0) return configured;
-  if (process.env.NODE_ENV !== 'production') {
-    return ['http://localhost:3000', 'http://localhost:3001'];
+function isOriginAllowed(origin: string | undefined, hostHeader: string | undefined, usesCookieAuth: boolean): boolean {
+  const normalized = normalizeOrigin(origin);
+  const allowed = allowedBrowserOrigins();
+
+  if (!normalized) {
+    // Browser WebSocket upgrades always send an Origin header. Never allow a
+    // cookie-authenticated WebSocket handshake without a verified Origin.
+    // Non-browser clients presenting an explicit bearer token in handshake.auth
+    // (without relying on cookies) are permitted without an Origin header.
+    return !usesCookieAuth;
   }
+
+  if (allowed.includes(normalized)) {
+    return true;
+  }
+
+  // Exact same-origin fallback (e.g., production reverse proxy serving UI & API on same host).
+  if (hostHeader) {
+    try {
+      const parsed = new URL(normalized);
+      const reqHost = hostHeader.split(',')[0].trim().toLowerCase();
+      if (reqHost && parsed.host.toLowerCase() === reqHost) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
   return false;
 }
 
+interface ExtractedHandshakeToken {
+  token: string | null;
+  viaCookie: boolean;
+}
+
 /** Pulls the access token from the handshake: explicit auth payload first, then the HttpOnly cookie. */
-function tokenFromHandshake(client: Socket): string | null {
+function tokenFromHandshake(client: Socket): ExtractedHandshakeToken {
   const fromAuth = (client.handshake.auth as { token?: unknown } | undefined)?.token;
-  if (typeof fromAuth === 'string' && fromAuth) return fromAuth;
-  const header = client.handshake.headers.cookie;
+  if (typeof fromAuth === 'string' && fromAuth) {
+    return { token: fromAuth, viaCookie: false };
+  }
+  const header = client.handshake.headers?.cookie;
   if (header) {
     const match = /(?:^|;\s*)access_token=([^;]+)/.exec(header);
     if (match) {
       try {
-        return decodeURIComponent(match[1]);
+        return { token: decodeURIComponent(match[1]), viaCookie: true };
       } catch {
-        return null;
+        return { token: null, viaCookie: true };
       }
     }
   }
-  return null;
+  return { token: null, viaCookie: false };
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
@@ -69,20 +106,25 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 /**
  * Real-time progress channel.
  *
- * Every connection must present a valid access token. Events are never
- * broadcast to all clients: they go to a room per crawl job or voice session,
- * and a client can only join a room after the server has checked that the job
- * or session belongs to an organization the caller is a member of.
+ * Security boundaries enforced here:
+ * 1. Explicit handshake `Origin` validation against `allowedBrowserOrigins()`
+ *    (CORS does not gate raw WebSocket upgrades, and production cookies use SameSite=None).
+ * 2. Valid access JWT verification + `sessionsInvalidatedAt` check.
+ * 3. Exact expiry timer that disconnects the socket the moment its JWT expires.
+ * 4. Per-organization room tracking + immediate eviction via `revokeOrganizationAccess`
+ *    (propagated over Redis Pub/Sub across replicas) and broadcast-time expiry pruning.
  */
 @WebSocketGateway({
   cors: {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      const allowed = allowedOrigins();
-      if (allowed === false) return callback(null, false);
-      if (!origin || (Array.isArray(allowed) && allowed.includes(origin))) {
-        return callback(null, true);
+      const allowed = allowedBrowserOrigins();
+      const normalized = normalizeOrigin(origin);
+      if (!normalized) {
+        // Non-browser HTTP polling without Origin is only permitted in non-production
+        // or when explicit bearer auth is used; cookie upgrades still require Origin in handleConnection.
+        return callback(null, process.env.NODE_ENV !== 'production');
       }
-      return callback(null, false);
+      return callback(null, allowed.includes(normalized));
     },
     credentials: true,
   },
@@ -96,6 +138,11 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
   private subscriber?: IORedis;
   private subscriberReady = false;
   private startup?: Promise<void>;
+
+  /** Active authenticated sockets indexed by socket.id for expiry and revocation enforcement. */
+  private readonly activeSockets = new Map<string, Socket>();
+  /** Per-socket timers that disconnect clients upon JWT expiration. */
+  private readonly expiryTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -144,6 +191,11 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
   async onModuleDestroy(): Promise<void> {
     await this.startup?.catch(() => undefined);
     this.subscriberReady = false;
+    for (const timer of this.expiryTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.expiryTimers.clear();
+    this.activeSockets.clear();
     if (this.subscriber) {
       try {
         await this.subscriber.unsubscribe(REALTIME_PUBSUB_CHANNEL);
@@ -156,6 +208,14 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
   }
 
   private emitLocal(msg: RealtimeBroadcastMessage): void {
+    if (msg.kind === 'access.revoked') {
+      this.evictLocalAccess(msg.userId, msg.organizationId);
+      return;
+    }
+
+    // Prune any connected socket whose token expired before emitting room updates.
+    this.disconnectExpiredSockets();
+
     if (!this.server) return;
     switch (msg.kind) {
       case 'crawl.progress':
@@ -183,15 +243,158 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
     this.emitLocal(msg);
   }
 
+  private clearExpiryTimer(socketId: string): void {
+    const timer = this.expiryTimers.get(socketId);
+    if (timer) {
+      clearTimeout(timer);
+      this.expiryTimers.delete(socketId);
+    }
+  }
+
+  private scheduleExpiryDisconnect(client: Socket, expSeconds: number | undefined): void {
+    this.clearExpiryTimer(client.id);
+    const delayMs =
+      typeof expSeconds === 'number' && Number.isFinite(expSeconds)
+        ? Math.max(0, expSeconds * 1000 - Date.now())
+        : MAX_SOCKET_SESSION_MS;
+
+    const timer = setTimeout(() => {
+      this.expiryTimers.delete(client.id);
+      this.activeSockets.delete(client.id);
+      this.logger.log(`Disconnecting socket ${client.id}: access token expired`);
+      client.disconnect(true);
+    }, delayMs);
+    timer.unref?.();
+    this.expiryTimers.set(client.id, timer);
+  }
+
+  private disconnectExpiredSockets(): void {
+    const now = Date.now();
+    for (const [id, socket] of this.activeSockets.entries()) {
+      const exp = socket.data?.tokenExp as number | undefined;
+      if (typeof exp === 'number' && exp * 1000 <= now) {
+        this.clearExpiryTimer(id);
+        this.activeSockets.delete(id);
+        socket.disconnect(true);
+      }
+    }
+  }
+
+  private evictLocalAccess(userId: string, organizationId?: string): void {
+    for (const [id, socket] of this.activeSockets.entries()) {
+      if (socket.data?.userId !== userId) continue;
+
+      if (!organizationId) {
+        // Full session revocation: disconnect the socket completely.
+        this.clearExpiryTimer(id);
+        this.activeSockets.delete(id);
+        socket.disconnect(true);
+        continue;
+      }
+
+      const roomsByOrg = socket.data?.roomsByOrg as Map<string, Set<string>> | undefined;
+      const rooms = roomsByOrg?.get(organizationId);
+      if (rooms && rooms.size > 0) {
+        for (const room of rooms) {
+          void Promise.resolve(socket.leave?.(room)).catch(() => undefined);
+        }
+        roomsByOrg!.delete(organizationId);
+      }
+    }
+  }
+
+  /**
+   * Immediately revokes all active room subscriptions for a user within an
+   * organization (e.g. when removed from the workspace). Propagates across
+   * multi-instance API deployments via Redis Pub/Sub.
+   */
+  revokeOrganizationAccess(userId: string, organizationId: string): void {
+    if (!userId || !organizationId) return;
+    this.evictLocalAccess(userId, organizationId);
+    if (this.publisher && (process.env.WORKER_MODE === 'true' || this.subscriberReady)) {
+      void this.publisher
+        .publish(
+          REALTIME_PUBSUB_CHANNEL,
+          JSON.stringify({ kind: 'access.revoked', userId, organizationId } satisfies RealtimeBroadcastMessage),
+        )
+        .catch(() => undefined);
+    }
+  }
+
+  /** Immediately disconnects all active sockets belonging to a user (e.g. session revocation). */
+  revokeUserAccess(userId: string): void {
+    if (!userId) return;
+    this.evictLocalAccess(userId);
+    if (this.publisher && (process.env.WORKER_MODE === 'true' || this.subscriberReady)) {
+      void this.publisher
+        .publish(
+          REALTIME_PUBSUB_CHANNEL,
+          JSON.stringify({ kind: 'access.revoked', userId } satisfies RealtimeBroadcastMessage),
+        )
+        .catch(() => undefined);
+    }
+  }
+
+  private async verifyNotInvalidated(userId: string, tokenIatSeconds: number | undefined): Promise<boolean> {
+    if (!this.prisma?.user?.findUnique) return true;
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { sessionsInvalidatedAt: true },
+      });
+      if (!user) return false;
+      if (user.sessionsInvalidatedAt) {
+        const iatMs = typeof tokenIatSeconds === 'number' ? tokenIatSeconds * 1000 : 0;
+        if (iatMs < user.sessionsInvalidatedAt.getTime()) {
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   handleConnection(client: Socket) {
-    const token = tokenFromHandshake(client);
+    const { token, viaCookie } = tokenFromHandshake(client);
+    const originHeader = client.handshake.headers?.origin as string | undefined;
+    const hostHeader = (client.handshake.headers?.['x-forwarded-host'] ||
+      client.handshake.headers?.host) as string | undefined;
+
+    if (!isOriginAllowed(originHeader, hostHeader, viaCookie)) {
+      this.logger.warn(
+        `Rejected WebSocket ${client.id} from disallowed origin "${originHeader ?? '<missing>'}" (cookieAuth=${viaCookie})`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
     try {
       if (!token) throw new Error('missing token');
-      const payload = jwt.verify(token, jwtSecret()) as { sub?: string; type?: string };
+      const payload = jwt.verify(token, jwtSecret()) as { sub?: string; type?: string; exp?: number; iat?: number };
       // A refresh token must never authenticate a connection.
       if (!payload.sub || payload.type === 'refresh') throw new Error('invalid token');
+      if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+        throw new Error('expired token');
+      }
+
       client.data.userId = payload.sub;
-      client.data.tokenExp = (payload as { exp?: number }).exp;
+      client.data.tokenExp = payload.exp;
+      client.data.tokenIat = payload.iat;
+      client.data.roomsByOrg = new Map<string, Set<string>>();
+
+      this.activeSockets.set(client.id, client);
+      this.scheduleExpiryDisconnect(client, payload.exp);
+
+      // Asynchronously verify user has not had all sessions invalidated (e.g. account reclaim / revoke).
+      void this.verifyNotInvalidated(payload.sub, payload.iat).then((valid) => {
+        if (!valid && this.activeSockets.has(client.id)) {
+          this.logger.warn(`Disconnecting socket ${client.id}: session invalidated`);
+          this.clearExpiryTimer(client.id);
+          this.activeSockets.delete(client.id);
+          client.disconnect(true);
+        }
+      });
     } catch {
       this.logger.warn(`Rejected unauthenticated socket ${client.id}`);
       client.disconnect(true);
@@ -201,13 +404,38 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
   }
 
   handleDisconnect(client: Socket) {
+    this.clearExpiryTimer(client.id);
+    this.activeSockets.delete(client.id);
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  private trackOrgRoom(client: Socket, organizationId: string, room: string): void {
+    if (!this.activeSockets.has(client.id)) {
+      this.activeSockets.set(client.id, client);
+    }
+    let roomsByOrg = client.data.roomsByOrg as Map<string, Set<string>> | undefined;
+    if (!roomsByOrg) {
+      roomsByOrg = new Map<string, Set<string>>();
+      client.data.roomsByOrg = roomsByOrg;
+    }
+    let set = roomsByOrg.get(organizationId);
+    if (!set) {
+      set = new Set<string>();
+      roomsByOrg.set(organizationId, set);
+    }
+    set.add(room);
   }
 
   /** True while the token the socket connected with is still valid. */
   private stillAuthenticated(client: Socket): boolean {
     const exp = client.data.tokenExp as number | undefined;
-    return Boolean(client.data.userId) && (!exp || exp * 1000 > Date.now());
+    const valid = Boolean(client.data.userId) && (!exp || exp * 1000 > Date.now());
+    if (!valid && this.activeSockets.has(client.id)) {
+      this.clearExpiryTimer(client.id);
+      this.activeSockets.delete(client.id);
+      client.disconnect(true);
+    }
+    return valid;
   }
 
   private async isMember(userId: string, organizationId: string | null | undefined): Promise<boolean> {
@@ -242,9 +470,15 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
     if (!this.stillAuthenticated(client) || typeof jobId !== 'string' || !ID_PATTERN.test(jobId)) {
       return { ok: false };
     }
+    if (!(await this.verifyNotInvalidated(client.data.userId, client.data.tokenIat))) {
+      client.disconnect(true);
+      return { ok: false };
+    }
     const organizationId = await this.crawlOrganization(jobId);
-    if (!(await this.isMember(client.data.userId, organizationId))) return { ok: false };
-    await client.join(`crawl:${jobId}`);
+    if (!organizationId || !(await this.isMember(client.data.userId, organizationId))) return { ok: false };
+    const room = `crawl:${jobId}`;
+    await client.join(room);
+    this.trackOrgRoom(client, organizationId, room);
     return { ok: true };
   }
 
@@ -252,6 +486,10 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
   async subscribeAiva(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId?: string }) {
     const sessionId = body?.sessionId;
     if (!this.stillAuthenticated(client) || typeof sessionId !== 'string' || !ID_PATTERN.test(sessionId)) {
+      return { ok: false };
+    }
+    if (!(await this.verifyNotInvalidated(client.data.userId, client.data.tokenIat))) {
+      client.disconnect(true);
       return { ok: false };
     }
     const session = await this.prisma.voiceSession.findUnique({
@@ -269,6 +507,10 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
     if (!this.stillAuthenticated(client) || typeof projectId !== 'string' || !ID_PATTERN.test(projectId)) {
       return { ok: false };
     }
+    if (!(await this.verifyNotInvalidated(client.data.userId, client.data.tokenIat))) {
+      client.disconnect(true);
+      return { ok: false };
+    }
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { organizationId: true },
@@ -276,7 +518,9 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect,
     if (!project || !(await this.isMember(client.data.userId, project.organizationId))) {
       return { ok: false };
     }
-    await client.join(`project:${projectId}`);
+    const room = `project:${projectId}`;
+    await client.join(room);
+    this.trackOrgRoom(client, project.organizationId, room);
     return { ok: true };
   }
 

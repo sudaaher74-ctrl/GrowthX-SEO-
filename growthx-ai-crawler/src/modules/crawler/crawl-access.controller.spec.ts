@@ -241,4 +241,78 @@ describe('CrawlController — cross-tenant access', () => {
       expect(prisma.website.upsert).not.toHaveBeenCalled();
     });
   });
+
+  describe('crawl status secret redaction (Medium #19)', () => {
+    it('selects only public Website fields and strips webhookSecret, authCredentials, and verificationToken on GET /api/crawls/:id for a VIEWER', async () => {
+      prisma.crawlJob.findUnique.mockResolvedValue({
+        id: 'job_1',
+        status: 'COMPLETED',
+        website: {
+          id: 'w_1',
+          domain: 'acme.com',
+          scope: 'own',
+          url: 'https://acme.com',
+          isVerified: true,
+          webhookSecret: 'whsec_synthetic_secret_must_never_leak',
+          authCredentials: 'enc_synthetic_auth_blob',
+          verificationToken: 'growthx-verify-synthetic',
+          project: { organizationId: 'org_1' },
+        },
+      });
+
+      const res: any = await controller.getCrawlJob(REQ, 'job_1');
+
+      // Prisma query itself uses an explicit safe select (never `website: true` or unbounded include)
+      const queryArg = prisma.crawlJob.findUnique.mock.calls[0][0];
+      expect(queryArg.include.website.select).toBeDefined();
+      expect(queryArg.include.website.select.webhookSecret).toBeUndefined();
+      expect(queryArg.include.website.select.authCredentials).toBeUndefined();
+      expect(queryArg.include.website.select.verificationToken).toBeUndefined();
+
+      // Serialized HTTP response contains ZERO secrets even if extra keys existed
+      const serialized = JSON.stringify(res);
+      expect(serialized).not.toContain('whsec_synthetic_secret_must_never_leak');
+      expect(serialized).not.toContain('enc_synthetic_auth_blob');
+      expect(serialized).not.toContain('growthx-verify-synthetic');
+      expect(res.website).not.toHaveProperty('webhookSecret');
+      expect(res.website).not.toHaveProperty('authCredentials');
+      expect(res.website).not.toHaveProperty('verificationToken');
+      expect(res.website.domain).toBe('acme.com');
+    });
+
+    it('strips website secrets on GET /api/websites/:domain/latest-crawl', async () => {
+      prisma.website.findUnique.mockResolvedValue({
+        id: 'w_1',
+        domain: 'acme.com',
+        scope: 'own',
+        isVerified: true,
+        project: { organizationId: 'org_1' },
+      });
+      prisma.crawlJob.findMany = jest.fn().mockResolvedValue([
+        {
+          id: 'job_latest',
+          status: 'COMPLETED',
+          pagesCrawled: 12,
+          healthScore: 91,
+          website: {
+            id: 'w_1',
+            domain: 'acme.com',
+            webhookSecret: 'whsec_latest_secret',
+            authCredentials: 'enc_latest_creds',
+            verificationToken: 'verify_latest_tok',
+          },
+        },
+      ]);
+
+      const res: any = await controller.getLatestCrawlJob(REQ, 'acme.com');
+      const queryArg = prisma.crawlJob.findMany.mock.calls[0][0];
+      expect(queryArg.include.website).toEqual(expect.objectContaining({ select: expect.any(Object) }));
+      expect(queryArg.include.website.select.webhookSecret).toBeUndefined();
+
+      const serialized = JSON.stringify(res);
+      expect(serialized).not.toContain('whsec_latest_secret');
+      expect(serialized).not.toContain('enc_latest_creds');
+      expect(serialized).not.toContain('verify_latest_tok');
+    });
+  });
 });

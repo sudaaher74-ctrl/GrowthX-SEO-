@@ -1,7 +1,8 @@
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Organization, Role } from '@prisma/client';
 import { SubscriptionTier } from './subscription-quota.service';
+import { CrawlerGateway } from '../socket/crawler.gateway';
 
 export interface WhiteLabelSettings {
   whiteLabelEnabled: boolean;
@@ -26,7 +27,10 @@ const MANAGER_ROLES: ReadonlySet<Role> = new Set([Role.OWNER, Role.ADMIN]);
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private readonly crawlerGateway?: CrawlerGateway,
+  ) {}
 
   /**
    * Only the name and slug come from the client. Passing the request body to
@@ -156,6 +160,8 @@ export class OrganizationsService {
     }
 
     await this.prisma.organizationMember.delete({ where: { id: memberId } });
+    // Immediately revoke any active WebSocket room subscriptions held by this user for this org.
+    this.crawlerGateway?.revokeOrganizationAccess(member.userId, organizationId);
   }
 
   async getWhiteLabel(organizationId: string, requesterId: string): Promise<WhiteLabelSettings> {
