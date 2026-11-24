@@ -273,7 +273,19 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         // fetch so Chromium cannot bypass DNS validation or connect internally.
         await page
           .route('**/*', (route: any) =>
-            handleBrowserPublicRoute(route as any, { timeoutMs: 20_000 }),
+            handleBrowserPublicRoute(route as any, {
+              targetHost: (() => {
+                try {
+                  return new URL(targetUrl).host;
+                } catch {
+                  return undefined;
+                }
+              })(),
+              blockMedia: true,
+              blockThirdPartyStylesheets: true,
+              blockTrackers: process.env.CRAWL_BLOCK_TRACKERS !== 'false',
+              timeoutMs: 20_000,
+            }),
           )
           .catch(() => {});
 

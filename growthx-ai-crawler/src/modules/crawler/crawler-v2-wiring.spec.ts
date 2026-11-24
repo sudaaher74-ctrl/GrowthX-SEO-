@@ -630,3 +630,76 @@ describe('CrawlerService suppresses the issue cascade', () => {
     expect(evaluateAndPersistIssues).toHaveBeenCalled();
   });
 });
+
+describe('CrawlerService split static/render queue handoff', () => {
+  const prevSplit = process.env.CRAWL_SPLIT_RENDER_QUEUE;
+  afterEach(() => {
+    if (prevSplit === undefined) delete process.env.CRAWL_SPLIT_RENDER_QUEUE;
+    else process.env.CRAWL_SPLIT_RENDER_QUEUE = prevSplit;
+  });
+
+  it('hands off JS-heavy pages from page-fetch to page-render without settling or saving an empty shell, then renders on renderLane', async () => {
+    process.env.CRAWL_SPLIT_RENDER_QUEUE = 'true';
+    const handedOff: any[] = [];
+    const settlePageFetchTask = jest.fn(async () => ({ remaining: 1, alreadySettled: false }));
+    const handoffToPageRender = jest.fn(async (p: any) => {
+      handedOff.push(p);
+      return true;
+    });
+    const fetch = jest
+      .fn()
+      // Pass 1 (static page-fetch worker): returns SPA shell with needsRender=true
+      .mockResolvedValueOnce(
+        outcome({
+          url: 'https://example.com/app',
+          finalUrl: 'https://example.com/app',
+          rawHtml: '<html><body><div id="root"></div></body></html>',
+          html: '<html><body><div id="root"></div></body></html>',
+          tier: 'static',
+          jsRequired: false,
+          needsRender: true,
+        }),
+      )
+      // Pass 2 (dedicated page-render worker): renders full content
+      .mockResolvedValueOnce(
+        outcome({
+          url: 'https://example.com/app',
+          finalUrl: 'https://example.com/app',
+          rawHtml: '<html><body><div id="root"></div></body></html>',
+          renderedHtml: '<html><body><main><h1>Rendered SPA</h1></main></body></html>',
+          html: '<html><body><main><h1>Rendered SPA</h1></main></body></html>',
+          tier: 'rendered',
+          jsRequired: true,
+          needsRender: false,
+        }),
+      );
+
+    const { service, upserts } = makeService({
+      fetchSvc: { fetch },
+      queue: {
+        getRedisClient: () => null,
+        pageFetchQueue: {},
+        pageRenderQueue: {},
+        handoffToPageRender,
+        settlePageFetchTask,
+      },
+    });
+
+    const spaPayload = { ...payload, targetUrl: 'https://example.com/app', taskId: 'task-spa-1' };
+    await service.processPageFetch(spaPayload);
+
+    // Static lane must fetch with renderAllowed=false, hand off to page-render,
+    // NOT settle the pending task, and NOT persist the unrendered empty shell.
+    expect(fetch).toHaveBeenNthCalledWith(1, 'https://example.com/app', { renderAllowed: false });
+    expect(handoffToPageRender).toHaveBeenCalledTimes(1);
+    expect(settlePageFetchTask).not.toHaveBeenCalled();
+    expect(upserts).toHaveLength(0);
+
+    // Dedicated render lane picks up the handed-off task and renders + saves + settles it.
+    await service.processPageFetch({ ...handedOff[0], renderLane: true });
+    expect(fetch).toHaveBeenNthCalledWith(2, 'https://example.com/app', { renderAllowed: true, forceRender: true });
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].create.jsRequired).toBe(true);
+    expect(settlePageFetchTask).toHaveBeenCalledTimes(1);
+  });
+});

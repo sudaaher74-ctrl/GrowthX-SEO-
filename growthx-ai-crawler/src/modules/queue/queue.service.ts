@@ -50,6 +50,11 @@ export interface PageFetchPayload {
    */
   taskId?: string;
   resumeAttempt?: boolean;
+  /**
+   * True when handed off from the fast static `page-fetch` lane to the
+   * dedicated Chromium `page-render` queue.
+   */
+  renderLane?: boolean;
 }
 
 @Injectable()
@@ -59,6 +64,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private redisConnection?: IORedis;
   public crawlJobsQueue?: Queue<CrawlJobPayload>;
   public pageFetchQueue?: Queue<PageFetchPayload>;
+  public pageRenderQueue?: Queue<PageFetchPayload>;
 
   private markReady!: () => void;
 
@@ -122,6 +128,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
       this.crawlJobsQueue = new Queue<CrawlJobPayload>('crawl-jobs', { connection: this.redisConnection });
       this.pageFetchQueue = new Queue<PageFetchPayload>('page-fetch', { connection: this.redisConnection });
+      this.pageRenderQueue = new Queue<PageFetchPayload>('page-render', { connection: this.redisConnection });
     } catch (err: any) {
       this.logger.warn(
         `Could not connect to Redis at ${host}:${port}. Crawls will run synchronously. (${err?.message})`,
@@ -196,6 +203,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     try {
       if (this.crawlJobsQueue) await this.crawlJobsQueue.close();
       if (this.pageFetchQueue) await this.pageFetchQueue.close();
+      if (this.pageRenderQueue) await this.pageRenderQueue.close();
     } catch (err: any) {
       this.logger.warn(`Error closing queues: ${err?.message}`);
     }
@@ -241,6 +249,27 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       attempts: 5,
       backoff: { type: 'exponential', delay: 15000 },
     });
+  }
+
+  /**
+   * Transfers an already-accounted `page-fetch` task to the dedicated Chromium
+   * `page-render` queue without incrementing pending tasks a second time.
+   * Returns true if enqueued on `page-render`, false if queue is unavailable.
+   */
+  async handoffToPageRender(payload: PageFetchPayload): Promise<boolean> {
+    if (!this.pageRenderQueue) return false;
+    const task: PageFetchPayload = {
+      ...payload,
+      taskId: payload.taskId || randomUUID(),
+      renderLane: true,
+    };
+    await this.pageRenderQueue.add('render-url', task, {
+      removeOnComplete: true,
+      removeOnFail: true,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 15000 },
+    });
+    return true;
   }
 
   /**
@@ -443,7 +472,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
       if ((await this.getPendingTasks(jobId)) <= 0) return false;
       const counts = await this.pageFetchQueue.getJobCounts('waiting', 'active', 'delayed', 'prioritized');
-      return Object.values(counts).some((count) => count > 0);
+      if (Object.values(counts).some((count) => count > 0)) return true;
+      if (this.pageRenderQueue) {
+        const renderCounts = await this.pageRenderQueue.getJobCounts('waiting', 'active', 'delayed', 'prioritized');
+        return Object.values(renderCounts).some((count) => count > 0);
+      }
+      return false;
     } catch (err: any) {
       this.logger.warn(`Could not check queued work for job ${jobId}: ${err?.message}`);
       return false;

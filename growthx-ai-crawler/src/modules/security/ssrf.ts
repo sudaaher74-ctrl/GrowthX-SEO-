@@ -3,6 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as net from 'net';
 import axios, { AxiosRequestConfig } from 'axios';
+import { isThirdPartyTrackerUrl } from '../crawler/fetch/tracker-blocklist';
 
 /**
  * Keeps requests to customer-supplied URLs off internal addresses.
@@ -558,6 +559,7 @@ export async function handleBrowserPublicRoute(
     targetHost?: string;
     blockMedia?: boolean;
     blockThirdPartyStylesheets?: boolean;
+    blockTrackers?: boolean;
     timeoutMs?: number;
     maxBytes?: number;
   } = {},
@@ -590,6 +592,12 @@ export async function handleBrowserPublicRoute(
     if (parsed.host !== options.targetHost) {
       return route.abort();
     }
+  }
+
+  // Abort third-party analytics, ad-tech, session-replay, and live-chat scripts
+  // so Chromium renders SEO content faster with lower CPU/RAM overhead.
+  if (options.blockTrackers && type !== 'document' && isThirdPartyTrackerUrl(reqUrl, options.targetHost)) {
+    return route.abort();
   }
 
   if (blockedHostname(parsed.hostname)) {

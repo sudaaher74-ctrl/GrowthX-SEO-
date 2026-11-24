@@ -257,5 +257,50 @@ describe('SSRF guard', () => {
       expect(redirAbort).toHaveBeenCalledWith('blockedbyclient');
       expect(redirFulfill).not.toHaveBeenCalled();
     });
+
+    it('aborts third-party analytics/ad trackers without hitting the network when blockTrackers is enabled, while fulfilling first-party scripts', async () => {
+      server = await startFixtureServer({
+        '/app.js': { body: 'console.log("app");', headers: { 'content-type': 'application/javascript' } },
+      });
+      process.env.SSRF_ALLOWED_HOSTS = '127.0.0.1';
+
+      const trackerAbort = jest.fn().mockResolvedValue(undefined);
+      const trackerFulfill = jest.fn().mockResolvedValue(undefined);
+      await handleBrowserPublicRoute(
+        {
+          request: () => ({
+            url: () => 'https://www.googletagmanager.com/gtm.js?id=GTM-123',
+            method: () => 'GET',
+            headers: () => ({}),
+            resourceType: () => 'script',
+          }),
+          abort: trackerAbort,
+          fulfill: trackerFulfill,
+          continue: jest.fn(),
+        },
+        { blockTrackers: true, targetHost: '127.0.0.1' },
+      );
+      expect(trackerAbort).toHaveBeenCalled();
+      expect(trackerFulfill).not.toHaveBeenCalled();
+
+      const appAbort = jest.fn().mockResolvedValue(undefined);
+      const appFulfill = jest.fn().mockResolvedValue(undefined);
+      await handleBrowserPublicRoute(
+        {
+          request: () => ({
+            url: () => server!.url('/app.js'),
+            method: () => 'GET',
+            headers: () => ({}),
+            resourceType: () => 'script',
+          }),
+          abort: appAbort,
+          fulfill: appFulfill,
+          continue: jest.fn(),
+        },
+        { blockTrackers: true, targetHost: new URL(server.url('/')).host },
+      );
+      expect(appAbort).not.toHaveBeenCalled();
+      expect(appFulfill).toHaveBeenCalledWith(expect.objectContaining({ status: 200 }));
+    });
   });
 });

@@ -140,4 +140,16 @@ describe('CrawlerProcessor — how many page fetches run at once', () => {
 
     expect(worker.opts.concurrency).toBe(10);
   });
+
+  it('starts a dedicated page-render worker and scales static page-fetch concurrency when CRAWL_SPLIT_RENDER_QUEUE=true', async () => {
+    const fetchWorker = await startedWith({
+      MAX_RENDER_CONCURRENCY: '2',
+      CRAWL_SPLIT_RENDER_QUEUE: 'true',
+    });
+    const renderWorker = workerInstances.find((w) => w.name === 'page-render');
+
+    expect(workerInstances.map((w) => w.name).sort()).toEqual(['crawl-jobs', 'page-fetch', 'page-render']);
+    expect(fetchWorker.opts.concurrency).toBe(8);
+    expect(renderWorker.opts.concurrency).toBe(2);
+  });
 });

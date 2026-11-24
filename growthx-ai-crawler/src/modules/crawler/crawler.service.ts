@@ -929,10 +929,17 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      if (payload.resumeAttempt && await this.state.claimedByTask(payload.jobId, normUrl, payload.taskId)) {
-        const recorded = await this.prisma.crawlFrontier.findFirst({
-          where: { crawlJobId: payload.jobId, normalizedUrl: normUrl }, select: { state: true },
-        });
+      if (
+        (payload.resumeAttempt || payload.renderLane) &&
+        ((await this.state.claimedByTask(payload.jobId, normUrl, payload.taskId)) ||
+          (payload.renderLane && !payload.taskId && (await this.state.isUrlClaimed(payload.jobId, normUrl))))
+      ) {
+        const recorded = this.prisma.crawlFrontier?.findFirst
+          ? await this.prisma.crawlFrontier.findFirst({
+              where: { crawlJobId: payload.jobId, normalizedUrl: normUrl },
+              select: { state: true },
+            })
+          : null;
         if (recorded?.state === 'DONE') return;
         await this.state.releaseUrlClaim(payload.jobId, normUrl);
       }
@@ -966,11 +973,31 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       const conditional = priorPage
         ? { etag: priorPage.httpEtag, lastModified: priorPage.httpLastModified }
         : undefined;
-      const renderAllowed = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
+      const hasRenderBudget = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
+      const splitRenderActive =
+        process.env.CRAWL_SPLIT_RENDER_QUEUE === 'true' &&
+        Boolean(this.queue.pageRenderQueue) &&
+        typeof this.queue.handoffToPageRender === 'function' &&
+        !payload.renderLane;
+      const renderAllowed = splitRenderActive ? false : hasRenderBudget;
       const outcome = await this.fetchSvc.fetch(
         normUrl,
-        conditional ? { renderAllowed, conditional } : { renderAllowed },
+        conditional
+          ? { renderAllowed, conditional, ...(payload.renderLane ? { forceRender: true } : {}) }
+          : { renderAllowed, ...(payload.renderLane ? { forceRender: true } : {}) },
       );
+
+      // Split queue handoff: fast static worker detected an SPA/JS page and
+      // hands it off to the dedicated Chromium `page-render` queue immediately
+      // without holding a static slot or double-decrementing pending tasks.
+      if (splitRenderActive && outcome.needsRender && hasRenderBudget) {
+        const handedOff = await this.queue.handoffToPageRender({ ...payload, targetUrl: normUrl });
+        if (handedOff) {
+          settled = false;
+          this.logger.debug(`[JOB ${payload.jobId}] Handed off ${normUrl} to dedicated page-render queue.`);
+          return;
+        }
+      }
 
       // Incremental delta hit (HTTP 304 Not Modified): reuse prior crawl's verified
       // analysis, issues, and internal links without downloading HTML or rendering.

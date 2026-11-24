@@ -8,6 +8,7 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CrawlerProcessor.name);
   private crawlJobWorker?: Worker<CrawlJobPayload>;
   private pageFetchWorker?: Worker<PageFetchPayload>;
+  private pageRenderWorker?: Worker<PageFetchPayload>;
   /** Resolves once the workers have been started, or decided against. */
   private startup?: Promise<void>;
 
@@ -16,18 +17,12 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
     private readonly crawlerService: CrawlerService
   ) {}
 
-  /**
-   * Whether this process is consuming the queues.
-   *
-   * Queue depth alone cannot distinguish "nothing was dispatched" from "the
-   * consumer never started", and the second is the failure that leaves a crawl
-   * at PENDING until the stall sweep closes it. Reported alongside the counts
-   * so the pair is readable in one request.
-   */
   get workerStatus(): Record<string, unknown> {
     return {
       crawlJobs: Boolean(this.crawlJobWorker?.isRunning()),
       pageFetch: Boolean(this.pageFetchWorker?.isRunning()),
+      pageRender: Boolean(this.pageRenderWorker?.isRunning()),
+      splitRenderQueue: process.env.CRAWL_SPLIT_RENDER_QUEUE === 'true',
       disabledByEnv: process.env.WORKER_MODE === 'false' || process.env.DISABLE_WORKERS === 'true',
     };
   }
@@ -83,9 +78,12 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
     // for it short. An explicit setting still wins, for a deployment whose
     // sites are mostly static or whose browser capacity is larger.
     const renderSlots = Math.max(1, Number(process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || 3));
+    const splitRenderQueue = process.env.CRAWL_SPLIT_RENDER_QUEUE === 'true';
     const maxPageFetchConcurrency = process.env.CRAWLER_WORKER_CONCURRENCY
       ? parseInt(process.env.CRAWLER_WORKER_CONCURRENCY, 10)
-      : Math.max(2, renderSlots * 2);
+      : splitRenderQueue
+        ? Math.max(8, renderSlots * 4)
+        : Math.max(2, renderSlots * 2);
     const maxCrawlJobConcurrency = process.env.CRAWLER_JOB_CONCURRENCY ? parseInt(process.env.CRAWLER_JOB_CONCURRENCY, 10) : 5;
 
     // Worker for orchestrating crawl jobs
@@ -140,7 +138,41 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Page fetch worker failed for url ${job?.data?.targetUrl}`, err);
     });
 
-    this.logger.log(`BullMQ crawler workers started: Job concurrency [${maxCrawlJobConcurrency}], Page Fetch concurrency [${maxPageFetchConcurrency}].`);
+    if (splitRenderQueue) {
+      // Dedicated Chromium render lane sized strictly to MAX_RENDER_CONCURRENCY so
+      // static HTTP workers never block waiting behind slow JS-heavy SPA pages.
+      this.pageRenderWorker = new Worker<PageFetchPayload>(
+        'page-render',
+        async (job: Job<PageFetchPayload>) => {
+          try {
+            await this.crawlerService.processPageFetch({
+              ...job.data,
+              renderLane: true,
+              resumeAttempt: job.attemptsMade > 0 || Number((job as any).attemptsStarted || 0) > 1,
+            });
+          } catch (error) {
+            if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
+              await this.crawlerService.failPageFetchTask(job.data, (error as Error).message);
+            }
+            throw error;
+          }
+        },
+        {
+          connection: redisConnection,
+          concurrency: renderSlots,
+          lockDuration: Number(process.env.PAGE_FETCH_LOCK_MS ?? 180_000),
+        },
+      );
+
+      this.pageRenderWorker.on('failed', (job, err) => {
+        this.logger.error(`Page render worker failed for url ${job?.data?.targetUrl}`, err);
+      });
+    }
+
+    this.logger.log(
+      `BullMQ crawler workers started: Job [${maxCrawlJobConcurrency}], Page Fetch [${maxPageFetchConcurrency}]` +
+        (splitRenderQueue ? `, Page Render [${renderSlots}].` : '.'),
+    );
   }
 
   async onModuleDestroy() {
@@ -150,5 +182,6 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
     await this.startup?.catch(() => undefined);
     if (this.crawlJobWorker) await this.crawlJobWorker.close();
     if (this.pageFetchWorker) await this.pageFetchWorker.close();
+    if (this.pageRenderWorker) await this.pageRenderWorker.close();
   }
 }

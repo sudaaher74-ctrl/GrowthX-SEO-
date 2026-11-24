@@ -474,6 +474,7 @@ export class FetchService {
             targetHost,
             blockMedia: true,
             blockThirdPartyStylesheets: true,
+            blockTrackers: process.env.CRAWL_BLOCK_TRACKERS !== 'false',
             timeoutMs,
           }),
         )
