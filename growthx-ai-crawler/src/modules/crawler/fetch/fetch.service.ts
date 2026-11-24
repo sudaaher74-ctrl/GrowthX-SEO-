@@ -24,6 +24,11 @@ export interface FetchOptions {
   /** False when the crawl's render budget is spent. */
   renderAllowed?: boolean;
   maxRedirects?: number;
+  /** Conditional HTTP validators from the prior crawl to enable 304 delta skips. */
+  conditional?: {
+    etag?: string | null;
+    lastModified?: string | null;
+  };
 }
 
 export interface FetchOutcome {
@@ -35,6 +40,13 @@ export interface FetchOutcome {
   headers: Record<string, string>;
   contentType?: string;
   contentLength?: number;
+  /** Origin ETag / Last-Modified validators for subsequent incremental re-crawls. */
+  etag?: string | null;
+  lastModified?: string | null;
+  /** True when the origin answered HTTP 304 Not Modified to conditional validators. */
+  notModified?: boolean;
+  /** True when static analysis detected this page requires Chromium rendering. */
+  needsRender?: boolean;
   rawHtml: string;
   renderedHtml?: string;
   /** The HTML the SEO signals must be read from: rendered when we have it. */
@@ -76,8 +88,11 @@ const CHALLENGE_STATUSES = new Set([401, 403, 405, 406, 409, 418, 429, 503]);
  * mismatch a strict WAF looks for, so the one header we cannot set is the one
  * most worth setting.
  */
-function browserHeaders(userAgent: string): Record<string, string> {
-  return {
+function browserHeaders(
+  userAgent: string,
+  conditional?: { etag?: string | null; lastModified?: string | null },
+): Record<string, string> {
+  const headers: Record<string, string> = {
     'User-Agent': userAgent,
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
@@ -87,9 +102,16 @@ function browserHeaders(userAgent: string): Record<string, string> {
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-User': '?1',
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
   };
+  const hasValidators = Boolean(conditional?.etag || conditional?.lastModified);
+  if (hasValidators) {
+    if (conditional?.etag) headers['If-None-Match'] = conditional.etag;
+    if (conditional?.lastModified) headers['If-Modified-Since'] = conditional.lastModified;
+  } else {
+    headers['Cache-Control'] = 'no-cache';
+    headers.Pragma = 'no-cache';
+  }
+  return headers;
 }
 
 function countWords(text: string): number {
@@ -138,9 +160,40 @@ export class FetchService {
     // Tier 1 — static.
     let statik: StaticResponse;
     try {
-      statik = await this.fetchStatic(targetUrl, browserHeaders(userAgent), timeoutMs, options.maxRedirects ?? 10);
+      statik = await this.fetchStatic(
+        targetUrl,
+        browserHeaders(userAgent, options.conditional),
+        timeoutMs,
+        options.maxRedirects ?? 10,
+      );
     } catch (err) {
       return this.failed(targetUrl, err instanceof FetchError ? err : classifyTransportError(err), startedAt);
+    }
+
+    // Incremental delta hit: origin confirmed page is unchanged since prior crawl.
+    // Skip body parsing and Playwright rendering entirely.
+    if (statik.status === 304 && (options.conditional?.etag || options.conditional?.lastModified)) {
+      return {
+        url: targetUrl,
+        finalUrl: statik.finalUrl,
+        statusCode: 304,
+        statusChain: statik.hops,
+        headers: statik.headers,
+        contentType: statik.headers['content-type'] || 'text/html',
+        contentLength: 0,
+        etag: statik.headers['etag'] || options.conditional.etag || null,
+        lastModified: statik.headers['last-modified'] || options.conditional.lastModified || null,
+        notModified: true,
+        needsRender: false,
+        rawHtml: '',
+        html: '',
+        jsRequired: false,
+        escalationReasons: [],
+        blockedSuspected: false,
+        ttfbMs: statik.ttfbMs,
+        totalMs: Date.now() - startedAt,
+        tier: 'static',
+      };
     }
 
     let blockedSuspected = false;
@@ -180,6 +233,9 @@ export class FetchService {
       headers: statik.headers,
       contentType: statik.headers['content-type'],
       contentLength: statik.body.length,
+      etag: statik.headers['etag'] ?? null,
+      lastModified: statik.headers['last-modified'] ?? null,
+      notModified: false,
       rawHtml: statik.body,
       html: statik.body,
       jsRequired: false,
@@ -200,9 +256,9 @@ export class FetchService {
     if (!wantsRender || !renderAllowed) {
       if (wantsRender && !renderAllowed) {
         this.logger.debug(`[${targetUrl}] needs rendering but the crawl's render budget is spent.`);
-        return { ...base, renderUnavailable: true };
+        return { ...base, needsRender: true, renderUnavailable: true };
       }
-      return base;
+      return { ...base, needsRender: false };
     }
 
     // Tier 2 — rendered.

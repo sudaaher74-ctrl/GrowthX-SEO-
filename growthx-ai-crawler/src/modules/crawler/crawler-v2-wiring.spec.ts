@@ -203,6 +203,102 @@ describe('CrawlerService writes the v2 columns', () => {
     }
   });
 
+  it('persists ETag/Last-Modified and reuses prior page analysis on HTTP 304 Not Modified delta re-crawl (Optimization #2)', async () => {
+    const htmlExtractor = { extract: jest.fn() };
+    const issueEngine = { evaluateAndPersistIssues: jest.fn() };
+    const saveSnapshot = jest.fn();
+    const fetchMock = jest.fn(async () =>
+      outcome({
+        statusCode: 304,
+        notModified: true,
+        etag: '"v42"',
+        lastModified: 'Mon, 23 Nov 2026 00:00:00 GMT',
+        rawHtml: '',
+        html: '',
+      }),
+    );
+
+    const { service, upserts, issues } = makeService({
+      fetchSvc: { fetch: fetchMock },
+      htmlExtractor,
+      issueEngine,
+      storage: { saveSnapshot },
+    });
+
+    const prisma = (service as any).prisma;
+    prisma.crawlJob.findFirst = jest.fn().mockResolvedValue({ id: 'prev-job-0' });
+    prisma.page.findUnique = jest.fn(async ({ where }: any) => {
+      if (where.crawlJobId_url?.crawlJobId === 'prev-job-0') {
+        return {
+          id: 'prev-page-1',
+          finalUrl: 'https://example.com/',
+          statusCode: 200,
+          contentType: 'text/html',
+          title: 'Prior Title',
+          metaDescription: 'Prior description',
+          canonicalUrl: 'https://example.com/',
+          robotsMeta: null,
+          h1: ['Prior Heading'],
+          h2: [],
+          h3: [],
+          wordCount: 420,
+          readingTimeMin: 2,
+          contentHash: 'hash-unchanged',
+          simHash: 'sim-1',
+          pageType: 'HOME',
+          jsRequired: false,
+          indexability: 'INDEXABLE',
+          indexabilityReason: [],
+          htmlSnapshotUrl: 'file:///snapshots/prev.html.gz',
+          httpEtag: '"v42"',
+          httpLastModified: 'Mon, 23 Nov 2026 00:00:00 GMT',
+          links: [],
+          issues: [
+            {
+              issueType: 'MISSING_SCHEMA',
+              severity: 'MEDIUM',
+              affectedUrl: 'https://example.com/',
+              description: 'No structured data',
+              recommendation: 'Add JSON-LD',
+              category: 'STRUCTURED_DATA',
+              confidence: 'CONFIRMED',
+              dedupKey: 'k1',
+              fingerprint: 'fp1',
+              projectId: 'p1',
+            },
+          ],
+        };
+      }
+      return null;
+    });
+
+    await service.processPageFetch(payload);
+
+    // Fetch was called with prior conditional validators
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/',
+      expect.objectContaining({
+        conditional: { etag: '"v42"', lastModified: 'Mon, 23 Nov 2026 00:00:00 GMT' },
+      }),
+    );
+    // Expensive HTML extraction, snapshot write, and issue engine were skipped completely
+    expect(htmlExtractor.extract).not.toHaveBeenCalled();
+    expect(issueEngine.evaluateAndPersistIssues).not.toHaveBeenCalled();
+    expect(saveSnapshot).not.toHaveBeenCalled();
+
+    // Prior verified page metadata and open issues were carried forward seamlessly
+    expect(upserts[0].create).toMatchObject({
+      title: 'Prior Title',
+      wordCount: 420,
+      contentHash: 'hash-unchanged',
+      httpEtag: '"v42"',
+      rawHtml: null,
+      renderedHtml: null,
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ issueType: 'MISSING_SCHEMA', crawlJobId: 'job1', pageId: 'page1' });
+  });
+
   it('records the full status chain and the blocked suspicion', async () => {
     const chain = [
       { url: 'http://example.com/', status: 301, location: 'https://example.com/' },

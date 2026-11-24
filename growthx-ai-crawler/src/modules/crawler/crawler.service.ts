@@ -712,6 +712,208 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     return active;
   }
 
+  /** Cached prior COMPLETED crawlJobId per active jobId for incremental 304 delta re-crawls. */
+  private readonly previousCompletedCrawlCache = new Map<string, string | null>();
+
+  private async loadPriorPageForDelta(jobId: string, websiteId: string, normUrl: string): Promise<any | null> {
+    if (process.env.ENABLE_INCREMENTAL_CRAWL === 'false') return null;
+    if (!this.prisma.crawlJob?.findFirst || !this.prisma.page?.findUnique) return null;
+
+    let prevJobId = this.previousCompletedCrawlCache.get(jobId);
+    if (prevJobId === undefined) {
+      try {
+        const prevJob = await this.prisma.crawlJob.findFirst({
+          where: { websiteId, status: 'COMPLETED', id: { not: jobId } },
+          orderBy: { finishedAt: 'desc' },
+          select: { id: true },
+        });
+        prevJobId = prevJob?.id ?? null;
+      } catch {
+        prevJobId = null;
+      }
+      if (this.previousCompletedCrawlCache.size > 500) {
+        this.previousCompletedCrawlCache.clear();
+      }
+      this.previousCompletedCrawlCache.set(jobId, prevJobId);
+    }
+    if (!prevJobId) return null;
+
+    try {
+      const prevPage = await this.prisma.page.findUnique({
+        where: { crawlJobId_url: { crawlJobId: prevJobId, url: normUrl } },
+        select: {
+          id: true,
+          finalUrl: true,
+          statusCode: true,
+          contentType: true,
+          title: true,
+          metaDescription: true,
+          canonicalUrl: true,
+          robotsMeta: true,
+          h1: true,
+          h2: true,
+          h3: true,
+          wordCount: true,
+          readingTimeMin: true,
+          contentHash: true,
+          simHash: true,
+          pageType: true,
+          jsRequired: true,
+          indexability: true,
+          indexabilityReason: true,
+          htmlSnapshotUrl: true,
+          httpEtag: true,
+          httpLastModified: true,
+          links: {
+            where: { linkType: 'INTERNAL' },
+            select: { targetUrl: true, anchorText: true, isNofollow: true },
+          },
+          issues: {
+            select: {
+              issueType: true,
+              severity: true,
+              affectedUrl: true,
+              description: true,
+              recommendation: true,
+              category: true,
+              confidence: true,
+              dedupKey: true,
+              fingerprint: true,
+              projectId: true,
+            },
+          },
+        },
+      });
+      if (!prevPage || prevPage.statusCode !== 200) return null;
+      if (!prevPage.httpEtag && !prevPage.httpLastModified) return null;
+      return prevPage;
+    } catch {
+      return null;
+    }
+  }
+
+  private async carryForwardUnchangedPage(
+    payload: PageFetchPayload,
+    normUrl: string,
+    priorPage: any,
+    outcome: FetchOutcome,
+    sitemapSetForJob: Set<string>,
+    robotsDecision: { allowed?: boolean } | undefined,
+  ): Promise<void> {
+    const pageData = {
+      pageType: priorPage.pageType || 'OTHER',
+      finalUrl: priorPage.finalUrl || normUrl,
+      statusCode: priorPage.statusCode || 200,
+      responseTimeMs: outcome.totalMs,
+      contentType: priorPage.contentType || 'text/html',
+      htmlSnapshotUrl: priorPage.htmlSnapshotUrl ?? undefined,
+      rawHtml: null,
+      renderedHtml: null,
+      jsRequired: Boolean(priorPage.jsRequired),
+      discoverySource: sitemapSetForJob.has(normUrl) ? 'sitemap' : payload.sourceUrl ? 'link' : 'seed',
+      statusChain: outcome.statusChain as unknown as object,
+      blockedSuspected: false,
+      indexability: priorPage.indexability || 'INDEXABLE',
+      indexabilityReason: (priorPage.indexabilityReason ?? []) as unknown as object,
+      fetchErrorKind: null,
+      title: priorPage.title ?? null,
+      metaDescription: priorPage.metaDescription ?? null,
+      canonicalUrl: priorPage.canonicalUrl ?? null,
+      robotsMeta: priorPage.robotsMeta ?? null,
+      h1: priorPage.h1 ?? [],
+      h2: priorPage.h2 ?? [],
+      h3: priorPage.h3 ?? [],
+      wordCount: priorPage.wordCount ?? 0,
+      readingTimeMin: priorPage.readingTimeMin ?? 0,
+      contentHash: priorPage.contentHash ?? null,
+      simHash: priorPage.simHash ?? undefined,
+      httpEtag: outcome.etag ?? priorPage.httpEtag ?? null,
+      httpLastModified: outcome.lastModified ?? priorPage.httpLastModified ?? null,
+    };
+
+    const alreadyStored = this.prisma.page.findUnique
+      ? await this.prisma.page.findUnique({
+          where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
+          select: { id: true },
+        })
+      : null;
+
+    const page = await this.prisma.page.upsert({
+      where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
+      update: pageData,
+      create: { crawlJobId: payload.jobId, url: normUrl, ...pageData },
+    });
+
+    const updatedJob = await this.prisma.crawlJob.update({
+      where: { id: payload.jobId },
+      data: { pagesCrawled: { increment: alreadyStored ? 0 : 1 } },
+    });
+    this.crawlerGateway.broadcastProgress(payload.jobId, {
+      pagesCrawled: updatedJob.pagesCrawled,
+      currentUrl: normUrl,
+    });
+    this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: '304' });
+
+    if (payload.sourceUrl) {
+      await this.prisma.internalGraph
+        .create({
+          data: {
+            crawlJobId: payload.jobId,
+            sourceUrl: this.state.normalizeUrl(payload.sourceUrl),
+            targetUrl: normUrl,
+            crawlDepth: payload.depth,
+          },
+        })
+        .catch(() => {});
+    }
+
+    if (Array.isArray(priorPage.issues) && priorPage.issues.length > 0 && this.prisma.issue?.create) {
+      for (const priorIssue of priorPage.issues) {
+        await this.prisma.issue
+          .create({
+            data: {
+              crawlJobId: payload.jobId,
+              pageId: page.id,
+              projectId: priorIssue.projectId ?? null,
+              issueType: priorIssue.issueType,
+              severity: priorIssue.severity,
+              affectedUrl: priorIssue.affectedUrl,
+              description: priorIssue.description,
+              recommendation: priorIssue.recommendation,
+              category: priorIssue.category ?? null,
+              confidence: priorIssue.confidence || 'LIKELY',
+              dedupKey: priorIssue.dedupKey ?? null,
+              fingerprint: priorIssue.fingerprint ?? null,
+              status: 'OPEN',
+            },
+          })
+          .catch(() => {});
+      }
+    }
+
+    const priorInternalLinks: Array<{ targetUrl: string; anchorText: string; isNoFollow: boolean }> =
+      Array.isArray(priorPage.links)
+        ? priorPage.links.map((l: any) => ({
+            targetUrl: l.targetUrl,
+            anchorText: l.anchorText || '',
+            isNoFollow: Boolean(l.isNofollow),
+          }))
+        : [];
+    if (priorInternalLinks.length > 0) {
+      await this.discoverInternalLinksAndEnqueue(payload, priorInternalLinks, page.id, new Set());
+    }
+
+    await this.inventory.markCrawled(payload.jobId, normUrl, {
+      httpStatus: priorPage.statusCode || 200,
+      contentType: priorPage.contentType || 'text/html',
+      indexability: priorPage.indexability || 'INDEXABLE',
+      canonicalUrl: priorPage.canonicalUrl ?? undefined,
+      robotsAllowed: robotsDecision?.allowed ?? true,
+      rendered: Boolean(priorPage.jsRequired),
+      redirectTarget: priorPage.finalUrl && priorPage.finalUrl !== normUrl ? priorPage.finalUrl : null,
+    });
+  }
+
   async processPageFetch(payload: PageFetchPayload): Promise<void> {
     let settled = true;
     try {
@@ -760,8 +962,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // wait on. Keyed by the website's domain rather than the URL's host, so
       // the www and bare spellings of one site share one queue.
       await this.pacer.wait(payload.domain || new URL(normUrl).host, payload.rateLimitDelayMs);
+      const priorPage = await this.loadPriorPageForDelta(payload.jobId, payload.websiteId, normUrl);
+      const conditional = priorPage
+        ? { etag: priorPage.httpEtag, lastModified: priorPage.httpLastModified }
+        : undefined;
       const renderAllowed = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
-      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed });
+      const outcome = await this.fetchSvc.fetch(
+        normUrl,
+        conditional ? { renderAllowed, conditional } : { renderAllowed },
+      );
+
+      // Incremental delta hit (HTTP 304 Not Modified): reuse prior crawl's verified
+      // analysis, issues, and internal links without downloading HTML or rendering.
+      if (outcome.notModified && priorPage) {
+        if (!(await this.crawlStillWants(payload.jobId))) return;
+        const robotsDecision = this.discovery.isAllowed(crawlState.robots, normUrl);
+        this.logger.debug(`[JOB ${payload.jobId}] 304 Not Modified delta hit for ${normUrl}; reusing prior analysis.`);
+        await this.carryForwardUnchangedPage(
+          payload,
+          normUrl,
+          priorPage,
+          outcome,
+          crawlState.sitemapUrls,
+          robotsDecision,
+        );
+        return;
+      }
       if (process.env.CRAWL_RENDER_ALL_PAGES === 'true' &&
           (['timeout', 'dns', 'proxy'].includes(outcome.error?.kind ?? '') || [429, 503].includes(outcome.statusCode ?? 0))) {
         throw new Error(outcome.error?.message ?? `Origin temporarily unavailable (HTTP ${outcome.statusCode}); retry this page.`);
@@ -911,6 +1137,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           readingTimeMin: content.readingTimeMin,
           contentHash: outcome.renderUnavailable ? null : content.contentHash,
           simHash: content.simHash || undefined,
+          httpEtag: outcome.etag ?? null,
+          httpLastModified: outcome.lastModified ?? null,
         };
         const alreadyStored = this.prisma.page.findUnique ? await this.prisma.page.findUnique({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } }, select: { id: true },

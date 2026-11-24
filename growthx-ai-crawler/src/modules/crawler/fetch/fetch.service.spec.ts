@@ -106,6 +106,54 @@ describe('FetchService', () => {
     expect(out.renderedHtml).toBeUndefined();
   });
 
+  it('sends conditional ETag/Last-Modified validators and short-circuits on HTTP 304 without launching Playwright (Optimization #2)', async () => {
+    const etag = '"v42-abc"';
+    const lastModified = 'Mon, 23 Nov 2026 00:00:00 GMT';
+    server = await startFixtureServer({
+      '/': {
+        handler: (req, res) => {
+          if (req.headers['if-none-match'] === etag) {
+            res.writeHead(304, { etag, 'last-modified': lastModified });
+            res.end();
+            return;
+          }
+          res.writeHead(200, {
+            'content-type': 'text/html',
+            etag,
+            'last-modified': lastModified,
+          });
+          res.end(SPA_SHELL_HTML);
+        },
+      },
+    });
+
+    // First fetch captures ETag + Last-Modified
+    const first = await fetcher.fetch(server.url('/'), { renderAllowed: false });
+    expect(first.statusCode).toBe(200);
+    expect(first.etag).toBe(etag);
+    expect(first.lastModified).toBe(lastModified);
+    expect(first.notModified).toBe(false);
+
+    // Second fetch sends validators -> 304 Not Modified -> skips body download and Playwright render
+    const renderSpy = jest.spyOn(pool, 'withPage');
+    try {
+      const second = await fetcher.fetch(server.url('/'), {
+        renderAllowed: true,
+        conditional: { etag: first.etag, lastModified: first.lastModified },
+      });
+      expect(second.statusCode).toBe(304);
+      expect(second.notModified).toBe(true);
+      expect(second.tier).toBe('static');
+      expect(second.etag).toBe(etag);
+      expect(renderSpy).not.toHaveBeenCalled();
+      expect(server.requests[1].headers['if-none-match']).toBe(etag);
+      expect(server.requests[1].headers['if-modified-since']).toBe(lastModified);
+      expect(server.requests[1].headers['cache-control']).toBeUndefined();
+    } finally {
+      renderSpy.mockRestore();
+    }
+  });
+
   describe('a WAF that 403s a bare client', () => {
     // The origin answers 403 unless the request carries the header set a real
     // browser sends. The old fetcher sent a bare bot UA, took the 403 at face

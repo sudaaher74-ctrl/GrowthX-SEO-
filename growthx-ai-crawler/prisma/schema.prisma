@@ -142,6 +142,9 @@ model Page {
   duplicateScore     Float             @default(0)
   contentHash        String?
   simHash            String?
+  /// HTTP conditional validators captured from the origin to enable 304 delta re-crawls.
+  httpEtag           String?
+  httpLastModified   String?
   /// HOME | SERVICE | PRODUCT | LOCATION | BLOG | CASE_STUDY | FAQ | ABOUT |
   /// CONTACT | LEGAL | OTHER. Derived from the URL and headings at crawl time.
   /// Every gap comparison counts pages by kind, so this is what makes "they
