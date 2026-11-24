@@ -1,5 +1,6 @@
 import { ideasToMarkdown } from "@/lib/content-ideas";
 import { buildAuditImplementationSpecs, formatSpecAsMarkdown } from "@/lib/implementation-specs";
+import { escapeCsvCell } from "@/lib/report-csv";
 import type { WebsiteAuditReport } from "@/lib/api-client";
 
 /** Downloads for the Website Audit report: Markdown to read, CSV to work in. Print goes through the shared renderer. */
@@ -100,13 +101,6 @@ export function auditToMarkdown(report: WebsiteAuditReport): string {
   return out.join("\n\n") + "\n";
 }
 
-function csvCell(v: unknown): string {
-  const s = String(v ?? "");
-  // A leading =, +, - or @ is read as a formula by spreadsheet apps.
-  const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
-  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
-
 export function auditToCsv(report: WebsiteAuditReport): string {
   const header = ["type", "title", "priority", "pages", "who_can_fix", "why_it_matters", "what_to_do", "example_urls"];
   const rows: unknown[][] = [];
@@ -117,5 +111,5 @@ export function auditToCsv(report: WebsiteAuditReport): string {
     rows.push(["problem", p.title, severityWord(p.severity), p.pages, "", p.why, p.action, p.exampleUrls.join(" | ")]),
   );
   pageRows(report).forEach((r) => rows.push(["page_check", r.label, r.ok == null ? "" : r.ok ? "ok" : "needs work", r.value, "", "", "", ""]));
-  return [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
+  return [header, ...rows].map((r) => r.map(escapeCsvCell).join(",")).join("\n") + "\n";
 }

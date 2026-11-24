@@ -69,4 +69,68 @@ describe('BrowserPoolService memory lifecycle', () => {
 
     expect(titles).toEqual(['page 0', 'page 1', 'page 2']);
   }, 90_000);
+
+  it('isolates cookies and localStorage across renders on the same reused Chromium process and enforces strict TLS (Medium #21)', async () => {
+    process.env.MAX_RENDERS_PER_BROWSER = '10';
+    process.env.BROWSER_IDLE_SHUTDOWN_MS = '0';
+    pool = new BrowserPoolService();
+
+    const originUrl = 'https://tenant-isolation.example.test/';
+    let firstBrowser: unknown;
+    let secondBrowser: unknown;
+
+    // Render 1 sets cookies and localStorage for the origin
+    await pool.withPage('test-agent', async (page) => {
+      firstBrowser = browserOf(pool!);
+      await page.route('**/*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'text/html',
+          body: '<html><body>tenant-one</body></html>',
+        }),
+      );
+      await page.goto(originUrl, { waitUntil: 'domcontentloaded' });
+      await page.evaluate(() => {
+        document.cookie = 'session_id=tenant_a_cookie; path=/';
+        localStorage.setItem('tenant_marker', 'tenant_a_secret');
+      });
+      const stored = await page.evaluate(() => ({
+        cookie: document.cookie,
+        ls: localStorage.getItem('tenant_marker'),
+      }));
+      expect(stored.cookie).toContain('session_id=tenant_a_cookie');
+      expect(stored.ls).toBe('tenant_a_secret');
+    });
+
+    // Render 2 reuses the same Chromium process, but MUST get a fresh isolated BrowserContext
+    const leaked = await pool.withPage('test-agent', async (page) => {
+      secondBrowser = browserOf(pool!);
+      await page.route('**/*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'text/html',
+          body: '<html><body>tenant-two</body></html>',
+        }),
+      );
+      await page.goto(originUrl, { waitUntil: 'domcontentloaded' });
+      return page.evaluate(() => ({
+        cookie: document.cookie,
+        ls: localStorage.getItem('tenant_marker'),
+      }));
+    });
+
+    expect(firstBrowser).toBeDefined();
+    expect(secondBrowser).toBe(firstBrowser);
+    expect(leaked).toEqual({ cookie: '', ls: null });
+
+    // Verify newContext enforces ignoreHTTPSErrors: false (strict TLS verification)
+    const spy = jest.spyOn(secondBrowser as any, 'newContext');
+    await pool.withPage('test-agent', async () => 'ok');
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ignoreHTTPSErrors: false,
+      }),
+    );
+    spy.mockRestore();
+  }, 60_000);
 });

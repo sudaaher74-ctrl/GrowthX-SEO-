@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { buildCsvRows } from "@/lib/report-csv";
 import {
   ArrowRight,
   Check,
@@ -299,16 +300,16 @@ export function PagesTable({
   const handleExportMatrixCsv = () => {
     const headers = ["URL", "Title", "Page Type", "HTTP Status", "Indexability", "Word Count", "SEO Score", "Audit Issues"];
     const rows = filteredPages.map((p) => [
-      `"${p.url.replace(/"/g, '""')}"`,
-      `"${(p.title || "").replace(/"/g, '""')}"`,
-      `"${getPageType(p)}"`,
+      p.url,
+      p.title || "",
+      getPageType(p),
       p.statusCode || 0,
-      `"${p.indexability || "UNKNOWN"}"`,
+      p.indexability || "UNKNOWN",
       p.wordCount || 0,
       getPageSeoScore(p, issuesPerUrl),
       issuesPerUrl.get(p.url) || 0,
     ]);
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csvContent = buildCsvRows(headers, rows, "\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -325,16 +326,16 @@ export function PagesTable({
     if (selected.length === 0) return;
     const headers = ["URL", "Title", "Page Type", "HTTP Status", "Indexability", "Word Count", "SEO Score", "Audit Issues"];
     const rows = selected.map((p) => [
-      `"${p.url.replace(/"/g, '""')}"`,
-      `"${(p.title || "").replace(/"/g, '""')}"`,
-      `"${getPageType(p)}"`,
+      p.url,
+      p.title || "",
+      getPageType(p),
       p.statusCode || 0,
-      `"${p.indexability || "UNKNOWN"}"`,
+      p.indexability || "UNKNOWN",
       p.wordCount || 0,
       getPageSeoScore(p, issuesPerUrl),
       issuesPerUrl.get(p.url) || 0,
     ]);
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csvContent = buildCsvRows(headers, rows, "\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

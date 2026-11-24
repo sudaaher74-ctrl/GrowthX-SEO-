@@ -25,8 +25,13 @@ node_modules/
 /build
 dist/
 
-# Redis snapshots
+# Redis & database runtime snapshots / dumps
 *.rdb
+dump.rdb
+*.aof
+*.dump
+*.sql.gz
+*.sql.zst
 
 # misc
 .DS_Store

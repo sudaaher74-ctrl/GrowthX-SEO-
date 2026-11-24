@@ -1,5 +1,6 @@
 import { ideasToMarkdown } from "@/lib/content-ideas";
 import { buildCompetitorImplementationSpecs, formatSpecAsMarkdown } from "@/lib/implementation-specs";
+import { escapeCsvCell } from "@/lib/report-csv";
 import type { CompetitorIntelReport, IntelPriority, IntelReportRival } from "@/lib/api-client";
 
 /** Downloads for the competitor report: Markdown to read, CSV to work in, HTML to print. */
@@ -123,13 +124,6 @@ export function toMarkdown(report: CompetitorIntelReport): string {
   return out.join("\n\n") + "\n";
 }
 
-function csvCell(v: unknown): string {
-  const s = String(v ?? "");
-  // A leading =, +, - or @ is read as a formula by spreadsheet apps.
-  const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
-  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
-
 export function toCsv(report: CompetitorIntelReport): string {
   const header = ["type", "rival", "item", "you", "them", "priority", "evidence", "how_to_beat_it", "url"];
   const rows: unknown[][] = [];
@@ -153,7 +147,7 @@ export function toCsv(report: CompetitorIntelReport): string {
     rows.push(["depth", r.domain, "Pages of 1000+ words", a.depth.yourLongPages, a.depth.theirLongPages, "", "", "", ""]);
     rows.push(["questions", r.domain, "Questions answered in headings", a.questions.yourCount, a.questions.theirCount, "", a.questions.theirs.join(" | "), "", ""]);
   });
-  return [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
+  return [header, ...rows].map((r) => r.map(escapeCsvCell).join(",")).join("\n") + "\n";
 }
 
 const escapeHtml = (s: string) =>

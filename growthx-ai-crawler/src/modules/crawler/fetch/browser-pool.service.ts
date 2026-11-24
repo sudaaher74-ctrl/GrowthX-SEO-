@@ -120,7 +120,7 @@ export class BrowserPoolService implements OnModuleDestroy {
   private readonly logger = new Logger(BrowserPoolService.name);
   private browser?: Browser;
   private context?: BrowserContext;
-  private launching?: Promise<BrowserContext | undefined>;
+  private launching?: Promise<Browser | undefined>;
   private readonly semaphore: Semaphore;
 
   /** Set once a launch has failed, so we do not pay the timeout on every page. */
@@ -187,29 +187,16 @@ export class BrowserPoolService implements OnModuleDestroy {
     return this.launchFailure ?? this.budgetRefusal;
   }
 
-  private async ensureContext(userAgent: string): Promise<BrowserContext | undefined> {
+  private async ensureBrowser(): Promise<Browser | undefined> {
     // A close already in flight must finish before a relaunch is attempted, or
     // the two race and leave a live browser with no reference to it.
     if (this.closing) await this.closing.catch(() => {});
-    if (this.context && this.browser?.isConnected()) return this.context;
+    if (this.browser?.isConnected()) return this.browser;
     if (this.launchFailure && Date.now() < this.launchRetryAt) return undefined;
     this.launchFailure = undefined;
     if (this.launching) return this.launching;
     if (this.budgetRefusal && Date.now() < this.budgetRecheckAt) return undefined;
 
-    // Checked before every launch, not once at startup: the browser is closed
-    // and relaunched as a crawl progresses, and the memory available to the
-    // next launch is not the memory that was available to the first.
-    //
-    // Launching into insufficient memory does not fail, it gets the container
-    // killed, which loses the crawl and every page it had already recorded.
-    // Declining to launch costs only the rendered tier, and the caller records
-    // RENDER_UNAVAILABLE so the report states what was not assessed.
-    // Not recorded as a launch failure: that flag is permanent for the life of
-    // the process, which is right for a missing executable and wrong for
-    // memory. A crawl that finishes, or the idle close giving Chromium back,
-    // changes the answer. The refusal is held for a cooldown instead, so the
-    // check is neither permanent nor repeated on every page of a large crawl.
     const budget = renderBudget();
     if (!budget.allowed) {
       this.budgetRefusal = budget.reason;
@@ -225,23 +212,14 @@ export class BrowserPoolService implements OnModuleDestroy {
       try {
         this.browser = await this.bounded(chromium.launch({
           headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-          // Set only where the runtime needs it (a sandbox with an egress
-          // proxy, say). Unset in production, so nothing is routed anywhere
-          // the operator did not ask for.
           ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}),
           ...(process.env.PLAYWRIGHT_PROXY_SERVER ? { proxy: { server: process.env.PLAYWRIGHT_PROXY_SERVER } } : {}),
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            // /dev/shm is 64MB in a default container, which Chromium exhausts
-            // and then crashes on rather than degrading.
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--disable-software-rasterizer',
-            // Footprint, not speed. The smallest deployment target is a 512MB
-            // container already running a 300MB Node heap, so a default
-            // Chromium does not fit beside it. Each of these removes a
-            // subsystem a crawler never uses.
             '--disable-extensions',
             '--disable-background-networking',
             '--disable-background-timer-throttling',
@@ -252,16 +230,8 @@ export class BrowserPoolService implements OnModuleDestroy {
             '--no-first-run',
             '--no-default-browser-check',
             '--mute-audio',
-            // One renderer, not one per tab. Render concurrency is already 1,
-            // so a second renderer process only ever arrives from a page
-            // opening another, and on a 512MB instance that is the allocation
-            // that does not fit. Distinct from --single-process, which is
-            // rejected below for a different reason.
             '--renderer-process-limit=1',
             `--js-flags=--max-old-space-size=${process.env.RENDER_JS_HEAP_MB || 128}`,
-            // Deliberately NOT --single-process. It saves memory and it also
-            // makes a slow page wedge the whole browser rather than one tab,
-            // which is how renders came back as empty shells under load.
             ...(process.env.CHROMIUM_EXTRA_ARGS ? process.env.CHROMIUM_EXTRA_ARGS.split(' ').filter(Boolean) : []),
           ],
         }), 'launching');
@@ -269,20 +239,12 @@ export class BrowserPoolService implements OnModuleDestroy {
         const launchedBrowser = this.browser;
         launchedBrowser.on('disconnected', () => {
           this.logger.warn('Chromium disconnected; the next render will relaunch it.');
-          // A slow old browser may disconnect after its replacement launched.
           if (this.browser === launchedBrowser) {
-            this.context = undefined;
             this.browser = undefined;
           }
         });
 
-        this.context = await this.bounded(launchedBrowser.newContext({
-          userAgent,
-          viewport: { width: 1366, height: 900 },
-          ignoreHTTPSErrors: true,
-          javaScriptEnabled: true,
-        }), 'creating a context');
-        return this.context;
+        return launchedBrowser;
       } catch (err) {
         this.launchFailure = (err as Error).message;
         this.launchRetryAt = Date.now() + this.launchRetryMs;
@@ -295,6 +257,25 @@ export class BrowserPoolService implements OnModuleDestroy {
     })();
 
     return this.launching;
+  }
+
+  /**
+   * Creates a fresh isolated BrowserContext on the shared Chromium process for
+   * each render so cookies, localStorage, sessionStorage, and origin caches
+   * never cross between crawl jobs or tenants. Enforces strict TLS validation.
+   */
+  private async ensureContext(userAgent: string): Promise<BrowserContext | undefined> {
+    const browser = await this.ensureBrowser();
+    if (!browser) return undefined;
+    return this.bounded(
+      browser.newContext({
+        userAgent,
+        viewport: { width: 1366, height: 900 },
+        ignoreHTTPSErrors: false,
+        javaScriptEnabled: true,
+      }),
+      'creating a context',
+    );
   }
 
   /**
@@ -355,9 +336,11 @@ export class BrowserPoolService implements OnModuleDestroy {
       else throw err;
       return undefined;
     } finally {
-      // A page belonging to a browser that has stopped answering will not
-      // close either, so it is not waited on.
-      if (page && !wedged) await page.close().catch(() => {});
+      // A page or context belonging to a browser that has stopped answering
+      // will not close either, so it is not waited on. Otherwise always close
+      // both page and isolated context so no cookies or origin storage persist.
+      if (page && !wedged) await page.close?.().catch(() => {});
+      if (context && !wedged) await context.close?.().catch(() => {});
       this.rendersSinceLaunch++;
       // A browser that failed to answer once is not trusted again: it is torn
       // down here so the next render starts a fresh one, rather than every

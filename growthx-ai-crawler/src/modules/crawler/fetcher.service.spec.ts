@@ -242,4 +242,42 @@ describe('FetcherService', () => {
       expect(result.statusCode).toBe(200);
     });
   });
+
+  describe('Playwright context isolation and TLS enforcement (Medium #21)', () => {
+    it('creates and closes a fresh isolated BrowserContext with ignoreHTTPSErrors: false on every render', async () => {
+      const contextsCreated: Array<{ opts: any; close: jest.Mock }> = [];
+      const fakeBrowser = {
+        isConnected: () => true,
+        newContext: jest.fn(async (opts: any) => {
+          const close = jest.fn().mockResolvedValue(undefined);
+          const page = {
+            route: jest.fn().mockResolvedValue(undefined),
+            on: jest.fn(),
+            goto: jest.fn().mockResolvedValue(undefined),
+            waitForTimeout: jest.fn().mockResolvedValue(undefined),
+            content: jest.fn().mockResolvedValue('<html><body>rendered</body></html>'),
+            url: jest.fn().mockReturnValue('https://example.com/app'),
+            close: jest.fn().mockResolvedValue(undefined),
+          };
+          contextsCreated.push({ opts, close });
+          return { newPage: jest.fn().mockResolvedValue(page), close };
+        }),
+      };
+
+      (service as any).browser = fakeBrowser;
+      (service as any).isPlaywrightReady = true;
+      (service as any).ensurePlaywrightInitialized = jest.fn().mockResolvedValue(true);
+
+      const r1 = await service.fetchPage('https://example.com/app', true);
+      const r2 = await service.fetchPage('https://example.com/app', true);
+
+      expect(r1.engine).toBe('playwright');
+      expect(r2.engine).toBe('playwright');
+      expect(fakeBrowser.newContext).toHaveBeenCalledTimes(2);
+      expect(contextsCreated[0].opts).toEqual(expect.objectContaining({ ignoreHTTPSErrors: false }));
+      expect(contextsCreated[1].opts).toEqual(expect.objectContaining({ ignoreHTTPSErrors: false }));
+      expect(contextsCreated[0].close).toHaveBeenCalledTimes(1);
+      expect(contextsCreated[1].close).toHaveBeenCalledTimes(1);
+    });
+  });
 });

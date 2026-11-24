@@ -7,6 +7,7 @@ import { Caveat, Chip, EmptyNote, Gate } from "@/components/google/view-kit";
 import { useGoogleBreakdown, useGooglePages, useGscPages, useGscQueries } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { DASH, count, pathOf, percent, position } from "@/lib/google-format";
+import { escapeCsvCell } from "@/lib/report-csv";
 
 type Dataset = "queries" | "pages" | "organic" | "countries" | "devices";
 interface Col {
@@ -35,10 +36,7 @@ const ORGANIC_COLS: Col[] = [
   { id: "keyEvents", label: "Key events", value: (r) => r.keyEvents as number | null, fmt: num(count) },
 ];
 
-function csvCell(v: string | number | null) {
-  const s = v === null ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+const csvCell = (v: string | number | null) => escapeCsvCell(v);
 
 /** Your own table of the Google data: pick a dataset, filter, sort and download it. */
 export function ExplorerView() {

@@ -49,7 +49,6 @@ export interface FetchResult {
 export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FetcherService.name);
   private browser?: Browser;
-  private browserContext?: BrowserContext;
   private isPlaywrightReady = false;
   private isInitializingPlaywright = false;
   private playwrightSemaphore: Semaphore;
@@ -71,7 +70,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensurePlaywrightInitialized(): Promise<boolean> {
-    if (this.isPlaywrightReady && this.browserContext) return true;
+    if (this.isPlaywrightReady && this.browser?.isConnected?.()) return true;
     if (this.isInitializingPlaywright) return false;
 
     this.isInitializingPlaywright = true;
@@ -95,17 +94,11 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       this.browser.on('disconnected', () => {
         this.logger.warn('Playwright browser instance disconnected.');
         this.isPlaywrightReady = false;
-        this.browserContext = undefined;
         this.browser = undefined;
       });
 
-      this.browserContext = await this.browser.newContext({
-        userAgent: process.env.USER_AGENT || 'GrowthX-AI-Bot/1.0 (+https://growthx.ai/bot)',
-        viewport: { width: 1280, height: 720 },
-        ignoreHTTPSErrors: true,
-      });
       this.isPlaywrightReady = true;
-      this.logger.log('Playwright Chromium pool ready.');
+      this.logger.log('Playwright Chromium pool ready (isolated context per render).');
       return true;
     } catch (err: any) {
       this.logger.warn(`Failed to launch Playwright browser (${err.message}). Cheerio static mode active.`);
@@ -117,7 +110,6 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.browserContext) await this.browserContext.close().catch(() => {});
     if (this.browser) await this.browser.close().catch(() => {});
   }
 
@@ -243,23 +235,34 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Fetches and renders a page using Playwright Chromium
+   * Fetches and renders a page using Playwright Chromium inside a fresh
+   * isolated BrowserContext with strict TLS certificate validation.
    */
   private async fetchWithPlaywright(targetUrl: string, startTime: number): Promise<FetchResult> {
-    if (!this.browserContext) {
-      throw new Error('Playwright browser context not initialized');
+    if (!this.browser) {
+      throw new Error('Playwright browser not initialized');
     }
 
     await this.playwrightSemaphore.acquire();
+    let context: BrowserContext | undefined;
+    let page: any;
     try {
-      let page;
-      try {
-        page = await this.browserContext.newPage();
-      } catch {
-        // Re-initialize context if needed
-        await this.ensurePlaywrightInitialized();
-        page = await this.browserContext!.newPage();
-      }
+      const createIsolatedContext = async (): Promise<BrowserContext> => {
+        if (!this.browser || !this.browser.isConnected?.()) {
+          await this.ensurePlaywrightInitialized();
+        }
+        if (!this.browser) {
+          throw new Error('Playwright browser unavailable');
+        }
+        return this.browser.newContext({
+          userAgent: process.env.USER_AGENT || 'GrowthX-AI-Bot/1.0 (+https://growthx.ai/bot)',
+          viewport: { width: 1280, height: 720 },
+          ignoreHTTPSErrors: false,
+        });
+      };
+
+      context = await createIsolatedContext();
+      page = await context.newPage();
 
       const redirectChain: string[] = [targetUrl];
       let statusCode = 200;
@@ -269,12 +272,12 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         // Fulfill all browser network traffic via connection-time SSRF-hardened
         // fetch so Chromium cannot bypass DNS validation or connect internally.
         await page
-          .route('**/*', (route) =>
+          .route('**/*', (route: any) =>
             handleBrowserPublicRoute(route as any, { timeoutMs: 20_000 }),
           )
           .catch(() => {});
 
-        page.on('response', (res) => {
+        page.on('response', (res: any) => {
           if (res.url() === targetUrl || res.url() === page.url()) {
             statusCode = res.status();
             contentType = res.headers()['content-type'] || 'text/html';
@@ -293,7 +296,6 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         const responseTimeMs = Date.now() - startTime;
 
         this.metrics.pageFetchDurationSeconds.observe({ engine: 'playwright' }, responseTimeMs / 1000);
-        await page.close().catch(() => {});
 
         return {
           url: targetUrl,
@@ -306,7 +308,6 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
           engine: 'playwright',
         };
       } catch (err: any) {
-        if (page) await page.close().catch(() => {});
         this.logger.error(`Playwright fetch failed for ${targetUrl}: ${err.message}`);
         return {
           url: targetUrl,
@@ -320,6 +321,8 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         };
       }
     } finally {
+      if (page) await page.close().catch(() => {});
+      if (context) await context.close().catch(() => {});
       this.playwrightSemaphore.release();
     }
   }

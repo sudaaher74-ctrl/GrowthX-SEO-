@@ -222,3 +222,70 @@ test("High #14: GitHub OAuth transactions enforce browser nonce, user/project bi
     /expired/i,
   );
 });
+
+test("Medium #22: shared CSV encoder neutralizes formula prefixes while preserving numeric cells", async () => {
+  const csv = await import("../src/lib/report-csv.ts");
+
+  // Formula-leading strings (with and without leading whitespace/tabs/control chars) are neutralized
+  assert.equal(csv.escapeCsvCell("=CMD|' /C calc'!A0"), "'=CMD|' /C calc'!A0");
+  assert.equal(csv.escapeCsvCell("+SUM(A1:A10)"), "'+SUM(A1:A10)");
+  assert.equal(csv.escapeCsvCell("-2+3"), "'-2+3");
+  assert.equal(csv.escapeCsvCell("@SUM(1+1)"), "'@SUM(1+1)");
+  assert.equal(csv.escapeCsvCell("  =HYPERLINK(\"http://evil\")"), `"'  =HYPERLINK(""http://evil"")"`);
+  assert.equal(csv.escapeCsvCell("\t=1+1"), "'\t=1+1");
+  assert.equal(csv.escapeCsvCell("\r+1+1"), `"'` + "\r+1+1" + `"`);
+  assert.equal(csv.escapeCsvCell("=1+1,2"), `"'=1+1,2"`);
+
+  // Real numeric cells (including negative numbers) stay unprefixed numbers
+  assert.equal(csv.escapeCsvCell(0), "0");
+  assert.equal(csv.escapeCsvCell(42), "42");
+  assert.equal(csv.escapeCsvCell(-12.5), "-12.5");
+  assert.equal(csv.escapeCsvCell(null), "");
+  assert.equal(csv.escapeCsvCell(undefined), "");
+
+  // Normal strings and RFC 4180 quoting work cleanly
+  assert.equal(csv.escapeCsvCell("organic search"), "organic search");
+  assert.equal(csv.escapeCsvCell(`hello, "world"`), `"hello, ""world"""`);
+
+  // Section titles in buildCsvDocument never begin with '='
+  const doc = csv.buildCsvDocument([
+    {
+      title: "Top Queries",
+      headers: ["Query", "Delta", "Clicks"],
+      rows: [["=HYPERLINK(\"https://evil.test\")", -15.4, 120]],
+    },
+  ]);
+  const lines = doc.split("\r\n");
+  assert.ok(!lines[0].startsWith("="), "Section banner must not start with '='");
+  assert.equal(lines[2], `"'=HYPERLINK(""https://evil.test"")",-15.4,120`);
+
+  // Verify every frontend CSV exporter imports from @/lib/report-csv (no unguarded hand-rolled CSV cells)
+  const exporterFiles = [
+    "src/lib/competitor-report.ts",
+    "src/lib/audit-report.ts",
+    "src/components/google/explorer-view.tsx",
+    "src/components/google/keyword-ideas-view.tsx",
+    "src/components/google/keywords-view.tsx",
+    "src/components/website/pages/pages-table.tsx",
+    "src/components/reports/google-report.tsx",
+    "src/app/share/report/[token]/page.tsx",
+  ];
+  for (const rel of exporterFiles) {
+    const src = fs.readFileSync(path.join(SEO_ROOT, rel), "utf8");
+    assert.match(src, /from\s+["']@\/lib\/report-csv["']/, `${rel} must use shared spreadsheet-safe CSV encoder`);
+  }
+});
+
+test("Medium #23: no Redis dump.rdb or database snapshots are tracked in Git and .gitignore blocks them", async () => {
+  const repoRoot = path.resolve(SEO_ROOT, "..");
+  const gitignore = fs.readFileSync(path.join(repoRoot, ".gitignore"), "utf8");
+  assert.match(gitignore, /^\*\.rdb$/m, ".gitignore must ignore *.rdb");
+  assert.match(gitignore, /^dump\.rdb$/m, ".gitignore must ignore dump.rdb");
+
+  const { execFileSync } = await import("node:child_process");
+  const output = execFileSync("node", [path.join(repoRoot, "scripts/check-no-runtime-dumps.mjs")], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.match(output, /^OK:/);
+});

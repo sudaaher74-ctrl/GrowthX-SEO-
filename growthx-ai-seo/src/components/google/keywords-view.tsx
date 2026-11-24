@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { buildCsvRows } from "@/lib/report-csv";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -329,19 +330,18 @@ export function KeywordsView() {
     if (!rowsToExport.length) return;
 
     const headers = ["Query", "Intent", "Clicks", "Impressions", "CTR", "Position"];
-    const csvContent = [
-      headers.join(","),
-      ...rowsToExport.map((r) =>
-        [
-          `"${(r.key || "").replace(/"/g, '""')}"`,
-          `"${detectSearchIntent(r.key || "")}"`,
-          r.clicks ?? 0,
-          r.impressions ?? 0,
-          `${((r.ctr ?? 0) * 100).toFixed(2)}%`,
-          (r.position ?? 0).toFixed(1),
-        ].join(","),
-      ),
-    ].join("\n");
+    const csvContent = buildCsvRows(
+      headers,
+      rowsToExport.map((r) => [
+        r.key || "",
+        detectSearchIntent(r.key || ""),
+        r.clicks ?? 0,
+        r.impressions ?? 0,
+        `${((r.ctr ?? 0) * 100).toFixed(2)}%`,
+        Number((r.position ?? 0).toFixed(1)),
+      ]),
+      "\n",
+    );
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

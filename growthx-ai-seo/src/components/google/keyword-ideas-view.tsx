@@ -7,6 +7,7 @@ import { useKeywordIdeas, usePresenceCheck, useTrackSuggested } from "@/hooks/us
 import { useWorkspace } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 import { position } from "@/lib/google-format";
+import { buildCsvRows } from "@/lib/report-csv";
 import type { IdeaKind, PresenceResult } from "@/lib/search-intelligence";
 import { cn } from "@/lib/utils";
 
@@ -91,21 +92,19 @@ export function KeywordIdeasView() {
   function handleExportIdeasCsv() {
     if (!displayRows.length) return;
     const headers = ["Keyword", "Type", "Reason", "Search Console Position", "Google Results Status", "Tracked"];
-    const csvContent = [
-      headers.join(","),
-      ...displayRows.map((r) => {
-        const res = checked[r.keyword];
-        const status = !res ? "Not checked" : res.appears ? "Appears" : "Not in results";
-        return [
-          `"${(r.keyword || "").replace(/"/g, '""')}"`,
-          KIND_LABEL[r.kind] || r.kind,
-          `"${(r.reason || "").replace(/"/g, '""')}"`,
-          r.searchConsole?.position ? r.searchConsole.position.toFixed(1) : "N/A",
-          status,
-          isTracked(r.keyword, r.tracked) ? "Yes" : "No",
-        ].join(",");
-      }),
-    ].join("\n");
+    const rows = displayRows.map((r) => {
+      const res = checked[r.keyword];
+      const status = !res ? "Not checked" : res.appears ? "Appears" : "Not in results";
+      return [
+        r.keyword || "",
+        KIND_LABEL[r.kind] || r.kind,
+        r.reason || "",
+        r.searchConsole?.position ? Number(r.searchConsole.position.toFixed(1)) : "N/A",
+        status,
+        isTracked(r.keyword, r.tracked) ? "Yes" : "No",
+      ];
+    });
+    const csvContent = buildCsvRows(headers, rows, "\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
