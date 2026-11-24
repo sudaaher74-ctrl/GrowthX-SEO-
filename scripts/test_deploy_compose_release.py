@@ -77,6 +77,23 @@ class DeployComposeReleaseTests(unittest.TestCase):
         self.assertTrue((self.runtime / 'backup-verified').is_file())
         self.assertEqual((self.runtime / 'backup-verified').read_text().strip(), str(len(b'PGDMP compressed')))
 
+    def test_build_phase_untags_intermediate_stage_images_after_runner(self):
+        seen_cmds = []
+
+        def fake_run(args, **kwargs):
+            seen_cmds.append(args)
+
+        sha = 'a' * 40
+        deploy.run_build_phase(Path('/tmp/ctx'), f'growthx-crawler:{sha}', sha, run_fn=fake_run)
+        self.assertEqual(len(seen_cmds), 4)
+        self.assertEqual(seen_cmds[0][:4], ['docker', 'build', '--target', 'deps'])
+        self.assertEqual(seen_cmds[1][:4], ['docker', 'build', '--target', 'prod-deps'])
+        self.assertEqual(seen_cmds[2][:4], ['docker', 'build', '--target', 'runner'])
+        self.assertEqual(
+            seen_cmds[3],
+            ['docker', 'rmi', '--no-prune', f'growthx-crawler:{sha}-deps', f'growthx-crawler:{sha}-prod-deps'],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

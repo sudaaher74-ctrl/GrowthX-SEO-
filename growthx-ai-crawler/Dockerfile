@@ -10,18 +10,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libgtk-3-0 libxshmfence1 libglu1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Development Dependencies stage (used for building)
+# Development Dependencies stage (used for building).
+# Install npm packages BEFORE copying prisma/ so schema/migration edits reuse
+# the cached node_modules layer instead of re-downloading ~800MB on every deploy.
 FROM base AS deps
 COPY package*.json ./
+RUN npm ci
 COPY prisma ./prisma/
-RUN npm ci && npx prisma generate
+RUN npx prisma generate
 
-# Production Dependencies stage (used for runtime)
-FROM base AS prod-deps
+# Production Dependencies stage (raw npm packages before prisma generate so the
+# Playwright browser stage stays cached across schema and source edits).
+FROM base AS prod-deps-raw
 COPY package*.json ./
-COPY prisma ./prisma/
 ENV NODE_ENV=production
-RUN npm ci --omit=dev && npx prisma generate
+RUN npm ci --omit=dev
+
+FROM prod-deps-raw AS prod-deps
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Cached Chromium browser layer — only rebuilds when package*.json changes.
+FROM prod-deps-raw AS browser
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright install chromium && chown -R node:node /ms-playwright
 
 # Builder stage
 FROM base AS builder
@@ -34,13 +46,13 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Copy cached Playwright Chromium BEFORE node_modules/dist so source & migration edits reuse it
+COPY --from=browser --chown=node:node /ms-playwright /ms-playwright
 
 # Copy production dependencies instead of all dependencies
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
-
-# Install Playwright chromium browser BEFORE copying app dist so source-only edits reuse this cached 115MB layer
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx playwright install chromium && chown -R node:node /ms-playwright
 
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/package*.json ./

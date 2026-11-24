@@ -112,6 +112,29 @@ def run_backup_phase(runtime, run_fn=run, disk_usage_fn=shutil.disk_usage, env=N
     print(f'PostgreSQL backup verified ({dump.stat().st_size} bytes, -Z {compression}); existing volumes retained.')
 
 
+def run_build_phase(context, image, sha, run_fn=run):
+    # Serialize the expensive dependency stages on small hosts, then immediately
+    # untag the intermediate -deps/-prod-deps stage images so deploys do not
+    # accumulate multi-GB orphaned Docker images on every release.
+    intermediate_tags = []
+    for target in ['deps', 'prod-deps', 'runner']:
+        tag = image if target == 'runner' else f'{image}-{target}'
+        run_fn([
+            'docker', 'build', '--target', target,
+            '--label', f'org.opencontainers.image.revision={sha}',
+            '-t', tag, str(context),
+        ])
+        if target != 'runner':
+            intermediate_tags.append(tag)
+    if intermediate_tags:
+        # Best-effort untag: BuildKit layer cache remains intact for fast next builds,
+        # while removing duplicate image tags that otherwise grow disk by several GB per deploy.
+        try:
+            run_fn(['docker', 'rmi', '--no-prune', *intermediate_tags])
+        except Exception:
+            pass
+
+
 def main(argv=None):
     os.umask(0o077)
     args = sys.argv[1:] if argv is None else argv
@@ -134,6 +157,8 @@ def main(argv=None):
             run(['git', '-C', str(source), 'archive', sha], stdout=f)
         with tarfile.open(archive) as tar:
             tar.extractall(checkout, filter='data')
+        # Remove the temporary tarball now that the clean checkout is extracted.
+        archive.unlink(missing_ok=True)
         live_compose_cmd = ['docker', 'compose', '--env-file', env_arg]
         if (live / 'compose.json').is_file() and 'COMPOSE_FILE' not in os.environ:
             live_compose_cmd += ['-f', str(live / 'compose.json')]
@@ -161,9 +186,7 @@ def main(argv=None):
         print(f'Prepared committed release {sha}; private settings preserved.')
     elif phase == 'build':
         context = release / 'source' / 'growthx-ai-crawler'
-        # Serialize the expensive dependency stages on small hosts.
-        for target in ['deps', 'prod-deps', 'runner']:
-            run(['docker', 'build', '--target', target, '--label', f'org.opencontainers.image.revision={sha}', '-t', image if target == 'runner' else f'{image}-{target}', str(context)])
+        run_build_phase(context, image, sha)
     elif phase == 'backup':
         run_backup_phase(runtime)
     elif phase == 'migrate':
