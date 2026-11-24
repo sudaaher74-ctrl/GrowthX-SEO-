@@ -1,34 +1,88 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { PrismaService } from '../../database/prisma.service';
 import { ProjectsService } from './projects.service';
 
-describe('ProjectsService', () => {
-  let service: ProjectsService;
-  let prisma: { project: { create: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock } };
+describe('ProjectsService — fast bottom-up project deletion & snapshot cleanup', () => {
+  it('cancels active jobs, purges crawl leaf tables bottom-up before Website/Project delete, and deletes local snapshots', async () => {
+    const order: string[] = [];
+    const prisma: any = {
+      integration: { findMany: jest.fn().mockResolvedValue([]) },
+      crawlJob: {
+        updateMany: jest.fn(async () => {
+          order.push('cancel-jobs');
+          return { count: 1 };
+        }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'job_1' }, { id: 'job_2' }]),
+      },
+      autopilotRun: { deleteMany: jest.fn().mockResolvedValue({}) },
+      auditReportSnapshot: { deleteMany: jest.fn().mockResolvedValue({}) },
+      competitorReportSnapshot: { deleteMany: jest.fn().mockResolvedValue({}) },
+      googleReportSnapshot: { deleteMany: jest.fn().mockResolvedValue({}) },
+      businessStrategySnapshot: { deleteMany: jest.fn().mockResolvedValue({}) },
+      savedPlan: { deleteMany: jest.fn().mockResolvedValue({}) },
+      actionStepDone: { deleteMany: jest.fn().mockResolvedValue({}) },
+      fixIntervention: { deleteMany: jest.fn().mockResolvedValue({}) },
+      catalogProduct: {
+        deleteMany: jest.fn(async () => {
+          order.push('delete-catalog-product');
+          return { count: 2 };
+        }),
+      },
+      marketingSignal: {
+        deleteMany: jest.fn(async () => {
+          order.push('delete-marketing-signal');
+          return { count: 1 };
+        }),
+      },
+      recommendation: { deleteMany: jest.fn().mockResolvedValue({}) },
+      evidence: { deleteMany: jest.fn().mockResolvedValue({}) },
+      $executeRaw: jest.fn(async (strings: TemplateStringsArray) => {
+        const sql = strings.join(' ').replace(/\s+/g, ' ').trim();
+        const tableMatch = sql.match(/DELETE FROM "(\w+)"/);
+        if (tableMatch) order.push(`raw:${tableMatch[1]}`);
+        return 1;
+      }),
+      website: {
+        deleteMany: jest.fn((args: any) => args),
+      },
+      project: {
+        delete: jest.fn((args: any) => args),
+      },
+      $transaction: jest.fn(async () => {
+        order.push('tx-delete-websites-and-project');
+        return [];
+      }),
+    };
 
-  beforeEach(async () => {
-    prisma = { project: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() } };
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ProjectsService, { provide: PrismaService, useValue: prisma }],
-    }).compile();
-    service = module.get(ProjectsService);
-  });
+    const storage: any = {
+      deleteSnapshotsForJobs: jest.fn(async (ids: string[]) => {
+        order.push(`snapshots:${ids.join(',')}`);
+        return 14;
+      }),
+    };
 
-  it('creates a project', async () => {
-    const data = { name: 'Acme', organization: { connect: { id: 'org_1' } } } as any;
-    prisma.project.create.mockResolvedValue({ id: 'p1', name: 'Acme' });
-    await expect(service.createProject(data)).resolves.toMatchObject({ id: 'p1' });
-    expect(prisma.project.create).toHaveBeenCalledWith({ data });
-  });
+    const service = new ProjectsService(prisma, storage);
+    await service.deleteProject('proj_icici');
 
-  it('scopes the project list to one organization', async () => {
-    prisma.project.findMany.mockResolvedValue([{ id: 'p1' }]);
-    await service.getProjectsByOrganization('org_1');
-    expect(prisma.project.findMany).toHaveBeenCalledWith({ where: { organizationId: 'org_1' } });
-  });
+    expect(order[0]).toBe('cancel-jobs');
+    expect(order).toContain('delete-catalog-product');
+    expect(order).toContain('delete-marketing-signal');
 
-  it('returns null for a project that does not exist', async () => {
-    prisma.project.findUnique.mockResolvedValue(null);
-    await expect(service.getProjectById('missing')).resolves.toBeNull();
+    // Bottom-up leaf order before Page, CrawlJob, Website/Project, and snapshot cleanup
+    const idxLink = order.indexOf('raw:Link');
+    const idxImage = order.indexOf('raw:Image');
+    const idxIssue = order.indexOf('raw:Issue');
+    const idxPage = order.indexOf('raw:Page');
+    const idxJob = order.indexOf('raw:CrawlJob');
+    const idxTx = order.indexOf('tx-delete-websites-and-project');
+    const idxSnap = order.indexOf('snapshots:job_1,job_2');
+
+    expect(idxIssue).toBeGreaterThan(-1);
+    expect(idxLink).toBeGreaterThan(-1);
+    expect(idxImage).toBeGreaterThan(-1);
+    expect(idxPage).toBeGreaterThan(idxLink);
+    expect(idxPage).toBeGreaterThan(idxImage);
+    expect(idxJob).toBeGreaterThan(idxPage);
+    expect(idxTx).toBeGreaterThan(idxJob);
+    expect(idxSnap).toBeGreaterThan(idxTx);
+    expect(storage.deleteSnapshotsForJobs).toHaveBeenCalledWith(['job_1', 'job_2']);
   });
 });

@@ -917,6 +917,8 @@ model OutreachCampaign {
   updatedAt  DateTime          @updatedAt
   project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   contacts   OutreachContact[]
+
+  @@index([projectId])
 }
 
 model OutreachContact {
@@ -998,6 +1000,7 @@ model CompetitorDomain {
   @@unique([projectId, domain])
   @@index([projectId])
   @@index([projectId, status])
+  @@index([websiteId])
 }
 
 /// A social profile found published on a crawled site.
@@ -1152,6 +1155,8 @@ model CustomReport {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model LocalReview {
@@ -1682,6 +1687,7 @@ model MarketResearchThread {
   runs           MarketResearchRun[]
 
   @@index([organizationId, projectId, updatedAt])
+  @@index([projectId])
 }
 
 model MarketResearchMessage {
@@ -1797,6 +1803,7 @@ model MarketOpportunity {
   actions             MarketAction[]
 
   @@index([organizationId, projectId, createdAt])
+  @@index([projectId])
 }
 
 /// A recommendation awaiting a human decision. Nothing here executes on its own.
@@ -1825,6 +1832,7 @@ model MarketAction {
   MarketActionOutcome MarketActionOutcome?
 
   @@index([organizationId, projectId, status])
+  @@index([projectId])
 }
 
 /// A competitor or topic to monitor between research runs.
@@ -1921,6 +1929,7 @@ model MarketActionOutcome {
   action    MarketAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, projectId, status])
+  @@index([projectId])
 }
 
 /// A generated weekly summary for one client.
@@ -2202,6 +2211,7 @@ model ContentStrategy {
   campaigns         Campaign[]
 
   @@index([organizationId, projectId, createdAt])
+  @@index([projectId])
 }
 
 /// A content calendar item (one planned or published piece of social content).
@@ -2262,6 +2272,7 @@ model Campaign {
   creatorMatches CreatorMatch[]
 
   @@index([organizationId, projectId, status])
+  @@index([projectId])
 }
 
 /// A creator or model in the CRM.
@@ -4084,6 +4095,7 @@ model CatalogProduct {
   @@unique([projectId, competitorId, url])
   @@index([projectId, competitorId])
   @@index([projectId, category])
+  @@index([pageId])
 }
 
 /// A positioning/messaging claim read off an already-crawled page's own copy
@@ -4104,6 +4116,7 @@ model MarketingSignal {
   page           Page?             @relation(fields: [pageId], references: [id], onDelete: SetNull)
 
   @@index([projectId, competitorId])
+  @@index([pageId])
 }
 
 /// The public Google Maps listing for a project's business, as the Places API
