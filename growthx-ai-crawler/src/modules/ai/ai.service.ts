@@ -44,14 +44,77 @@ export class AiService {
    * deterministic SEO rules engine, so the product still returns real guidance
    * rather than an error.
    */
-  async analyzeIssue(issueId: string, organizationId?: string): Promise<AIAnalysisResult> {
+  async analyzeIssue(
+    issueId: string,
+    organizationId?: string,
+    options?: { forceRefresh?: boolean },
+  ): Promise<AIAnalysisResult> {
     const issue = await this.prisma.issue.findUnique({
       where: { id: issueId },
-      include: { page: true },
+      include: { page: true, aiRecommendation: true },
     });
 
     if (!issue) {
       throw new Error(`Issue with ID ${issueId} not found`);
+    }
+
+    const cacheEnabled = !options?.forceRefresh && process.env.AI_CONTENT_HASH_CACHE !== 'false';
+    if (cacheEnabled) {
+      // 1. Reuse existing LLM analysis already saved on this exact issue.
+      const existing = (issue as any).aiRecommendation;
+      if (existing && this.isReusableAnalysisRecord(existing)) {
+        return this.recordToAnalysis(existing);
+      }
+
+      // 2. Tenant/project-scoped content-hash reuse: if a prior crawl of this
+      // exact project already analyzed the same issueType on the same URL with
+      // the exact same page contentHash, clone the verified analysis at 0 LLM cost.
+      const contentHash = issue.page?.contentHash;
+      if (issue.projectId && contentHash && this.prisma.aIRecommendation?.findFirst) {
+        const prior = await this.prisma.aIRecommendation
+          .findFirst({
+            where: {
+              issueId: { not: issue.id },
+              generatedByModel: { not: null },
+              NOT: { generatedByModel: 'rules-engine' },
+              issue: {
+                projectId: issue.projectId,
+                issueType: issue.issueType,
+                affectedUrl: issue.affectedUrl,
+                page: { contentHash },
+              },
+            },
+            orderBy: { updatedAt: 'desc' },
+          })
+          .catch(() => null);
+
+        if (prior && this.isReusableAnalysisRecord(prior)) {
+          const cached = this.recordToAnalysis(prior);
+          const clonedRecord = {
+            whyItMatters: cached.whyItMatters,
+            seoImpact: cached.seoImpact,
+            businessImpact: cached.businessImpact,
+            priorityScore: cached.priorityScore,
+            recommendedFixPatch: cached.recommendedFix,
+            expectedOutcome: cached.expectedOutcome,
+            generatedByModel: prior.generatedByModel ?? 'cached',
+            status: 'PENDING_APPROVAL' as const,
+          };
+          await this.prisma.aIRecommendation.upsert({
+            where: { issueId: issue.id },
+            update: clonedRecord,
+            create: { issueId: issue.id, ...clonedRecord },
+          });
+          await this.prisma.issue.update({
+            where: { id: issue.id },
+            data: { aiFixAvailable: true },
+          });
+          this.logger.debug(
+            `Reused tenant-scoped content-hash AI analysis for ${issue.issueType} on ${issue.affectedUrl} (0 LLM tokens).`,
+          );
+          return cached;
+        }
+      }
     }
 
     this.logger.log(`Analyzing ${issue.issueType} on ${issue.affectedUrl}...`);
@@ -67,7 +130,9 @@ export class AiService {
           'Respond with JSON matching the requested schema and nothing else.',
         task: AiTask.REASONING,
         organizationId,
+        projectId: issue.projectId ?? undefined,
         jsonSchema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
+        cacheable: true,
       });
 
       if (completion.refused || !completion.text.trim()) {
@@ -114,6 +179,36 @@ export class AiService {
     });
 
     return analysis;
+  }
+
+  private isReusableAnalysisRecord(rec: {
+    generatedByModel?: string | null;
+    whyItMatters?: string | null;
+    recommendedFixPatch?: string | null;
+  }): boolean {
+    if (!rec.generatedByModel || rec.generatedByModel === 'rules-engine') return false;
+    if (!rec.whyItMatters?.trim() || !rec.recommendedFixPatch?.trim()) return false;
+    // AutoFixService stores a JSON patch object in recommendedFixPatch; skip those for narrative analysis reuse.
+    if (rec.recommendedFixPatch.trimStart().startsWith('{')) return false;
+    return true;
+  }
+
+  private recordToAnalysis(rec: {
+    whyItMatters: string;
+    seoImpact: string;
+    businessImpact: string;
+    priorityScore: number;
+    recommendedFixPatch: string;
+    expectedOutcome: string;
+  }): AIAnalysisResult {
+    return {
+      whyItMatters: rec.whyItMatters,
+      seoImpact: rec.seoImpact,
+      businessImpact: rec.businessImpact,
+      priorityScore: rec.priorityScore,
+      recommendedFix: rec.recommendedFixPatch,
+      expectedOutcome: rec.expectedOutcome,
+    };
   }
 
   private buildPrompt(issue: { issueType: string; severity: string; affectedUrl: string; description: string }): string {

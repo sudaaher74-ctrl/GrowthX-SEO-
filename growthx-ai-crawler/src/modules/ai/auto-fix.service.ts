@@ -32,7 +32,11 @@ export class AutoFixService {
    * used instead. Both paths are grounded in the customer's page: a patch must
    * never carry our product name, an invented price, or a made-up claim.
    */
-  async generateFixPatch(issueId: string, organizationId?: string): Promise<GeneratedFixPatch> {
+  async generateFixPatch(
+    issueId: string,
+    organizationId?: string,
+    options?: { forceRefresh?: boolean },
+  ): Promise<GeneratedFixPatch> {
     const issue = await this.prisma.issue.findUnique({
       where: { id: issueId },
       include: { page: true, aiRecommendation: true },
@@ -53,6 +57,66 @@ export class AutoFixService {
     };
 
     const plan = planFix(issue.issueType, page, issue.recommendation);
+
+    const cacheEnabled = !options?.forceRefresh && process.env.AI_CONTENT_HASH_CACHE !== 'false';
+    if (cacheEnabled && plan.prompt) {
+      // 1. Reuse existing model-generated patch already saved on this issue.
+      const existingPatch = this.parseReusablePatch(
+        issue.aiRecommendation?.recommendedFixPatch,
+        plan.fixType,
+        plan.originalValue,
+      );
+      if (existingPatch) return existingPatch;
+
+      // 2. Tenant/project-scoped content-hash reuse across re-crawls of unchanged pages.
+      const contentHash = issue.page.contentHash;
+      if (issue.projectId && contentHash && this.prisma.aIRecommendation?.findFirst) {
+        const prior = await this.prisma.aIRecommendation
+          .findFirst({
+            where: {
+              issueId: { not: issue.id },
+              generatedByModel: { not: null },
+              NOT: { generatedByModel: 'rules-engine' },
+              issue: {
+                projectId: issue.projectId,
+                issueType: issue.issueType,
+                affectedUrl: issue.affectedUrl,
+                page: { contentHash },
+              },
+            },
+            orderBy: { updatedAt: 'desc' },
+          })
+          .catch(() => null);
+
+        const reusedPatch = this.parseReusablePatch(
+          prior?.recommendedFixPatch,
+          plan.fixType,
+          plan.originalValue,
+        );
+        if (reusedPatch) {
+          await this.prisma.aIRecommendation.upsert({
+            where: { issueId: issue.id },
+            update: { recommendedFixPatch: JSON.stringify(reusedPatch, null, 2), status: 'PENDING_APPROVAL' },
+            create: {
+              issueId: issue.id,
+              whyItMatters: issue.aiRecommendation?.whyItMatters || prior?.whyItMatters || 'Improves technical SEO health.',
+              seoImpact: issue.aiRecommendation?.seoImpact || prior?.seoImpact || 'Positive ranking signal.',
+              businessImpact: issue.aiRecommendation?.businessImpact || prior?.businessImpact || 'Higher traffic retention.',
+              priorityScore: issue.aiRecommendation?.priorityScore || prior?.priorityScore || 75,
+              recommendedFixPatch: JSON.stringify(reusedPatch, null, 2),
+              expectedOutcome: issue.aiRecommendation?.expectedOutcome || prior?.expectedOutcome || 'Resolved audit issue.',
+              generatedByModel: reusedPatch.model ?? prior?.generatedByModel ?? 'cached',
+              status: 'PENDING_APPROVAL',
+            },
+          });
+          this.logger.debug(
+            `Reused tenant-scoped content-hash auto-fix patch for ${issue.issueType} on ${issue.affectedUrl} (0 LLM tokens).`,
+          );
+          return reusedPatch;
+        }
+      }
+    }
+
     this.logger.log(`Generating ${plan.fixType} patch for ${issue.affectedUrl}...`);
 
     let rendered: { proposedValue: string; codeSnippet: string } | null = null;
@@ -70,7 +134,9 @@ export class AutoFixService {
             'Respond only with JSON matching the schema.',
           task: AiTask.REASONING,
           organizationId,
+          projectId: issue.projectId ?? undefined,
           jsonSchema: plan.schema,
+          cacheable: true,
         });
 
         if (!completion.refused && completion.text.trim()) {
@@ -114,6 +180,32 @@ export class AutoFixService {
     });
 
     return patch;
+  }
+
+  private parseReusablePatch(
+    raw: string | null | undefined,
+    expectedFixType: FixType,
+    expectedOriginalValue: string | null | undefined,
+  ): GeneratedFixPatch | null {
+    if (!raw || !raw.trimStart().startsWith('{')) return null;
+    try {
+      const parsed = JSON.parse(raw) as Partial<GeneratedFixPatch>;
+      if (
+        parsed.source === 'model' &&
+        parsed.fixType === expectedFixType &&
+        (parsed.originalValue ?? null) === (expectedOriginalValue ?? null) &&
+        typeof parsed.proposedValue === 'string' &&
+        parsed.proposedValue.trim() &&
+        typeof parsed.codeSnippet === 'string' &&
+        parsed.codeSnippet.trim() &&
+        typeof parsed.targetUrl === 'string'
+      ) {
+        return parsed as GeneratedFixPatch;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /** Tolerates a model that wraps JSON in prose or a code fence. */

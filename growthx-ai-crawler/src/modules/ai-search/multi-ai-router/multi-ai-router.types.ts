@@ -118,6 +118,11 @@ export interface AiRequest {
   maxTokens?: number;
   /** Optional request deadline for visibility probes and analysis. */
   timeoutMs?: number;
+  /**
+   * Opt-in short-TTL response deduplication cache (strictly scoped by
+   * `organizationId`). Leave unset/false for live probes (e.g. AI Visibility).
+   */
+  cacheable?: boolean;
 }
 
 export interface AiUsage {

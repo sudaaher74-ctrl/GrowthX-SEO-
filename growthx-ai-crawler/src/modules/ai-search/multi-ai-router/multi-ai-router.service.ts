@@ -1,5 +1,6 @@
 import { Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
@@ -14,6 +15,7 @@ import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { configuredValue, isConfiguredValue } from '../../../config/optional-env';
 import { AiUsageService } from './ai-usage.service';
 import { TokensService } from '../../tokens/tokens.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { MammouthCapability } from './mammouth-models.config';
 import {
   AiProvider,
@@ -92,6 +94,17 @@ export class MultiAiRouterService {
   /** `AI_PROVIDERS`: vendors outside it are never called, key or no key. */
   private readonly providerAllowlist: ReadonlySet<string> | null;
 
+  /** Short-TTL cache of server-owned Organization.subscriptionTier values. */
+  private readonly orgTierCache = new Map<string, { tier: string | null; readAt: number }>();
+  private static readonly ORG_TIER_TTL_MS = 60_000;
+  private static readonly MAX_ORG_TIER_ENTRIES = 1000;
+
+  /** Bounded tenant-scoped response deduplication cache (opt-in via `request.cacheable`). */
+  private readonly responseCache = new Map<string, { completion: AiCompletion; expiresAt: number }>();
+  private readonly responseCacheTtlMs: number;
+  private readonly responseCacheMaxEntries: number;
+  private readonly fastRouteTiers: ReadonlySet<string>;
+
   constructor(
     private readonly config: ConfigService,
     /**
@@ -106,6 +119,11 @@ export class MultiAiRouterService {
      * ai-search.module.spec.ts), or enforcement would silently not exist.
      */
     @Optional() private readonly tokens?: TokensService,
+    /**
+     * Optional database handle for reading server-owned `Organization.subscriptionTier`
+     * to route lower plans through cost-optimized FAST providers for reasoning tasks.
+     */
+    @Optional() private readonly prisma?: PrismaService,
   ) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
@@ -130,6 +148,22 @@ export class MultiAiRouterService {
     this.sarvamReasoningEffort = resolveSarvamReasoningEffort(this.config);
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
     this.providerAllowlist = readProviderAllowlist(this.config);
+    this.responseCacheTtlMs = Math.max(
+      1_000,
+      Number(this.config.get<string>('AI_RESPONSE_CACHE_TTL_MS') ?? process.env.AI_RESPONSE_CACHE_TTL_MS ?? 600_000),
+    );
+    this.responseCacheMaxEntries = Math.max(
+      10,
+      Number(this.config.get<string>('AI_RESPONSE_CACHE_MAX_ENTRIES') ?? process.env.AI_RESPONSE_CACHE_MAX_ENTRIES ?? 500),
+    );
+    const fastTiersRaw =
+      this.config.get<string>('AI_FAST_TIERS') ?? process.env.AI_FAST_TIERS ?? 'founder_free,starter';
+    this.fastRouteTiers = new Set(
+      fastTiersRaw
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    );
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
     if (this.isRealKey(anthropicKey)) this.anthropic = new Anthropic({ apiKey: anthropicKey });
@@ -197,9 +231,10 @@ export class MultiAiRouterService {
    * know when a generated feature comes back blank, and previously only
    * visible by reading the service's own logs.
    */
-  chainFor(task: AiTask): AiProvider[] {
+  chainFor(task: AiTask, profileOverride?: RoutingProfile): AiProvider[] {
     const allowed = this.configuredProviders();
-    return TASK_PREFERENCE[profileFor(task)].filter((p) => allowed.includes(p));
+    const profile = profileOverride ?? profileFor(task);
+    return TASK_PREFERENCE[profile].filter((p) => allowed.includes(p));
   }
 
   /** The model each configured provider would use. Names only — never key material. */
@@ -249,7 +284,20 @@ export class MultiAiRouterService {
     await this.usageLedger?.assertWithinBudget(scoped.organizationId);
     await this.tokens?.assertCanStart(scoped.organizationId);
 
+    const cacheKey = this.buildResponseCacheKey(scoped, task);
+    if (cacheKey) {
+      const hit = this.readResponseCache(cacheKey);
+      if (hit) {
+        this.logger.debug(`AI response cache hit for org ${scoped.organizationId} (${task}/${hit.provider}/${hit.model}).`);
+        return hit;
+      }
+    }
+
     const completion = await this.route(scoped, task);
+
+    if (cacheKey && !completion.refused && completion.text.trim()) {
+      this.writeResponseCache(cacheKey, completion);
+    }
 
     if (this.tokens && !completion.refused) {
       // Settling never throws by contract, and is caught anyway: the answer
@@ -401,6 +449,91 @@ export class MultiAiRouterService {
    * credentials. If the chosen vendor errors or its safety classifiers decline,
    * the next allowed vendor is tried.
    */
+  private buildResponseCacheKey(request: AiRequest, task: AiTask): string | null {
+    if (!request.cacheable || !request.organizationId || !this.responseCache) return null;
+    if ((this.config?.get<string>('AI_RESPONSE_CACHE') ?? process.env.AI_RESPONSE_CACHE) === 'false') {
+      return null;
+    }
+    return createHash('sha256')
+      .update(
+        JSON.stringify([
+          request.organizationId,
+          task,
+          request.provider ?? '',
+          request.model ?? '',
+          request.systemInstruction ?? '',
+          request.prompt,
+          request.jsonSchema ?? null,
+          request.maxTokens ?? null,
+        ]),
+      )
+      .digest('hex');
+  }
+
+  private readResponseCache(key: string): AiCompletion | null {
+    const entry = this.responseCache?.get(key);
+    if (!entry) return null;
+    if (Date.now() >= entry.expiresAt) {
+      this.responseCache.delete(key);
+      return null;
+    }
+    return {
+      ...entry.completion,
+      usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
+    };
+  }
+
+  private writeResponseCache(key: string, completion: AiCompletion): void {
+    if (!this.responseCache) return;
+    if (this.responseCache.size >= this.responseCacheMaxEntries) {
+      const oldestKey = this.responseCache.keys().next().value;
+      if (oldestKey !== undefined) this.responseCache.delete(oldestKey);
+    }
+    this.responseCache.set(key, {
+      completion: { ...completion, usage: { ...completion.usage } },
+      expiresAt: Date.now() + this.responseCacheTtlMs,
+    });
+  }
+
+  private async resolveOrgTier(organizationId: string): Promise<string | null> {
+    const cached = this.orgTierCache?.get(organizationId);
+    if (cached && Date.now() - cached.readAt < MultiAiRouterService.ORG_TIER_TTL_MS) {
+      return cached.tier;
+    }
+    if (!this.prisma?.organization?.findUnique) return null;
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { subscriptionTier: true },
+      });
+      const tier = org?.subscriptionTier ?? null;
+      if (this.orgTierCache) {
+        if (this.orgTierCache.size >= MultiAiRouterService.MAX_ORG_TIER_ENTRIES) {
+          const oldestKey = this.orgTierCache.keys().next().value;
+          if (oldestKey !== undefined) this.orgTierCache.delete(oldestKey);
+        }
+        this.orgTierCache.set(organizationId, { tier, readAt: Date.now() });
+      }
+      return tier;
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveProfileForRequest(request: AiRequest, task: AiTask): Promise<RoutingProfile> {
+    const base = profileFor(task);
+    if (base !== RoutingProfile.REASONING) return base;
+    if ((this.config?.get<string>('AI_TIERED_ROUTING') ?? process.env.AI_TIERED_ROUTING) === 'false') {
+      return base;
+    }
+    if (!request.organizationId || !this.fastRouteTiers) return base;
+    const tier = await this.resolveOrgTier(request.organizationId);
+    if (tier && this.fastRouteTiers.has(tier.toLowerCase())) {
+      return RoutingProfile.FAST;
+    }
+    return base;
+  }
+
   private async route(request: AiRequest, task: AiTask): Promise<AiCompletion> {
     const allowed = this.configuredProviders();
 
@@ -417,7 +550,8 @@ export class MultiAiRouterService {
       return completion;
     }
 
-    const chain = this.chainFor(task);
+    const effectiveProfile = await this.resolveProfileForRequest(request, task);
+    const chain = this.chainFor(task, effectiveProfile);
     if (chain.length === 0) {
       throw new ServiceUnavailableException(
         // Was "check plan entitlements", which pointed at a billing system

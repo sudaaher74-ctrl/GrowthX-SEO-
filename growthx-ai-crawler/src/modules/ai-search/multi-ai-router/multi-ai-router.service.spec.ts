@@ -799,3 +799,93 @@ describe('CODE_GEN dedicated coding models', () => {
     expect(fallbackRes.text).toBe('fallback ok');
   });
 });
+
+describe('plan-tiered cost routing & tenant-scoped response deduplication', () => {
+  function buildWithDeps(tiers: Record<string, string>, tokens?: any) {
+    const values: Record<string, string> = {
+      GEMINI_API_KEY: 'gem-real',
+      OPENAI_API_KEY: 'oai-real',
+      ANTHROPIC_API_KEY: 'ant-real',
+      ANTHROPIC_SERVER_SIDE_FALLBACK: 'false',
+    };
+    const config = { get: (key: string) => values[key] } as unknown as ConfigService;
+    const prisma: any = {
+      organization: {
+        findUnique: jest.fn(async ({ where }: any) =>
+          where.id in tiers ? { subscriptionTier: tiers[where.id] } : null,
+        ),
+      },
+    };
+    const service = new MultiAiRouterService(config, undefined, tokens, prisma);
+    const anthropic = anthropicStub();
+    const gemini = geminiStub();
+    const openai = openAiStub();
+    stubClients(service, { anthropic, gemini, openai });
+    return { service, anthropic, gemini, openai, prisma };
+  }
+
+  it('routes founder_free and starter REASONING tasks via FAST profile while keeping growth/agency on REASONING and CODE_GEN unchanged', async () => {
+    const { service, anthropic, gemini } = buildWithDeps({
+      org_free: 'founder_free',
+      org_starter: 'starter',
+      org_agency: 'agency',
+    });
+
+    const freeRes = await service.generate({ prompt: 'explain title tag', organizationId: 'org_free' });
+    expect(freeRes.provider).toBe(AiProvider.GEMINI);
+    expect(gemini.generateContent).toHaveBeenCalledTimes(1);
+    expect(anthropic.create).not.toHaveBeenCalled();
+
+    const starterRes = await service.generate({ prompt: 'explain canonical', organizationId: 'org_starter' });
+    expect(starterRes.provider).toBe(AiProvider.GEMINI);
+
+    const agencyRes = await service.generate({ prompt: 'explain canonical', organizationId: 'org_agency' });
+    expect(agencyRes.provider).toBe(AiProvider.ANTHROPIC);
+    expect(anthropic.create).toHaveBeenCalledTimes(1);
+
+    // CODE_GEN is never downgraded even on founder_free.
+    const freeCodeRes = await service.generate({
+      prompt: 'generate patch',
+      task: AiTask.CODE_GEN,
+      organizationId: 'org_free',
+    });
+    expect(freeCodeRes.provider).toBe(AiProvider.ANTHROPIC);
+  });
+
+  it('deduplicates identical cacheable requests within the same organization without leaking across tenants or charging twice', async () => {
+    const tokens = {
+      assertCanStart: jest.fn().mockResolvedValue(undefined),
+      settleAiUsage: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, gemini } = buildWithDeps({ org_a: 'starter', org_b: 'starter' }, tokens);
+
+    const first = await service.generate({
+      prompt: 'same prompt',
+      organizationId: 'org_a',
+      cacheable: true,
+    });
+    const second = await service.generate({
+      prompt: 'same prompt',
+      organizationId: 'org_a',
+      cacheable: true,
+    });
+    // Org B with the exact same prompt must NOT receive Org A's cached answer.
+    const otherTenant = await service.generate({
+      prompt: 'same prompt',
+      organizationId: 'org_b',
+      cacheable: true,
+    });
+
+    expect(first.text).toBe('gemini answer');
+    expect(second.text).toBe('gemini answer');
+    expect(second.usage).toEqual({ inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 });
+    expect(otherTenant.text).toBe('gemini answer');
+    expect(gemini.generateContent).toHaveBeenCalledTimes(2); // 1 for org_a + 1 for org_b
+    expect(tokens.settleAiUsage).toHaveBeenCalledTimes(2); // never charged twice for cache hit
+
+    // Non-cacheable requests always hit the live provider.
+    await service.generate({ prompt: 'live visibility probe', organizationId: 'org_a' });
+    await service.generate({ prompt: 'live visibility probe', organizationId: 'org_a' });
+    expect(gemini.generateContent).toHaveBeenCalledTimes(4);
+  });
+});
