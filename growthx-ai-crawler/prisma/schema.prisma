@@ -468,6 +468,27 @@ model LoginCode {
   @@index([expiresAt])
 }
 
+/// Expiring, single-use, browser-bound OAuth transaction used across Google
+/// sign-in, Google data integrations, and GitHub OAuth callbacks.
+/// Only SHA-256 hashes of `state` and the HttpOnly browser nonce cookie are stored.
+model OAuthTransaction {
+  id               String    @id
+  provider         String
+  purpose          String
+  browserNonceHash String
+  userId           String?
+  organizationId   String?
+  projectId        String?
+  pkceVerifier     String?
+  returnTo         String?
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([userId, provider])
+}
+
 model Organization {
   id                 String               @id @default(uuid())
   name               String

@@ -188,6 +188,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - INTERNAL_API_URL=http://api:3000
+      - GITHUB_OAUTH_SESSION_SECRET=${GITHUB_OAUTH_SESSION_SECRET:-${ENCRYPTION_KEY}}
     depends_on:
       - api
 

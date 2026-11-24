@@ -1,11 +1,24 @@
 import { BadRequestException, Controller, Delete, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { Roles } from '../../auth/roles.decorator';
+import { getCookieBaseOptions } from '../../auth/auth-cookie.util';
 import { Role } from '@prisma/client';
-import { GoogleOAuthService } from './google-oauth.service';
+import { GOOGLE_INTEGRATION_NONCE_COOKIE, GoogleOAuthService } from './google-oauth.service';
 import { isGoogleProvider } from './google-provider';
+
+const GOOGLE_INT_COOKIE_PATH = '/api/integrations/google/callback';
+const GOOGLE_INT_TTL_MS = 15 * 60 * 1000;
+
+function integrationNonceCookieOptions() {
+  const base = getCookieBaseOptions();
+  return {
+    ...base,
+    httpOnly: true,
+    path: GOOGLE_INT_COOKIE_PATH,
+  };
+}
 
 /**
  * Starting and finishing a Google connection.
@@ -26,18 +39,25 @@ export class GoogleOAuthCallbackController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('error') error: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const appUrl = (process.env.APP_BASE_URL || '').replace(/\/$/, '');
     const back = (path: string) => res.redirect(`${appUrl}${path}`);
 
+    const browserNonce =
+      typeof req?.cookies?.[GOOGLE_INTEGRATION_NONCE_COOKIE] === 'string'
+        ? req.cookies[GOOGLE_INTEGRATION_NONCE_COOKIE]
+        : undefined;
+    res.clearCookie(GOOGLE_INTEGRATION_NONCE_COOKIE, integrationNonceCookieOptions());
+
     // The customer pressed Cancel on Google's consent screen. Not an error to
     // report — take them back to where they started.
     if (error) return back(`/integrations?google=cancelled`);
-    if (!code || !state) return back(`/integrations?google=invalid`);
+    if (!code || !state || !browserNonce) return back(`/integrations?google=invalid`);
 
     try {
-      const result = await this.oauth.completeAuthorization({ code, state });
+      const result = await this.oauth.completeAuthorization({ code, state, browserNonce });
       const destination = result.returnTo || '/integrations';
       // A connection with no property chosen yet is not finished, so the
       // customer is sent straight to choosing one rather than to a card that
@@ -74,25 +94,32 @@ export class GoogleOAuthController {
   @Roles(Role.OWNER, Role.ADMIN)
   @Post(':provider/authorize')
   @ApiOperation({ summary: 'Begin connecting a Google service' })
-  authorize(
+  async authorize(
     @Req() req: any,
     @Param('projectId') projectId: string,
     @Param('provider') provider: string,
     @Query('returnTo') returnTo?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
     if (!isGoogleProvider(provider)) throw new BadRequestException(`Unknown Google service "${provider}".`);
 
-    return {
-      authorizationUrl: this.oauth.authorizationUrl({
-        provider,
-        projectId,
-        organizationId: req.organizationId,
-        // Only a path, never an absolute URL: an attacker-supplied returnTo
-        // would otherwise make this an open redirect off the back of a
-        // trusted domain.
-        returnTo: returnTo?.startsWith('/') ? returnTo : undefined,
-      }),
-    };
+    const safeReturnTo =
+      returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : undefined;
+
+    const { authorizationUrl, browserNonce } = await this.oauth.startAuthorization({
+      provider,
+      projectId,
+      organizationId: req.organizationId,
+      userId: req.user?.userId,
+      returnTo: safeReturnTo,
+    });
+
+    res?.cookie(GOOGLE_INTEGRATION_NONCE_COOKIE, browserNonce, {
+      ...integrationNonceCookieOptions(),
+      maxAge: GOOGLE_INT_TTL_MS,
+    });
+
+    return { authorizationUrl };
   }
 
   @Roles(Role.OWNER, Role.ADMIN)

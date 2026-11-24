@@ -143,10 +143,15 @@ const LEGACY_CMS_STORAGE_PREFIXES = [
   "growthx.cms.",
 ];
 
+const LEGACY_BROWSER_SECRET_KEYS = [
+  "reigel_github_oauth_session_v1",
+  "reigel_github_app_config_v1",
+];
+
 /**
- * Purges retired browser-held CMS vault tokens and cached credentials on
- * startup, sign-in, account switch, disconnect, and logout so copied or stale
- * browser records cannot persist across sessions.
+ * Purges retired browser-held CMS vault tokens and legacy GitHub browser
+ * secrets on startup, sign-in, account switch, disconnect, and logout so
+ * stale credentials never survive across users in the same tab.
  */
 export function clearLegacyCmsBrowserRecords(): void {
   if (typeof window === "undefined") return;
@@ -155,7 +160,11 @@ export function clearLegacyCmsBrowserRecords(): void {
       const keysToDelete: string[] = [];
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && LEGACY_CMS_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+        if (
+          key &&
+          (LEGACY_CMS_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) ||
+            LEGACY_BROWSER_SECRET_KEYS.includes(key))
+        ) {
           keysToDelete.push(key);
         }
       }
@@ -199,6 +208,14 @@ export const auth = {
       window.localStorage.removeItem(SESSION_FLAG_KEY);
       window.localStorage.removeItem(ORG_KEY);
       window.localStorage.removeItem(PROJECT_KEY);
+      // Also clear the server-side HttpOnly GitHub OAuth session cookie so a
+      // subsequent user signing in within the same tab cannot inherit it.
+      void fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect_session" }),
+      }).catch(() => undefined);
       if (typeof document !== "undefined") {
         document.cookie = "logged_in=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         document.cookie = "csrf_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";

@@ -54,6 +54,21 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
   }
 
+  /** Forward PKCE S256 challenge parameters attached by GoogleAuthGuard. */
+  authorizationParams(options: Record<string, any>): Record<string, string> {
+    const params: Record<string, string> = {};
+    if (options?.code_challenge) params.code_challenge = String(options.code_challenge);
+    if (options?.code_challenge_method) params.code_challenge_method = String(options.code_challenge_method);
+    return params;
+  }
+
+  /** Forward PKCE code_verifier attached by GoogleAuthGuard after browser-bound state verification. */
+  tokenParams(options: Record<string, any>): Record<string, string> {
+    const params: Record<string, string> = {};
+    if (options?.code_verifier) params.code_verifier = String(options.code_verifier);
+    return params;
+  }
+
   async validate(
     accessToken: string,
     refreshToken: string,

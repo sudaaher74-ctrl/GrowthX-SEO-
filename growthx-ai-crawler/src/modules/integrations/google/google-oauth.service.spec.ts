@@ -1,4 +1,5 @@
 import { GoogleOAuthService } from './google-oauth.service';
+import { OAuthTransactionService } from '../../security/oauth-transaction.service';
 import { encodeState } from './oauth-state';
 import { encryptToken } from './token-crypto';
 
@@ -379,5 +380,160 @@ describe('GoogleOAuthService — a token refresh must not promote the connection
 
     expect(written.status).toBe('CONNECTED');
     expect(written.statusMessage).toBeNull();
+  });
+});
+
+describe('GoogleOAuthService — browser-bound single-use OAuth transaction & PKCE', () => {
+  const env = { ...process.env };
+  beforeEach(() => {
+    process.env.GOOGLE_CLIENT_ID = 'test-client-id';
+    process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+    process.env.GOOGLE_REDIRECT_URI = 'https://api.example.com/api/integrations/google/callback';
+    process.env.INTEGRATION_TOKEN_KEY = 'C1PS0y3rGHb0mAtwGDbTeoiSMkR8CQrRD1z0jFYqQ7Y=';
+  });
+  afterAll(() => {
+    process.env = env;
+  });
+
+  function buildStatefulOAuthHarness(memberRole: string | null = 'OWNER') {
+    const txRows = new Map<string, any>();
+    const prisma: any = {
+      oAuthTransaction: {
+        create: jest.fn(async ({ data }: any) => {
+          const row = { consumedAt: null, ...data };
+          txRows.set(row.id, row);
+          return row;
+        }),
+        findUnique: jest.fn(async ({ where }: any) => txRows.get(where.id) ?? null),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const row = txRows.get(where.id);
+          if (
+            !row ||
+            row.provider !== where.provider ||
+            row.browserNonceHash !== where.browserNonceHash ||
+            row.consumedAt !== null ||
+            (where.expiresAt?.gt && !(row.expiresAt > where.expiresAt.gt)) ||
+            (where.purpose && row.purpose !== where.purpose) ||
+            (where.userId && row.userId !== where.userId) ||
+            (where.projectId && row.projectId !== where.projectId)
+          ) {
+            return { count: 0 };
+          }
+          row.consumedAt = data.consumedAt;
+          return { count: 1 };
+        }),
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      project: { findFirst: jest.fn().mockResolvedValue({ id: 'proj-1' }) },
+      organizationMember: {
+        findUnique: jest.fn().mockResolvedValue(memberRole ? { role: memberRole } : null),
+      },
+      integration: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn(async ({ create, update }: any) => ({ id: 'int-1', ...create, ...update })),
+      },
+      integrationAuditEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const txService = new OAuthTransactionService(prisma);
+    const service = new GoogleOAuthService(prisma, txService);
+    const getToken = jest.fn().mockResolvedValue({
+      tokens: {
+        access_token: 'ya29.bound-access',
+        refresh_token: '1//bound-refresh',
+        scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+      },
+    });
+    (service as any).client = () => ({
+      generateAuthUrl: (opts: any) => {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(opts)) {
+          if (v !== undefined) params.set(k, Array.isArray(v) ? v.join(' ') : String(v));
+        }
+        return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      },
+      getToken,
+    });
+    return { prisma, txRows, txService, service, getToken };
+  }
+
+  it('starts an authorization with PKCE S256 and completes once with matching browser nonce', async () => {
+    const { service, getToken, prisma } = buildStatefulOAuthHarness('ADMIN');
+
+    const started = await service.startAuthorization({
+      provider: 'search_console',
+      projectId: 'proj-1',
+      organizationId: 'org-1',
+      userId: 'user-1',
+      returnTo: '/settings',
+    });
+
+    const parsed = new URL(started.authorizationUrl);
+    const state = parsed.searchParams.get('state')!;
+    expect(state).toBeTruthy();
+    expect(parsed.searchParams.get('code_challenge')).toBeTruthy();
+    expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(started.browserNonce).toBeTruthy();
+
+    const result = await service.completeAuthorization({
+      code: 'auth-code-1',
+      state,
+      browserNonce: started.browserNonce,
+    });
+
+    expect(result.returnTo).toBe('/settings');
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(getToken.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        code: 'auth-code-1',
+        codeVerifier: expect.any(String),
+      }),
+    );
+    expect(prisma.integration.upsert).toHaveBeenCalledTimes(1);
+
+    // Replay of the exact same state + browser nonce must be rejected BEFORE calling Google.
+    await expect(
+      service.completeAuthorization({
+        code: 'auth-code-replay',
+        state,
+        browserNonce: started.browserNonce,
+      }),
+    ).rejects.toThrow(/already used/i);
+    expect(getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects callback with missing or mismatched browser nonce before exchanging the code', async () => {
+    const { service, getToken } = buildStatefulOAuthHarness('OWNER');
+    const started = await service.startAuthorization({
+      provider: 'analytics',
+      projectId: 'proj-1',
+      organizationId: 'org-1',
+      userId: 'user-1',
+    });
+    const state = new URL(started.authorizationUrl).searchParams.get('state')!;
+
+    await expect(
+      service.completeAuthorization({ code: 'auth-code', state, browserNonce: 'wrong-browser-nonce' }),
+    ).rejects.toThrow(/browser session/i);
+    await expect(
+      service.completeAuthorization({ code: 'auth-code', state }),
+    ).rejects.toThrow(/browser verification/i);
+
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it('rejects callback when the initiating user lost OWNER/ADMIN privileges before completion', async () => {
+    const { service, getToken } = buildStatefulOAuthHarness('VIEWER');
+    const started = await service.startAuthorization({
+      provider: 'search_console',
+      projectId: 'proj-1',
+      organizationId: 'org-1',
+      userId: 'demoted-user',
+    });
+    const state = new URL(started.authorizationUrl).searchParams.get('state')!;
+
+    await expect(
+      service.completeAuthorization({ code: 'auth-code', state, browserNonce: started.browserNonce }),
+    ).rejects.toThrow(/no longer has permission/i);
+    expect(getToken).not.toHaveBeenCalled();
   });
 });

@@ -19,7 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { GitHubLogo } from "@/components/settings/integration-logos";
-import { useConnectRepository } from "@/hooks/use-growthx";
+import { clearLegacyCmsBrowserRecords } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
 export interface GitHubAgentConnectWorkflowProps {
@@ -68,17 +68,6 @@ interface GitHubLiveRepo {
   };
 }
 
-interface StoredGitHubAppConfig {
-  slug: string;
-  name: string;
-  clientId: string;
-  clientSecret: string;
-  htmlUrl: string;
-}
-
-const SESSION_STORAGE_KEY = "reigel_github_oauth_session_v1";
-const APP_CONFIG_STORAGE_KEY = "reigel_github_app_config_v1";
-
 function inferFramework(repo: GitHubLiveRepo): string {
   const hay = `${repo.name} ${repo.description || ""} ${repo.language || ""}`.toLowerCase();
   if (hay.includes("astro")) return "Astro";
@@ -90,7 +79,6 @@ function inferFramework(repo: GitHubLiveRepo): string {
 export function GitHubAgentConnectWorkflow({
   projectId,
   projectDomain,
-  userEmail,
   existingRepo,
   mode = "modal",
   oauthCode,
@@ -98,15 +86,13 @@ export function GitHubAgentConnectWorkflow({
   onConnected,
   onCancel,
 }: GitHubAgentConnectWorkflowProps) {
-  const connectRepo = useConnectRepository(projectId);
-
-  // Server/local GitHub OAuth configuration
+  // Server-side GitHub OAuth configuration (no secrets ever stored in browser storage)
   const [serverAppSlug, setServerAppSlug] = useState<string | null>(null);
-  const [customAppConfig, setCustomAppConfig] = useState<StoredGitHubAppConfig | null>(null);
+  const [customAppSlug, setCustomAppSlug] = useState<string | null>(null);
 
-  // Authenticated GitHub user + real OAuth token (`gho_...` / `ghu_...` / `ghp_...`)
-  const [accessToken, setAccessToken] = useState<string>("");
+  // Authenticated GitHub user (access token lives exclusively in server-side HttpOnly cookie bound to current Reigel user)
   const [ghUser, setGhUser] = useState<GitHubAuthenticatedUser | null>(null);
+  const [isConnectingRepo, setIsConnectingRepo] = useState<boolean>(false);
 
   // GitHub OAuth Device Flow state (`https://github.com/login/device`)
   const [deviceCode, setDeviceCode] = useState<string | null>(null);
@@ -122,7 +108,7 @@ export function GitHubAgentConnectWorkflow({
   const [patValue, setPatValue] = useState<string>("");
   const [isVerifyingPat, setIsVerifyingPat] = useState<boolean>(false);
 
-  // Live repositories from `https://api.github.com/user/repos`
+  // Live repositories loaded through the authenticated user-bound server endpoint
   const [repos, setRepos] = useState<GitHubLiveRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState<boolean>(false);
   const [repoSearch, setRepoSearch] = useState<string>("");
@@ -139,117 +125,102 @@ export function GitHubAgentConnectWorkflow({
   const popupRef = useRef<Window | null>(null);
   const manifestFormRef = useRef<HTMLFormElement | null>(null);
   const [manifestJson, setManifestJson] = useState<string>("");
+  const [manifestActionUrl, setManifestActionUrl] = useState<string>(
+    "https://github.com/settings/apps/new",
+  );
 
-  // Load saved GitHub App config or active OAuth session from storage
+  // Purge any legacy browser-stored GitHub secrets and check server-side user-bound GitHub session
   useEffect(() => {
-    try {
-      const savedApp = window.localStorage.getItem(APP_CONFIG_STORAGE_KEY);
-      if (savedApp) {
-        const parsed = JSON.parse(savedApp) as StoredGitHubAppConfig;
-        if (parsed?.slug && parsed?.clientId && parsed?.clientSecret) {
-          setCustomAppConfig(parsed);
-        }
-      }
-      const savedSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (savedSession) {
-        const parsed = JSON.parse(savedSession) as {
-          accessToken?: string;
-          user?: GitHubAuthenticatedUser;
-        };
-        if (parsed?.accessToken && parsed?.user?.login) {
-          setAccessToken(parsed.accessToken);
-          setGhUser(parsed.user);
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
+    clearLegacyCmsBrowserRecords();
 
-    fetch("/api/github/oauth")
+    fetch("/api/github/oauth", { credentials: "same-origin", cache: "no-store" })
       .then((r) => r.json())
-      .then((cfg: { appSlug?: string | null }) => {
-        if (cfg?.appSlug) setServerAppSlug(cfg.appSlug);
-      })
+      .then(
+        (cfg: {
+          appSlug?: string | null;
+          customAppSlug?: string | null;
+          authenticated?: boolean;
+          user?: GitHubAuthenticatedUser | null;
+        }) => {
+          if (cfg?.appSlug) setServerAppSlug(cfg.appSlug);
+          if (cfg?.customAppSlug) setCustomAppSlug(cfg.customAppSlug);
+          if (cfg?.authenticated && cfg?.user?.login) {
+            setGhUser(cfg.user);
+          } else {
+            setGhUser(null);
+          }
+        },
+      )
       .catch(() => {
         // ignore
       });
   }, []);
 
-  // Fetch real repositories from `https://api.github.com/user/repos` whenever `accessToken` is set
-  const fetchLiveRepositories = useCallback(
-    async (token: string) => {
-      if (!token) return;
-      setLoadingRepos(true);
-      setErrorText(null);
-      try {
-        const res = await fetch(
-          "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator,organization_member",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/vnd.github+json",
-            },
-            cache: "no-store",
-          },
-        );
-        if (!res.ok) {
-          if (res.status === 401) {
-            window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-            setAccessToken("");
-            setGhUser(null);
-            throw new Error("GitHub session expired. Please sign in with GitHub again.");
-          }
-          throw new Error(`GitHub API returned HTTP ${res.status} while loading repositories.`);
+  // Fetch real repositories via server-side user-bound GitHub session (never exposing token to browser JS)
+  const fetchLiveRepositories = useCallback(async () => {
+    setLoadingRepos(true);
+    setErrorText(null);
+    try {
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list_repos" }),
+        cache: "no-store",
+      });
+      const data = (await res.json()) as { repos?: GitHubLiveRepo[]; error?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          setGhUser(null);
+          throw new Error(data.error || "GitHub session expired. Please sign in with GitHub again.");
         }
-        const list = (await res.json()) as GitHubLiveRepo[];
-        const valid = Array.isArray(list) ? list : [];
-        setRepos(valid);
+        throw new Error(data.error || `GitHub API returned HTTP ${res.status} while loading repositories.`);
+      }
+      const valid = Array.isArray(data.repos) ? data.repos : [];
+      setRepos(valid);
 
-        if (valid.length > 0) {
-          const existingMatch =
-            existingRepo?.owner && existingRepo?.name
-              ? valid.find(
-                  (r) =>
-                    r.full_name.toLowerCase() ===
-                    `${existingRepo.owner}/${existingRepo.name}`.toLowerCase(),
-                )
-              : null;
+      if (valid.length > 0) {
+        const existingMatch =
+          existingRepo?.owner && existingRepo?.name
+            ? valid.find(
+                (r) =>
+                  r.full_name.toLowerCase() ===
+                  `${existingRepo.owner}/${existingRepo.name}`.toLowerCase(),
+              )
+            : null;
 
-          const normDomain = (projectDomain || "").toLowerCase().replace(/^www\./, "");
-          const domainRoot = normDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
+        const normDomain = (projectDomain || "").toLowerCase().replace(/^www\./, "");
+        const domainRoot = normDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
 
-          // If domainRoot is specific (>= 3 chars), check if any repo name matches this workspace domain
-          const domainMatch = domainRoot.length >= 3
+        const domainMatch =
+          domainRoot.length >= 3
             ? valid.find((r) => {
                 const cleanRepoName = r.name.toLowerCase().replace(/[^a-z0-9]/g, "");
                 return cleanRepoName.includes(domainRoot);
               })
             : null;
 
-          const pick = existingMatch || domainMatch;
-          if (pick) {
-            setSelectedFullName(pick.full_name);
-            setBranchInput(pick.default_branch || "main");
-            setFrameworkInput(inferFramework(pick));
-          } else {
-            // Keep empty so user explicitly picks their repository for this project without auto-linking an unrelated repo
-            setSelectedFullName("");
-          }
+        const pick = existingMatch || domainMatch;
+        if (pick) {
+          setSelectedFullName(pick.full_name);
+          setBranchInput(pick.default_branch || "main");
+          setFrameworkInput(inferFramework(pick));
+        } else {
+          setSelectedFullName("");
         }
-      } catch (err) {
-        setErrorText(errorMessage(err));
-      } finally {
-        setLoadingRepos(false);
       }
-    },
-    [existingRepo, projectDomain],
-  );
+    } catch (err) {
+      setErrorText(errorMessage(err));
+    } finally {
+      setLoadingRepos(false);
+    }
+  }, [existingRepo, projectDomain]);
 
   useEffect(() => {
-    if (accessToken) {
-      fetchLiveRepositories(accessToken);
+    if (ghUser) {
+      fetchLiveRepositories();
     }
-  }, [accessToken, fetchLiveRepositories]);
+  }, [ghUser, fetchLiveRepositories]);
 
   // Start a real GitHub OAuth Device session (`https://github.com/login/device/code`)
   const startDeviceSession = useCallback(async () => {
@@ -258,10 +229,10 @@ export function GitHubAgentConnectWorkflow({
     try {
       const res = await fetch("/api/github/oauth", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "device_start",
-          clientId: customAppConfig?.clientId,
         }),
       });
       const data = (await res.json()) as {
@@ -283,94 +254,91 @@ export function GitHubAgentConnectWorkflow({
     } finally {
       setIsStartingDevice(false);
     }
-  }, [customAppConfig]);
+  }, []);
 
   useEffect(() => {
-    if (!accessToken && !oauthCode && !deviceCode && !isStartingDevice) {
+    if (!ghUser && !oauthCode && !deviceCode && !isStartingDevice) {
       startDeviceSession();
     }
-  }, [accessToken, oauthCode, deviceCode, isStartingDevice, startDeviceSession]);
+  }, [ghUser, oauthCode, deviceCode, isStartingDevice, startDeviceSession]);
 
-  // Handle callback code from `https://github.com` (`/api/github/callback`)
+  // Handle callback code from `https://github.com` (`/api/github/callback`) using single-use browser-bound state
   useEffect(() => {
     if (!oauthCode) return;
     let cancelled = false;
 
     async function handleOAuthReturn() {
       setErrorText(null);
+      if (!oauthState) {
+        setErrorText("GitHub OAuth state is missing. Please restart the connection from Settings.");
+        return;
+      }
       try {
-        // Case A: Returning from 1-click GitHub App Manifest registration on github.com
-        if (oauthState?.startsWith("manifest_")) {
-          setStatusBanner("Finalizing your GitHub App registration with github.com…");
-          const res = await fetch("/api/github/oauth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "manifest_convert", code: oauthCode }),
-          });
-          const data = (await res.json()) as StoredGitHubAppConfig & { error?: string };
-          if (!res.ok || !data.slug) {
-            throw new Error(data.error || "Failed to register GitHub App.");
-          }
-          if (cancelled) return;
-          window.localStorage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(data));
-          setCustomAppConfig(data);
-          // Immediately redirect to `https://github.com/apps/<slug>/installations/new`
-          window.location.href = `https://github.com/apps/${encodeURIComponent(data.slug)}/installations/new?state=${encodeURIComponent(projectId || "connect")}`;
-          return;
-        }
-
-        // Case B: Returning from GitHub App installation / Web OAuth callback with `?code=...`
-        setStatusBanner("Completing GitHub OAuth handshake with github.com…");
-        let savedClientId: string | undefined;
-        let savedClientSecret: string | undefined;
-        try {
-          const raw = window.localStorage.getItem(APP_CONFIG_STORAGE_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as StoredGitHubAppConfig;
-            savedClientId = parsed.clientId;
-            savedClientSecret = parsed.clientSecret;
-          }
-        } catch {
-          // ignore
-        }
-
-        const res = await fetch("/api/github/oauth", {
+        // First try standard web OAuth exchange; if state purpose was manifest registration, try manifest_convert
+        setStatusBanner("Completing verified GitHub OAuth handshake…");
+        const webRes = await fetch("/api/github/oauth", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "exchange_code",
             code: oauthCode,
-            clientId: savedClientId,
-            clientSecret: savedClientSecret,
+            state: oauthState,
+            projectId,
           }),
         });
-        const data = (await res.json()) as {
+        const webData = (await webRes.json()) as {
           status?: string;
-          accessToken?: string;
           user?: GitHubAuthenticatedUser;
           error?: string;
         };
-        if (!res.ok || !data.accessToken || !data.user) {
-          throw new Error(data.error || "Could not exchange GitHub authorization code.");
+
+        if (webRes.ok && webData.user) {
+          if (cancelled) return;
+          setGhUser(webData.user);
+          setStatusBanner(null);
+          try {
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete("github_code");
+            cleanUrl.searchParams.delete("installation_id");
+            cleanUrl.searchParams.delete("setup_action");
+            cleanUrl.searchParams.delete("github_state");
+            window.history.replaceState(null, "", cleanUrl.toString());
+          } catch {
+            // ignore
+          }
+          return;
         }
-        if (cancelled) return;
-        setAccessToken(data.accessToken);
-        setGhUser(data.user);
-        setStatusBanner(null);
-        try {
-          window.sessionStorage.setItem(
-            SESSION_STORAGE_KEY,
-            JSON.stringify({ accessToken: data.accessToken, user: data.user }),
-          );
-          const cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete("github_code");
-          cleanUrl.searchParams.delete("installation_id");
-          cleanUrl.searchParams.delete("setup_action");
-          cleanUrl.searchParams.delete("github_state");
-          window.history.replaceState(null, "", cleanUrl.toString());
-        } catch {
-          // ignore
+
+        // If web exchange failed with purpose mismatch, complete manifest registration
+        if (webData.error && /purpose mismatch/i.test(webData.error)) {
+          setStatusBanner("Finalizing your GitHub App registration with github.com…");
+          const mfRes = await fetch("/api/github/oauth", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "manifest_convert",
+              code: oauthCode,
+              state: oauthState,
+              projectId,
+            }),
+          });
+          const mfData = (await mfRes.json()) as {
+            slug?: string;
+            installUrl?: string;
+            error?: string;
+          };
+          if (!mfRes.ok || !mfData.slug || !mfData.installUrl) {
+            throw new Error(mfData.error || "Failed to register GitHub App.");
+          }
+          if (cancelled) return;
+          setCustomAppSlug(mfData.slug);
+          window.location.href = mfData.installUrl;
+          return;
         }
+
+        throw new Error(webData.error || "Could not verify GitHub OAuth callback.");
       } catch (err) {
         if (!cancelled) {
           setStatusBanner(null);
@@ -387,7 +355,7 @@ export function GitHubAgentConnectWorkflow({
 
   // Poll `/api/github/oauth` (`action: "device_poll"`) while the user authorizes on `https://github.com/login/device`
   useEffect(() => {
-    if (!deviceCode || accessToken) return;
+    if (!deviceCode || ghUser) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
@@ -396,31 +364,25 @@ export function GitHubAgentConnectWorkflow({
       try {
         const res = await fetch("/api/github/oauth", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "device_poll",
             deviceCode,
-            clientId: customAppConfig?.clientId,
           }),
         });
         const data = (await res.json()) as {
           status?: "authorized" | "pending" | "failed";
-          accessToken?: string;
           user?: GitHubAuthenticatedUser;
           interval?: number;
           error?: string;
         };
         if (cancelled) return;
 
-        if (data.status === "authorized" && data.accessToken && data.user) {
-          setAccessToken(data.accessToken);
+        if (data.status === "authorized" && data.user) {
           setGhUser(data.user);
           setIsWaitingForGitHub(false);
           try {
-            window.sessionStorage.setItem(
-              SESSION_STORAGE_KEY,
-              JSON.stringify({ accessToken: data.accessToken, user: data.user }),
-            );
             if (popupRef.current && !popupRef.current.closed) {
               popupRef.current.close();
             }
@@ -451,7 +413,7 @@ export function GitHubAgentConnectWorkflow({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [deviceCode, accessToken, pollIntervalSec, customAppConfig, startDeviceSession]);
+  }, [deviceCode, ghUser, pollIntervalSec, startDeviceSession]);
 
   const handleCopyAndOpenGitHub = async () => {
     setErrorText(null);
@@ -477,38 +439,69 @@ export function GitHubAgentConnectWorkflow({
     popupRef.current = popup;
   };
 
-  const activeAppSlug = customAppConfig?.slug || serverAppSlug;
+  const activeAppSlug = customAppSlug || serverAppSlug;
 
-  const handleInstallGitHubAppRedirect = () => {
-    if (!activeAppSlug) return;
-    window.location.href = `https://github.com/apps/${encodeURIComponent(activeAppSlug)}/installations/new?state=${encodeURIComponent(projectId || "connect")}`;
+  const handleInstallGitHubAppRedirect = async () => {
+    if (!activeAppSlug || !projectId) return;
+    setErrorText(null);
+    try {
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "init_web_oauth", projectId }),
+      });
+      const data = (await res.json()) as { authorizeUrl?: string; error?: string };
+      if (!res.ok || !data.authorizeUrl) {
+        throw new Error(data.error || "Could not start verified GitHub OAuth transaction.");
+      }
+      window.location.href = data.authorizeUrl;
+    } catch (err) {
+      setErrorText(errorMessage(err));
+    }
   };
 
-  // 1-Click GitHub App registration on `https://github.com/settings/apps/new`
-  const handleCreateGitHubAppOnGitHub = () => {
-    if (typeof window === "undefined") return;
-    const origin = window.location.origin;
-    const callbackUrl = `${origin}/api/github/callback`;
-    const suffix = Date.now().toString(36).slice(-5);
-    const manifest = {
-      name: `Reigel SEO Agent ${suffix}`,
-      url: origin,
-      redirect_url: callbackUrl,
-      setup_url: callbackUrl,
-      setup_on_update: true,
-      request_oauth_on_install: true,
-      public: true,
-      default_permissions: {
-        contents: "write",
-        pull_requests: "write",
-        metadata: "read",
-      },
-      default_events: ["push", "pull_request"],
-    };
-    setManifestJson(JSON.stringify(manifest));
-    setTimeout(() => {
-      manifestFormRef.current?.submit();
-    }, 50);
+  // 1-Click GitHub App registration bound to a single-use server-side transaction
+  const handleCreateGitHubAppOnGitHub = async () => {
+    if (typeof window === "undefined" || !projectId) return;
+    setErrorText(null);
+    try {
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "init_manifest", projectId }),
+      });
+      const data = (await res.json()) as { authorizeUrl?: string; error?: string };
+      if (!res.ok || !data.authorizeUrl) {
+        throw new Error(data.error || "Could not initialize GitHub App registration.");
+      }
+      const origin = window.location.origin;
+      const callbackUrl = `${origin}/api/github/callback`;
+      const suffix = Date.now().toString(36).slice(-5);
+      const manifest = {
+        name: `Reigel SEO Agent ${suffix}`,
+        url: origin,
+        redirect_url: callbackUrl,
+        setup_url: callbackUrl,
+        setup_on_update: true,
+        request_oauth_on_install: true,
+        public: true,
+        default_permissions: {
+          contents: "write",
+          pull_requests: "write",
+          metadata: "read",
+        },
+        default_events: ["push", "pull_request"],
+      };
+      setManifestActionUrl(data.authorizeUrl);
+      setManifestJson(JSON.stringify(manifest));
+      setTimeout(() => {
+        manifestFormRef.current?.submit();
+      }, 50);
+    } catch (err) {
+      setErrorText(errorMessage(err));
+    }
   };
 
   const handleVerifyPat = async (e: React.FormEvent) => {
@@ -521,43 +514,18 @@ export function GitHubAgentConnectWorkflow({
     setIsVerifyingPat(true);
     setErrorText(null);
     try {
-      const res = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${trimmed}`,
-          Accept: "application/vnd.github+json",
-        },
-        cache: "no-store",
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify_pat", pat: trimmed }),
       });
-      if (!res.ok) {
-        throw new Error("GitHub rejected this token. Verify the token has `repo` permissions.");
+      const data = (await res.json()) as { user?: GitHubAuthenticatedUser; error?: string };
+      if (!res.ok || !data.user) {
+        throw new Error(data.error || "GitHub rejected this token. Verify the token has `repo` permissions.");
       }
-      const data = (await res.json()) as {
-        login?: string;
-        name?: string | null;
-        avatar_url?: string | null;
-        email?: string | null;
-        html_url?: string;
-      };
-      if (!data.login) {
-        throw new Error("Could not verify GitHub user profile for this token.");
-      }
-      const verifiedUser: GitHubAuthenticatedUser = {
-        login: data.login,
-        name: data.name ?? null,
-        avatarUrl: data.avatar_url ?? null,
-        email: data.email ?? null,
-        htmlUrl: data.html_url ?? `https://github.com/${data.login}`,
-      };
-      setAccessToken(trimmed);
-      setGhUser(verifiedUser);
-      try {
-        window.sessionStorage.setItem(
-          SESSION_STORAGE_KEY,
-          JSON.stringify({ accessToken: trimmed, user: verifiedUser }),
-        );
-      } catch {
-        // ignore
-      }
+      setPatValue("");
+      setGhUser(data.user);
     } catch (err) {
       setErrorText(errorMessage(err));
     } finally {
@@ -565,13 +533,14 @@ export function GitHubAgentConnectWorkflow({
     }
   };
 
-  const handleSwitchGitHubAccount = () => {
-    try {
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    setAccessToken("");
+  const handleSwitchGitHubAccount = async () => {
+    clearLegacyCmsBrowserRecords();
+    await fetch("/api/github/oauth", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "disconnect_session" }),
+    }).catch(() => undefined);
     setGhUser(null);
     setRepos([]);
     setDeviceCode(null);
@@ -603,7 +572,7 @@ export function GitHubAgentConnectWorkflow({
       setErrorText("Please select a website project first.");
       return;
     }
-    if (!accessToken) {
+    if (!ghUser) {
       setErrorText("Please authenticate with GitHub first.");
       return;
     }
@@ -614,14 +583,25 @@ export function GitHubAgentConnectWorkflow({
     }
 
     setErrorText(null);
+    setIsConnectingRepo(true);
     try {
-      await connectRepo.mutateAsync({
-        owner: owner.trim(),
-        name: name.trim(),
-        defaultBranch: branchInput.trim() || "main",
-        framework: frameworkInput || "nextjs",
-        accessToken,
+      const res = await fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "connect_repo",
+          projectId,
+          owner: owner.trim(),
+          name: name.trim(),
+          defaultBranch: branchInput.trim() || "main",
+          framework: frameworkInput || "nextjs",
+        }),
       });
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to connect repository.");
+      }
       onConnected?.({
         owner: owner.trim(),
         name: name.trim(),
@@ -629,6 +609,8 @@ export function GitHubAgentConnectWorkflow({
       });
     } catch (err) {
       setErrorText(errorMessage(err));
+    } finally {
+      setIsConnectingRepo(false);
     }
   };
 
@@ -642,7 +624,7 @@ export function GitHubAgentConnectWorkflow({
       {/* Hidden form for 1-click GitHub App Manifest creation on https://github.com/settings/apps/new */}
       <form
         ref={manifestFormRef}
-        action={`https://github.com/settings/apps/new?state=${encodeURIComponent(`manifest_${projectId || "default"}`)}`}
+        action={manifestActionUrl}
         method="post"
         className="hidden"
       >
@@ -968,7 +950,7 @@ export function GitHubAgentConnectWorkflow({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => fetchLiveRepositories(accessToken)}
+                  onClick={() => fetchLiveRepositories()}
                   disabled={loadingRepos}
                   className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
                   title="Refresh repositories from GitHub"
@@ -1181,12 +1163,12 @@ export function GitHubAgentConnectWorkflow({
           {ghUser && (
             <button
               type="button"
-              disabled={!selectedFullName || connectRepo.isPending}
+              disabled={!selectedFullName || isConnectingRepo}
               onClick={handleConnectSelectedRepo}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-800 disabled:opacity-50"
             >
               <span>
-                {connectRepo.isPending ? "Verifying & Connecting…" : "Connect Repository"}
+                {isConnectingRepo ? "Verifying & Connecting…" : "Connect Repository"}
               </span>
               <ArrowRight size={13} />
             </button>

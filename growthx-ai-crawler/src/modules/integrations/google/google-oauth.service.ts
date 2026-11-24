@@ -1,4 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 // Deliberately the class googleapis re-exports, not the top-level
 // google-auth-library one. The package tree contains both — googleapis-common
 // nests its own copy — and they are structurally identical but nominally
@@ -7,9 +15,13 @@ import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnav
 import { google } from './google-apis';
 import type { OAuth2Client } from 'googleapis-common';
 import { PrismaService } from '../../../database/prisma.service';
+import { OAuthTransactionService } from '../../security/oauth-transaction.service';
 import { decryptToken, encryptToken, tokenEncryptionAvailable } from './token-crypto';
 import { decodeState, encodeState } from './oauth-state';
 import { GOOGLE_PROVIDERS, GoogleProviderId } from './google-provider';
+
+export const GOOGLE_INTEGRATION_TX_PROVIDER = 'google_integration';
+export const GOOGLE_INTEGRATION_NONCE_COOKIE = 'oauth_google_int_nonce';
 
 /**
  * The one place a Google connection is created, refreshed, read and removed.
@@ -29,7 +41,10 @@ import { GOOGLE_PROVIDERS, GoogleProviderId } from './google-provider';
 export class GoogleOAuthService {
   private readonly logger = new Logger(GoogleOAuthService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly oauthTransactions?: OAuthTransactionService,
+  ) {}
 
   /**
    * Whether this deployment can connect Google at all.
@@ -104,27 +119,114 @@ export class GoogleOAuthService {
   }
 
   /**
+   * Starts a browser-bound, expiring, single-use Google data-connector OAuth
+   * transaction with PKCE (S256). The caller sets `browserNonce` in an HttpOnly
+   * cookie scoped to the callback path.
+   */
+  async startAuthorization(input: {
+    provider: GoogleProviderId;
+    projectId: string;
+    organizationId: string;
+    userId: string;
+    returnTo?: string;
+  }): Promise<{ authorizationUrl: string; browserNonce: string }> {
+    const provider = GOOGLE_PROVIDERS[input.provider];
+    if (!provider) throw new BadRequestException(`Unknown Google provider "${input.provider}".`);
+    if (!this.oauthTransactions) {
+      throw new ServiceUnavailableException('OAuth transaction store is unavailable.');
+    }
+
+    const tx = await this.oauthTransactions.createTransaction({
+      provider: GOOGLE_INTEGRATION_TX_PROVIDER,
+      purpose: input.provider,
+      userId: input.userId,
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      returnTo: input.returnTo,
+      usePkce: true,
+    });
+
+    const authorizationUrl = this.client().generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: true,
+      scope: [...provider.scopes, 'openid', 'email'],
+      state: tx.state,
+      ...(tx.codeChallenge
+        ? {
+            code_challenge: tx.codeChallenge,
+            code_challenge_method: tx.codeChallengeMethod as any,
+          }
+        : {}),
+    });
+
+    return { authorizationUrl, browserNonce: tx.browserNonce };
+  }
+
+  /**
    * Exchanges the code Google returned for tokens and stores the connection.
    *
-   * The state is verified before anything is written — it is the only thing
-   * tying this request to the one that started it, since a browser redirect
-   * carries no bearer token.
+   * When backed by `OAuthTransactionService` (all runtime paths), requires an
+   * expiring, single-use transaction bound to the initiating browser cookie,
+   * user, and project BEFORE exchanging the code or storing tokens.
    */
-  async completeAuthorization(input: { code: string; state: string }) {
-    const state = decodeState(input.state);
-    const provider = GOOGLE_PROVIDERS[state.provider as GoogleProviderId];
+  async completeAuthorization(input: { code: string; state: string; browserNonce?: string }) {
+    let projectId: string;
+    let organizationId: string;
+    let providerId: GoogleProviderId;
+    let returnTo: string | undefined;
+    let pkceVerifier: string | null = null;
+    let actorUserId: string | null = null;
+
+    if (this.oauthTransactions) {
+      const tx = await this.oauthTransactions.consumeTransaction({
+        state: input.state,
+        browserNonce: input.browserNonce,
+        provider: GOOGLE_INTEGRATION_TX_PROVIDER,
+      });
+      if (!tx.projectId || !tx.organizationId || !tx.purpose) {
+        throw new BadRequestException('OAuth transaction is missing project binding.');
+      }
+      projectId = tx.projectId;
+      organizationId = tx.organizationId;
+      providerId = tx.purpose as GoogleProviderId;
+      returnTo = tx.returnTo ?? undefined;
+      pkceVerifier = tx.pkceVerifier;
+      actorUserId = tx.userId;
+    } else {
+      const state = decodeState(input.state);
+      projectId = state.projectId;
+      organizationId = state.organizationId;
+      providerId = state.provider as GoogleProviderId;
+      returnTo = state.returnTo;
+    }
+
+    const provider = GOOGLE_PROVIDERS[providerId];
     if (!provider) throw new BadRequestException('OAuth state names a provider that does not exist.');
 
     // Confirms the project still exists and still belongs to the organization
-    // the state claims. A stale link from a deleted project must not write.
+    // the transaction bound. A stale link from a deleted project must not write.
     const project = await this.prisma.project.findFirst({
-      where: { id: state.projectId, organizationId: state.organizationId },
+      where: { id: projectId, organizationId },
       select: { id: true },
     });
     if (!project) throw new NotFoundException('The project this authorization was started from no longer exists.');
 
+    // Re-check that the initiating user still has manager privileges on the workspace.
+    if (actorUserId && this.prisma.organizationMember?.findUnique) {
+      const membership = await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId: actorUserId, organizationId } },
+        select: { role: true },
+      });
+      if (!membership || !['OWNER', 'ADMIN'].includes(String(membership.role))) {
+        throw new ForbiddenException('The user who initiated this Google connection no longer has permission to attach integrations.');
+      }
+    }
+
     const oauthClient = this.client();
-    const { tokens } = await oauthClient.getToken(input.code);
+    const { tokens } = pkceVerifier
+      ? await oauthClient.getToken({ code: input.code, codeVerifier: pkceVerifier })
+      : await oauthClient.getToken(input.code);
     if (!tokens.access_token) {
       throw new BadRequestException('Google did not return an access token.');
     }
@@ -134,7 +236,7 @@ export class GoogleOAuthService {
     // stored one keeps a reconnect from silently downgrading a durable
     // connection to a one-hour one.
     const existing = await this.prisma.integration.findUnique({
-      where: { projectId_provider: { projectId: state.projectId, provider: state.provider } },
+      where: { projectId_provider: { projectId, provider: providerId } },
     });
     const refreshToken = tokens.refresh_token
       ? encryptToken(tokens.refresh_token)
@@ -146,7 +248,7 @@ export class GoogleOAuthService {
     const missingScopes = provider.scopes.filter((scope) => granted.length > 0 && !granted.includes(scope));
 
     const integration = await this.prisma.integration.upsert({
-      where: { projectId_provider: { projectId: state.projectId, provider: state.provider } },
+      where: { projectId_provider: { projectId, provider: providerId } },
       update: {
         accessToken: encryptToken(tokens.access_token),
         refreshToken,
@@ -160,8 +262,8 @@ export class GoogleOAuthService {
             : null,
       },
       create: {
-        projectId: state.projectId,
-        provider: state.provider,
+        projectId,
+        provider: providerId,
         accessToken: encryptToken(tokens.access_token),
         refreshToken,
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
@@ -175,9 +277,9 @@ export class GoogleOAuthService {
       },
     });
 
-    await this.record(integration.id, state.projectId, 'CONNECTED', `${provider.label} authorized.`);
+    await this.record(integration.id, projectId, 'CONNECTED', `${provider.label} authorized.`);
 
-    return { integration, provider, returnTo: state.returnTo, missingScopes };
+    return { integration, provider, returnTo, missingScopes };
   }
 
   /**
