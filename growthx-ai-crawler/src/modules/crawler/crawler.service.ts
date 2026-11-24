@@ -803,7 +803,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       let snapshotUrl: string | undefined;
       if (fetchRes.html) {
-        snapshotUrl = await this.storage.saveSnapshot(payload.jobId, Buffer.from(normUrl).toString('base64').substring(0, 16), fetchRes.html);
+        snapshotUrl = await this.storage.saveSnapshot(
+          payload.jobId,
+          Buffer.from(normUrl).toString('base64').substring(0, 16),
+          fetchRes.html,
+          'html.gz',
+        );
       }
 
       try {
@@ -849,11 +854,35 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           fetchFailed: Boolean(outcome.error),
         });
 
+        // Offload large page HTML out of PostgreSQL into gzipped snapshot storage
+        // to cut database & pg_dump size by ~75-85%.
+        // STORE_HTML_IN_DB:
+        //   - 'homepage' (default): keep DB HTML only for the root homepage (depth 0 / path '/');
+        //     inner pages offload to gzipped `htmlSnapshotUrl` whenever snapshot storage succeeds.
+        //   - 'false': offload ALL pages (including homepage) when snapshot storage succeeds.
+        //   - 'true': legacy mode retaining capped HTML in Postgres on every page.
+        const htmlDbPolicy = (process.env.STORE_HTML_IN_DB || 'homepage').trim().toLowerCase();
+        const snapshotPersisted = Boolean(snapshotUrl && !snapshotUrl.startsWith('error://'));
+        const isHomepage =
+          payload.depth === 0 ||
+          (() => {
+            try {
+              const p = new URL(normUrl).pathname;
+              return p === '' || p === '/';
+            } catch {
+              return false;
+            }
+          })();
+        const persistHtmlInDb =
+          !snapshotPersisted ||
+          htmlDbPolicy === 'true' ||
+          (htmlDbPolicy !== 'false' && isHomepage);
+
         const v2Columns = {
-          rawHtml: capHtml(outcome.rawHtml),
+          rawHtml: persistHtmlInDb ? capHtml(outcome.rawHtml) : null,
           // Only kept when it differs from the raw body: otherwise it is a
           // second copy of the same bytes on every page of every crawl.
-          renderedHtml: outcome.jsRequired ? capHtml(outcome.renderedHtml) : null,
+          renderedHtml: persistHtmlInDb && outcome.jsRequired ? capHtml(outcome.renderedHtml) : null,
           jsRequired: outcome.jsRequired,
           discoverySource: sitemapSetForJob.has(normUrl) ? 'sitemap' : payload.sourceUrl ? 'link' : 'seed',
           statusChain: outcome.statusChain as unknown as object,

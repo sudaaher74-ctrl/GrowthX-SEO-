@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { promisify } from 'util';
+import * as zlib from 'zlib';
+
+const gzipAsync = promisify(zlib.gzip);
+const gunzipAsync = promisify(zlib.gunzip);
 
 function errorCode(error: unknown): string | undefined {
   return typeof error === 'object' && error !== null ? (error as NodeJS.ErrnoException).code : undefined;
@@ -84,8 +89,12 @@ export class StorageService implements OnModuleInit {
     pageId: string,
     content: string | Buffer,
     extension: string = 'html',
+    options?: { compress?: boolean },
   ): Promise<string> {
-    const filename = `${jobId}_${pageId}_${Date.now()}.${extension}`;
+    const shouldCompress = Boolean(options?.compress) || extension.endsWith('.gz');
+    const normalizedExt =
+      shouldCompress && !extension.endsWith('.gz') ? `${extension}.gz` : extension;
+    const filename = `${jobId}_${pageId}_${Date.now()}.${normalizedExt}`;
 
     if (this.provider !== 'local') return `error://storage-unavailable/${filename}`;
 
@@ -94,9 +103,14 @@ export class StorageService implements OnModuleInit {
     }
 
     const targetPath = path.join(this.localPath, filename);
+    let payload: string | Buffer = content;
+    if (shouldCompress) {
+      const rawBuf = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8');
+      payload = await gzipAsync(rawBuf, { level: 6 });
+    }
 
     try {
-      await fs.promises.writeFile(targetPath, content);
+      await fs.promises.writeFile(targetPath, payload);
       return `file://${targetPath}`;
     } catch (error) {
       // ENOENT after a successful mkdir means the directory went away between
@@ -106,7 +120,7 @@ export class StorageService implements OnModuleInit {
         this.directoryReady = false;
         if (await this.ensureDirectory()) {
           try {
-            await fs.promises.writeFile(targetPath, content);
+            await fs.promises.writeFile(targetPath, payload);
             this.logger.warn(`Recreated ${this.localPath}, which had gone missing, and stored ${filename}.`);
             return `file://${targetPath}`;
           } catch (retryError) {
@@ -119,6 +133,11 @@ export class StorageService implements OnModuleInit {
       this.logger.error(`Failed to write snapshot locally at ${targetPath}`, error);
       return `error://storage-failure/${filename}`;
     }
+  }
+
+  /** Stores an HTML snapshot gzip-compressed (~75-85% smaller on disk). */
+  async saveCompressedHtmlSnapshot(jobId: string, pageId: string, html: string): Promise<string> {
+    return this.saveSnapshot(jobId, pageId, html, 'html.gz', { compress: true });
   }
 
   /**
@@ -189,6 +208,11 @@ export class StorageService implements OnModuleInit {
         return null;
       }
       try {
+        if (filePath.endsWith('.gz')) {
+          const compressed = await fs.promises.readFile(filePath);
+          const decompressed = await gunzipAsync(compressed);
+          return decompressed.toString('utf8');
+        }
         return await fs.promises.readFile(filePath, 'utf-8');
       } catch (err) {
         this.logger.error(`Failed to read local snapshot from ${filePath}`, err);

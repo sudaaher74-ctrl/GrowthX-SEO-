@@ -139,6 +139,70 @@ describe('CrawlerService writes the v2 columns', () => {
     expect(upserts[0].create.renderedHtml).toBeNull();
   });
 
+  it('offloads inner-page HTML out of Postgres to gzipped snapshot storage by default, and retains DB HTML if snapshot storage fails', async () => {
+    const innerPayload = {
+      jobId: 'job1',
+      websiteId: 'w1',
+      targetUrl: 'https://example.com/blog/guide',
+      depth: 1,
+      maxDepth: 3,
+    } as any;
+    const saveSnapshot = jest.fn(async () => 'file:///app/storage/snapshots/job1_inner.html.gz');
+    const { service, upserts } = makeService({
+      storage: { saveSnapshot },
+      fetchSvc: {
+        fetch: jest.fn(async () =>
+          outcome({
+            url: 'https://example.com/blog/guide',
+            finalUrl: 'https://example.com/blog/guide',
+            jsRequired: true,
+            tier: 'rendered',
+            renderedHtml: '<html><body><h1>Inner Guide</h1></body></html>',
+          }),
+        ),
+      },
+    });
+
+    await service.processPageFetch(innerPayload);
+
+    expect(saveSnapshot).toHaveBeenCalledWith('job1', expect.any(String), expect.any(String), 'html.gz');
+    expect(upserts[0].create.htmlSnapshotUrl).toBe('file:///app/storage/snapshots/job1_inner.html.gz');
+    expect(upserts[0].create.rawHtml).toBeNull();
+    expect(upserts[0].create.renderedHtml).toBeNull();
+
+    // If snapshot storage fails, fall back to storing capped HTML in DB so content is not lost
+    const failedSnapshot = jest.fn(async () => 'error://storage-failure/job1.html.gz');
+    const fallback = makeService({
+      storage: { saveSnapshot: failedSnapshot },
+      fetchSvc: {
+        fetch: jest.fn(async () =>
+          outcome({
+            url: 'https://example.com/blog/guide',
+            finalUrl: 'https://example.com/blog/guide',
+          }),
+        ),
+      },
+    });
+    await fallback.service.processPageFetch(innerPayload);
+    expect(fallback.upserts[0].create.rawHtml).toContain('id="root"');
+  });
+
+  it('offloads homepage HTML too when STORE_HTML_IN_DB=false', async () => {
+    const prev = process.env.STORE_HTML_IN_DB;
+    process.env.STORE_HTML_IN_DB = 'false';
+    try {
+      const { service, upserts } = makeService({
+        fetchSvc: { fetch: jest.fn(async () => outcome()) },
+      });
+      await service.processPageFetch(payload);
+      expect(upserts[0].create.rawHtml).toBeNull();
+      expect(upserts[0].create.renderedHtml).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.STORE_HTML_IN_DB;
+      else process.env.STORE_HTML_IN_DB = prev;
+    }
+  });
+
   it('records the full status chain and the blocked suspicion', async () => {
     const chain = [
       { url: 'http://example.com/', status: 301, location: 'https://example.com/' },

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { load } from "cheerio";
 import { PrismaService } from "../../database/prisma.service";
+import { StorageService } from "../../storage/storage.service";
 import { GoogleReportService } from "../search-intelligence/google-report.service";
 import { CompetitorIntelReportService } from "../competitor-action-engine/competitor-intel-report.service";
 import { VisibilityContext, VisibilityFact } from "./visibility-workflow.types";
@@ -11,6 +12,7 @@ export class VisibilityContextService {
     private readonly prisma: PrismaService,
     private readonly google: GoogleReportService,
     private readonly competitors: CompetitorIntelReportService,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   async gather(projectId: string): Promise<VisibilityContext> {
@@ -50,6 +52,7 @@ export class VisibilityContextService {
               pageType: true,
               rawHtml: true,
               renderedHtml: true,
+              htmlSnapshotUrl: true,
               indexability: true,
               jsRequired: true,
               schemas: { select: { schemaType: true, isValid: true } },
@@ -108,9 +111,11 @@ export class VisibilityContextService {
       });
     }
     for (const page of pages) {
-      const $ = load(
-        (page.renderedHtml || page.rawHtml || "").slice(0, 400_000),
-      );
+      let html = page.renderedHtml || page.rawHtml || "";
+      if (!html && page.htmlSnapshotUrl && this.storage) {
+        html = (await this.storage.readSnapshot(page.htmlSnapshotUrl)) || "";
+      }
+      const $ = load(html.slice(0, 400_000));
       $("script,style,noscript,svg").remove();
       const text = $("body").text().replace(/\s+/g, " ").trim().slice(0, 1000);
       facts.push({

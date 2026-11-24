@@ -82,4 +82,20 @@ describe('StorageService — deleting snapshots', () => {
       else process.env.STORAGE_PROVIDER = previousProvider;
     }
   });
+
+  it('gzip-compresses .html.gz snapshots on disk and transparently decompresses on read', async () => {
+    const html = `<!doctype html><html><head><title>Large Page</title></head><body>${'<p>SEO content paragraph repeated for realistic compression ratio. </p>'.repeat(120)}</body></html>`;
+    const locator = await storage.saveCompressedHtmlSnapshot('job-gz', 'page-1', html);
+
+    expect(locator).toMatch(/^file:\/\/.*\.html\.gz$/);
+    const filePath = locator.slice('file://'.length);
+    const rawDiskBytes = fs.readFileSync(filePath);
+    // Gzip magic header (0x1f 0x8b) and substantial size reduction
+    expect(rawDiskBytes[0]).toBe(0x1f);
+    expect(rawDiskBytes[1]).toBe(0x8b);
+    expect(rawDiskBytes.length).toBeLessThan(Buffer.byteLength(html, 'utf8') * 0.25);
+
+    const restored = await storage.readSnapshot(locator);
+    expect(restored).toBe(html);
+  });
 });
