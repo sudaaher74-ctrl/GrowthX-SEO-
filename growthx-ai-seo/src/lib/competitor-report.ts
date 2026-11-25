@@ -1,5 +1,6 @@
 import { ideasToMarkdown } from "@/lib/content-ideas";
 import { buildCompetitorImplementationSpecs, formatSpecAsMarkdown } from "@/lib/implementation-specs";
+import { businessContextToMarkdown, playbookToMarkdown } from "@/lib/report-playbook-markdown";
 import { escapeCsvCell } from "@/lib/report-csv";
 import type { CompetitorIntelReport, IntelPriority, IntelReportRival } from "@/lib/api-client";
 
@@ -77,6 +78,8 @@ export function toMarkdown(report: CompetitorIntelReport): string {
       (facts.aiAnswers.asked ? `you were named in ${facts.aiAnswers.namedYou} of ${facts.aiAnswers.asked} AI answers` : "AI answers not measured"),
   );
 
+  out.push(...businessContextToMarkdown(facts.businessContext));
+
   if (analysis) {
     out.push(`## Summary\n${analysis.executiveSummary || "No summary returned."}`);
     if (analysis.whyTheyRank.length) {
@@ -101,6 +104,7 @@ export function toMarkdown(report: CompetitorIntelReport): string {
       analysis.plan.forEach((w) => out.push(`### ${w.week}\n${w.actions.map((a) => `- ${a}`).join("\n")}`));
     }
     if (analysis.dataGaps.length) out.push(`## Not measured yet\n${analysis.dataGaps.map((g) => `- ${g}`).join("\n")}`);
+    out.push(...playbookToMarkdown(analysis.playbook));
   } else {
     out.push(`## Analysis\nNot available: ${report.analysisError ?? "unknown reason"}. The measured facts below are complete.`);
   }

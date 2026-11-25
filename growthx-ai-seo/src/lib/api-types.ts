@@ -224,6 +224,103 @@ export interface AvUnifiedIntelligence {
 
 export type InsightLevel = "HIGH" | "MEDIUM" | "LOW";
 
+export interface ReportBusinessContext {
+  businessName: string;
+  domain: string | null;
+  industry: string | null;
+  businessModel: string | null;
+  summary: string | null;
+  targetAudience: string | null;
+  businessGoal: string | null;
+  offerings: string[];
+  primaryCity: string | null;
+  state: string | null;
+  country: string | null;
+  serviceAreas: string[];
+  coveredAreas: string[];
+  missingAreas: string[];
+  keyPages: Array<{ path: string; title: string; pageType: string }>;
+  catalogHighlights: Array<{ name: string; price: string | null; stock: string | null; url: string }>;
+  trustSignals: string[];
+  localPresence: {
+    rating: number | null;
+    reviewCount: number | null;
+    address: string | null;
+    businessName: string | null;
+  } | null;
+  crossModuleSnapshot: {
+    auditHealthScore: number | null;
+    pagesAudited: number;
+    openHighIssues: number;
+    aiCitationSharePct: number | null;
+    rivalCount: number;
+  };
+}
+
+export interface ReportPossibilityScenario {
+  tier: "conservative" | "realistic" | "aggressive";
+  timeframe: string;
+  headline: string;
+  expectedOutcome: string;
+  assumptions: string[];
+  unlocksBy: string[];
+}
+
+export type ReportMethodCategory =
+  | "TECHNICAL"
+  | "HYPER_LOCAL"
+  | "CONTENT"
+  | "CONVERSION"
+  | "OFF_SITE_AUTHORITY"
+  | "AI_CITATIONS"
+  | "ANALYTICS";
+
+export interface ReportGrowthMethod {
+  category: ReportMethodCategory;
+  title: string;
+  objective: string;
+  whyForThisBusiness: string;
+  howToApply: string[];
+  owner: "you" | "developer" | "both";
+  effort: "low" | "medium" | "high";
+  expectedImpact: "high" | "medium" | "low";
+  verifyWith: string;
+}
+
+export type ReportReadyAssetKind =
+  | "TITLE_META"
+  | "LANDING_PAGE_BRIEF"
+  | "FAQ_BLOCK"
+  | "AI_QUOTABLE_SUMMARY"
+  | "GBP_POST"
+  | "SCHEMA_SNIPPET"
+  | "CONVERSION_CTA"
+  | "OUTREACH_TEMPLATE";
+
+export interface ReportReadyAsset {
+  kind: ReportReadyAssetKind;
+  title: string;
+  targetUrlOrChannel: string;
+  copyText: string;
+  usageNote: string;
+}
+
+export interface ReportRoadmapMilestone {
+  phase: string;
+  goal: string;
+  ownerTasks: string[];
+  developerTasks: string[];
+  kpiTarget: string;
+}
+
+export interface ReportGrowthPlaybook {
+  businessAngle: string;
+  possibilities: ReportPossibilityScenario[];
+  methods: ReportGrowthMethod[];
+  readyToUseAssets: ReportReadyAsset[];
+  roadmap90Day: ReportRoadmapMilestone[];
+}
+
 /** AI-written analysis of measured citation data. Never generated before a sweep. */
 export interface VisibilityInsights {
   projectId: string;
@@ -251,6 +348,8 @@ export interface VisibilityInsights {
     rationale: string;
     evidence: string;
   }[];
+  businessContext?: ReportBusinessContext | null;
+  playbook?: ReportGrowthPlaybook;
 }
 
 export type QuestionGroup = "BUYER" | "REPUTATION";
@@ -1308,6 +1407,7 @@ export interface GoogleReportFacts {
     cities: { city: string; country: string; sessions: number }[];
   } | null;
   business?: BusinessTrafficContext | null;
+  businessContext?: ReportBusinessContext | null;
   locationGaps?: LocationTrafficGap[];
   diagnostics?: TrafficQualityDiagnostics | null;
   notMeasured: string[];
@@ -1332,6 +1432,7 @@ export interface GoogleReport {
     };
     plan: { week: string; actions: string[] }[];
     dataGaps: string[];
+    playbook?: ReportGrowthPlaybook;
   } | null;
   model: string | null;
   analysisError: string | null;
@@ -2169,6 +2270,7 @@ export interface WebsiteAuditReport {
     problemsBySeverity: Record<string, number>;
     problems: Array<{ title: string; severity: string; pages: number; why: string; action: string; exampleUrls: string[]; issueType: string }>;
     moreProblems: number;
+    businessContext?: ReportBusinessContext | null;
   };
   analysis: {
     summary: string;
@@ -2187,6 +2289,7 @@ export interface WebsiteAuditReport {
     whatIsGood: string[];
     plan: Array<{ week: string; actions: string[] }>;
     dataGaps: string[];
+    playbook?: ReportGrowthPlaybook;
   } | null;
   model: string | null;
   analysisError: string | null;
@@ -2220,6 +2323,8 @@ export interface IntelReportRival {
   googleReviews: number | null;
   comparison: Array<{ label: string; them: number | null; you: number | null; leader: "them" | "you" | "level" | "unknown" }>;
   advantages: IntelRivalAdvantages | null;
+  catalogHighlights?: Array<{ name: string; price: string | null }>;
+  marketingSignals?: string[];
   notes: string[];
 }
 
@@ -2240,6 +2345,7 @@ export interface CompetitorIntelReport {
     aiAnswers: { asked: number; namedYou: number };
     rivals: IntelReportRival[];
     notIncluded: string[];
+    businessContext?: ReportBusinessContext | null;
   };
   analysis: {
     executiveSummary: string;
@@ -2248,6 +2354,7 @@ export interface CompetitorIntelReport {
     whereYouLead: string[];
     plan: Array<{ week: string; actions: string[] }>;
     dataGaps: string[];
+    playbook?: ReportGrowthPlaybook;
   } | null;
   model: string | null;
   analysisError: string | null;

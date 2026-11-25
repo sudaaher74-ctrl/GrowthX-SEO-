@@ -9,6 +9,7 @@ import type {
   WebsiteAuditReport,
 } from "@/lib/api-types";
 import type { BacklinkReport } from "@/lib/backlinks";
+import { businessContextToMarkdown, playbookToMarkdown } from "@/lib/report-playbook-markdown";
 
 /**
  * Universal, stack-agnostic implementation specification model shared across
@@ -1128,6 +1129,16 @@ export function buildAllInOnePlaybookMarkdown(input: {
     "---",
   ];
 
+  const sharedContext =
+    input.auditReport?.facts.businessContext ??
+    input.googleReport?.facts.businessContext ??
+    input.competitorReport?.facts.businessContext ??
+    input.visibilityInsights?.businessContext ??
+    null;
+  if (sharedContext) {
+    sections.push("", ...businessContextToMarkdown(sharedContext), "", "---");
+  }
+
   // 1. Website Audit
   sections.push("", "## 1. Website Audit & Technical Implementation Specs");
   if (input.auditReport) {
@@ -1139,6 +1150,7 @@ export function buildAllInOnePlaybookMarkdown(input: {
     sections.push(
       `Health Score: **${input.auditReport.facts.site?.healthScore ?? "—"}/100** · Pages Crawled: **${input.auditReport.facts.pages?.read ?? 0}** · Open Issues: **${totalIssues}**`,
       "",
+      ...(input.auditReport.analysis?.playbook ? [...playbookToMarkdown(input.auditReport.analysis.playbook), ""] : []),
       auditSpecs.length > 0
         ? auditSpecs.map(formatSpecAsMarkdown).join("\n\n")
         : "_No open technical issues requiring developer specs._",
@@ -1155,6 +1167,7 @@ export function buildAllInOnePlaybookMarkdown(input: {
     sections.push(
       gr.analysis?.executiveSummary || "_Google report summary available in Traffic & Growth report._",
       "",
+      ...(gr.analysis?.playbook ? [...playbookToMarkdown(gr.analysis.playbook), ""] : []),
       priorities.length > 0
         ? priorities
             .slice(0, 10)
@@ -1177,6 +1190,7 @@ export function buildAllInOnePlaybookMarkdown(input: {
     sections.push(
       `Compared against **${rivals.length}** rival(s): ${rivals.map((r) => r.domain).join(", ") || "none"}.`,
       "",
+      ...(input.competitorReport.analysis?.playbook ? [...playbookToMarkdown(input.competitorReport.analysis.playbook), ""] : []),
       compSpecs.length > 0
         ? compSpecs.map(formatSpecAsMarkdown).join("\n\n")
         : "_No competitor implementation gaps recorded yet._",
@@ -1198,6 +1212,7 @@ export function buildAllInOnePlaybookMarkdown(input: {
     sections.push(
       `AI Citation Share: **${input.visibilityReport.summary.citationSharePct}%** (${input.visibilityReport.summary.cited}/${input.visibilityReport.summary.checked} checks cited).`,
       "",
+      ...(input.visibilityInsights?.playbook ? [...playbookToMarkdown(input.visibilityInsights.playbook), ""] : []),
       aiSpecs.length > 0
         ? aiSpecs.map(formatSpecAsMarkdown).join("\n\n")
         : "_No AI visibility action specs generated yet._",

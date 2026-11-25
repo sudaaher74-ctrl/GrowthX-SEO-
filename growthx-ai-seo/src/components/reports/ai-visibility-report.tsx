@@ -14,6 +14,8 @@ import {
   useReportContext,
 } from "@/components/reports/report-kit";
 import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
+import { BusinessContextStrip, ReportPlaybookSections } from "@/components/reports/report-playbook-sections";
+import { businessContextToMarkdown, playbookToMarkdown } from "@/lib/report-playbook-markdown";
 import { Pill } from "@/components/ui/console";
 import { useVisibility } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
@@ -166,10 +168,14 @@ export function AiVisibilityReport() {
       lines.push("");
     }
     if (ins && ins.status === "READY") {
+      lines.push(...businessContextToMarkdown(ins.businessContext), "");
       lines.push("## Strategic Analysis", "");
       if (ins.summary) lines.push(ins.summary, "");
       if (ins.findings.length > 0) {
         lines.push(...ins.findings.map((f) => `- **${f.title}:** ${f.detail} (${f.evidence})`), "");
+      }
+      if (ins.playbook) {
+        lines.push(...playbookToMarkdown(ins.playbook), "");
       }
     }
     if (specs.length > 0) {
@@ -456,6 +462,10 @@ export function AiVisibilityReport() {
           </div>
         )}
       </ReportSection>
+
+      {ins?.businessContext && <BusinessContextStrip ctx={ins.businessContext} />}
+
+      {ins?.playbook && <ReportPlaybookSections playbook={ins.playbook} />}
 
       {/* 6. Universal AI-Readiness Implementation Handoff Pack */}
       <ImplementationHandoffPanel

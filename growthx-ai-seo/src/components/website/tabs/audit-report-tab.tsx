@@ -8,6 +8,7 @@ import { auditReportFilename, auditToCsv, auditToMarkdown, pageRows, severityWor
 import { download, markdownToPrintableHtml, themeColours } from "@/lib/competitor-report";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
+import { BusinessContextStrip, ReportPlaybookSections } from "@/components/reports/report-playbook-sections";
 import { buildAuditImplementationSpecs } from "@/lib/implementation-specs";
 import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
 import { useSubscription } from "@/lib/subscription-engine";
@@ -150,6 +151,8 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
         </div>
       )}
 
+      {data?.facts.businessContext && <BusinessContextStrip ctx={data.facts.businessContext} />}
+
       {data && !data.analysis && (
         <Panel padded>
           <p className="text-[12px] text-warning-600">
@@ -257,6 +260,8 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
               </div>
             </Panel>
           )}
+
+          {data.analysis.playbook && <ReportPlaybookSections playbook={data.analysis.playbook} />}
         </>
       )}
 

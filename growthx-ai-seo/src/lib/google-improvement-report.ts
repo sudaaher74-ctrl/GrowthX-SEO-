@@ -1,5 +1,6 @@
 import type { GoogleReport, WhiteLabelSettings } from "@/lib/api-client";
 import { markdownToPrintableHtml, type PrintColours } from "@/lib/competitor-report";
+import { businessContextToMarkdown, playbookToMarkdown } from "@/lib/report-playbook-markdown";
 import type { CsvSection } from "@/lib/report-csv";
 
 /** Downloads for the Traffic & Business Improvement Report: Markdown, 1-Click CSV, and White-Label Printable PDF. */
@@ -41,6 +42,10 @@ export function googleReportMarkdown(report: GoogleReport, whiteLabel?: WhiteLab
     if (b.offerings.length) lines.push(`- **Core Offerings:** ${b.offerings.join(", ")}`);
     if (b.targetCities.length) lines.push(`- **Target Cities / Service Areas:** ${b.targetCities.join(", ")}`);
     lines.push(`- **Website Pages Audited:** ${b.pagesAudited}${b.healthScore != null ? ` (Health Score: ${b.healthScore}/100)` : ""}`, "");
+  }
+
+  if (facts.businessContext) {
+    lines.push(...businessContextToMarkdown(facts.businessContext), "");
   }
 
   if (facts.diagnostics) {
@@ -129,6 +134,7 @@ export function googleReportMarkdown(report: GoogleReport, whiteLabel?: WhiteLab
       for (const w of a.plan) lines.push(`### ${w.week}`, "", ...w.actions.map((x) => `- ${x}`), "");
     }
     if (a.dataGaps.length) lines.push("## Not Measured Yet", "", ...a.dataGaps.map((g) => `- ${g}`), "");
+    if (a.playbook) lines.push(...playbookToMarkdown(a.playbook), "");
   }
 
   if (facts.strikingDistance.length > 0) {

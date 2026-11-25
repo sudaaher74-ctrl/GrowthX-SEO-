@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
 import { SourceBadge } from "@/components/google/parts";
+import { BusinessContextStrip, ReportPlaybookSections } from "@/components/reports/report-playbook-sections";
 import { usePeriodDays, useWhiteLabel, useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type {
@@ -710,6 +711,10 @@ export function ImprovementReportView() {
         </Panel>
       )}
 
+      {data?.facts.businessContext && (
+        <BusinessContextStrip ctx={data.facts.businessContext} />
+      )}
+
       {/* 5. TARGET CITY & MARKET TRAFFIC PLAN (WITH 1-CLICK EXECUTION) */}
       {locationGaps.length > 0 && (
         <Panel
@@ -986,6 +991,8 @@ export function ImprovementReportView() {
               </div>
             </Panel>
           )}
+
+          {a.playbook && <ReportPlaybookSections playbook={a.playbook} />}
 
           {a.dataGaps.length > 0 && (
             <Panel title="Not measured yet (unlock these signals)" padded>

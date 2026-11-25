@@ -5,6 +5,7 @@ import { Bot, ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Pri
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
 import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
+import { BusinessContextStrip, ReportPlaybookSections } from "@/components/reports/report-playbook-sections";
 import { buildCompetitorImplementationSpecs } from "@/lib/implementation-specs";
 import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
 import { useWorkspace, useWhiteLabel } from "@/hooks/use-growthx";
@@ -160,6 +161,8 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
         );
       })()}
 
+      {data?.facts.businessContext && <BusinessContextStrip ctx={data.facts.businessContext} />}
+
       {data && !data.analysis && (
         <Panel padded>
           <p className="text-[12px] text-warning-600">
@@ -267,6 +270,8 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
               </div>
             </Panel>
           )}
+
+          {data.analysis.playbook && <ReportPlaybookSections playbook={data.analysis.playbook} />}
 
           {data.analysis.dataGaps.length > 0 && (
             <Panel title="Not measured yet" padded>
@@ -388,6 +393,33 @@ function RivalFacts({ rival: r, asked, namedYou }: { rival: IntelReportRival; as
               <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-brand-600">
                 {a.questions.theirs.map((q) => (
                   <li key={q}>{q}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {r.catalogHighlights && r.catalogHighlights.length > 0 && (
+            <>
+              <p className="mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">
+                Detected products &amp; pricing
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-brand-600">
+                {r.catalogHighlights.map((c) => (
+                  <li key={`${c.name}-${c.price ?? ""}`}>
+                    <span className="font-medium text-brand-950">{c.name}</span>
+                    {c.price ? ` · ${c.price}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {r.marketingSignals && r.marketingSignals.length > 0 && (
+            <>
+              <p className="mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">
+                Offers &amp; trust positioning
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-brand-600">
+                {r.marketingSignals.map((s) => (
+                  <li key={s}>{s}</li>
                 ))}
               </ul>
             </>
