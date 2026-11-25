@@ -103,7 +103,7 @@ test.describe("Google account recovery", () => {
     await expect(page.getByText(/disables your old Reigel password/)).toBeVisible();
     expect(requests).toBe(0);
     await page.getByRole("button", { name: "Confirm Google recovery" }).click();
-    await expect(page.getByRole("alert").getByText("This recovery link has expired.")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "This recovery link has expired." })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start again with Google" })).toBeVisible();
     expect(requests).toBe(1);
   });
