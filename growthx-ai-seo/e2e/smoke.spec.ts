@@ -147,6 +147,13 @@ test("Local SEO shows a connected listing when the audit route is unavailable", 
     localStorage.setItem("growthx.session", "1");
     localStorage.setItem("growthx.org", "maps-workspace");
     localStorage.setItem("growthx.project", projectId);
+    localStorage.setItem("growthx_subscription_claim_maps-workspace", JSON.stringify({
+      tierId: "growth",
+      tierName: "Growth",
+      status: "active",
+      billingCycle: "monthly",
+      currency: "INR",
+    }));
   }, { projectId });
   await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
   await page.route("**/auth/me", (route) => route.fulfill({ json: { id: "maps-user", role: "OWNER" } }));
