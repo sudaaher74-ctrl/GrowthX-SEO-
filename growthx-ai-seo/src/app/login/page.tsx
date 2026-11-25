@@ -27,6 +27,25 @@ import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { ActionButton } from "@/components/ui/console";
 
+const GOOGLE_RECOVERY_KEY = "reigel.google-recovery";
+// Cap the browser copy at the API's ten-minute challenge lifetime.
+const GOOGLE_RECOVERY_TTL_MS = 10 * 60 * 1000;
+
+function readGoogleRecovery() {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = sessionStorage.getItem(GOOGLE_RECOVERY_KEY);
+    if (!saved) return null;
+    const { token, email, expiresAt } = JSON.parse(saved);
+    if (typeof token === "string" && token && typeof email === "string" && typeof expiresAt === "number" && expiresAt > Date.now()) {
+      return { token, email };
+    }
+  } catch {
+    // Recovery can still proceed from its original link when storage is blocked.
+  }
+  return null;
+}
+
 function GoogleRecoveryForm({
   token,
   email,
@@ -44,7 +63,18 @@ function GoogleRecoveryForm({
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has("token") && !url.searchParams.has("email")) return;
+    const incomingToken = url.searchParams.get("token");
+    if (!incomingToken) return;
+    try {
+      sessionStorage.setItem(GOOGLE_RECOVERY_KEY, JSON.stringify({
+        token: incomingToken,
+        email: url.searchParams.get("email") ?? "",
+        expiresAt: Date.now() + GOOGLE_RECOVERY_TTL_MS,
+      }));
+    } catch {
+      // Keep the original link usable across reloads when storage is blocked.
+      return;
+    }
     url.searchParams.delete("token");
     url.searchParams.delete("email");
     window.history.replaceState(null, "", url);
@@ -59,6 +89,11 @@ function GoogleRecoveryForm({
 
     try {
       await api.completeGoogleRecovery(token, confirmRecovery ? undefined : password);
+      try {
+        sessionStorage.removeItem(GOOGLE_RECOVERY_KEY);
+      } catch {
+        // The API has already consumed the one-time challenge.
+      }
       await onSignedIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete Google sign-in. Please try again.");
@@ -119,7 +154,7 @@ function GoogleRecoveryForm({
         </form>
       ) : (
         <p role="alert" className="text-sm text-error-600">
-          This recovery link is incomplete. Start again with Google to get a new link.
+          This recovery link is incomplete or expired. Start again with Google to get a new link.
         </p>
       )}
       <a
@@ -150,10 +185,12 @@ function splitFullName(raw: string): { firstName?: string; lastName?: string } {
 function LoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Keep the credentials in memory after removing them from the address bar.
-  const [googleRecovery] = useState(() => searchParams.get("recovery") === "google"
-    ? { token: searchParams.get("token") ?? "", email: searchParams.get("email") ?? "" }
-    : null);
+  const [googleRecovery] = useState(() => {
+    if (searchParams.get("recovery") !== "google") return null;
+    const token = searchParams.get("token");
+    if (token) return { token, email: searchParams.get("email") ?? "" };
+    return readGoogleRecovery() ?? { token: "", email: "" };
+  });
   const urlParam = (searchParams.get("url") || "").trim();
   const planParam = searchParams.get("plan");
   const cycleParam = searchParams.get("cycle");
