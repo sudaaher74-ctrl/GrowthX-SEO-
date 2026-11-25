@@ -106,10 +106,6 @@ export const providerName = (provider: string, model?: string | null) => {
   if (m.includes("sarvam")) return "Sarvam";
   if (m.includes("llama")) return "Llama";
   if (m.includes("deepseek")) return "DeepSeek";
-  if (provider === "OPENROUTER") {
-    const shortModel = model?.trim().split("/").pop();
-    return shortModel || "ChatGPT";
-  }
   return (
     ({
       GEMINI: "Gemini",
@@ -118,6 +114,7 @@ export const providerName = (provider: string, model?: string | null) => {
       PERPLEXITY: "Perplexity",
       GROK: "Grok",
       SARVAM: "Sarvam",
-    } as Record<string, string>)[provider] ?? provider
+      OPENROUTER: "OpenRouter",
+    } as Record<string, string>)[provider] ?? "AI assistant"
   );
 };

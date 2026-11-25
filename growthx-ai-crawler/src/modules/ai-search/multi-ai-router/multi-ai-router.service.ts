@@ -922,11 +922,22 @@ export class MultiAiRouterService {
       const response = request.timeoutMs
         ? await this.openrouter!.chat.completions.create(body as any, { timeout: request.timeoutMs, maxRetries: 0 })
         : await this.openrouter!.chat.completions.create(body as any);
+      const answer = response.choices[0]?.message;
+      let answerText = answer?.content ?? '';
+      if (answerText && targetModel.startsWith('perplexity/')) {
+        const annotations = (answer as unknown as { annotations?: Array<{ url_citation?: { url?: string } }> })?.annotations;
+        const citations = (response as unknown as { citations?: unknown }).citations;
+        const urls = new Set([
+          ...(Array.isArray(annotations) ? annotations.map((item) => item?.url_citation?.url) : []),
+          ...(Array.isArray(citations) ? citations : []),
+        ].filter((url): url is string => typeof url === 'string' && /^https?:\/\/\S+$/i.test(url)));
+        if (urls.size) answerText += `\n\nSources:\n${Array.from(urls, (url) => `- ${url}`).join('\n')}`;
+      }
 
       return {
         provider: AiProvider.OPENROUTER,
         model: response.model ?? targetModel,
-        text: response.choices[0]?.message?.content ?? '',
+        text: answerText,
         usage: this.usage(
           response.usage?.prompt_tokens ?? 0,
           response.usage?.completion_tokens ?? 0,

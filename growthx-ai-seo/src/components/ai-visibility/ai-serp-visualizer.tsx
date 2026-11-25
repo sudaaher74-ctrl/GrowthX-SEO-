@@ -492,7 +492,7 @@ export function AiSerpVisualizer({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-brand-950">AI Overviews &amp; SearchGPT SERP Visualizer</h3>
+                <h3 className="text-sm font-bold text-brand-950">AI search simulator</h3>
                 <span className="rounded-full bg-signal-400/20 px-2 py-0.5 text-[10.5px] font-bold font-mono text-brand-900 border border-brand-200">
                   Measured Preview
                 </span>
@@ -519,7 +519,7 @@ export function AiSerpVisualizer({
               )}
             >
               <span className="h-2 w-2 rounded-full bg-signal-500" />
-              <span>Google AI Overview</span>
+              <span>Gemini</span>
             </button>
 
             <button
@@ -536,7 +536,7 @@ export function AiSerpVisualizer({
               )}
             >
               <Bot size={13} className="text-brand-700" />
-              <span>SearchGPT / ChatGPT</span>
+              <span>ChatGPT</span>
             </button>
 
             <button
@@ -894,7 +894,7 @@ export function AiSerpVisualizer({
               {selectedEngine === "searchgpt" && (
                 <div className="flex items-center gap-1.5 font-bold tracking-tight text-brand-950 text-sm">
                   <Bot size={18} className="text-brand-950" />
-                  <span>SearchGPT Canvas</span>
+                  <span>ChatGPT</span>
                 </div>
               )}
               {selectedEngine === "perplexity" && (
@@ -1065,11 +1065,11 @@ export function AiSerpVisualizer({
                         <div className="col-span-full rounded-xl border border-brand-200/60 bg-surface-2 p-3 text-xs text-brand-600 space-y-1.5">
                           {isBrandMentioned ? (
                             <span className="flex items-center gap-1.5 text-success-700 font-semibold">
-                              <CheckCircle2 size={14} /> {businessName} is mentioned in the answer synthesis (no explicit source URLs were attached by this model).
+                              <CheckCircle2 size={14} /> The answer mentions {businessName} without linking to sources.
                             </span>
                           ) : (
                             <span className="flex items-center gap-1.5 text-warning-700 font-semibold">
-                              <AlertCircle size={14} /> No source URLs were returned by this model response{competitorMentions.length > 0 ? ` — rivals named in text: ${competitorMentions.slice(0, 4).join(", ")}.` : "."}
+                              <AlertCircle size={14} /> The answer contains no source links{competitorMentions.length > 0 ? `. Rivals mentioned include ${competitorMentions.slice(0, 4).join(", ")}.` : "."}
                             </span>
                           )}
                         </div>
@@ -1219,10 +1219,7 @@ export function AiSerpVisualizer({
                   <div className="flex items-center justify-between pb-2 border-b border-brand-200/60">
                     <span className="text-[11px] font-bold font-mono text-brand-500 uppercase flex items-center gap-1.5">
                       <Sparkles size={12} className="text-signal-500" />
-                      SearchGPT Direct Answer
-                    </span>
-                    <span className="text-[10.5px] font-mono text-brand-400">
-                      {currentEngineAnswer?.model || currentEngineAnswer?.provider || "Captured Response"}
+                      ChatGPT answer
                     </span>
                   </div>
 
@@ -1351,7 +1348,7 @@ export function AiSerpVisualizer({
                         )
                       ) : (
                         <div className="col-span-full rounded-xl border border-brand-200/60 bg-surface-2 p-2.5 text-xs text-brand-500">
-                          No external citation URLs returned by this model response.{" "}
+                          The answer contains no external source links.{" "}
                           {promptText && (
                             <a
                               href={perplexitySearchUrl(promptText)}

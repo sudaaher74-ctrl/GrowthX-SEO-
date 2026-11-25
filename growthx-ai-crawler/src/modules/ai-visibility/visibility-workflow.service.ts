@@ -50,7 +50,19 @@ import {
 } from "./visibility-workflow.schema";
 
 const ACTIVE = ["QUEUED", "PREPARING", "CHECKING", "PLANNING"];
-const PROVIDERS = [AiProvider.GEMINI, AiProvider.SARVAM];
+const ANALYSTS = [AiProvider.GEMINI, AiProvider.SARVAM];
+const GATEWAY_MODELS: Partial<Record<AiProvider, string>> = {
+  [AiProvider.ANTHROPIC]: "anthropic/claude-haiku-4.5",
+  [AiProvider.PERPLEXITY]: "perplexity/sonar",
+};
+const PROVIDERS = [...ANALYSTS, AiProvider.ANTHROPIC, AiProvider.PERPLEXITY];
+
+const PROVIDER_NAMES: Partial<Record<AiProvider, string>> = {
+  [AiProvider.GEMINI]: "Gemini",
+  [AiProvider.SARVAM]: "Sarvam",
+  [AiProvider.ANTHROPIC]: "Claude",
+  [AiProvider.PERPLEXITY]: "Perplexity",
+};
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 type JobData = { id: string; phase: "PREPARE" | "CHECK" };
@@ -113,10 +125,25 @@ export class VisibilityWorkflowService
     await this.jobs?.close();
   }
 
-  private providers() {
-    return PROVIDERS.filter((p) =>
-      this.router.configuredProviders().includes(p),
-    );
+  private answerRoutes() {
+    const configured = this.router.configuredProviders();
+    const models = this.router.configuredModels();
+    const routes = new Map<AiProvider, { provider: AiProvider; model: string }>();
+    for (const provider of PROVIDERS) {
+      const directModel = models[provider];
+      const gatewayModel = GATEWAY_MODELS[provider];
+      if (configured.includes(provider) && directModel) {
+        routes.set(provider, { provider, model: directModel });
+      } else if (gatewayModel && configured.includes(AiProvider.OPENROUTER)) {
+        routes.set(provider, { provider: AiProvider.OPENROUTER, model: gatewayModel });
+      }
+    }
+    return routes;
+  }
+
+  private analysts() {
+    const configured = this.router.configuredProviders();
+    return ANALYSTS.filter((provider) => configured.includes(provider));
   }
 
   async read(projectId: string) {
@@ -125,21 +152,21 @@ export class VisibilityWorkflowService
       orderBy: { createdAt: "desc" },
     });
     const answers = journey?.scanId ? await this.answers(journey.scanId) : [];
-    const configured = this.providers();
+    const routes = this.answerRoutes();
     return {
       journey,
       answers,
       providers: PROVIDERS.map((provider) => ({
         provider,
-        configured: configured.includes(provider),
-        model: this.router.configuredModels()[provider] ?? null,
+        configured: routes.has(provider),
+        model: routes.get(provider)?.model ?? null,
       })),
     };
   }
 
   async prepare(projectId: string) {
     await this.ready();
-    if (!this.providers().length)
+    if (!this.analysts().length)
       throw new ServiceUnavailableException(
         "Configure Gemini or Sarvam before building AI Visibility.",
       );
@@ -165,7 +192,7 @@ export class VisibilityWorkflowService
 
   async check(projectId: string, id: string, rawBrief?: unknown) {
     await this.ready();
-    if (!this.providers().length)
+    if (!this.analysts().length)
       throw new ServiceUnavailableException(
         "Configure Gemini or Sarvam before checking answers.",
       );
@@ -348,10 +375,11 @@ export class VisibilityWorkflowService
     let brief = previous.brief as unknown as VisibilityBrief | null;
     const analysts = brief?.analysts ?? [];
     const errors: string[] = [];
-    for (const provider of PROVIDERS) {
-      if (!this.providers().includes(provider)) {
+    const analystsAvailable = this.analysts();
+    for (const provider of ANALYSTS) {
+      if (!analystsAvailable.includes(provider)) {
         errors.push(
-          `${provider} is not configured and did not analyse this business.`,
+          `${PROVIDER_NAMES[provider]} is not configured and did not analyse this business.`,
         );
         continue;
       }
@@ -407,7 +435,7 @@ export class VisibilityWorkflowService
             ? err.message
             : "The provider request did not complete. Check its access, quota and availability before retrying.";
         errors.push(
-          `${provider} could not prepare the buyer questions. ${redactSecretsForAi(reason)}`,
+          `${PROVIDER_NAMES[provider]} could not prepare the buyer questions. ${redactSecretsForAi(reason)}`,
         );
       }
     }
@@ -463,12 +491,16 @@ export class VisibilityWorkflowService
       data: { scanId, status: "CHECKING", progress: 25 },
     });
     const errors: string[] = [];
+    const routes = this.answerRoutes();
+    const analysts = this.analysts();
     let finished = 0;
     for (const provider of PROVIDERS) {
-      if (!this.providers().includes(provider)) {
-        errors.push(
-          `${provider} is not configured. Its 10 answers were not measured.`,
-        );
+      const route = routes.get(provider);
+      const name = PROVIDER_NAMES[provider];
+      if (!route) {
+        if (ANALYSTS.includes(provider)) {
+          errors.push(`${name} is not configured. Its answers were not measured.`);
+        }
         continue;
       }
       const runId = `${id}-${provider}`;
@@ -479,7 +511,7 @@ export class VisibilityWorkflowService
           id: runId,
           scanId,
           provider,
-          model: this.router.configuredModels()[provider],
+          model: route.model,
           status: "RUNNING",
           startedAt: new Date(),
         },
@@ -510,29 +542,33 @@ export class VisibilityWorkflowService
             // Do not prime recommendation probes with the customer's name, evidence, or competitors.
             result = await this.router.generate({
               projectId,
-              provider,
+              provider: route.provider,
+              model: route.model,
               allowFallback: false,
               task: AiTask.AI_VISIBILITY_ANALYSIS,
               prompt: question.text,
               maxTokens: 1200,
               timeoutMs: 90_000,
             });
-            if (result.refused || !result.text.trim())
-              failure = `${provider} returned no usable answer.`;
+            const expectedBrand = route.model.split("/")[0];
+            if (
+              result.refused ||
+              !result.text.trim() ||
+              (route.provider === AiProvider.OPENROUTER && !result.model.startsWith(`${expectedBrand}/`))
+            ) {
+              failure = `${name} returned no usable answer.`;
+            }
           } catch {
-            failure = `${provider} could not answer this question. Check provider availability, limits and account access.`;
+            failure = `${name} could not answer this question. Check provider availability, limits and account access.`;
           }
           const data = {
             scanRunId: runId,
             promptId,
             provider,
-            model:
-              result?.model ||
-              this.router.configuredModels()[provider] ||
-              "unknown",
+            model: result?.model || route.model,
             promptText: question.text,
             promptVersion: 1,
-            rawResponse: result?.text || null,
+            rawResponse: failure ? null : result?.text || null,
             inputTokens: result?.usage.inputTokens ?? 0,
             outputTokens: result?.usage.outputTokens ?? 0,
             totalTokens:
@@ -543,7 +579,7 @@ export class VisibilityWorkflowService
             status: failure ? "FAILED" : "SUCCESS",
             errorMessage: failure,
             surfaceType: "API",
-            searchEnabled: false,
+            searchEnabled: provider === AiProvider.PERPLEXITY,
           };
           await this.prisma.aiVisibilityResponse.upsert({
             where: { id: responseId },
@@ -556,7 +592,7 @@ export class VisibilityWorkflowService
           where: { id },
           data: {
             progress:
-              25 + Math.round((finished / (this.providers().length * 10)) * 45),
+              25 + Math.round((finished / (routes.size * brief.questions.length)) * 45),
           },
         });
       }
@@ -572,15 +608,17 @@ export class VisibilityWorkflowService
     const answers = await this.answers(scanId);
     const usable = answers.filter((a) => !a.errorMessage && a.rawResponse);
     const measurements = new Map<string, unknown>();
-    for (const provider of this.providers()) {
+    for (const provider of routes.keys()) {
       const pending = usable.filter(
         (a) => a.provider === provider && !a.analysis,
       );
       if (!pending.length) continue;
+      const classifier = analysts.find((analyst) => analyst === provider) ?? analysts[0];
+      if (!classifier) continue;
       try {
         const result = await this.ask(
           projectId,
-          provider,
+          classifier,
           `Classify each supplied answer, using only its actual wording. The customer's brand is ${JSON.stringify(brief.businessName)} at ${JSON.stringify(ctx.domain)}.
 Return one measurement per answer: {measurements:[{answerId,recommended:boolean,recommendationQuote:string,rivals:[{name,quote}]}]}.
 A recommendation must be positive advice to choose the customer's business, with an exact quote containing its name. Denials, disclaimers, neutral mentions and uncertainty are NOT recommendations.
@@ -599,7 +637,7 @@ ANSWERS: ${JSON.stringify(pending.map((a) => ({ id: a.id, question: a.promptText
         }
       } catch {
         errors.push(
-          `${provider} could not classify its answers. Raw answers remain available.`,
+          `${PROVIDER_NAMES[provider]} answers could not be classified. Raw answers remain available.`,
         );
       }
     }
@@ -684,7 +722,7 @@ ANSWERS: ${JSON.stringify(pending.map((a) => ({ id: a.id, question: a.promptText
       .digest("hex");
     const savedAssessments = list(journey.analysis) as VisibilityAssessment[];
     const assessments: VisibilityAssessment[] = [];
-    for (const provider of this.providers()) {
+    for (const provider of analysts) {
       if (!usable.length) break;
       const saved = savedAssessments.find(
         (a) =>
@@ -698,7 +736,7 @@ ANSWERS: ${JSON.stringify(pending.map((a) => ({ id: a.id, question: a.promptText
         const result = await this.ask(
           projectId,
           provider,
-          `Use the reviewed business, all four evidence sources, and the measured answer findings from both assistants to create a local lead and GEO action plan.
+          `Use the reviewed business, all four evidence sources, and the measured answer findings to create a local lead and GEO action plan.
 For every competitor gap separate an observed difference from a hypothesis about why AI recommends a rival. Never claim to know a model's internal ranking reasons.
 If a named rival has no crawl evidence, say its website has not been investigated. Do not invent pages, reviews or practices.
 Prioritize service-area pages, local discovery, conversion paths and measurable lead events according to facts. Use GSC and GA4 evidence where available, distinguishing missing data from zero.
@@ -723,7 +761,7 @@ BUSINESS: ${JSON.stringify(brief)}\nEVIDENCE: ${JSON.stringify(ctx)}\nFINDINGS: 
         });
       } catch {
         errors.push(
-          `${provider} could not finish its action-plan assessment. Saved answers remain available.`,
+          `${PROVIDER_NAMES[provider]} could not finish its action-plan assessment. Saved answers remain available.`,
         );
       }
     }

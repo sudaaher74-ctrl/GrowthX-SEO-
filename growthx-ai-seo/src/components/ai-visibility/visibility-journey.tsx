@@ -104,6 +104,7 @@ function Journey({ projectId }: { projectId: string }) {
   const busy = journeyRunning(run?.status) || prepare.isPending || check.isPending;
   const configured = data?.providers.filter((p) => p.configured && !p.unavailableReason) ?? [];
   const assistantNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(configured.map((p) => providerName(p.provider, p.model)));
+  const connectedBrands = new Set(configured.map((p) => providerName(p.provider, p.model)));
   const error = prepare.error || check.error;
 
   const measured = data?.answers?.filter((a) => !a.errorMessage && a.analysis) ?? [];
@@ -220,7 +221,7 @@ function Journey({ projectId }: { projectId: string }) {
                 )}
               </div>
               <p className="mt-0.5 text-[11.5px] text-brand-400">
-                Live synthesis across ChatGPT, Gemini, Claude, and Perplexity.
+                Saved recommendations and citations by assistant.
               </p>
             </div>
           </div>
@@ -249,12 +250,12 @@ function Journey({ projectId }: { projectId: string }) {
           {/* ChatGPT */}
           <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">ChatGPT Engine</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">ChatGPT</span>
               <span className="text-base font-extrabold text-brand-950 font-mono">
-                {chatGptPct != null ? `${chatGptPct}%` : "Monitored"}
+                {chatGptPct != null ? `${chatGptPct}%` : "—"}
               </span>
               <span className="text-[10px] text-brand-500 block truncate font-mono">
-                {chatGptAnswers.length ? `${chatGptRec}/${chatGptAnswers.length} cited` : "Ready"}
+                {chatGptAnswers.length ? `${chatGptRec}/${chatGptAnswers.length} cited` : connectedBrands.has("ChatGPT") ? "No results yet" : "Not connected"}
               </span>
             </div>
             <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
@@ -265,12 +266,12 @@ function Journey({ projectId }: { projectId: string }) {
           {/* Google AI / Gemini */}
           <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Google Gemini</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Gemini</span>
               <span className="text-base font-extrabold text-brand-950 font-mono">
-                {googleAiPct != null ? `${googleAiPct}%` : "Monitored"}
+                {googleAiPct != null ? `${googleAiPct}%` : "—"}
               </span>
               <span className="text-[10px] text-brand-500 block truncate font-mono">
-                {googleAiAnswers.length ? `${googleAiRec}/${googleAiAnswers.length} cited` : "Ready"}
+                {googleAiAnswers.length ? `${googleAiRec}/${googleAiAnswers.length} cited` : connectedBrands.has("Gemini") ? "No results yet" : "Not connected"}
               </span>
             </div>
             <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
@@ -281,12 +282,12 @@ function Journey({ projectId }: { projectId: string }) {
           {/* Perplexity */}
           <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Perplexity GEO</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Perplexity</span>
               <span className="text-base font-extrabold text-brand-950 font-mono">
-                {perplexityPct != null ? `${perplexityPct}%` : "Monitored"}
+                {perplexityPct != null ? `${perplexityPct}%` : "—"}
               </span>
               <span className="text-[10px] text-brand-500 block truncate font-mono">
-                {perplexityAnswers.length ? `${perplexityRec}/${perplexityAnswers.length} cited` : "Ready"}
+                {perplexityAnswers.length ? `${perplexityRec}/${perplexityAnswers.length} cited` : connectedBrands.has("Perplexity") ? "No results yet" : "Not connected"}
               </span>
             </div>
             <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
@@ -297,12 +298,12 @@ function Journey({ projectId }: { projectId: string }) {
           {/* Claude */}
           <div className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left shadow-2xs">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Claude Engine</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 font-mono block">Claude</span>
               <span className="text-base font-extrabold text-brand-950 font-mono">
-                {claudePct != null ? `${claudePct}%` : "Monitored"}
+                {claudePct != null ? `${claudePct}%` : "—"}
               </span>
               <span className="text-[10px] text-brand-500 block truncate font-mono">
-                {claudeAnswers.length ? `${claudeRec}/${claudeAnswers.length} cited` : "Ready"}
+                {claudeAnswers.length ? `${claudeRec}/${claudeAnswers.length} cited` : connectedBrands.has("Claude") ? "No results yet" : "Not connected"}
               </span>
             </div>
             <div className="h-6 w-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
@@ -425,7 +426,7 @@ function Journey({ projectId }: { projectId: string }) {
           )}
         >
           <Bot size={14} className={activeTab === "answers" ? "text-signal-500" : "text-brand-400"} />
-          <span>Model Responses</span>
+          <span>AI Responses</span>
           <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
             {data?.answers?.length ?? 0}
           </span>
@@ -506,7 +507,7 @@ function Journey({ projectId }: { projectId: string }) {
                           ? "Connecting to AI search models & initializing query queue…"
                           : run.status === "CHECKING"
                             ? `Asking ${assistantNames} your buyer prompts`
-                            : "Analyzing model responses & calculating recommendation share…"}
+                            : "Analyzing responses and calculating recommendation share…"}
                     </p>
                   </div>
                 </div>
@@ -611,7 +612,7 @@ function Journey({ projectId }: { projectId: string }) {
             <Panel padded>
               <div className="mx-auto max-w-md space-y-3 py-8 text-center">
                 <Bot className="mx-auto text-brand-400" size={24} />
-                <h3 className="text-base font-bold text-brand-950">No Model Responses Saved Yet</h3>
+                <h3 className="text-base font-bold text-brand-950">No AI responses saved yet</h3>
                 <p className="text-xs text-brand-500">
                   Confirm your buyer prompts in the &quot;Tracked Prompts&quot; tab to trigger multi-LLM checks across ChatGPT, Google Gemini, and Perplexity.
                 </p>
@@ -940,15 +941,6 @@ function answerMatchesEngine(answer: VisibilityAnswer, engine: SupportedEngine) 
     case "Perplexity":
       return provider.includes("PERPLEXITY") || model.includes("PERPLEXITY") || model.includes("SONAR");
   }
-}
-
-function modelsForEngine(answers: VisibilityAnswer[], engine: SupportedEngine) {
-  return Array.from(new Set(
-    answers
-      .filter((answer) => answerMatchesEngine(answer, engine))
-      .map((answer) => answer.model?.trim())
-      .filter((model): model is string => Boolean(model)),
-  ));
 }
 
 function matchingCitationDomain(brandName: string | null | undefined, answers: VisibilityAnswer[]) {
@@ -1495,56 +1487,26 @@ function PromptsSection({
               <div className="flex-1">Prompt</div>
               {ENGINES.map((engine) => {
                 const Icon = engine.icon;
-                const models = modelsForEngine(answers, engine.name);
-                const matchingProvider = providers.find((p) => {
-                  const prov = (p.provider || "").toUpperCase();
-                  switch (engine.name) {
-                    case "ChatGPT":
-                      return prov.includes("OPENAI") || prov.includes("CHATGPT");
-                    case "Google AI":
-                      return prov.includes("GEMINI") || prov.includes("GOOGLE");
-                    case "Claude":
-                      return prov.includes("ANTHROPIC") || prov.includes("CLAUDE");
-                    case "Perplexity":
-                      return prov.includes("PERPLEXITY");
-                    default:
-                      return false;
-                  }
-                });
-
-                const isConfigured = matchingProvider?.configured ?? false;
-                const modelSummary =
-                  models.length > 0
-                    ? models.length > 1
-                      ? `${models[0]} +${models.length - 1} more`
-                      : models[0]
-                    : isConfigured
-                      ? matchingProvider?.model || "Ready to check"
-                      : "Not connected";
+                const brand = engine.name === "Google AI" ? "Gemini" : engine.name;
+                const hasAnswers = answers.some((answer) => answer.rawResponse && !answer.errorMessage && answerMatchesEngine(answer, engine.name));
+                const isConfigured = providers.some((provider) => provider.configured && providerName(provider.provider, provider.model) === brand);
                 return (
                   <div key={engine.name} className="flex w-28 flex-col items-center justify-center gap-0.5 px-1 text-center sm:w-36">
                     <div className="flex items-center justify-center gap-1.5 text-brand-950">
                       <Icon className="h-4 w-4 shrink-0 text-brand-950" />
-                      <span className="normal-case font-semibold text-brand-950">{engine.name}</span>
+                      <span className="normal-case font-semibold text-brand-950">{brand}</span>
                     </div>
                     <span
                       className={cn(
                         "max-w-full truncate text-[9px] font-mono normal-case leading-3",
-                        models.length > 0
+                        hasAnswers
                           ? "font-semibold text-brand-700"
                           : isConfigured
                             ? "text-brand-500"
                             : "text-brand-400 opacity-60",
                       )}
-                      title={
-                        models.length
-                          ? `Model used: ${models.join(", ")}`
-                          : isConfigured
-                            ? "Engine configured & ready to check"
-                            : "Engine API key not configured in Settings"
-                      }
                     >
-                      {modelSummary}
+                      {hasAnswers ? "Answers saved" : isConfigured ? "Ready to check" : "Not connected"}
                     </span>
                   </div>
                 );
