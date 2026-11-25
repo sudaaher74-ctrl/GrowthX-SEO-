@@ -58,7 +58,10 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       {
         source: "/login",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, follow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
       },
       {
         source: "/auth/:path*",

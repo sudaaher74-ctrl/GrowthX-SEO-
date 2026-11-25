@@ -71,12 +71,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={inter.className}>
         {/* Google Analytics (gtag.js), loaded after the page is interactive. */}
-        <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
-          {`window.dataLayer = window.dataLayer || [];
+          {`(function () {
+// Google recovery arrives with a one-time token in the URL. Never record that landing.
+if (location.pathname === '/login' && new URLSearchParams(location.search).get('recovery') === 'google') return;
+window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', '${GA_MEASUREMENT_ID}');`}
+gtag('config', '${GA_MEASUREMENT_ID}');
+var script = document.createElement('script');
+script.async = true;
+script.src = 'https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}';
+document.head.appendChild(script);
+})();`}
         </Script>
         <Providers>{children}</Providers>
       </body>

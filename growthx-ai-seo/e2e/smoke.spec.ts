@@ -69,6 +69,46 @@ test.describe("public routes render", () => {
   }
 });
 
+test.describe("Google account recovery", () => {
+  const recoveryUrl = "/login?recovery=google&token=fixture-token&email=owner%40example.com";
+
+  test("links Google with the existing Reigel password and opens the workspace", async ({ page }) => {
+    await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
+    await page.route("**/organizations", (route) => route.fulfill({ json: [{ id: "existing-workspace" }] }));
+    await page.route("**/projects/org/existing-workspace", (route) => route.fulfill({ json: [{ id: "existing-project" }] }));
+    await page.route("**/auth/google/link-with-password", (route) => route.fulfill({ json: { success: true } }));
+    await page.goto(recoveryUrl);
+    await expect(page).toHaveURL(/\/login\?recovery=google$/);
+    await expect(page.getByRole("heading", { name: "Finish Google sign-in" })).toBeVisible();
+    await page.getByLabel("Current Reigel password").fill("fixture-password");
+    const request = page.waitForRequest("**/auth/google/link-with-password");
+    await page.getByRole("button", { name: "Link Google and sign in" }).click();
+    expect((await request).postDataJSON()).toEqual({
+      recoveryToken: "fixture-token",
+      password: "fixture-password",
+    });
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  test("shows the recovery consequences and requires confirmation before submitting", async ({ page }) => {
+    let requests = 0;
+    await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
+    await page.route("**/auth/google/reclaim-account", (route) => {
+      requests++;
+      expect(route.request().postDataJSON()).toEqual({ recoveryToken: "fixture-token" });
+      return route.fulfill({ status: 401, json: { message: "This recovery link has expired." } });
+    });
+    await page.goto(recoveryUrl);
+    await page.getByRole("button", { name: "Recover with Google instead" }).click();
+    await expect(page.getByText(/disables your old Reigel password/)).toBeVisible();
+    expect(requests).toBe(0);
+    await page.getByRole("button", { name: "Confirm Google recovery" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "This recovery link has expired." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start again with Google" })).toBeVisible();
+    expect(requests).toBe(1);
+  });
+});
+
 test.describe("dashboard routes render", () => {
   test.beforeEach(async ({ page }) => {
     // The shell redirects to /login without a token; a fake one is enough to
