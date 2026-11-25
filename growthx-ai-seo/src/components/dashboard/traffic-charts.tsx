@@ -1,7 +1,24 @@
-import React from "react";
+"use client";
+
+import React, { useId, useMemo } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { type Ga4ReportData, type Measure } from "@/lib/api-client";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import { cn } from "@/lib/utils";
 import { Card, CardHead } from "./dashboard-cards";
 
@@ -15,10 +32,10 @@ export function BigMeasure({ label, hint, measure }: { label: string; hint: stri
     <div className="min-w-0">
       <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">{label}</p>
       {measured ? (
-        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[24px] sm:text-[28px] font-bold leading-none tracking-tight text-brand-950">
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[24px] sm:text-[28px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
           {measured.value.toLocaleString()}
           {change != null && Number.isFinite(change) && (
-            <span className={cn("text-[11px] font-bold tracking-normal", change >= 0 ? "text-success-700" : "text-error-700")}>
+            <span className={cn("font-sans text-[11px] font-bold tracking-normal", change >= 0 ? "text-success-700" : "text-error-700")}>
               {change >= 0 ? "▲" : "▼"} {Math.round(Math.abs(change) * 10) / 10}%
             </span>
           )}
@@ -89,9 +106,8 @@ export function normalizeTrend(rawPoints: { date: string; value: number | null }
 }
 
 /**
- * Daily activity candlesticks: well-proportioned, substantial bars displaying
- * daily performance across the selected window, with baseline marks for zero days
- * and prominent signal candles for active days.
+ * Calm minimal area trend matching the executive Monthly Report & Traffic visual system:
+ * smooth gradient fill, hairline dashed grid, tabular peak readout, and crisp hover card.
  */
 export function DailyCandles({
   points,
@@ -102,61 +118,102 @@ export function DailyCandles({
   unit?: string;
   days?: number;
 }) {
-  const max = Math.max(...points.map((p) => p.value ?? 0), 1);
-  const total = points.reduce((sum, p) => sum + (p.value ?? 0), 0);
+  const gradId = useId().replace(/:/g, "");
+  const isEmeraldMetric = unit === "clicks" || unit === "goals";
+  const strokeColor = isEmeraldMetric ? "var(--color-success-500)" : "var(--color-accent-500)";
+
+  const chartData = useMemo(
+    () =>
+      points.map((p) => ({
+        date: p.date,
+        label: formatCandleDate(p.date),
+        value: p.value ?? 0,
+      })),
+    [points],
+  );
+
+  const max = Math.max(...chartData.map((p) => p.value), 0);
+  const total = chartData.reduce((sum, p) => sum + p.value, 0);
   const hasActivity = total > 0;
+  const displayUnit = unit.charAt(0).toUpperCase() + unit.slice(1);
 
   return (
     <div
-      className="flex w-full min-w-0 flex-col gap-1.5 overflow-hidden"
+      className="flex w-full min-w-0 flex-col gap-1.5"
       role="img"
       aria-label={`${unit} each day, last ${days} days`}
     >
       <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-400">
-        <span className="uppercase tracking-wider">Daily activity</span>
+        <span className="uppercase tracking-wider">Daily trend · {days}d</span>
         {hasActivity && (
-          <span className="rounded-full bg-brand-200/60 px-2 py-0.5 text-[9.5px] font-bold text-brand-700 truncate max-w-[150px]">
-            Peak: {max.toLocaleString()} {unit}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-brand-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-brand-700 tabular-nums truncate max-w-[170px]">
+            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: strokeColor }} />
+            Peak {max.toLocaleString()} {unit}
           </span>
         )}
       </div>
 
-      <div className="flex h-[76px] sm:h-[84px] w-full min-w-0 items-end justify-between gap-[2px] sm:gap-[3px] pt-1">
-        {points.map((p) => {
-          const val = p.value ?? 0;
-          const isZero = val === 0;
-          const heightPct = isZero ? 0 : Math.max(14, (val / max) * 100);
-          const dateLabel = formatCandleDate(p.date);
-
-          return (
-            <div
-              key={p.date}
-              className="group relative flex h-full flex-1 min-w-0 max-w-[14px] flex-col items-center justify-end"
-            >
-              <div className="pointer-events-none absolute -top-8 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-brand-950 px-2 py-0.5 text-[10px] font-medium text-brand-50 shadow-md group-hover:block">
-                {dateLabel}: {val.toLocaleString()} {unit}
-              </div>
-
-              {isZero ? (
-                <div
-                  className="h-[3px] sm:h-[4px] w-full rounded-full bg-brand-200/80 transition-colors group-hover:bg-brand-300"
-                  title={`${dateLabel}: 0 ${unit}`}
-                />
-              ) : (
-                <div
-                  className="w-full rounded-t-[2px] sm:rounded-t-[3px] bg-signal-400 opacity-90 shadow-xs transition-all duration-150 origin-bottom group-hover:opacity-100 group-hover:scale-y-[1.03]"
-                  style={{ height: `${heightPct}%` }}
-                  title={`${dateLabel}: ${val.toLocaleString()} ${unit}`}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex w-full items-center justify-between border-t border-brand-200/50 pt-1 text-[10px] font-medium text-brand-400">
-        <span>{days}d ago</span>
-        <span>Today</span>
+      <div className="h-[112px] w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 6, right: 6, left: -24, bottom: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={strokeColor} stopOpacity={0.2} />
+                <stop offset="100%" stopColor={strokeColor} stopOpacity={0.0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid {...CHART_GRID_PROPS} />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={CHART_AXIS_TICK}
+              interval="preserveStartEnd"
+              minTickGap={42}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={CHART_AXIS_TICK}
+              allowDecimals={false}
+              width={44}
+            />
+            <Tooltip
+              cursor={CHART_CURSOR_LINE}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const row = payload[0]?.payload as (typeof chartData)[number] | undefined;
+                if (!row) return null;
+                return (
+                  <ChartTooltipCard
+                    title={row.label}
+                    rows={[
+                      {
+                        label: displayUnit,
+                        value: row.value.toLocaleString(),
+                        color: strokeColor,
+                        shape: "dot",
+                      },
+                    ]}
+                  />
+                );
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={strokeColor}
+              strokeWidth={2}
+              fill={`url(#${gradId})`}
+              activeDot={{
+                r: 4,
+                fill: strokeColor,
+                stroke: "var(--color-surface-1)",
+                strokeWidth: 2,
+              }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
@@ -192,11 +249,13 @@ export function ChannelShare({ data, days }: { data: Ga4ReportData; days: number
               <span className="w-[120px] shrink-0 truncate text-[12px] font-semibold text-brand-700">{c.channel}</span>
               <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
                 <span
-                  className={cn("block h-full rounded-full", i === 0 ? "bg-signal-400" : "bg-brand-400")}
+                  className={cn("block h-full rounded-full transition-all", i === 0 ? "bg-success-500" : "bg-accent-500")}
                   style={{ width: `${Math.max(pct, pct > 0 ? 1.5 : 0)}%` }}
                 />
               </span>
-              <span className="w-10 shrink-0 text-right text-[12px] font-semibold text-brand-950">{Math.round(pct)}%</span>
+              <span className="w-12 shrink-0 text-right font-mono text-[12px] font-semibold text-brand-950 tabular-nums">
+                {Math.round(pct)}%
+              </span>
             </li>
           );
         })}

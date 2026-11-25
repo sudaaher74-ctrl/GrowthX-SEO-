@@ -25,6 +25,7 @@ import { stagingEngine } from "@/lib/staging-engine";
 import { cn } from "@/lib/utils";
 import type { BacklinkReport } from "@/lib/backlinks";
 import type { BacklinkOverviewResponse } from "@/lib/backlink-intelligence";
+import { BacklinkVisualHeader } from "./backlink-charts";
 
 const number = (value: number | null | undefined) => (value == null ? "—" : new Intl.NumberFormat().format(value));
 const time = (value?: string | null) => (value ? new Date(value).toLocaleString() : "Not synced yet");
@@ -225,6 +226,9 @@ export function BacklinkOverview({
 
   return (
     <div className="space-y-4">
+      {/* ── 3-WIDGET VISUAL BACKLINK HEADER ── */}
+      <BacklinkVisualHeader snapshot={snapshot} report={report} />
+
       {/* ── SNAPSHOT PANEL ── */}
       <Panel
         title="Your backlink snapshot"

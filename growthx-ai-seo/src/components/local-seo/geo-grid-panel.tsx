@@ -1,9 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crosshair, ExternalLink, Loader2, MapPin, Radar, Star } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_BAR,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import { api } from "@/lib/api-client";
 import type { GeoGridScanResult, GridNode, PlacesCompetitorSearch } from "@/lib/api-types";
 
@@ -19,11 +34,15 @@ export function GeoGridPanel({
   defaultKeyword,
   businessName,
   hasListing,
+  yourReviewCount,
+  yourRating,
 }: {
   projectId: string;
   defaultKeyword: string;
   businessName: string;
   hasListing: boolean;
+  yourReviewCount?: number | null;
+  yourRating?: number | null;
 }) {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState(defaultKeyword);
@@ -67,6 +86,63 @@ export function GeoGridPanel({
       setSelectedNode(data.nodes[Math.floor(data.nodes.length / 2)] ?? data.nodes[0] ?? null);
     },
   });
+
+  const reviewGapChart = useMemo(() => {
+    if (!rivalsResult || rivalsResult.results.length === 0) return null;
+    const topFive = rivalsResult.results.slice(0, 5);
+    const hasYouInTop = topFive.some((r) => r.isYou);
+    const youInAll = rivalsResult.results.find((r) => r.isYou) ?? null;
+
+    const rows = topFive.map((r) => ({
+      id: r.placeId,
+      name: r.name,
+      shortName: r.name.length > 18 ? `${r.name.slice(0, 17)}…` : r.name,
+      reviews: r.reviewCount ?? 0,
+      rating: r.rating ?? null,
+      rank: r.rank as number | null,
+      distanceKm: r.distanceKm ?? null,
+      isYou: r.isYou,
+    }));
+
+    if (!hasYouInTop) {
+      if (youInAll) {
+        rows.push({
+          id: youInAll.placeId,
+          name: `${youInAll.name} (You)`,
+          shortName: `${(youInAll.name.length > 14 ? `${youInAll.name.slice(0, 13)}…` : youInAll.name)} (You)`,
+          reviews: youInAll.reviewCount ?? 0,
+          rating: youInAll.rating ?? null,
+          rank: youInAll.rank,
+          distanceKm: youInAll.distanceKm ?? null,
+          isYou: true,
+        });
+      } else if (yourReviewCount != null) {
+        const label = businessName || "Your Listing";
+        rows.push({
+          id: "your-listing",
+          name: `${label} (You)`,
+          shortName: `${label.length > 14 ? `${label.slice(0, 13)}…` : label} (You)`,
+          reviews: yourReviewCount,
+          rating: yourRating ?? null,
+          rank: null,
+          distanceKm: 0,
+          isYou: true,
+        });
+      }
+    }
+
+    if (rows.every((r) => r.reviews === 0)) return null;
+
+    const top3Rivals = rivalsResult.results.slice(0, 3);
+    const top3Avg =
+      top3Rivals.length > 0
+        ? Math.round(top3Rivals.reduce((s, r) => s + (r.reviewCount ?? 0), 0) / top3Rivals.length)
+        : 0;
+    const yourCount = youInAll?.reviewCount ?? yourReviewCount ?? null;
+    const gap = yourCount != null ? top3Avg - yourCount : null;
+
+    return { rows, top3Avg, yourCount, gap };
+  }, [rivalsResult, yourReviewCount, yourRating, businessName]);
 
   return (
     <div className="space-y-4">
@@ -170,6 +246,120 @@ export function GeoGridPanel({
           }
           padded
         >
+          {reviewGapChart && (
+            <div className="mb-5 border-b border-brand-100 pb-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[13px] font-semibold text-brand-950">
+                    Maps Review Volume vs. Top Local Leaders
+                  </p>
+                  <p className="mt-0.5 text-[11.5px] text-brand-500">
+                    Top-3 average: <span className="font-mono font-semibold text-brand-800">{reviewGapChart.top3Avg.toLocaleString()}</span> reviews
+                    {reviewGapChart.yourCount != null && (
+                      <>
+                        {" · "}You: <span className="font-mono font-semibold text-brand-800">{reviewGapChart.yourCount.toLocaleString()}</span>
+                        {reviewGapChart.gap != null && reviewGapChart.gap > 0
+                          ? ` (${reviewGapChart.gap.toLocaleString()} review gap to Top 3)`
+                          : reviewGapChart.gap != null && reviewGapChart.gap <= 0
+                            ? " (ahead of Top-3 average)"
+                            : ""}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-brand-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-success-500)" }} />
+                    You
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-accent-500)" }} />
+                    Maps rivals
+                  </span>
+                </div>
+              </div>
+              <div style={{ height: Math.max(156, reviewGapChart.rows.length * 36 + 24) }} className="w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={reviewGapChart.rows}
+                    layout="vertical"
+                    margin={{ top: 2, right: 20, left: 4, bottom: 2 }}
+                  >
+                    <CartesianGrid
+                      stroke="var(--color-brand-100)"
+                      strokeDasharray="2 4"
+                      horizontal={false}
+                    />
+                    <XAxis
+                      type="number"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={CHART_AXIS_TICK}
+                      allowDecimals={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="shortName"
+                      width={136}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11.5, fill: "var(--color-brand-700)", fontWeight: 500 }}
+                    />
+                    <Tooltip
+                      cursor={CHART_CURSOR_BAR}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const row = payload[0]?.payload as (typeof reviewGapChart.rows)[number] | undefined;
+                        if (!row) return null;
+                        return (
+                          <ChartTooltipCard
+                            title={row.name}
+                            rows={[
+                              {
+                                label: "Google Reviews",
+                                value: row.reviews.toLocaleString(),
+                                color: row.isYou ? "var(--color-success-500)" : "var(--color-accent-500)",
+                                shape: "bar",
+                              },
+                              ...(row.rating != null
+                                ? [
+                                    {
+                                      label: "Rating",
+                                      value: `${row.rating.toFixed(1)}★`,
+                                      color: "var(--color-warning-500)",
+                                      shape: "dot" as const,
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                            footer={
+                              row.rank != null
+                                ? { label: "Maps Rank", value: `#${row.rank}` }
+                                : { label: "Maps Rank", value: "Outside top results" }
+                            }
+                          />
+                        );
+                      }}
+                    />
+                    <Bar
+                      dataKey="reviews"
+                      barSize={14}
+                      radius={[0, 6, 6, 0]}
+                      background={{ fill: "var(--color-brand-100)", radius: 6 }}
+                    >
+                      {reviewGapChart.rows.map((row) => (
+                        <Cell
+                          key={row.id}
+                          fill={row.isYou ? "var(--color-success-500)" : "var(--color-accent-500)"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[12px]">
               <thead>

@@ -15,6 +15,7 @@ import {
 } from "@/components/reports/report-kit";
 import { ImplementationHandoffPanel } from "@/components/reports/implementation-handoff-panel";
 import { BusinessContextStrip, ReportPlaybookSections } from "@/components/reports/report-playbook-sections";
+import { AiVisibilityCharts } from "@/components/ai-visibility/ai-visibility-charts";
 import { businessContextToMarkdown, playbookToMarkdown } from "@/lib/report-playbook-markdown";
 import { Pill } from "@/components/ui/console";
 import { useVisibility } from "@/hooks/use-growthx";
@@ -282,6 +283,26 @@ export function AiVisibilityReport() {
               </div>
             )}
           </ReportSection>
+
+          {/* Visual Executive Charts: Share of Voice Donut + 5-Engine Bar + Buyer Journey Funnel */}
+          {(v.byAssistant.length > 0 || v.shareOfVoice.length > 0) && (
+            <AiVisibilityCharts
+              assistants={v.byAssistant.map((a) => ({
+                name: assistantLabel(a.assistant, a.model),
+                checked: a.checked,
+                cited: a.cited,
+                citationSharePct: a.citationSharePct,
+              }))}
+              shareOfVoice={v.shareOfVoice.map((s) => ({
+                label: s.label,
+                mentions: s.mentions,
+                sharePct: s.sharePct,
+                domain: s.domain,
+              }))}
+              funnel={v.customerJourney ?? null}
+              yourBrandLabel={clientName || domain}
+            />
+          )}
 
           {/* 2. By Assistant */}
           <ReportSection title="Citation share by AI assistant">

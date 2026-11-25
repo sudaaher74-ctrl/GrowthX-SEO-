@@ -42,6 +42,7 @@ import {
 import { ActionButton, PageHeader, Panel, Pill, StatusNote, Table, Th, Tr, Td } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { EvidenceLinks, AnswerResults, GapResults } from "./visibility-journey-results";
+import { AiVisibilityCharts, buildJourneyChartProps } from "./ai-visibility-charts";
 import { GapPlanModal } from "./gap-plan-modal";
 import { GscSuggestedPromptsSection } from "./gsc-suggested-prompts";
 import { IndiaLocalizationDock } from "./india-localization-dock";
@@ -376,6 +377,19 @@ function Journey({ projectId }: { projectId: string }) {
         </div>
       </div>
     </div>
+
+    {/* ── VISUAL AI SHARE OF VOICE & MULTI-ENGINE CITATION CHARTS ── */}
+    {data && measured.length > 0 && (() => {
+      const brandLabel = run?.brief?.businessName || currentProject?.name || null;
+      const chartProps = buildJourneyChartProps(data, brandLabel);
+      return (
+        <AiVisibilityCharts
+          assistants={chartProps.assistants}
+          shareOfVoice={chartProps.shareOfVoice}
+          yourBrandLabel={brandLabel}
+        />
+      );
+    })()}
 
     {/* ── HIGH-LEVEL NAVIGATION TABS: MATRIX vs SERP SIMULATOR vs RAW RESPONSES ── */}
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-200/80 pb-3">

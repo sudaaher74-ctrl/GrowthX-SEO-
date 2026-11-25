@@ -24,6 +24,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
+import { GaugeScore } from "@/components/website/gauge-score";
+import { DonutChart } from "@/components/website/donut-chart";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type { LocalCopilotPack } from "@/lib/api-types";
@@ -309,47 +311,120 @@ export function LocalSeoWorkspace() {
         <div className="space-y-4">
           {listing && audit ? (
             <>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <div className="rounded-xl border border-brand-200 bg-surface-0 p-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
-                    Local Profile Score
-                  </p>
-                  <p className="mt-1 font-mono text-2xl font-bold text-brand-950">{audit.score}/100</p>
-                  <p className="mt-0.5 text-[11px] text-brand-500">
-                    {audit.passedCount} of {audit.totalChecks} checks passing
-                  </p>
+              {/* Visual Maps Health Gauge + Local Citations Coverage Donut */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-6 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <h2 className="text-[14px] font-semibold tracking-tight text-brand-950">
+                        Google Maps Profile Health
+                      </h2>
+                      <p className="mt-0.5 text-[11.5px] text-brand-500">
+                        Live 8-point off-page audit from your Google Maps snapshot
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+                    <div className="shrink-0">
+                      <GaugeScore
+                        score={audit.score}
+                        maxScore={100}
+                        label="Local Profile Score"
+                        size={116}
+                        statusText={
+                          audit.score >= 80
+                            ? "Strong"
+                            : audit.score >= 50
+                              ? "Needs work"
+                              : "At risk"
+                        }
+                        description={`${audit.passedCount} of ${audit.totalChecks} checks passing`}
+                      />
+                    </div>
+                    <div className="grid w-full flex-1 grid-cols-2 gap-4 border-t border-brand-100 pt-4 sm:border-t-0 sm:border-l sm:pl-5 sm:pt-0">
+                      <div>
+                        <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
+                          Google Rating
+                        </p>
+                        <p className="mt-1 flex items-center gap-1 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+                          {listing.rating != null ? listing.rating.toFixed(1) : "—"}
+                          <Star size={15} className="text-warning-500 shrink-0" />
+                        </p>
+                        <p className="mt-0.5 text-[11.5px] text-brand-500 tabular-nums">
+                          {listing.userRatingCount != null
+                            ? `${listing.userRatingCount.toLocaleString()} reviews`
+                            : "No reviews"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
+                          Public Photos
+                        </p>
+                        <p className="mt-1 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+                          {listing.photos.length}
+                        </p>
+                        <p className="mt-0.5 text-[11.5px] text-brand-500">
+                          {listing.photos.length >= 8
+                            ? "Strong gallery"
+                            : "Target 10+ photos"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-brand-200 bg-surface-0 p-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
-                    Google Rating
-                  </p>
-                  <p className="mt-1 font-mono text-2xl font-bold text-brand-950 flex items-center gap-1">
-                    {listing.rating != null ? listing.rating.toFixed(1) : "—"}
-                    <Star size={16} className="text-warning-600" />
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-brand-500">
-                    {listing.userRatingCount != null ? `${listing.userRatingCount.toLocaleString()} reviews` : "No reviews"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-brand-200 bg-surface-0 p-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
-                    Public Photos
-                  </p>
-                  <p className="mt-1 font-mono text-2xl font-bold text-brand-950">{listing.photos.length}</p>
-                  <p className="mt-0.5 text-[11px] text-brand-500">
-                    {listing.photos.length >= 8 ? "Strong visual gallery" : "Target 10+ authentic photos"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-brand-200 bg-surface-0 p-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
-                    Local Citations
-                  </p>
-                  <p className="mt-1 font-mono text-2xl font-bold text-brand-950">
-                    {citations ? `${citations.summary.coveredCount}/${citations.summary.totalDirectories}` : "—"}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-brand-500">
-                    {citations ? `${citations.summary.highPriorityMissing} high-priority missing` : "Checking directories"}
-                  </p>
+
+                <div className="lg:col-span-6 flex flex-col justify-between rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-[14px] font-semibold tracking-tight text-brand-950">
+                        Local Citation Coverage
+                      </h2>
+                      <p className="mt-0.5 text-[11.5px] text-brand-500">
+                        {citations
+                          ? `Cross-checked across ${citations.summary.totalDirectories} directories & ${citations.summary.backlinkSourcesScanned} backlinks`
+                          : "Scanning local directory coverage"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTab("citations")}
+                      className="text-[11.5px] font-semibold text-accent-600 hover:text-accent-700 cursor-pointer shrink-0"
+                    >
+                      View Matrix →
+                    </button>
+                  </div>
+                  <div className="my-auto py-1">
+                    {citations ? (() => {
+                      const connected = citations.directories.filter((d) => d.status === "CONNECTED").length;
+                      const detected = citations.directories.filter((d) => d.status === "DETECTED_IN_BACKLINKS").length;
+                      const highMissing = citations.directories.filter(
+                        (d) => d.status === "NOT_DETECTED" && d.priority === "HIGH",
+                      ).length;
+                      const stdMissing = citations.directories.filter(
+                        (d) => d.status === "NOT_DETECTED" && d.priority !== "HIGH",
+                      ).length;
+                      return (
+                        <DonutChart
+                          data={[
+                            { label: "Connected", value: connected, color: "var(--color-success-500)" },
+                            { label: "In backlinks", value: detected, color: "var(--color-accent-500)" },
+                            { label: "High-priority gap", value: highMissing, color: "var(--color-warning-500)" },
+                            { label: "Standard gap", value: stdMissing, color: "var(--color-brand-300)" },
+                          ].filter((s) => s.value > 0)}
+                          centerValue={`${citations.summary.coveredCount}/${citations.summary.totalDirectories}`}
+                          centerLabel="Covered"
+                          size={116}
+                          thickness={14}
+                          legendPosition="right"
+                          emptyText="No directories"
+                        />
+                      );
+                    })() : (
+                      <p className="py-6 text-center text-xs text-brand-400">
+                        Loading directory coverage…
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -499,6 +574,8 @@ export function LocalSeoWorkspace() {
           defaultKeyword={defaultGeoKeyword}
           businessName={listing?.name || savedListing?.businessName || ctx?.businessName || activeProject?.name || ""}
           hasListing={Boolean(placeId)}
+          yourReviewCount={listing?.userRatingCount ?? savedListing?.reviewCount ?? null}
+          yourRating={listing?.rating ?? savedListing?.rating ?? null}
         />
       )}
 
@@ -687,23 +764,36 @@ export function LocalSeoWorkspace() {
             }
             padded
           >
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-center">
               <pre className="lg:col-span-7 whitespace-pre-wrap rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 font-mono text-[12px] leading-relaxed text-brand-950">
                 {citations.canonicalNap.formattedBlock}
               </pre>
-              <div className="lg:col-span-5 grid grid-cols-2 gap-2.5">
-                <div className="rounded-xl border border-brand-200 p-3">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Detected / Connected</p>
-                  <p className="mt-1 font-mono text-xl font-bold text-success-700">{citations.summary.coveredCount}</p>
-                  <p className="text-[11px] text-brand-500">of {citations.summary.totalDirectories} directories</p>
-                </div>
-                <div className="rounded-xl border border-brand-200 p-3">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">High-Priority Gaps</p>
-                  <p className="mt-1 font-mono text-xl font-bold text-warning-700">{citations.summary.highPriorityMissing}</p>
-                  <p className="text-[11px] text-brand-500">
-                    Scanned {citations.summary.backlinkSourcesScanned} backlinks
-                  </p>
-                </div>
+              <div className="lg:col-span-5">
+                {(() => {
+                  const connected = citations.directories.filter((d) => d.status === "CONNECTED").length;
+                  const detected = citations.directories.filter((d) => d.status === "DETECTED_IN_BACKLINKS").length;
+                  const highMissing = citations.directories.filter(
+                    (d) => d.status === "NOT_DETECTED" && d.priority === "HIGH",
+                  ).length;
+                  const stdMissing = citations.directories.filter(
+                    (d) => d.status === "NOT_DETECTED" && d.priority !== "HIGH",
+                  ).length;
+                  return (
+                    <DonutChart
+                      data={[
+                        { label: "Connected", value: connected, color: "var(--color-success-500)" },
+                        { label: "In backlinks", value: detected, color: "var(--color-accent-500)" },
+                        { label: "High-priority gap", value: highMissing, color: "var(--color-warning-500)" },
+                        { label: "Standard gap", value: stdMissing, color: "var(--color-brand-300)" },
+                      ].filter((s) => s.value > 0)}
+                      centerValue={`${citations.summary.coveredCount}/${citations.summary.totalDirectories}`}
+                      centerLabel="Covered"
+                      size={112}
+                      thickness={13}
+                      legendPosition="right"
+                    />
+                  );
+                })()}
               </div>
             </div>
           </Panel>

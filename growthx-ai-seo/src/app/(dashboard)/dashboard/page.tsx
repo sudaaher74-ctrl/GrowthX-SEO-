@@ -26,6 +26,7 @@ import {
   useIssueGroups,
   useLatestCrawl,
   useLocalSeo,
+  useVisibility,
   useStartCrawl,
   useStartWorkspacePipeline,
   useWorkspacePipeline,
@@ -40,6 +41,7 @@ import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary
 import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
 import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
 import { WorkspacePipelineBar } from "@/components/dashboard/workspace-pipeline-bar";
+import { DashboardPillarRings } from "@/components/dashboard/dashboard-pillar-rings";
 import { AiReferralsCard } from "@/components/analytics/ai-referrals-card";
 import {
   DEFAULT_WINDOW_DAYS,
@@ -114,6 +116,7 @@ export default function UnifiedDashboardPage() {
   );
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
+  const visibility = useVisibility(projectId);
   // Every issue count on this page comes from here. The card used to read
   // lowercase severity keys the server never sent, so every tile fell back to
   // zero and printed CRITICAL 0 · HIGH 0 above a list of HIGH findings.
@@ -490,6 +493,22 @@ export default function UnifiedDashboardPage() {
           <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
         </Link>
       </div>
+
+      {/* 4-Pillar Executive Mini-Ring Strip */}
+      <DashboardPillarRings
+        healthScore={healthScore}
+        pagesChecked={shownCrawl?.pagesCrawled ?? null}
+        crawlCompleted={crawlCompleted}
+        searchClicks={headline?.searchClicks}
+        sessions={headline?.sessions}
+        hasGoogle={hasGsc || hasGa}
+        localRating={localSeo.data?.rating ?? null}
+        localReviews={localSeo.data?.reviewCount ?? null}
+        hasLocal={Boolean(localSeo.data?.placeId || (localSeo.data?.rating && localSeo.data.rating > 0))}
+        aiCitationSharePct={visibility.data?.summary?.citationSharePct ?? null}
+        aiCited={visibility.data?.summary?.cited ?? 0}
+        aiChecked={visibility.data?.summary?.checked ?? 0}
+      />
 
       {/* Row 1: how is my website doing / are people finding me */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">

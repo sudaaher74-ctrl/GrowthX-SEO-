@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
+import { CompetitorBenchmarkChart } from "@/components/competitor/competitor-benchmark-chart";
 import { ActionButton, Panel, relativeTime } from "@/components/ui/console";
 import { api, type CompetitorWebsite, type TrackedCompetitor } from "@/lib/api-client";
 import { useLatestCrawl } from "@/hooks/use-growthx";
@@ -218,17 +219,28 @@ export function BattlegroundTab({
       </div>
 
       {rivals.length > 0 && (
-        <BenchmarkMatrix
-          projectId={projectId}
-          youSite={youSite}
-          yourDomain={domain}
-          yourBrand={brand}
-          yourHealth={yourHealth}
-          yourPages={yourPages}
-          rivals={rivals}
-          sites={sites}
-          onRecrawlCompetitor={onRecrawlCompetitor}
-        />
+        <>
+          <CompetitorBenchmarkChart
+            yourBrand={brand}
+            yourDomain={domain}
+            yourHealth={yourHealth}
+            yourPages={yourPages}
+            youSite={youSite}
+            rivals={rivals}
+            sites={sites}
+          />
+          <BenchmarkMatrix
+            projectId={projectId}
+            youSite={youSite}
+            yourDomain={domain}
+            yourBrand={brand}
+            yourHealth={yourHealth}
+            yourPages={yourPages}
+            rivals={rivals}
+            sites={sites}
+            onRecrawlCompetitor={onRecrawlCompetitor}
+          />
+        </>
       )}
 
       <CompetitorWebsitesPanel projectId={projectId} onRecrawl={onRecrawlCompetitor} />
