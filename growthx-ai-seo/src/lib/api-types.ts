@@ -2095,6 +2095,141 @@ export interface PlacesCompetitorSearch {
   results: PlacesCompetitor[];
 }
 
+export interface PlacesListingReview {
+  name: string;
+  authorName: string;
+  authorPhotoUrl: string | null;
+  authorUri: string | null;
+  rating: number | null;
+  text: string | null;
+  publishTime: string | null;
+  relativePublishTime: string | null;
+  googleMapsUri: string | null;
+}
+
+export interface PlacesListingPhoto {
+  name: string;
+  widthPx: number | null;
+  heightPx: number | null;
+  url: string | null;
+  attribution: string | null;
+  attributionUri: string | null;
+}
+
+export interface PlacesListingDetail {
+  placeId: string;
+  name: string | null;
+  address: string | null;
+  shortAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  primaryType: string | null;
+  primaryTypeDisplayName: string | null;
+  types: { type: string; displayName: string }[];
+  phone: string | null;
+  internationalPhone: string | null;
+  website: string | null;
+  googleMapsUri: string | null;
+  businessStatus: string | null;
+  editorialSummary: string | null;
+  hours: { weekdayDescriptions: string[]; periods: unknown[] } | null;
+  reviews: PlacesListingReview[];
+  photos: PlacesListingPhoto[];
+}
+
+export interface LocalProfileAuditCheck {
+  id: string;
+  label: string;
+  status: "PASS" | "WARN" | "FAIL";
+  value: string;
+  recommendation: string;
+  impact: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface LocalProfileAudit {
+  state: "NOT_CONFIGURED" | "NO_PLACE" | "FAILED" | "READY";
+  placeId: string | null;
+  fetchedAt: string | null;
+  error: string | null;
+  suggestedQuery: string | null;
+  listing: PlacesListingDetail | null;
+  links: {
+    reviewUrl: string | null;
+    mapsUrl: string | null;
+    manageProfileUrl: string;
+    utmWebsiteUrl: string | null;
+  };
+  audit: {
+    score: number;
+    passedCount: number;
+    totalChecks: number;
+    checks: LocalProfileAuditCheck[];
+  } | null;
+  businessContext: ReportBusinessContext | null;
+}
+
+export interface LocalCopilotPack {
+  status: "READY" | "ERROR";
+  generatedAt: string;
+  model: string | null;
+  error: string | null;
+  businessDescription: string;
+  categorySuggestions: string[];
+  weeklyPosts: {
+    title: string;
+    postType: "UPDATE" | "OFFER";
+    body: string;
+    ctaLabel: string;
+    ctaUrl: string;
+    photoTip: string;
+  }[];
+  qnaPairs: { question: string; answer: string }[];
+  reviewReplies: {
+    reviewName: string;
+    authorName: string;
+    rating: number | null;
+    originalText: string | null;
+    suggestedReply: string;
+  }[];
+  whatsappReviewRequest: string;
+  manageProfileUrl: string;
+  reviewUrl: string | null;
+}
+
+export interface LocalDirectoryEntry {
+  id: string;
+  name: string;
+  domain: string;
+  category: "MAPS_ENGINE" | "LOCAL_DIRECTORY" | "SOCIAL_ENTITY" | "INDUSTRY_NICHE";
+  priority: "HIGH" | "MEDIUM";
+  status: "CONNECTED" | "DETECTED_IN_BACKLINKS" | "NOT_DETECTED";
+  detectedUrl: string | null;
+  submitUrl: string;
+  whyItMatters: string;
+}
+
+export interface LocalCitationsAudit {
+  market: "IN" | "US" | "UK" | "AE" | "GLOBAL";
+  canonicalNap: {
+    businessName: string;
+    address: string | null;
+    phone: string | null;
+    website: string | null;
+    utmWebsite: string | null;
+    formattedBlock: string;
+  };
+  summary: {
+    totalDirectories: number;
+    coveredCount: number;
+    missingCount: number;
+    highPriorityMissing: number;
+    backlinkSourcesScanned: number;
+  };
+  directories: LocalDirectoryEntry[];
+}
+
 export interface GbpCategories extends GbpEnvelope {
   primary: { categoryId: string | null; displayName: string | null } | null;
   additional: { categoryId: string | null; displayName: string | null }[];

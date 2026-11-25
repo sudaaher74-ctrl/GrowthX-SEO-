@@ -8,6 +8,7 @@ import {
   Wrench,
   Bot,
   Link2,
+  MapPin,
   CalendarDays,
   Search,
   History,
@@ -134,6 +135,13 @@ export function useMainNav(): { mainNav: NavItem[] } {
       href: "/backlinks",
       icon: Link2,
       group: "intelligence",
+    },
+    {
+      label: "Local & Maps SEO",
+      href: "/local-seo",
+      icon: MapPin,
+      group: "intelligence",
+      aliases: ["/local-seo", "/google-business-profile"],
     },
     {
       label: "AI Visibility",
