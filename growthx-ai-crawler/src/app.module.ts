@@ -57,6 +57,7 @@ import { SearchIntelligenceModule } from './modules/search-intelligence/search-i
 import { TokensModule } from './modules/tokens/tokens.module';
 import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-intelligence.module';
 import { BacklinksModule } from './modules/backlinks/backlinks.module';
+import { ReportContextModule } from './modules/report-context/report-context.module';
 
 
 import { CsrfGuard } from './modules/auth/csrf.guard';
@@ -91,6 +92,7 @@ import { CsrfGuard } from './modules/auth/csrf.guard';
     }),
     ObservabilityModule,
     DatabaseModule,
+    ReportContextModule,
     PlatformAdminModule,
     AgentsModule,
     StorageModule,
