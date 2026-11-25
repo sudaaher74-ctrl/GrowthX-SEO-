@@ -25,6 +25,112 @@ import {
 import { api, auth, getApiBase } from "@/lib/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
+import { ActionButton } from "@/components/ui/console";
+
+function GoogleRecoveryForm({
+  token,
+  email,
+  onSignedIn,
+}: {
+  token: string;
+  email: string;
+  onSignedIn: () => Promise<void>;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirmRecovery, setConfirmRecovery] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inProgress = useRef(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("token") && !url.searchParams.has("email")) return;
+    url.searchParams.delete("token");
+    url.searchParams.delete("email");
+    window.history.replaceState(null, "", url);
+  }, []);
+
+  async function completeRecovery(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || inProgress.current) return;
+    inProgress.current = true;
+    setBusy(true);
+    setError(null);
+
+    try {
+      await api.completeGoogleRecovery(token, confirmRecovery ? undefined : password);
+      await onSignedIn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not complete Google sign-in. Please try again.");
+      inProgress.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto my-auto w-full max-w-md py-6 sm:py-8">
+      <h2 id="google-recovery-heading" className="mb-2 text-3xl font-black tracking-tight text-brand-950">
+        Finish Google sign-in
+      </h2>
+      {token ? (
+        <form className="mt-4 space-y-4" aria-labelledby="google-recovery-heading" onSubmit={completeRecovery}>
+          <p className="text-sm text-brand-600">
+            {email ? <>There’s already a Reigel account for <strong className="break-all">{email}</strong>.</> : "There’s already a Reigel account for this email address."}
+          </p>
+          {confirmRecovery ? (
+            <p className="text-sm text-brand-700">
+              Recovering with Google disables your old Reigel password, signs you out on other devices, and may remove your access to shared workspaces.
+            </p>
+          ) : (
+            <div>
+              <label htmlFor="reigel-recovery-password" className="mb-1.5 block text-xs font-bold text-brand-700">
+                Current Reigel password
+              </label>
+              <input
+                id="reigel-recovery-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                maxLength={128}
+                disabled={busy}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="min-h-[48px] w-full rounded-xl border border-brand-200 bg-surface-1 px-4 py-3 text-base text-brand-950 focus-visible:outline-2 focus-visible:outline-signal-400 sm:text-sm"
+              />
+            </div>
+          )}
+          {error && <p role="alert" className="text-sm text-error-600">{error}</p>}
+          <ActionButton type="submit" variant="primary" disabled={busy} className="min-h-[44px] w-full justify-center">
+            {busy ? "Signing in…" : confirmRecovery ? "Confirm Google recovery" : "Link Google and sign in"}
+          </ActionButton>
+          <ActionButton
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmRecovery(!confirmRecovery);
+              setPassword("");
+              setError(null);
+            }}
+            className="min-h-[44px] w-full justify-center"
+          >
+            {confirmRecovery ? "Use my Reigel password" : "Recover with Google instead"}
+          </ActionButton>
+        </form>
+      ) : (
+        <p role="alert" className="text-sm text-error-600">
+          This recovery link is incomplete. Start again with Google to get a new link.
+        </p>
+      )}
+      <a
+        href={`${getApiBase()}/auth/google`}
+        className="mt-5 inline-block text-sm font-semibold text-brand-900 underline underline-offset-2"
+      >
+        Start again with Google
+      </a>
+    </div>
+  );
+}
 
 type AuthMode = "login" | "signup";
 
@@ -44,6 +150,10 @@ function splitFullName(raw: string): { firstName?: string; lastName?: string } {
 function LoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Keep the credentials in memory after removing them from the address bar.
+  const [googleRecovery] = useState(() => searchParams.get("recovery") === "google"
+    ? { token: searchParams.get("token") ?? "", email: searchParams.get("email") ?? "" }
+    : null);
   const urlParam = (searchParams.get("url") || "").trim();
   const planParam = searchParams.get("plan");
   const cycleParam = searchParams.get("cycle");
@@ -162,35 +272,7 @@ function LoginFormInner() {
         await api.login(trimmedEmail, form.password);
       }
 
-      // Pick up the caller's first organization so the dashboard has a workspace
-      const orgs = await api.listOrganizations();
-      const firstOrgId = orgs?.[0]?.id ?? null;
-      if (firstOrgId) auth.setOrgId(firstOrgId);
-
-      let pendingDomain = urlParam;
-      if (!pendingDomain) {
-        try {
-          pendingDomain = (localStorage.getItem("growthx_pending_domain") || "").trim();
-        } catch {}
-      }
-
-      if (pendingDomain) {
-        router.push(`/analyze?url=${encodeURIComponent(pendingDomain)}`);
-        return;
-      }
-
-      if (isSignup) {
-        router.push("/analyze");
-        return;
-      }
-
-      const existingProjects = firstOrgId ? await api.listProjects(firstOrgId).catch(() => []) : [];
-      if (!existingProjects || existingProjects.length === 0) {
-        router.push("/analyze");
-        return;
-      }
-
-      router.push("/dashboard");
+      await openWorkspace(isSignup);
     } catch (err) {
       setError(
         err instanceof Error
@@ -202,6 +284,37 @@ function LoginFormInner() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openWorkspace(newAccount: boolean) {
+    const navigate = googleRecovery ? router.replace : router.push;
+    const orgs = await api.listOrganizations();
+    const firstOrgId = orgs?.[0]?.id ?? null;
+    if (firstOrgId) auth.setOrgId(firstOrgId);
+
+    let pendingDomain = urlParam;
+    if (!pendingDomain) {
+      try {
+        pendingDomain = (localStorage.getItem("growthx_pending_domain") || "").trim();
+      } catch {}
+    }
+
+    if (pendingDomain) {
+      navigate(`/analyze?url=${encodeURIComponent(pendingDomain)}`);
+      return;
+    }
+
+    const existingProjects = !newAccount && firstOrgId ? await api.listProjects(firstOrgId).catch(() => []) : [];
+    navigate(existingProjects?.length ? "/dashboard" : "/analyze");
+  }
+
+  if (googleRecovery) {
+    return (
+      <GoogleRecoveryForm
+        {...googleRecovery}
+        onSignedIn={() => openWorkspace(false).catch(() => router.replace("/analyze"))}
+      />
+    );
   }
 
   const emailDescribedBy = [

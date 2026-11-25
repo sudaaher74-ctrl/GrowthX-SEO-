@@ -950,6 +950,13 @@ export const api = {
     auth.markSignedIn();
     return result;
   },
+  async completeGoogleRecovery(recoveryToken: string, password?: string) {
+    const result = password === undefined
+      ? await post<{ success: boolean; expires_in?: number }>("/auth/google/reclaim-account", { recoveryToken })
+      : await post<{ success: boolean; expires_in?: number }>("/auth/google/link-with-password", { recoveryToken, password });
+    auth.markSignedIn();
+    return result;
+  },
   getMe: () => get<UserProfile>('/auth/me'),
   logout: async () => {
     try {
