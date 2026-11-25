@@ -70,21 +70,25 @@ function explainHealthScore(
 function CircularScoreGauge({ score }: { score: number | null }) {
   const safeScore = score != null ? Math.max(0, Math.min(score, 100)) : 0;
   const radius = 38;
-  const stroke = 6;
+  const stroke = 6.5;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (safeScore / 100) * circumference;
 
   const strokeColor =
-    safeScore >= 90
-      ? "var(--color-signal-400)"
+    score == null
+      ? "var(--color-brand-300)"
       : safeScore >= 80
-        ? "var(--color-brand-400)"
+        ? "var(--color-success-500)"
         : safeScore >= 50
           ? "var(--color-warning-500)"
           : "var(--color-error-500)";
 
   return (
-    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
+    <div
+      className="relative flex h-24 w-24 shrink-0 items-center justify-center"
+      role="img"
+      aria-label={`Crawl Health Score: ${score != null ? `${score} out of 100` : "not measured"}`}
+    >
       <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 96 96">
         {/* Background track */}
         <circle
@@ -94,29 +98,31 @@ function CircularScoreGauge({ score }: { score: number | null }) {
           stroke="var(--color-brand-200)"
           strokeWidth={stroke}
           fill="transparent"
-          opacity={0.35}
+          opacity={0.5}
         />
         {/* Active progress */}
-        <circle
-          cx="48"
-          cy="48"
-          r={radius}
-          stroke={strokeColor}
-          strokeWidth={stroke}
-          fill="transparent"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
+        {score != null && (
+          <circle
+            cx="48"
+            cy="48"
+            r={radius}
+            stroke={strokeColor}
+            strokeWidth={stroke}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+          />
+        )}
       </svg>
       {/* Center text */}
       <div className="absolute flex flex-col items-center justify-center text-center">
-        <span className="font-mono text-2xl font-black tracking-tight text-brand-950">
+        <span className="font-mono text-2xl font-bold tracking-tight text-brand-950 leading-none tabular-nums">
           {score != null ? score : "—"}
         </span>
-        <span className="font-mono text-[9px] uppercase tracking-wider text-brand-400">
-          out of 100
+        <span className="font-mono text-[9.5px] font-medium text-brand-400 mt-1 tabular-nums">
+          / 100
         </span>
       </div>
     </div>
@@ -147,14 +153,21 @@ export function HealthSummary({
               {grade && (
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold border whitespace-nowrap",
                     grade.tone === "good"
-                      ? "bg-success-50 text-success-700 border-success-200"
+                      ? "bg-success-50 text-success-700 border-success-200/90"
                       : grade.tone === "warn"
-                        ? "bg-warning-50 text-warning-700 border-warning-200"
-                        : "bg-error-50 text-error-700 border-error-200",
+                        ? "bg-warning-50 text-warning-700 border-warning-200/90"
+                        : "bg-error-50 text-error-700 border-error-200/90",
                   )}
                 >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full shrink-0",
+                      grade.tone === "good" ? "bg-success-500" : grade.tone === "warn" ? "bg-warning-500" : "bg-error-500",
+                    )}
+                    aria-hidden="true"
+                  />
                   {grade.label}
                 </span>
               )}

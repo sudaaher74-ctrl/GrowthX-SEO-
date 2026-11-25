@@ -255,19 +255,34 @@ export function StatusNote({ children, tone = "good" }: { children: React.ReactN
 export function Pill({
   children,
   tone = "default",
+  dot = false,
 }: {
   children: React.ReactNode;
   tone?: "default" | "good" | "bad" | "warn" | "info";
+  dot?: boolean;
 }) {
   const styles = {
-    default: "bg-brand-100 text-brand-700",
-    good: "bg-success-50 text-success-700",
-    bad: "bg-error-50 text-error-700",
-    warn: "bg-warning-50 text-warning-700",
-    info: "bg-accent-50 text-accent-700",
+    default: "border-brand-200/90 bg-brand-50 text-brand-700",
+    good: "border-success-200/90 bg-success-50 text-success-700",
+    bad: "border-error-200/90 bg-error-50 text-error-700",
+    warn: "border-warning-200/90 bg-warning-50 text-warning-700",
+    info: "border-accent-200/90 bg-accent-50 text-accent-700",
+  }[tone];
+  const dotColor = {
+    default: "bg-brand-400",
+    good: "bg-success-500",
+    bad: "bg-error-500",
+    warn: "bg-warning-500",
+    info: "bg-accent-500",
   }[tone];
   return (
-    <span className={cn("inline-block rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-semibold", styles)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10.5px] font-semibold leading-4 whitespace-nowrap tabular-nums",
+        styles,
+      )}
+    >
+      {dot && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotColor)} aria-hidden="true" />}
       {children}
     </span>
   );
@@ -355,34 +370,48 @@ export function MeterBar({ value, tone = "accent", width = 64 }: { value: number
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-brand-100" style={{ width }}>
       <div
-        className="h-full rounded-full"
+        className="h-full rounded-full transition-all duration-500 ease-out"
         style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: `var(--color-${tone === "good" ? "success" : "accent"}-600)` }}
       />
     </div>
   );
 }
 
-/** Inline sparkline — no chart library for a 12-point series. */
+/** Inline sparkline — subtle fill + endpoint marker, no chart library for a 12-point series. */
 export function Sparkline({ values, width = 68, height = 22 }: { values: number[]; width?: number; height?: number }) {
   if (values.length < 2) return <span className="text-[11px] text-brand-300">—</span>;
 
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
-  const points = values
-    .map((v, i) => `${(i / (values.length - 1)) * width},${height - ((v - min) / span) * height}`)
-    .join(" ");
+  const padY = 2;
+  const innerH = Math.max(4, height - padY * 2);
+  const coords = values.map((v, i) => ({
+    x: (i / (values.length - 1)) * width,
+    y: padY + innerH - ((v - min) / span) * innerH,
+  }));
+  const linePoints = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+  const areaPoints = `0,${height} ${linePoints} ${width},${height}`;
+  const isUp = values[values.length - 1] >= values[0];
+  const tone = isUp ? "success" : "error";
+  const last = coords[coords.length - 1];
 
   return (
-    <svg width={width} height={height} className="overflow-visible">
+    <svg width={width} height={height} className="overflow-visible" aria-hidden="true">
+      <polygon
+        points={areaPoints}
+        fill={`var(--color-${tone}-500)`}
+        fillOpacity={0.12}
+      />
       <polyline
-        points={points}
+        points={linePoints}
         fill="none"
-        stroke={`var(--color-${values[values.length - 1] >= values[0] ? "success" : "error"}-600)`}
-        strokeWidth={1.5}
+        stroke={`var(--color-${tone}-600)`}
+        strokeWidth={1.6}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <circle cx={last.x} cy={last.y} r={2} fill={`var(--color-${tone}-600)`} />
     </svg>
   );
 }

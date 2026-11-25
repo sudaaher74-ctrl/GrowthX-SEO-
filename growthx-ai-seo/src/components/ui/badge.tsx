@@ -5,28 +5,39 @@ interface BadgeProps {
   children: React.ReactNode;
   variant?: "default" | "success" | "warning" | "error" | "info" | "pending";
   size?: "sm" | "md";
+  dot?: boolean;
   className?: string;
 }
 
 const variantStyles = {
-  default: "bg-zinc-100/80 text-zinc-700 border border-zinc-200/50 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/50",
-  success: "bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
-  warning: "bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  error: "bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  info: "bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  pending: "bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+  default: "bg-brand-50 text-brand-700 border border-brand-200/90",
+  success: "bg-success-50 text-success-700 border border-success-200/90",
+  warning: "bg-warning-50 text-warning-700 border border-warning-200/90",
+  error: "bg-error-50 text-error-700 border border-error-200/90",
+  info: "bg-accent-50 text-accent-700 border border-accent-200/90",
+  pending: "bg-primary-50 text-primary-700 border border-primary-200/90",
 };
 
-export function Badge({ children, variant = "default", size = "sm", className }: BadgeProps) {
+const variantDotColors = {
+  default: "bg-brand-400",
+  success: "bg-success-500",
+  warning: "bg-warning-500",
+  error: "bg-error-500",
+  info: "bg-accent-500",
+  pending: "bg-primary-500",
+};
+
+export function Badge({ children, variant = "default", size = "sm", dot = false, className }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full font-medium",
-        size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+        "inline-flex items-center gap-1.5 rounded-full font-semibold whitespace-nowrap tabular-nums",
+        size === "sm" ? "px-2 py-0.5 text-[10.5px] leading-4" : "px-2.5 py-0.5 text-xs leading-5",
         variantStyles[variant],
-        className
+        className,
       )}
     >
+      {dot && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", variantDotColors[variant])} aria-hidden="true" />}
       {children}
     </span>
   );
@@ -40,18 +51,21 @@ interface StatusDotProps {
 }
 
 const dotColors = {
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  error: "bg-red-500",
-  info: "bg-blue-500",
-  pending: "bg-indigo-500",
+  success: "bg-success-500",
+  warning: "bg-warning-500",
+  error: "bg-error-500",
+  info: "bg-accent-500",
+  pending: "bg-primary-500",
 };
 
 export function StatusDot({ status, pulse = false, label, className }: StatusDotProps) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5", className)}>
-      <span className={cn("w-2 h-2 rounded-full shrink-0", dotColors[status], pulse && "animate-pulse")} />
-      {label && <span className="text-xs text-[var(--text-muted)]">{label}</span>}
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
+      <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+        {pulse && <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-70", dotColors[status])} />}
+        <span className={cn("relative inline-flex h-2 w-2 rounded-full", dotColors[status])} />
+      </span>
+      {label && <span className="text-xs font-medium text-brand-600">{label}</span>}
     </span>
   );
 }

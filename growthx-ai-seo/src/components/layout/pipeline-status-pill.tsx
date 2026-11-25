@@ -21,14 +21,14 @@ const ACTIVE_STATUSES = new Set(["DISCOVERING", "AWAITING_CONFIRMATION", "RUNNIN
 const DONE_BANNER_WINDOW_MS = 10 * 60 * 1000;
 
 function stageProgressLabel(run: AutopilotRun): string {
-  if (run.status === "DISCOVERING") return "2/5 Finding rivals…";
+  if (run.status === "DISCOVERING") return "2/5 Finding rivals";
   if (run.status === "AWAITING_CONFIRMATION") return "3/5 Confirm rivals";
   if (run.status === "RUNNING") {
-    if (run.step === "REPORT") return "5/5 Syncing Fix Engine…";
+    if (run.step === "REPORT") return "5/5 Syncing plan";
     const doneStages = (run.stages ?? []).filter((s) => s.status === "DONE").length;
-    return `${Math.min(4, Math.max(1, doneStages + 1))}/5 Rivals · AI · Links`;
+    return `${Math.min(4, Math.max(1, doneStages + 1))}/5 Running`;
   }
-  if (run.status === "DONE") return "Fix Plan Ready";
+  if (run.status === "DONE") return "Plan ready";
   return "Pipeline";
 }
 
@@ -147,40 +147,40 @@ export function PipelineStatusPill({
   const isDone = run.status === "DONE";
 
   return (
-    <div ref={containerRef} className="relative hidden sm:block">
+    <div ref={containerRef} className="relative hidden sm:block shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition shadow-2xs cursor-pointer",
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap shrink-0 transition shadow-2xs cursor-pointer tabular-nums",
           needsAction
-            ? "border-signal-400 bg-signal-400/20 text-brand-950 hover:bg-signal-400/30"
+            ? "border-warning-200 bg-warning-50 text-warning-700 hover:bg-warning-100"
             : isDone
-              ? "border-success-300/80 bg-success-50 text-success-800 hover:bg-success-100"
-              : "border-primary-300/80 bg-primary-50/80 text-primary-900 hover:bg-primary-100",
+              ? "border-success-200 bg-success-50 text-success-700 hover:bg-success-100"
+              : "border-accent-200 bg-accent-50 text-accent-700 hover:bg-accent-100",
         )}
       >
         {isDone ? (
-          <Check size={12} className="text-success-600" />
+          <Check size={12} className="text-success-600 shrink-0" />
         ) : (
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
             <span
               className={cn(
                 "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-                needsAction ? "bg-signal-500" : "bg-primary-400",
+                needsAction ? "bg-warning-500" : "bg-accent-400",
               )}
             />
             <span
               className={cn(
                 "relative inline-flex h-2 w-2 rounded-full",
-                needsAction ? "bg-signal-500" : "bg-primary-600",
+                needsAction ? "bg-warning-500" : "bg-accent-600",
               )}
             />
           </span>
         )}
-        <span className="font-mono text-[11px] font-bold">{stageProgressLabel(run)}</span>
-        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+        <span className="font-mono text-[11px] font-semibold">{stageProgressLabel(run)}</span>
+        <ChevronDown size={12} className={cn("shrink-0 transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (

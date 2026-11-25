@@ -1,7 +1,13 @@
 "use client";
 import { ArrowLeft } from "lucide-react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { ChangeText, EvidenceChips, Funnel, SourceBadge } from "@/components/google/parts";
 import { useGooglePage } from "@/hooks/use-google";
@@ -147,13 +153,40 @@ function SearchSection({ d, days }: { d: GooglePageDetail; days: number }) {
             <p className="mb-2 text-[12px] font-semibold text-brand-950">Position history</p>
             <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={d.history}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
-                  <YAxis reversed tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => position(Number(v))} width={36} />
-                  <Tooltip formatter={(v) => [position(Number(v)), "Average position"]} labelFormatter={(l) => formatDayLabel(l)} />
-                  <Line type="monotone" dataKey="position" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
-                </LineChart>
+                <AreaChart data={d.history} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="pagePosFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-series-1)" stopOpacity={0.18} />
+                      <stop offset="100%" stopColor="var(--color-series-1)" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis dataKey="date" tickFormatter={shortDay} tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} minTickGap={26} dy={6} />
+                  <YAxis reversed tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} tickFormatter={(v) => position(Number(v))} width={36} />
+                  <Tooltip
+                    cursor={CHART_CURSOR_LINE}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const row = payload[0]?.payload as { date: string; position: number } | undefined;
+                      if (!row) return null;
+                      return (
+                        <ChartTooltipCard
+                          title={formatDayLabel(row.date)}
+                          rows={[{ label: "Average position", value: position(row.position), color: "var(--color-series-1)" }]}
+                        />
+                      );
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="position"
+                    stroke="var(--color-series-1)"
+                    strokeWidth={2}
+                    fill="url(#pagePosFill)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>

@@ -22,14 +22,21 @@ import { Panel, Tabs } from "@/components/ui/console";
 import { ImprovementReportView } from "@/components/google/improvement-report-view";
 import { RealtimeActivity } from "@/components/google/realtime-activity";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import { useGa4Report } from "@/hooks/use-ga4-report";
 import {
   useGoogleBreakdown,
@@ -593,78 +600,107 @@ function TrafficViewClient() {
       
 
       {/* ── DAILY TRAFFIC CHART ── */}
-      <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-brand-100 pb-3.5">
           <div>
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-brand-500" />
-              <h2 className="text-sm font-bold text-brand-950">Daily traffic</h2>
-            </div>
-            <p className="mt-1 text-xs text-brand-400">
-              Search Console data lags about three days
+            <h2 className="text-sm font-semibold text-brand-950">Daily traffic</h2>
+            <p className="mt-0.5 text-[11px] text-brand-400">
+              Google Analytics visitors &amp; Search Console clicks · GSC lags ~2–3 days
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-medium">
+          <div className="flex items-center gap-4 text-[11.5px] font-medium">
             <span className="inline-flex items-center gap-1.5 text-brand-600">
-              <span className="h-0.5 w-3 rounded-full bg-error-500" />
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-series-3)" }} />
               Visitors
             </span>
             <span className="inline-flex items-center gap-1.5 text-brand-600">
-              <span className="h-0.5 w-3 rounded-full bg-success-500" />
+              <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: "var(--color-series-1)" }} />
               Search clicks
             </span>
           </div>
         </div>
 
-        <div className="mt-6 h-64 w-full">
-          {dailyChartData.length === 0 ? <p className="text-sm text-brand-500">No saved daily measurements are available for this period.</p> : <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={dailyChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" opacity={0.4} vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickFormatter={shortDay}
-                tick={{ fontSize: 11, fill: "var(--color-brand-400)" }}
-                axisLine={{ stroke: "var(--color-brand-200)", opacity: 0.5 }}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "var(--color-brand-400)" }}
-                axisLine={false}
-                tickLine={false}
-                width={32}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--color-surface-1)",
-                  borderColor: "var(--color-line)",
-                  borderRadius: "0.75rem",
-                  color: "var(--color-brand-950)",
-                  fontSize: "12px",
-                }}
-                formatter={(val, name) => [count(Number(val)), name === "visitors" ? "Visitors" : "Search clicks"]}
-                labelFormatter={(l) => shortDay(String(l))}
-              />
-              <Line
-                type="monotone"
-                dataKey="visitors"
-                name="visitors"
-                stroke="var(--color-error-500)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4, fill: "var(--color-error-500)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="searchClicks"
-                name="searchClicks"
-                stroke="var(--color-success-500)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4, fill: "var(--color-success-500)" }}
-              />
-            </LineChart>
-          </ResponsiveContainer>}
+        <div className="mt-4 h-60 w-full">
+          {dailyChartData.length === 0 ? (
+            <p className="text-sm text-brand-500">No saved daily measurements are available for this period.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dailyChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="trafficVisitorsFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--color-series-3)" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="var(--color-series-3)" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid {...CHART_GRID_PROPS} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={shortDay}
+                  minTickGap={26}
+                  tick={CHART_AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  dy={6}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickCount={4}
+                  tick={CHART_AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  width={36}
+                />
+                <Tooltip
+                  cursor={CHART_CURSOR_LINE}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload as { date: string; visitors: number | null; searchClicks: number | null } | undefined;
+                    if (!d) return null;
+                    return (
+                      <ChartTooltipCard
+                        title={shortDay(d.date)}
+                        rows={[
+                          {
+                            label: "Visitors",
+                            value: d.visitors !== null ? count(d.visitors) : "—",
+                            color: "var(--color-series-3)",
+                          },
+                          {
+                            label: "Search clicks",
+                            value: d.searchClicks !== null ? count(d.searchClicks) : "—",
+                            color: "var(--color-series-1)",
+                            shape: "dash",
+                          },
+                        ]}
+                      />
+                    );
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="visitors"
+                  name="visitors"
+                  stroke="var(--color-series-3)"
+                  strokeWidth={2}
+                  fill="url(#trafficVisitorsFill)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: "var(--color-series-3)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
+                  connectNulls={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="searchClicks"
+                  name="searchClicks"
+                  stroke="var(--color-series-1)"
+                  strokeWidth={1.8}
+                  dot={false}
+                  activeDot={{ r: 3.5, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 

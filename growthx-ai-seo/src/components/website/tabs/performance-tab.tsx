@@ -29,6 +29,12 @@ import {
 } from "recharts";
 import type { CrawlJob, CrawlPage, CrawlHistoryPoint } from "@/lib/api-client";
 import { ActionButton, Panel, Table, Th, Tr, Td } from "@/components/ui/console";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_BAR,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { stagingEngine } from "@/lib/staging-engine";
 import { cn } from "@/lib/utils";
@@ -768,15 +774,33 @@ export function PerformanceTab({
             aria-label="Crawl latency distribution bar chart across tested URLs"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={distributionData} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-                <CartesianGrid stroke="var(--color-brand-100)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <BarChart data={distributionData} margin={{ top: 10, right: 10, bottom: 0, left: -12 }}>
+                <CartesianGrid {...CHART_GRID_PROPS} />
+                <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} dy={6} />
+                <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} />
                 <Tooltip
-                  cursor={{ fill: "var(--color-brand-50)" }}
-                  formatter={(val: unknown) => [`${val} URLs`, "Page Count"]}
+                  cursor={CHART_CURSOR_BAR}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const entry = payload[0]?.payload as { label: string; count: number; fill: string } | undefined;
+                    if (!entry) return null;
+                    const share = latencyStats.total > 0 ? `${Math.round((entry.count / latencyStats.total) * 100)}%` : "0%";
+                    return (
+                      <ChartTooltipCard
+                        title={`Response time ${entry.label}`}
+                        rows={[
+                          {
+                            label: "Crawled URLs",
+                            value: `${entry.count.toLocaleString()} (${share})`,
+                            color: entry.fill,
+                            shape: "bar",
+                          },
+                        ]}
+                      />
+                    );
+                  }}
                 />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44}>
                   {distributionData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}

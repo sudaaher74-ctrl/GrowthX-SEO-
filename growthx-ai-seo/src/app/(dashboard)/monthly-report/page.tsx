@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -51,6 +51,12 @@ import {
   type MonthlyReportSnapshotContext,
 } from "@/components/reports/monthly-report-enhancements";
 import { MonthlyTrafficCharts } from "@/components/reports/monthly-traffic-charts";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 
 const monthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -1172,37 +1178,66 @@ export default function MonthlyReport() {
                           aria-label="Percentage of sampled AI answers naming your brand at each scan"
                         >
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
+                            <AreaChart
                               data={displayedAiScans.map((point) => ({
                                 date: point.weekStart.slice(0, 10),
                                 share: point.citationSharePct,
                               }))}
+                              margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
                             >
-                              <CartesianGrid
-                                strokeDasharray="3 4"
-                                stroke="var(--color-brand-100)"
-                                vertical={false}
-                              />
+                              <defs>
+                                <linearGradient id="mrAiShareFill" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="var(--color-series-1)" stopOpacity={0.18} />
+                                  <stop offset="100%" stopColor="var(--color-series-1)" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid {...CHART_GRID_PROPS} />
                               <XAxis
                                 dataKey="date"
-                                tickFormatter={(date: string) => date.slice(5)}
-                                tick={{ fontSize: 11 }}
-                                stroke="var(--color-brand-300)"
+                                tickFormatter={(date: string) => dateLabel(date).replace(/ \d{4}$/, "")}
+                                tick={CHART_AXIS_TICK}
+                                axisLine={false}
+                                tickLine={false}
+                                dy={6}
                               />
                               <YAxis
                                 domain={[0, 100]}
+                                tickCount={4}
                                 unit="%"
-                                tick={{ fontSize: 11 }}
-                                stroke="var(--color-brand-300)"
+                                tick={CHART_AXIS_TICK}
+                                axisLine={false}
+                                tickLine={false}
                               />
-                              <Tooltip formatter={(value) => [`${value}%`, "Brand named"]} />
-                              <Line
+                              <Tooltip
+                                cursor={CHART_CURSOR_LINE}
+                                content={({ active, payload }) => {
+                                  if (!active || !payload?.length) return null;
+                                  const d = payload[0]?.payload as { date: string; share: number } | undefined;
+                                  if (!d) return null;
+                                  return (
+                                    <ChartTooltipCard
+                                      title={dateLabel(d.date)}
+                                      rows={[
+                                        {
+                                          label: "Brand named",
+                                          value: `${d.share}%`,
+                                          color: "var(--color-series-1)",
+                                        },
+                                      ]}
+                                    />
+                                  );
+                                }}
+                              />
+                              <Area
+                                type="monotone"
                                 dataKey="share"
                                 stroke="var(--color-series-1)"
-                                strokeWidth={2.5}
-                                dot={{ r: 4 }}
+                                strokeWidth={2}
+                                fill="url(#mrAiShareFill)"
+                                dot={displayedAiScans.length <= 2 ? { r: 3.5, fill: "var(--color-series-1)" } : false}
+                                activeDot={{ r: 4.5, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
                               />
-                            </LineChart>
+                            </AreaChart>
                           </ResponsiveContainer>
                         </div>
                       )}
@@ -1394,42 +1429,67 @@ export default function MonthlyReport() {
                           aria-label="Findings detected in each completed website crawl"
                         >
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
+                            <AreaChart
                               data={monthCrawls.map((crawl) => ({
                                 date: crawl.finishedAt!.slice(0, 10),
                                 findings: crawl.issuesFound,
                                 pages: crawl.pagesCrawled,
                               }))}
+                              margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
                             >
-                              <CartesianGrid
-                                strokeDasharray="3 4"
-                                stroke="var(--color-brand-100)"
-                                vertical={false}
-                              />
+                              <defs>
+                                <linearGradient id="mrAuditFindingsFill" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="var(--color-series-3)" stopOpacity={0.18} />
+                                  <stop offset="100%" stopColor="var(--color-series-3)" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid {...CHART_GRID_PROPS} />
                               <XAxis
                                 dataKey="date"
-                                tickFormatter={(date: string) => date.slice(5)}
-                                tick={{ fontSize: 11 }}
-                                stroke="var(--color-brand-300)"
+                                tickFormatter={(date: string) => dateLabel(date).replace(/ \d{4}$/, "")}
+                                tick={CHART_AXIS_TICK}
+                                axisLine={false}
+                                tickLine={false}
+                                dy={6}
                               />
                               <YAxis
                                 allowDecimals={false}
-                                tick={{ fontSize: 11 }}
-                                stroke="var(--color-brand-300)"
+                                tickCount={4}
+                                tick={CHART_AXIS_TICK}
+                                axisLine={false}
+                                tickLine={false}
                               />
                               <Tooltip
-                                formatter={(value, name) => [
-                                  format(Number(value)),
-                                  name === "findings" ? "Findings" : "Pages",
-                                ]}
+                                cursor={CHART_CURSOR_LINE}
+                                content={({ active, payload }) => {
+                                  if (!active || !payload?.length) return null;
+                                  const d = payload[0]?.payload as { date: string; findings: number; pages: number } | undefined;
+                                  if (!d) return null;
+                                  return (
+                                    <ChartTooltipCard
+                                      title={dateLabel(d.date)}
+                                      rows={[
+                                        {
+                                          label: "Findings",
+                                          value: format(d.findings),
+                                          color: "var(--color-series-3)",
+                                        },
+                                      ]}
+                                      footer={{ label: "Pages crawled", value: format(d.pages) }}
+                                    />
+                                  );
+                                }}
                               />
-                              <Line
+                              <Area
+                                type="monotone"
                                 dataKey="findings"
-                                stroke="var(--color-series-1)"
-                                strokeWidth={2.5}
-                                dot={{ r: 4 }}
+                                stroke="var(--color-series-3)"
+                                strokeWidth={2}
+                                fill="url(#mrAuditFindingsFill)"
+                                dot={monthCrawls.length <= 2 ? { r: 3.5, fill: "var(--color-series-3)" } : false}
+                                activeDot={{ r: 4.5, fill: "var(--color-series-3)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
                               />
-                            </LineChart>
+                            </AreaChart>
                           </ResponsiveContainer>
                         </div>
                       )}

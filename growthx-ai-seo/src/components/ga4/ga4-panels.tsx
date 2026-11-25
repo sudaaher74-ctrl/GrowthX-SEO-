@@ -1,7 +1,13 @@
 "use client";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { RefreshCw } from "lucide-react";
 import { ActionButton, Kpi, Panel, StatusNote, relativeTime } from "@/components/ui/console";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 import {
   FailedState,
   LoadingState,
@@ -283,20 +289,69 @@ export function Ga4Overview({ projectId }: { projectId: string | null }) {
                 />
               </div>
               <div>
-                <p className="mb-2 text-[12px] font-semibold text-brand-950">Sessions over time</p>
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <p className="text-[12px] font-semibold text-brand-950">Sessions over time</p>
+                  <div className="flex items-center gap-3 text-[11px] text-brand-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-series-3)" }} />
+                      Sessions
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: "var(--color-series-1)" }} />
+                      Active users
+                    </span>
+                  </div>
+                </div>
                 <div className="h-56 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={d.daily}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
-                      <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
-                      <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} allowDecimals={false} width={36} />
+                    <ComposedChart data={d.daily} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="ga4OverviewFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-series-3)" stopOpacity={0.18} />
+                          <stop offset="100%" stopColor="var(--color-series-3)" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid {...CHART_GRID_PROPS} />
+                      <XAxis dataKey="date" tickFormatter={shortDay} tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} minTickGap={26} dy={6} />
+                      <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} width={36} />
                       <Tooltip
-                        formatter={(v, name) => [count(Number(v)), name]}
-                        labelFormatter={(l) => formatDayLabel(l)}
+                        cursor={CHART_CURSOR_LINE}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const row = payload[0]?.payload as { date: string; sessions: number; users: number } | undefined;
+                          if (!row) return null;
+                          return (
+                            <ChartTooltipCard
+                              title={formatDayLabel(row.date)}
+                              rows={[
+                                { label: "Sessions", value: count(row.sessions), color: "var(--color-series-3)" },
+                                { label: "Active users", value: count(row.users), color: "var(--color-series-1)", shape: "dash" },
+                              ]}
+                            />
+                          );
+                        }}
                       />
-                      <Line type="monotone" name="Sessions" dataKey="sessions" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
-                      <Line type="monotone" name="Users" dataKey="users" stroke="var(--color-series-2)" strokeWidth={2} dot={false} />
-                    </LineChart>
+                      <Area
+                        type="monotone"
+                        name="Sessions"
+                        dataKey="sessions"
+                        stroke="var(--color-series-3)"
+                        strokeWidth={2}
+                        fill="url(#ga4OverviewFill)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: "var(--color-series-3)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
+                      />
+                      <Line
+                        type="monotone"
+                        name="Users"
+                        dataKey="users"
+                        stroke="var(--color-series-1)"
+                        strokeWidth={1.6}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        activeDot={{ r: 3.5, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>

@@ -8,13 +8,10 @@
   "components/settings/ai-configuration-tab.tsx": 15,
   "components/settings/integration-logos.tsx": 9,
   "components/settings/white-label-settings-card.tsx": 11,
-  "components/ui/badge.tsx": 41,
   "components/ui/button.tsx": 26,
   "components/ui/query-state.tsx": 1,
   "components/voice/aiva-orb.tsx": 1,
   "components/voice/aiva-panel.tsx": 32,
-  "components/website/donut-chart.tsx": 5,
-  "components/website/gauge-score.tsx": 30,
   "components/website/pages/discovered-not-crawled-panel.tsx": 41,
   "components/website/pages/pages-kpis.tsx": 4,
   "components/website/tabs/pages-tab.tsx": 22

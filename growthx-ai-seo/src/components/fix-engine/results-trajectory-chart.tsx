@@ -45,6 +45,13 @@ import { useGa4Report } from "@/hooks/use-ga4-report";
 import { api } from "@/lib/api-client";
 import { count, formatDayLabel, position, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
+import {
+  CHART_AXIS_TICK,
+  CHART_CURSOR_BAR,
+  CHART_CURSOR_LINE,
+  CHART_GRID_PROPS,
+  ChartTooltipCard,
+} from "@/components/ui/chart-primitives";
 
 export type ResultsPillar = "GSC" | "GA4" | "AI_VISIBILITY" | "WEBSITE_AUDIT" | "COMPETITORS";
 
@@ -110,28 +117,28 @@ export function ResultsTrajectoryChart({
       share: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("PERPLEXITY"))?.citationSharePct ?? 0,
       cited: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("PERPLEXITY"))?.cited ?? 0,
       checked: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("PERPLEXITY"))?.checked ?? 5,
-      fill: "var(--color-signal-400)",
+      fill: "var(--color-series-3)",
     },
     {
       engine: "ChatGPT Search",
       share: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CHATGPT"))?.citationSharePct ?? 0,
       cited: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CHATGPT"))?.cited ?? 0,
       checked: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CHATGPT"))?.checked ?? 5,
-      fill: "var(--color-series-2)",
+      fill: "var(--color-series-1)",
     },
     {
       engine: "Google Gemini",
       share: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("GEMINI"))?.citationSharePct ?? 0,
       cited: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("GEMINI"))?.cited ?? 0,
       checked: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("GEMINI"))?.checked ?? 5,
-      fill: "var(--color-brand-400)",
+      fill: "var(--color-series-6)",
     },
     {
       engine: "Claude",
       share: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CLAUDE"))?.citationSharePct ?? 0,
       cited: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CLAUDE"))?.cited ?? 0,
       checked: visibility?.byAssistant?.find((a) => a.assistant.toUpperCase().includes("CLAUDE"))?.checked ?? 5,
-      fill: "var(--color-series-3)",
+      fill: "var(--color-series-4)",
     },
   ];
 
@@ -151,13 +158,13 @@ export function ResultsTrajectoryChart({
     {
       metric: "Live Verified Fixes",
       count: totalExperiments,
-      fill: "var(--color-signal-400)",
+      fill: "var(--color-series-3)",
       description: "100% matched in live HTML",
     },
     {
       metric: "Pages Crawled",
       count: crawl?.pagesCrawled != null ? crawl.pagesCrawled : totalExperiments,
-      fill: "var(--color-brand-400)",
+      fill: "var(--color-series-1)",
       description: "Routes scanned by crawler",
     },
     {
@@ -309,7 +316,7 @@ export function ResultsTrajectoryChart({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-                <Globe size={14} className="text-signal-400" />
+                <Globe size={14} className="text-accent-600" />
                 Google Search Console Performance (Organic SERP)
               </h3>
               <p className="text-[11.5px] text-brand-500">
@@ -318,7 +325,7 @@ export function ResultsTrajectoryChart({
             </div>
             <Link
               href="/google"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700 hover:underline"
             >
               Open Traffic &amp; Search Hub <ArrowRight size={11} />
             </Link>
@@ -364,53 +371,57 @@ export function ResultsTrajectoryChart({
           )}
 
           {isGscConnected && hasGscPoints && (
-            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-3.5">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-signal-400" />
-                    <span className="text-brand-950 font-bold">Search Clicks</span>
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-series-3)" }} />
+                    <span className="text-brand-950 font-semibold">Search Clicks</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-400" />
+                    <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: "var(--color-series-1)" }} />
                     <span className="text-brand-600 font-medium">Impressions</span>
                   </div>
                 </div>
-                <span className="font-mono text-[11px] text-brand-500">
-                  Source: Google Search Console API
+                <span className="font-mono text-[11px] text-brand-400">
+                  Google Search Console
                 </span>
               </div>
 
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={realGscChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={realGscChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gscClicksGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-signal-400)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--color-signal-400)" stopOpacity={0.02} />
+                        <stop offset="0%" stopColor="var(--color-series-3)" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="var(--color-series-3)" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                    <XAxis dataKey="day" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                    <YAxis stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => count(Number(v))} />
+                    <CartesianGrid {...CHART_GRID_PROPS} />
+                    <XAxis dataKey="day" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} dy={6} />
+                    <YAxis yAxisId="left" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} tickFormatter={(v) => count(Number(v))} />
+                    <YAxis yAxisId="right" orientation="right" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} tickFormatter={(v) => count(Number(v))} />
                     <Tooltip
+                      cursor={CHART_CURSOR_LINE}
                       content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
                           const d = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                              <p className="font-bold text-brand-950">{d.label || label}</p>
-                              <p className="text-signal-400 font-bold">Clicks: {count(d.clicks)}</p>
-                              <p className="text-brand-600">Impressions: {count(d.impressions)}</p>
-                              <p className="text-brand-500 text-[10.5px]">Avg Position: {position(d.position)}</p>
-                            </div>
+                            <ChartTooltipCard
+                              title={d.label || String(label)}
+                              rows={[
+                                { label: "Clicks", value: count(d.clicks), color: "var(--color-series-3)" },
+                                { label: "Impressions", value: count(d.impressions), color: "var(--color-series-1)", shape: "dash" },
+                              ]}
+                              footer={{ label: "Avg position", value: position(d.position) }}
+                            />
                           );
                         }
                         return null;
                       }}
                     />
-                    <Area type="monotone" dataKey="clicks" stroke="var(--color-signal-400)" strokeWidth={2.5} fill="url(#gscClicksGrad)" name="Clicks" />
-                    <Line type="monotone" dataKey="impressions" stroke="var(--color-brand-400)" strokeWidth={1.5} dot={false} name="Impressions" />
+                    <Area yAxisId="left" type="monotone" dataKey="clicks" stroke="var(--color-series-3)" strokeWidth={2} fill="url(#gscClicksGrad)" dot={false} activeDot={{ r: 4, fill: "var(--color-series-3)", strokeWidth: 2, stroke: "var(--color-surface-1)" }} name="Clicks" />
+                    <Line yAxisId="right" type="monotone" dataKey="impressions" stroke="var(--color-series-1)" strokeWidth={1.6} strokeDasharray="4 4" dot={false} activeDot={{ r: 3.5, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }} name="Impressions" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -427,7 +438,7 @@ export function ResultsTrajectoryChart({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-                <BarChart3 size={14} className="text-signal-400" />
+                <BarChart3 size={14} className="text-accent-600" />
                 Google Analytics 4 (Traffic, Engagement &amp; Conversions)
               </h3>
               <p className="text-[11.5px] text-brand-500">
@@ -436,7 +447,7 @@ export function ResultsTrajectoryChart({
             </div>
             <Link
               href="/google"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700 hover:underline"
             >
               Open Traffic &amp; Analytics Hub <ArrowRight size={11} />
             </Link>
@@ -490,50 +501,53 @@ export function ResultsTrajectoryChart({
           )}
 
           {isGa4Connected && hasGa4Points && (
-            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-3.5">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-signal-400" />
-                    <span className="text-brand-950 font-bold">Sessions</span>
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-series-3)" }} />
+                    <span className="text-brand-950 font-semibold">Sessions</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-400" />
+                    <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: "var(--color-series-1)" }} />
                     <span className="text-brand-600 font-medium">Active Users</span>
                   </div>
                 </div>
-                <span className="font-mono text-[11px] text-brand-500">Source: Google Analytics 4 API</span>
+                <span className="font-mono text-[11px] text-brand-400">Google Analytics 4</span>
               </div>
 
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={realGa4ChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={realGa4ChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
                       <linearGradient id="ga4SessionsGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-signal-400)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--color-signal-400)" stopOpacity={0.02} />
+                        <stop offset="0%" stopColor="var(--color-series-3)" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="var(--color-series-3)" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                    <XAxis dataKey="day" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                    <YAxis stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => count(Number(v))} />
+                    <CartesianGrid {...CHART_GRID_PROPS} />
+                    <XAxis dataKey="day" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} dy={6} />
+                    <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} tickFormatter={(v) => count(Number(v))} />
                     <Tooltip
+                      cursor={CHART_CURSOR_LINE}
                       content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
                           const d = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                              <p className="font-bold text-brand-950">{d.label || label}</p>
-                              <p className="text-signal-400 font-bold">Sessions: {count(d.sessions)}</p>
-                              <p className="text-brand-600">Active Users: {count(d.users)}</p>
-                            </div>
+                            <ChartTooltipCard
+                              title={d.label || String(label)}
+                              rows={[
+                                { label: "Sessions", value: count(d.sessions), color: "var(--color-series-3)" },
+                                { label: "Active Users", value: count(d.users), color: "var(--color-series-1)", shape: "dash" },
+                              ]}
+                            />
                           );
                         }
                         return null;
                       }}
                     />
-                    <Area type="monotone" dataKey="sessions" stroke="var(--color-signal-400)" strokeWidth={2.5} fill="url(#ga4SessionsGrad)" name="Sessions" />
-                    <Line type="monotone" dataKey="users" stroke="var(--color-brand-400)" strokeWidth={1.5} dot={false} name="Users" />
+                    <Area type="monotone" dataKey="sessions" stroke="var(--color-series-3)" strokeWidth={2} fill="url(#ga4SessionsGrad)" dot={false} activeDot={{ r: 4, fill: "var(--color-series-3)", strokeWidth: 2, stroke: "var(--color-surface-1)" }} name="Sessions" />
+                    <Line type="monotone" dataKey="users" stroke="var(--color-series-1)" strokeWidth={1.6} strokeDasharray="4 4" dot={false} activeDot={{ r: 3.5, fill: "var(--color-series-1)", strokeWidth: 2, stroke: "var(--color-surface-1)" }} name="Users" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -550,7 +564,7 @@ export function ResultsTrajectoryChart({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-                <Bot size={14} className="text-signal-400" />
+                <Bot size={14} className="text-accent-600" />
                 AI Visibility &amp; Generative Engine Citation Chart
               </h3>
               <p className="text-[11.5px] text-brand-500">
@@ -559,7 +573,7 @@ export function ResultsTrajectoryChart({
             </div>
             <Link
               href="/ai-visibility"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700 hover:underline"
             >
               Open AI Visibility Hub <ArrowRight size={11} />
             </Link>
@@ -594,20 +608,20 @@ export function ResultsTrajectoryChart({
           {/* Dual Visual Charts: AI Radar Footprint + Citation BarChart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* 1. Radar Chart: Multi-Engine Citation Coverage */}
-            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-bold text-brand-950 flex items-center gap-1.5">
-                  <Activity size={12} className="text-signal-400" />
+                <span className="font-semibold text-brand-950 flex items-center gap-1.5">
+                  <Activity size={12} className="text-accent-600" />
                   AI Citation Coverage Radar
                 </span>
-                <span className="font-mono text-[11px] text-brand-500">4-Engine Footprint</span>
+                <span className="font-mono text-[11px] text-brand-400">4-Engine Footprint</span>
               </div>
 
               <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="68%" data={aiRadarData}>
                     <PolarGrid stroke="var(--color-brand-200)" opacity={0.5} />
-                    <PolarAngleAxis dataKey="engine" stroke="var(--color-brand-400)" fontSize={10.5} />
+                    <PolarAngleAxis dataKey="engine" tick={CHART_AXIS_TICK} />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="var(--color-brand-300)" fontSize={9} />
                     <Radar
                       name="Benchmark Target"
@@ -620,20 +634,22 @@ export function ResultsTrajectoryChart({
                     <Radar
                       name="Citation Share"
                       dataKey="share"
-                      stroke="var(--color-signal-400)"
-                      fill="var(--color-signal-400)"
-                      fillOpacity={0.35}
+                      stroke="var(--color-series-3)"
+                      fill="var(--color-series-3)"
+                      fillOpacity={0.22}
                     />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const d = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                              <p className="font-bold text-brand-950">{d.engine}</p>
-                              <p className="text-signal-400 font-bold">Brand Citation: {d.share}%</p>
-                              <p className="text-brand-500">Target Benchmark: {d.benchmark}%</p>
-                            </div>
+                            <ChartTooltipCard
+                              title={d.engine}
+                              rows={[
+                                { label: "Brand Citation", value: `${d.share}%`, color: "var(--color-series-3)" },
+                                { label: "Target Benchmark", value: `${d.benchmark}%`, color: "var(--color-brand-400)", shape: "dash" },
+                              ]}
+                            />
                           );
                         }
                         return null;
@@ -643,10 +659,10 @@ export function ResultsTrajectoryChart({
                 </ResponsiveContainer>
               </div>
 
-              <div className="flex items-center justify-center gap-4 text-[10.5px] border-t border-brand-200/60 pt-2 text-brand-500">
+              <div className="flex items-center justify-center gap-4 text-[10.5px] border-t border-brand-100 pt-2 text-brand-500">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-signal-400" />
-                  <span className="font-bold text-brand-950">Brand Share</span>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--color-series-3)" }} />
+                  <span className="font-semibold text-brand-950">Brand Share</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full border border-dashed border-brand-400" />
@@ -656,37 +672,38 @@ export function ResultsTrajectoryChart({
             </div>
 
             {/* 2. Bar Chart: Comparative Citation Share % */}
-            <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
+            <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-bold text-brand-950 flex items-center gap-1.5">
-                  <BarChart3 size={12} className="text-signal-400" />
+                <span className="font-semibold text-brand-950 flex items-center gap-1.5">
+                  <BarChart3 size={12} className="text-accent-600" />
                   Generative Engine Citation Share (%)
                 </span>
-                <span className="font-mono text-[11px] text-brand-500">Target: 40%–60%</span>
+                <span className="font-mono text-[11px] text-brand-400">Target: 40%–60%</span>
               </div>
 
               <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={aiEngineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                    <XAxis dataKey="engine" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                    <YAxis domain={[0, 100]} stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                  <BarChart data={aiEngineData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                    <CartesianGrid {...CHART_GRID_PROPS} />
+                    <XAxis dataKey="engine" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} dy={6} />
+                    <YAxis domain={[0, 100]} tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} tickFormatter={(v) => `${v}%`} />
                     <Tooltip
+                      cursor={CHART_CURSOR_BAR}
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const d = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                              <p className="font-bold text-brand-950">{d.engine}</p>
-                              <p className="text-signal-400 font-bold">Citation Share: {d.share}%</p>
-                              <p className="text-brand-500">Prompts Cited: {d.cited} / {d.checked}</p>
-                            </div>
+                            <ChartTooltipCard
+                              title={d.engine}
+                              rows={[{ label: "Citation Share", value: `${d.share}%`, color: d.fill, shape: "bar" }]}
+                              footer={{ label: "Prompts cited", value: `${d.cited} / ${d.checked}` }}
+                            />
                           );
                         }
                         return null;
                       }}
                     />
-                    <Bar dataKey="share" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="share" radius={[6, 6, 0, 0]} maxBarSize={38}>
                       {aiEngineData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
@@ -737,7 +754,7 @@ export function ResultsTrajectoryChart({
             </div>
             <Link
               href="/website"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700 hover:underline"
             >
               Open Technical Audit <ArrowRight size={11} />
             </Link>
@@ -786,26 +803,27 @@ export function ResultsTrajectoryChart({
 
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={auditChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="metric" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                  <YAxis stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => count(Number(v))} />
+                <BarChart data={auditChartData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis dataKey="metric" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} dy={6} />
+                  <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} tickFormatter={(v) => count(Number(v))} />
                   <Tooltip
+                    cursor={CHART_CURSOR_BAR}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const d = payload[0].payload;
                         return (
-                          <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                            <p className="font-bold text-brand-950">{d.metric}</p>
-                            <p className="text-signal-400 font-bold">Count: {d.count}</p>
-                            <p className="text-brand-500">{d.description}</p>
-                          </div>
+                          <ChartTooltipCard
+                            title={d.metric}
+                            rows={[{ label: "Count", value: count(d.count), color: d.fill, shape: "bar" }]}
+                            footer={{ label: "Note", value: d.description }}
+                          />
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44}>
                     {auditChartData.map((entry, index) => (
                       <Cell key={`cell-audit-${index}`} fill={entry.fill} />
                     ))}
@@ -851,7 +869,7 @@ export function ResultsTrajectoryChart({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-                <Compass size={14} className="text-signal-400" />
+                <Compass size={14} className="text-accent-600" />
                 Competitor Intelligence Benchmark Chart
               </h3>
               <p className="text-[11.5px] text-brand-500">
@@ -860,7 +878,7 @@ export function ResultsTrajectoryChart({
             </div>
             <Link
               href="/competitor-intelligence"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-signal-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700 hover:underline"
             >
               Explore Competitor Hub <ArrowRight size={11} />
             </Link>
@@ -887,60 +905,61 @@ export function ResultsTrajectoryChart({
           </div>
 
           {/* Competitor Benchmark BarChart */}
-          <div className="rounded-xl border border-brand-200/90 bg-surface-2/40 p-4 space-y-3">
+          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-3">
-                <span className="font-bold text-brand-950">Domain Benchmark: You vs Competitors</span>
+                <span className="font-semibold text-brand-950">Domain Benchmark: You vs Competitors</span>
                 <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="h-2 w-2 rounded-full bg-signal-400" />
-                  <span className="text-brand-950 font-bold">Health Score (/100)</span>
+                  <span className="h-2 w-2 rounded-xs" style={{ backgroundColor: "var(--color-series-3)" }} />
+                  <span className="text-brand-950 font-semibold">Health Score (/100)</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="h-2 w-2 rounded-full bg-brand-400" />
+                  <span className="h-2 w-2 rounded-xs" style={{ backgroundColor: "var(--color-series-1)" }} />
                   <span className="text-brand-600 font-medium">Pages Crawled</span>
                 </div>
               </div>
-              <span className="font-mono text-[11px] text-brand-500">Source: Competitor Intelligence Engine</span>
+              <span className="font-mono text-[11px] text-brand-400">Competitor Intelligence</span>
             </div>
 
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={competitorChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-200)" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="entity" stroke="var(--color-brand-400)" fontSize={11} tickLine={false} />
-                  <YAxis stroke="var(--color-brand-400)" fontSize={11} tickLine={false} tickFormatter={(v) => count(Number(v))} />
+                <BarChart data={competitorChartData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis dataKey="entity" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} dy={6} />
+                  <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} tickCount={4} allowDecimals={false} tickFormatter={(v) => count(Number(v))} />
                   <Tooltip
+                    cursor={CHART_CURSOR_BAR}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const d = payload[0].payload;
                         return (
-                          <div className="rounded-xl border border-brand-200 bg-surface-1 p-3 shadow-xl text-xs space-y-1">
-                            <p className="font-bold text-brand-950">{d.entity} {d.isSelf ? "(Your Site)" : "(Rival)"}</p>
-                            <p className="text-signal-400 font-bold">Health Score: {d.healthScore}/100</p>
-                            <p className="text-brand-600">Pages Crawled: {d.pagesCrawled}</p>
-                            {d.isSelf && (
-                              <p className="text-success-700 font-bold">Verified Fixes Live: {d.verifiedFixes}</p>
-                            )}
-                          </div>
+                          <ChartTooltipCard
+                            title={`${d.entity} ${d.isSelf ? "(Your Site)" : "(Rival)"}`}
+                            rows={[
+                              { label: "Health Score", value: `${d.healthScore}/100`, color: "var(--color-series-3)", shape: "bar" },
+                              { label: "Pages Crawled", value: count(d.pagesCrawled), color: "var(--color-series-1)", shape: "bar" },
+                            ]}
+                            footer={d.isSelf ? { label: "Verified fixes live", value: String(d.verifiedFixes) } : null}
+                          />
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="healthScore" fill="var(--color-signal-400)" radius={[4, 4, 0, 0]} name="Health Score" />
-                  <Bar dataKey="pagesCrawled" fill="var(--color-brand-400)" radius={[4, 4, 0, 0]} name="Pages Crawled" />
+                  <Bar dataKey="healthScore" fill="var(--color-series-3)" radius={[5, 5, 0, 0]} maxBarSize={28} name="Health Score" />
+                  <Bar dataKey="pagesCrawled" fill="var(--color-series-1)" radius={[5, 5, 0, 0]} maxBarSize={28} name="Pages Crawled" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-brand-200/60 text-xs">
-              <div className="p-2 rounded-lg bg-surface-1/80 border border-brand-200/70">
-                <span className="text-[10px] font-bold uppercase text-brand-500 block">Identified Rival Gap</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-brand-100 text-xs">
+              <div className="p-2.5 rounded-lg bg-brand-50/70 border border-brand-200/70">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-500 block">Identified Rival Gap</span>
                 <p className="font-semibold text-brand-950 mt-0.5">Top 3 rivals embed rich FAQ schema to win SERP clicks</p>
               </div>
 
-              <div className="p-2 rounded-lg bg-surface-1/80 border border-brand-200/70">
-                <span className="text-[10px] font-bold uppercase text-signal-400 block">Reigel Follow-up Plan</span>
+              <div className="p-2.5 rounded-lg bg-brand-50/70 border border-brand-200/70">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-600 block">Reigel Follow-up Plan</span>
                 <p className="font-semibold text-brand-950 mt-0.5">Round 2 follow-up PR stages rich LocalBusiness FAQ JSON-LD</p>
               </div>
             </div>
@@ -953,7 +972,7 @@ export function ResultsTrajectoryChart({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
           <div className="space-y-0.5">
             <p className="font-bold text-brand-950 flex items-center gap-1.5">
-              <Clock size={13} className="text-signal-400" />
+              <Clock size={13} className="text-accent-600" />
               Continuous 21-Day Multi-Pillar Observation Active
             </p>
             <p className="text-brand-500">
@@ -963,7 +982,7 @@ export function ResultsTrajectoryChart({
 
           <div className="flex items-center gap-3 text-[11px] font-mono text-brand-600 shrink-0">
             <span className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
+              <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
               {evaluatingCount} in 21d observation
             </span>
             <span>·</span>
