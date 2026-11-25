@@ -72,14 +72,16 @@ test.describe("public routes render", () => {
 test.describe("Google account recovery", () => {
   const recoveryUrl = "/login?recovery=google&token=fixture-token&email=owner%40example.com";
 
-  test("links Google with the existing Reigel password and opens the workspace", async ({ page }) => {
+  test("keeps the recovery challenge across reload and links Google with the Reigel password", async ({ page }) => {
     await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
     await page.route("**/organizations", (route) => route.fulfill({ json: [{ id: "existing-workspace" }] }));
     await page.route("**/projects/org/existing-workspace", (route) => route.fulfill({ json: [{ id: "existing-project" }] }));
     await page.route("**/auth/google/link-with-password", (route) => route.fulfill({ json: { success: true } }));
     await page.goto(recoveryUrl);
     await expect(page).toHaveURL(/\/login\?recovery=google$/);
+    await page.reload();
     await expect(page.getByRole("heading", { name: "Finish Google sign-in" })).toBeVisible();
+    await expect(page.getByText("owner@example.com", { exact: true })).toBeVisible();
     await page.getByLabel("Current Reigel password").fill("fixture-password");
     const request = page.waitForRequest("**/auth/google/link-with-password");
     await page.getByRole("button", { name: "Link Google and sign in" }).click();
@@ -88,6 +90,8 @@ test.describe("Google account recovery", () => {
       password: "fixture-password",
     });
     await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/login?recovery=google");
+    await expect(page.getByText(/This recovery link is incomplete or expired/)).toBeVisible();
   });
 
   test("shows the recovery consequences and requires confirmation before submitting", async ({ page }) => {
@@ -106,6 +110,21 @@ test.describe("Google account recovery", () => {
     await expect(page.getByRole("alert").filter({ hasText: "This recovery link has expired." })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start again with Google" })).toBeVisible();
     expect(requests).toBe(1);
+  });
+
+  test("continues with Google after reload without a Reigel password", async ({ page }) => {
+    await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
+    await page.route("**/organizations", (route) => route.fulfill({ json: [{ id: "existing-workspace" }] }));
+    await page.route("**/projects/org/existing-workspace", (route) => route.fulfill({ json: [{ id: "existing-project" }] }));
+    await page.route("**/auth/google/reclaim-account", (route) => route.fulfill({ json: { success: true } }));
+    await page.goto(recoveryUrl);
+    await expect(page).toHaveURL(/\/login\?recovery=google$/);
+    await page.reload();
+    await page.getByRole("button", { name: "Recover with Google instead" }).click();
+    const request = page.waitForRequest("**/auth/google/reclaim-account");
+    await page.getByRole("button", { name: "Confirm Google recovery" }).click();
+    expect((await request).postDataJSON()).toEqual({ recoveryToken: "fixture-token" });
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 });
 
