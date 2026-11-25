@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { LocalSeoService } from './local-seo.service';
 import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
 import { PlacesListingService } from '../integrations/google/places-listing.service';
+import { LocalOffpageService } from './local-offpage.service';
 
 @Controller('api/projects/:projectId/local-seo')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +15,7 @@ export class LocalSeoController {
     private readonly localSeoService: LocalSeoService,
     private readonly geoGridService: GeoGridService,
     private readonly placesListing: PlacesListingService,
+    @Optional() private readonly localOffpage?: LocalOffpageService,
   ) {}
 
   @Get()
@@ -90,6 +92,49 @@ export class LocalSeoController {
   ) {
     const orgId = req.user?.organizationId || req.organizationId;
     return this.geoGridService.runGeoGridScan(projectId, orgId, body);
+  }
+
+  /**
+   * Public Google Maps listing snapshot + deterministic 0–100 health audit +
+   * 1-tap Review Link & UTM website builder (powered by Places API New).
+   */
+  @Get('profile')
+  async getProfileAudit(@Param('projectId') projectId: string) {
+    if (!this.localOffpage) throw new ServiceUnavailableException('Local off-page service unavailable.');
+    return this.localOffpage.getProfileAudit(projectId, false);
+  }
+
+  @Post('profile/refresh')
+  async refreshProfileAudit(@Param('projectId') projectId: string) {
+    if (!this.localOffpage) throw new ServiceUnavailableException('Local off-page service unavailable.');
+    return this.localOffpage.getProfileAudit(projectId, true);
+  }
+
+  /**
+   * Off-page local directories & citations checklist cross-referenced against
+   * discovered Backlink Intelligence sources + canonical NAP copy card.
+   */
+  @Get('citations')
+  async getCitationsAudit(@Param('projectId') projectId: string) {
+    if (!this.localOffpage) throw new ServiceUnavailableException('Local off-page service unavailable.');
+    return this.localOffpage.getCitationsAudit(projectId);
+  }
+
+  /**
+   * AI GBP Co-Pilot: ready-to-paste weekly posts (with UTMs), 750-char business
+   * description, local Q&As, review replies, and WhatsApp review script.
+   */
+  @Post('copilot')
+  async generateCopilotPack(
+    @Param('projectId') projectId: string,
+    @Body('forceRefresh') forceRefresh?: boolean,
+    @Req() req?: any,
+  ) {
+    if (!this.localOffpage) throw new ServiceUnavailableException('Local off-page service unavailable.');
+    return this.localOffpage.generateCopilotPack(projectId, {
+      forceRefresh: Boolean(forceRefresh),
+      organizationId: req?.user?.organizationId || req?.organizationId,
+    });
   }
 
 }
