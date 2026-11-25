@@ -327,7 +327,7 @@ function harness(failSarvam = false) {
       }
       return {
         provider: req.provider,
-        model: `${req.provider}-test`,
+        model: req.model ?? `${req.provider}-test`,
         text,
         refused: false,
         usage: { inputTokens: 10, outputTokens: 20, estimatedCostUsd: null },
@@ -471,6 +471,28 @@ describe("durable visibility workflow", () => {
     await h.service.process({ id: "journey", phase: "CHECK" });
     expect(h.router.generate).not.toHaveBeenCalled();
     expect(h.responses.size).toBe(20);
+  });
+  it("captures Claude and Perplexity via the configured gateway and classifies them under their own brands", async () => {
+    const h = harness();
+    h.router.configuredProviders = () => [AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.OPENROUTER];
+
+    await h.service.process({ id: "journey", phase: "CHECK" });
+
+    const captured = [...h.responses.values()];
+    for (const [brand, model] of [
+      [AiProvider.ANTHROPIC, "anthropic/claude-haiku-4.5"],
+      [AiProvider.PERPLEXITY, "perplexity/sonar"],
+    ]) {
+      const answers = captured.filter((answer) => answer.provider === brand);
+      expect(answers).toHaveLength(10);
+      expect(answers.every((answer) => answer.model === model && answer.analysis)).toBe(true);
+      expect(h.router.generate).toHaveBeenCalledWith(expect.objectContaining({
+        provider: AiProvider.OPENROUTER,
+        model,
+        allowFallback: false,
+      }));
+    }
+    expect(h.row()).toMatchObject({ status: "COMPLETED", progress: 100 });
   });
   it("retains one provider’s evidence when the other fails and reports partial completion", async () => {
     const h = harness(true);
