@@ -227,7 +227,6 @@ export function AnswerResults({ data, projectId }: { data: VisibilityJourneyResp
       return {
         provider: p,
         name,
-        model: sampleModel,
         total: providerAnswers.length,
         valid: valid.length,
         mentions: pMentions,
@@ -285,9 +284,6 @@ export function AnswerResults({ data, projectId }: { data: VisibilityJourneyResp
                     </div>
                     <div>
                       <p className="text-xs font-bold text-brand-950">{item.name}</p>
-                      <p className="max-w-[120px] truncate font-mono text-[10px] text-brand-400">
-                        {item.model || item.provider}
-                      </p>
                     </div>
                   </div>
                   {item.valid > 0 ? (
@@ -447,7 +443,7 @@ export function AnswerResults({ data, projectId }: { data: VisibilityJourneyResp
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill>{providerName(a.provider, a.model)}</Pill>
                   <span className="text-xs text-brand-400">
-                    {a.model} · {new Date(a.createdAt).toLocaleString()}
+                    {new Date(a.createdAt).toLocaleString()}
                   </span>
                   <Pill
                     tone={
@@ -612,7 +608,7 @@ export function GapResults({ data, projectId }: { data: VisibilityJourneyRespons
       </Panel>
       <Panel
         title="Observed differences and possible explanations"
-        subtitle="These are assessments from your saved evidence. They do not reveal an AI model’s internal ranking reasons."
+        subtitle="Assessments use the saved answers and evidence for your business."
         padded
       >
         <QueryState
