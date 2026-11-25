@@ -128,6 +128,60 @@ test.describe("Google account recovery", () => {
   });
 });
 
+test("Local SEO shows a connected listing when the audit route is unavailable", async ({ page }) => {
+  const projectId = "maps-project";
+  const apiPath = `**/api/projects/${projectId}/local-seo`;
+  const listing = {
+    id: "maps-location",
+    projectId,
+    businessName: "Example Interiors",
+    address: "Pali, Faridabad",
+    placeId: "fixture-place-id",
+    rating: 4.5,
+    reviewCount: 12,
+    citationsCount: 0,
+    updatedAt: "2026-11-25T10:00:00Z",
+  };
+  let saved = false;
+  await page.addInitScript(({ projectId }) => {
+    localStorage.setItem("growthx.session", "1");
+    localStorage.setItem("growthx.org", "maps-workspace");
+    localStorage.setItem("growthx.project", projectId);
+    localStorage.setItem("growthx_subscription_claim_maps-workspace", JSON.stringify({
+      tierId: "growth",
+      tierName: "Growth",
+      status: "active",
+      billingCycle: "monthly",
+      currency: "INR",
+    }));
+  }, { projectId });
+  await page.route("**/auth/csrf", (route) => route.fulfill({ json: { csrfToken: "fixture-csrf" } }));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { id: "maps-user", role: "OWNER" } }));
+  await page.route("**/organizations", (route) => route.fulfill({ json: [{ id: "maps-workspace", name: "Maps workspace" }] }));
+  await page.route("**/projects/org/maps-workspace", (route) => route.fulfill({ json: [{ id: projectId, name: "Maps project" }] }));
+  await page.route(`${apiPath}/profile`, (route) => route.fulfill({ status: 404, json: {} }));
+  await page.route(`${apiPath}/citations`, (route) => route.fulfill({ status: 404, json: {} }));
+  await page.route(apiPath, (route) => route.fulfill({ body: JSON.stringify(saved ? listing : null), contentType: "application/json" }));
+  await page.route(`${apiPath}/search`, (route) => route.fulfill({
+    json: [{ name: listing.businessName, address: listing.address, placeId: listing.placeId, rating: 4.5, userRatingsTotal: 12 }],
+  }));
+  await page.route(`${apiPath}/connect`, (route) => {
+    saved = true;
+    return route.fulfill({ json: listing });
+  });
+
+  await page.goto("/local-seo");
+  await page.getByRole("button", { name: "Connect Google Maps" }).click();
+  await page.getByPlaceholder("Enter business name and city...").fill(listing.businessName);
+  await page.getByRole("button", { name: "Search Google Maps" }).click();
+  await page.getByRole("button", { name: "Connect Listing" }).click();
+  await expect(page.getByText("Google Maps listing connected", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Google Maps listing connected", { exact: true })).toBeVisible();
+  await expect(page.getByText(listing.businessName, { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open listing in Google Maps" })).toHaveAttribute("href", /query_place_id=fixture-place-id/);
+});
+
 test.describe("dashboard routes render", () => {
   test.beforeEach(async ({ page }) => {
     // The shell redirects to /login without a token; a fake one is enough to

@@ -49,6 +49,12 @@ export function LocalSeoWorkspace() {
     enabled: Boolean(projectId),
     retry: false,
   });
+  const savedListingQuery = useQuery({
+    queryKey: ["local-saved-listing", projectId],
+    queryFn: () => api.getLocalSeo(projectId!),
+    enabled: Boolean(projectId) && profileQuery.isError,
+    retry: false,
+  });
 
   const citationsQuery = useQuery({
     queryKey: ["local-citations-audit", projectId],
@@ -88,10 +94,12 @@ export function LocalSeoWorkspace() {
         latitude: place.latitude,
         longitude: place.longitude,
       }),
-    onSuccess: () => {
-      setShowConnectForm(false);
-      queryClient.invalidateQueries({ queryKey: ["local-profile-audit", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["local-citations-audit", projectId] });
+    onSuccess: (location) => {
+      if (location.projectId === projectId) setShowConnectForm(false);
+      queryClient.setQueryData(["local-saved-listing", location.projectId], location);
+      queryClient.invalidateQueries({ queryKey: ["local-profile-audit", location.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["local-saved-listing", location.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["local-citations-audit", location.projectId] });
     },
   });
 
@@ -123,6 +131,12 @@ export function LocalSeoWorkspace() {
   const listing = profile?.listing ?? null;
   const audit = profile?.audit ?? null;
   const ctx = profile?.businessContext ?? null;
+  const savedListing = profileQuery.isError ? savedListingQuery.data : null;
+  const placeId = profile?.placeId || savedListing?.placeId || null;
+  const savedMapsUrl = savedListing?.placeId
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(savedListing.businessName)}&query_place_id=${encodeURIComponent(savedListing.placeId)}`
+    : null;
+  const loadingListing = profileQuery.isPending || (profileQuery.isError && savedListingQuery.isPending);
   const effectiveSearchInput = searchQuery || profile?.suggestedQuery || activeProject?.name || "";
   const defaultGeoKeyword = ctx?.offerings?.[0] || listing?.primaryTypeDisplayName || ctx?.industry || "";
 
@@ -175,7 +189,7 @@ export function LocalSeoWorkspace() {
             onClick={() => setShowConnectForm((prev) => !prev)}
             icon={<Search size={12} />}
           >
-            {profile?.placeId ? "Switch Listing" : "Connect Google Maps"}
+            {placeId ? "Switch Listing" : "Connect Google Maps"}
           </ActionButton>
           <a
             href={profile?.links.manageProfileUrl || "https://www.google.com/search?q=my+business"}
@@ -226,6 +240,11 @@ export function LocalSeoWorkspace() {
               <StatusNote tone="bad">
                 {searchMaps.error instanceof Error ? searchMaps.error.message : "Search failed."}
               </StatusNote>
+            </div>
+          )}
+          {connectListing.isError && (
+            <div className="mt-3">
+              <StatusNote tone="bad">The selected listing could not be saved. Try connecting it again.</StatusNote>
             </div>
           )}
 
@@ -441,6 +460,28 @@ export function LocalSeoWorkspace() {
                 </div>
               </div>
             </>
+          ) : loadingListing ? (
+            <Panel title="Loading Google Maps listing" padded>
+              <p role="status" className="text-[13px] text-brand-600">Checking the saved connection…</p>
+            </Panel>
+          ) : savedListing?.placeId ? (
+            <Panel title="Google Maps listing connected" padded>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-brand-950">{savedListing.businessName}</p>
+                <p className="text-[13px] text-brand-600">{savedListing.address}</p>
+                {savedMapsUrl && (
+                  <a href={savedMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-950 underline">
+                    Open listing in Google Maps <ExternalLink size={12} />
+                  </a>
+                )}
+                <StatusNote tone="warn">The full Maps audit is currently unavailable. Your listing is saved.</StatusNote>
+              </div>
+            </Panel>
+          ) : profileQuery.isError && savedListingQuery.isError ? (
+            <Panel title="Google Maps listing unavailable" padded>
+              <StatusNote tone="warn">Reigel couldn’t check this project’s saved listing.</StatusNote>
+              <ActionButton className="mt-3" onClick={() => void Promise.all([profileQuery.refetch(), savedListingQuery.refetch()])}>Try again</ActionButton>
+            </Panel>
           ) : (
             <Panel title="Google Maps Listing Not Connected Yet" padded>
               <p className="text-[13px] text-brand-600">
@@ -456,8 +497,8 @@ export function LocalSeoWorkspace() {
         <GeoGridPanel
           projectId={projectId}
           defaultKeyword={defaultGeoKeyword}
-          businessName={listing?.name || ctx?.businessName || activeProject?.name || ""}
-          hasListing={Boolean(profile?.placeId)}
+          businessName={listing?.name || savedListing?.businessName || ctx?.businessName || activeProject?.name || ""}
+          hasListing={Boolean(placeId)}
         />
       )}
 
@@ -466,7 +507,7 @@ export function LocalSeoWorkspace() {
         <ReviewQrKit
           businessName={listing?.name || ctx?.businessName || activeProject?.name || "Your Business"}
           domain={ctx?.domain ?? null}
-          reviewUrl={profile?.links.reviewUrl ?? null}
+          reviewUrl={profile?.links.reviewUrl ?? (placeId ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}` : null)}
           manageProfileUrl={profile?.links.manageProfileUrl || "https://www.google.com/search?q=my+business"}
           reviews={listing?.reviews ?? []}
           copilot={copilotPack}
