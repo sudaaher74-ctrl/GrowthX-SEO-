@@ -333,7 +333,7 @@ function BenchmarkMatrix({
                       <span className="font-bold text-brand-950 truncate max-w-[140px] sm:max-w-[200px]">
                         {yourBrand || yourDomain}
                       </span>
-                      <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-1.5 py-0.2 font-mono text-[9px] font-bold text-signal-400">
+                      <span className="rounded-full bg-success-50 border border-success-200/80 px-1.5 py-0.2 font-mono text-[9px] font-bold text-success-700">
                         Baseline
                       </span>
                     </div>

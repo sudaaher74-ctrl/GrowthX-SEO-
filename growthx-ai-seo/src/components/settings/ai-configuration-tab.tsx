@@ -99,7 +99,7 @@ export function AiConfigurationTab() {
   if (loading) {
     return (
       <div className="card p-8 flex items-center justify-center gap-3 text-sm text-[var(--text-muted)]">
-        <Loader2 size={18} className="animate-spin text-slate-500" />
+        <Loader2 size={18} className="animate-spin text-brand-500" />
         <span>Loading AI Provider configuration...</span>
       </div>
     );
@@ -108,7 +108,7 @@ export function AiConfigurationTab() {
   if (loadError || !config) {
     return (
       <div className="card p-8 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+        <div className="flex items-center gap-2 text-sm font-medium text-error-600">
           <AlertTriangle size={16} />
           <span>AI configuration unavailable</span>
         </div>
@@ -137,7 +137,7 @@ export function AiConfigurationTab() {
       <div className="card p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/5 border border-slate-950/20 flex items-center justify-center text-slate-400">
+            <div className="w-10 h-10 rounded-xl bg-surface-2 border border-brand-200 flex items-center justify-center text-brand-500">
               <Cpu size={20} />
             </div>
             <div>
@@ -215,13 +215,13 @@ export function AiConfigurationTab() {
               <div className="flex items-center gap-2">
                 {isConnected ? (
                   <>
-                    <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-sm font-semibold text-emerald-500">Connected</span>
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-success-500 animate-pulse" />
+                    <span className="text-sm font-semibold text-success-600">Connected</span>
                   </>
                 ) : (
                   <>
-                    <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    <span className="text-sm font-semibold text-amber-500">Not Connected</span>
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-warning-500" />
+                    <span className="text-sm font-semibold text-warning-600">Not Connected</span>
                   </>
                 )}
               </div>
@@ -243,7 +243,7 @@ export function AiConfigurationTab() {
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide flex items-center justify-between">
             <span>API Key</span>
-            <span className="text-[11px] text-emerald-500 font-normal flex items-center gap-1">
+            <span className="text-[11px] text-success-600 font-normal flex items-center gap-1">
               <ShieldCheck size={13} />
               Stored Server-Side Only
             </span>
@@ -257,7 +257,7 @@ export function AiConfigurationTab() {
               className="w-full text-sm font-mono bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3.5 py-2.5 text-[var(--text-primary)] tracking-widest opacity-80 cursor-not-allowed select-none"
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)] flex items-center gap-1.5 font-sans">
-              <Key size={13} className="text-slate-400" />
+              <Key size={13} className="text-brand-400" />
               <span>{config.isConfigured ? "Configured server-side" : "Not configured"}</span>
             </div>
           </div>
@@ -281,7 +281,7 @@ export function AiConfigurationTab() {
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
             disabled={!isConnected || models.length === 0}
-            className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3.5 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-slate-950"
+            className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3.5 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-brand-950"
           >
             {models.map((m) => (
               <option key={m.id} value={m.id}>
@@ -304,7 +304,7 @@ export function AiConfigurationTab() {
                 {activeModelMeta.capabilities.map((cap) => (
                   <span
                     key={cap}
-                    className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-white/5 text-slate-400 border border-slate-950/20"
+                    className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-surface-2 text-brand-500 border border-brand-200"
                   >
                     {cap.replace(/_/g, " ")}
                   </span>
@@ -364,7 +364,7 @@ export function AiConfigurationTab() {
                   onChange={(e) =>
                     setFeatures({ ...features, [feat.id]: e.target.checked })
                   }
-                  className="mt-0.5 h-4 w-4 rounded text-slate-900 focus:ring-slate-900 border-[var(--border-color)]"
+                  className="mt-0.5 h-4 w-4 rounded text-brand-900 focus:ring-brand-900 border-[var(--border-color)]"
                 />
                 <div className="space-y-0.5">
                   <div className="text-sm font-semibold text-[var(--text-primary)]">

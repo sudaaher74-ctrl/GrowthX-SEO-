@@ -22,20 +22,20 @@ export default function RootError({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-red-200/60 bg-red-50 text-red-600">
+    <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-brand-200 bg-surface-1 p-7 text-center shadow-sm">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-error-200/70 bg-error-50 text-error-600">
           <AlertTriangle size={20} />
         </div>
-        <h1 className="mt-4 text-[17px] font-extrabold tracking-tight text-slate-900">
+        <h1 className="mt-4 text-[17px] font-extrabold tracking-tight text-brand-950">
           Something went wrong
         </h1>
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-brand-500">
           We hit an unexpected error loading this page. Trying again usually clears it.
         </p>
 
         {error.digest && (
-          <p className="mt-5 rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500">
+          <p className="mt-5 rounded-lg bg-brand-50 px-3 py-2 font-mono text-[11px] text-brand-500">
             Reference: {error.digest}
           </p>
         )}
@@ -44,14 +44,14 @@ export default function RootError({
           <button
             type="button"
             onClick={() => reset()}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-black"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-2 text-[12px] font-bold text-brand-50 shadow-sm transition-colors hover:bg-brand-800 cursor-pointer"
           >
             <RotateCw size={13} />
             Try again
           </button>
           <Link
             href="/login"
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-[12px] font-semibold text-brand-700 transition-colors hover:bg-brand-50"
           >
             Go to sign in
           </Link>

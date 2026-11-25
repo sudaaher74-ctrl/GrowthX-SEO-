@@ -6,7 +6,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -51,8 +54,10 @@ import {
   type MonthlyReportSnapshotContext,
 } from "@/components/reports/monthly-report-enhancements";
 import { MonthlyTrafficCharts } from "@/components/reports/monthly-traffic-charts";
+import { AiVisibilityCharts } from "@/components/ai-visibility/ai-visibility-charts";
 import {
   CHART_AXIS_TICK,
+  CHART_CURSOR_BAR,
   CHART_CURSOR_LINE,
   CHART_GRID_PROPS,
   ChartTooltipCard,
@@ -778,7 +783,7 @@ export default function MonthlyReport() {
                           {live.length} Live HTML Verified Improvements
                         </span>
                       ) : (
-                        <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                        <span className="rounded-full bg-brand-100 border border-brand-200/80 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
                           Baseline Period
                         </span>
                       )}
@@ -1320,6 +1325,27 @@ export default function MonthlyReport() {
                   </p>
                 </div>
               </div>
+
+              {/* Share of Voice Donut + Multi-Engine Citation Bar + Buyer Funnel */}
+              {visibility.data &&
+                (visibility.data.shareOfVoice.length > 0 || effectiveAiAssistants.length > 0) && (
+                  <AiVisibilityCharts
+                    assistants={effectiveAiAssistants.map((m) => ({
+                      name: m.preFormatted ? m.assistant : assistantLabel(m.assistant, m.model),
+                      checked: m.checked,
+                      cited: m.cited,
+                      citationSharePct: m.citationSharePct,
+                    }))}
+                    shareOfVoice={visibility.data.shareOfVoice.map((s) => ({
+                      label: s.label,
+                      mentions: s.mentions,
+                      sharePct: s.sharePct,
+                      domain: s.domain,
+                    }))}
+                    funnel={visibility.data.customerJourney ?? null}
+                    yourBrandLabel={domain}
+                  />
+                )}
             </section>
           )}
 
@@ -1360,35 +1386,99 @@ export default function MonthlyReport() {
                         Run a competitor crawl to see a comparison.
                       </div>
                     ) : (
-                      <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
-                        {effectiveRivalBars.map((rival) => (
-                          <div
-                            key={rival.label}
-                            className="rounded-xl border border-brand-200 bg-surface-2 p-3"
+                      <div
+                        style={{ height: Math.max(168, effectiveRivalBars.length * 36 + 24) }}
+                        className="mt-4 w-full min-w-0"
+                        role="img"
+                        aria-label="Crawled pages comparison across your site and tracked competitors"
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={effectiveRivalBars.map((r) => {
+                              const isYou =
+                                Boolean(domain && r.label.toLowerCase().includes(domain.toLowerCase())) ||
+                                r.label.toLowerCase().includes("(you)") ||
+                                r.label.toLowerCase() === "you";
+                              return {
+                                ...r,
+                                shortLabel: r.label.length > 18 ? `${r.label.slice(0, 17)}…` : r.label,
+                                isYou,
+                              };
+                            })}
+                            layout="vertical"
+                            margin={{ top: 2, right: 18, left: 4, bottom: 2 }}
                           >
-                            <div className="flex justify-between gap-2 text-xs">
-                              <span className="truncate font-semibold text-brand-950">
-                                {rival.label}
-                              </span>
-                              <span className="font-mono font-medium text-brand-700">
-                                {format(rival.pages)} pages
-                              </span>
-                            </div>
-                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-brand-100">
-                              <div
-                                className="h-full rounded-full bg-primary-600 transition-all"
-                                style={{
-                                  width: `${Math.max(2, (rival.pages / maxRivalPages) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <p className="mt-1.5 text-[10px] text-brand-500">
-                              {rival.crawledAt
-                                ? `Crawled ${dateLabel(rival.crawledAt)}`
-                                : "Crawl date unavailable"}
-                            </p>
-                          </div>
-                        ))}
+                            <CartesianGrid
+                              stroke="var(--color-brand-100)"
+                              strokeDasharray="2 4"
+                              horizontal={false}
+                            />
+                            <XAxis
+                              type="number"
+                              axisLine={false}
+                              tickLine={false}
+                              tick={CHART_AXIS_TICK}
+                              allowDecimals={false}
+                            />
+                            <YAxis
+                              type="category"
+                              dataKey="shortLabel"
+                              width={126}
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 11.5, fill: "var(--color-brand-700)", fontWeight: 500 }}
+                            />
+                            <Tooltip
+                              cursor={CHART_CURSOR_BAR}
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null;
+                                const row = payload[0]?.payload as
+                                  | { label: string; pages: number; crawledAt: string | null; isYou: boolean }
+                                  | undefined;
+                                if (!row) return null;
+                                return (
+                                  <ChartTooltipCard
+                                    title={row.label}
+                                    rows={[
+                                      {
+                                        label: "Pages read",
+                                        value: format(row.pages),
+                                        color: row.isYou
+                                          ? "var(--color-success-500)"
+                                          : "var(--color-accent-500)",
+                                        shape: "bar",
+                                      },
+                                    ]}
+                                    footer={
+                                      row.crawledAt
+                                        ? { label: "Crawled", value: dateLabel(row.crawledAt) }
+                                        : null
+                                    }
+                                  />
+                                );
+                              }}
+                            />
+                            <Bar
+                              dataKey="pages"
+                              barSize={14}
+                              radius={[0, 6, 6, 0]}
+                              background={{ fill: "var(--color-brand-100)", radius: 6 }}
+                            >
+                              {effectiveRivalBars.map((r) => {
+                                const isYou =
+                                  Boolean(domain && r.label.toLowerCase().includes(domain.toLowerCase())) ||
+                                  r.label.toLowerCase().includes("(you)") ||
+                                  r.label.toLowerCase() === "you";
+                                return (
+                                  <Cell
+                                    key={r.label}
+                                    fill={isYou ? "var(--color-success-500)" : "var(--color-accent-500)"}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
                     )}
                   </div>

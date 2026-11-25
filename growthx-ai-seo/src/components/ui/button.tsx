@@ -11,11 +11,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles = {
-  primary: "bg-brand-950 text-white shadow-xs hover:bg-brand-800 dark:bg-primary-600 dark:text-signal-ink dark:hover:bg-primary-700",
-  secondary: "bg-white text-gray-900 shadow-sm border border-gray-200 hover:bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800",
-  ghost: "text-gray-600 hover:bg-gray-100/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-zinc-800/50 dark:hover:text-gray-100",
-  danger: "bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-500/10 dark:text-red-500 dark:hover:bg-red-500/20",
-  outline: "border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:border-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-800",
+  primary: "bg-brand-950 text-brand-50 shadow-xs hover:bg-brand-800 dark:bg-primary-600 dark:text-signal-ink dark:hover:bg-primary-700",
+  secondary: "bg-surface-1 text-brand-950 shadow-2xs border border-brand-200 hover:bg-brand-50",
+  ghost: "text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
+  danger: "bg-error-600 text-white shadow-2xs hover:bg-error-700",
+  outline: "border border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-950",
 };
 
 const sizeStyles = {
@@ -40,12 +40,12 @@ export function Button({
       whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
       whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
       className={cn(
-        "inline-flex items-center justify-center font-medium rounded-[10px] transition-all duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/10 focus-visible:ring-offset-2 dark:focus-visible:ring-white/20 dark:focus-visible:ring-offset-black",
+        "inline-flex items-center justify-center font-medium rounded-[10px] transition-all duration-200 cursor-pointer",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-950/15 focus-visible:ring-offset-2",
         variantStyles[variant],
         sizeStyles[size],
         (disabled || loading) && "opacity-50 cursor-not-allowed",
-        className
+        className,
       )}
       disabled={disabled || loading}
       {...(props as React.ComponentPropsWithoutRef<typeof motion.button>)}

@@ -17,6 +17,11 @@ import {
 import { api } from "@/lib/api-client";
 import type { PublicSharedReportResponse } from "@/lib/api-types";
 import { downloadCsvFile } from "@/lib/report-csv";
+import {
+  SharedReportCompetitorChart,
+  SharedReportPerformanceCharts,
+  SharedReportScorecard,
+} from "@/components/reports/shared-report-visuals";
 
 function fmt(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
@@ -301,24 +306,11 @@ export default function SharedMonthlyReportPage() {
             )}
           </header>
 
-          {/* KPI Strip */}
-          <section className="report-section grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: "Search Clicks", value: fmt(kpis.clicks) },
-              { label: "Impressions", value: fmt(kpis.impressions) },
-              { label: "Website Sessions", value: fmt(kpis.sessions) },
-              { label: "Site Health", value: kpis.healthScore != null ? `${kpis.healthScore}/100` : "—" },
-              { label: "AI Mention Share", value: kpis.aiCitationSharePct != null ? `${kpis.aiCitationSharePct}%` : "—" },
-              { label: "Referring Domains", value: fmt(kpis.referringDomains) },
-              { label: "Verified Fixes", value: fmt(kpis.verifiedFixes ?? payload.fixes?.length ?? 0) },
-              { label: "Regressions Caught", value: fmt(kpis.regressions ?? 0) },
-            ].map((item) => (
-              <div key={item.label} className="rounded-xl border border-brand-200/80 bg-surface-2/60 p-3.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">{item.label}</p>
-                <p className="mt-1 font-mono text-xl font-bold text-brand-950">{item.value}</p>
-              </div>
-            ))}
-          </section>
+          {/* Executive Visual Scorecard (Site Health Gauge + 6 KPIs) */}
+          <SharedReportScorecard payload={payload} />
+
+          {/* Visual Performance Charts (AI Citation Bar + Keyword Ranking Tiers Donut) */}
+          <SharedReportPerformanceCharts payload={payload} />
 
           {/* 3-Column Executive Summary */}
           {payload.executiveSummary && (
@@ -405,6 +397,9 @@ export default function SharedMonthlyReportPage() {
               </div>
             </section>
           )}
+
+          {/* Competitor Crawl Footprint Chart */}
+          <SharedReportCompetitorChart payload={payload} />
 
           {/* Verified Fixes */}
           {payload.fixes && payload.fixes.length > 0 && (

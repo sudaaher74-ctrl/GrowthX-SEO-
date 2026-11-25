@@ -24,6 +24,7 @@ import { NoDataState } from "@/components/ui/truthful-state";
 import { Caveat, Chip, EmptyNote, Gate, SearchRowsTable, detectSearchIntent, type SearchIntent } from "@/components/google/view-kit";
 import { Table, Td, Th, Tr } from "@/components/ui/console";
 import { KeywordIdeasView } from "@/components/google/keyword-ideas-view";
+import { OrganicSearchCharts } from "@/components/google/organic-search-charts";
 import { useGoogleKeywords, useGscCtrOpportunities, useGscDeclining, useGscQueries, useGscStriking } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { visibilityJourneyApi } from "@/lib/api-client";
@@ -398,7 +399,7 @@ export function KeywordsView() {
                   <h2 className="text-[14.5px] font-bold text-brand-950">
                     Search Performance
                   </h2>
-                  <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                  <span className="rounded-full bg-brand-100 border border-brand-200/80 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
                     {totalKeywords} tracked queries
                   </span>
                   {totalMissedClicks > 0 && (
@@ -436,47 +437,6 @@ export function KeywordsView() {
               </Link>
             </div>
           </div>
-
-          {/* SERP Position Distribution Meter */}
-          {totalKeywords > 0 && (
-            <div className="rounded-xl border border-brand-200/60 bg-brand-50/40 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <span className="font-semibold text-brand-700">SERP Position Distribution</span>
-                <div className="flex items-center gap-4 text-[10.5px] font-mono">
-                  <span className="flex items-center gap-1.5 text-success-700 font-semibold">
-                    <span className="h-2 w-2 rounded-full bg-success-500" />
-                    Page 1 (#1–#10): {page1Count} ({page1Share}%)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-warning-800 font-semibold">
-                    <span className="h-2 w-2 rounded-full bg-signal-400" />
-                    Striking (#11–#20): {page2Count} ({page2Share}%)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-brand-500 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-brand-300" />
-                    Page 3+ (#21+): {page3Count} ({page3Share}%)
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-brand-200/60 flex">
-                <div
-                  className="h-full bg-success-500 transition-all duration-500"
-                  style={{ width: `${page1Share}%` }}
-                  title={`Page 1: ${page1Count} queries (${page1Share}%)`}
-                />
-                <div
-                  className="h-full bg-signal-400 transition-all duration-500"
-                  style={{ width: `${page2Share}%` }}
-                  title={`Page 2 Striking Distance: ${page2Count} queries (${page2Share}%)`}
-                />
-                <div
-                  className="h-full bg-brand-300 transition-all duration-500"
-                  style={{ width: `${page3Share}%` }}
-                  title={`Page 3+: ${page3Count} queries (${page3Share}%)`}
-                />
-              </div>
-            </div>
-          )}
 
           {/* SERP Rank Velocity & Fluctuation Beacons */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
@@ -595,6 +555,14 @@ export function KeywordsView() {
           )}
         </div>
       </div>
+
+      {/* ── VISUAL SERP RANK DISTRIBUTION & OPPORTUNITY CHARTS ── */}
+      <OrganicSearchCharts
+        allQueries={allQueries}
+        strikingQueries={striking.query.data ?? strikingQueries}
+        ctrOpportunities={ctr.query.data ?? []}
+        onSelectTab={(nextTab) => handleTabChange(nextTab)}
+      />
 
       {/* ── TOP KPI SUMMARY GRID ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

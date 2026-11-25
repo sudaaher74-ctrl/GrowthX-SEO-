@@ -144,16 +144,16 @@ export function PagesTab({
     }
 
     const colorMap: Record<string, string> = {
-      "Homepage": "#06b6d4",
-      "Product page": "#3b82f6",
-      "Category page": "#10b981",
-      "Blog/article": "#8b5cf6",
-      "Service page": "#f59e0b",
-      "Landing page": "#ec4899",
-      "Contact page": "#14b8a6",
-      "About page": "#6366f1",
-      "Static page": "#64748b",
-      "Other": "#94a3b8",
+      "Homepage": "var(--color-series-2)",
+      "Product page": "var(--color-series-1)",
+      "Category page": "var(--color-series-3)",
+      "Blog/article": "var(--color-series-6)",
+      "Service page": "var(--color-series-4)",
+      "Landing page": "var(--color-series-7)",
+      "Contact page": "var(--color-series-8)",
+      "About page": "var(--color-primary-500)",
+      "Static page": "var(--color-brand-500)",
+      "Other": "var(--color-brand-400)",
     };
 
     const res = DISPLAY_PAGE_TYPES
@@ -161,10 +161,10 @@ export function PagesTab({
       .map((type) => ({
         label: type,
         value: counts[type],
-        color: colorMap[type] || "#3b82f6",
+        color: colorMap[type] || "var(--color-series-1)",
       }));
 
-    return res.length > 0 ? res : [{ label: "All Pages", value: pages.length, color: "#3b82f6" }];
+    return res.length > 0 ? res : [{ label: "All Pages", value: pages.length, color: "var(--color-series-1)" }];
   }, [pages]);
 
   // 4. Status Code Distribution Donut
@@ -175,10 +175,10 @@ export function PagesTab({
     const s5xx = pages.filter((p) => p.statusCode >= 500).length;
 
     return [
-      { label: "200 OK", value: s2xx, color: "#10b981" },
-      { label: "3XX Redirect", value: s3xx, color: "#f59e0b" },
-      { label: "4XX Error", value: s4xx, color: "#ef4444" },
-      { label: "5XX Error", value: s5xx, color: "#94a3b8" },
+      { label: "200 OK", value: s2xx, color: "var(--color-success-500)" },
+      { label: "3XX Redirect", value: s3xx, color: "var(--color-warning-500)" },
+      { label: "4XX Error", value: s4xx, color: "var(--color-error-500)" },
+      { label: "5XX Error", value: s5xx, color: "var(--color-brand-400)" },
     ];
   }, [pages]);
 
@@ -193,31 +193,31 @@ export function PagesTab({
     const raw = summary.bySource || {};
     const scanned = summary.javascriptDomScanned;
     const sources = [
-      { key: "sitemap", label: "Sitemap", count: raw.sitemap || 0, color: "#3b82f6", scanned: true },
-      { key: "homepage", label: "Homepage", count: raw.homepage || 0, color: "#06b6d4", scanned: true },
+      { key: "sitemap", label: "Sitemap", count: raw.sitemap || 0, color: "var(--color-series-1)", scanned: true },
+      { key: "homepage", label: "Homepage", count: raw.homepage || 0, color: "var(--color-series-2)", scanned: true },
       {
         key: "internal_links",
         label: "Internal links",
         count: (raw.internal_links || 0) + (raw.internal_link || 0) + (raw.link || 0),
-        color: "#10b981",
+        color: "var(--color-series-3)",
         scanned: true,
       },
       {
         key: "javascript_dom",
         label: "JavaScript DOM",
         count: raw.javascript_dom || 0,
-        color: "#8b5cf6",
+        color: "var(--color-series-6)",
         // "0" claims we rendered and found nothing. When the render tier never
         // ran we have no such evidence, and the card says so instead.
         scanned,
       },
-      { key: "canonical", label: "Canonical", count: raw.canonical || 0, color: "#f59e0b", scanned: true },
+      { key: "canonical", label: "Canonical", count: raw.canonical || 0, color: "var(--color-series-4)", scanned: true },
       { key: "redirect", label: "Redirects", count: raw.redirect || 0, color: "var(--color-series-7)", scanned: true },
       {
         key: "other",
         label: "Other",
         count: (raw.other || 0) + (raw.unknown || 0) + (raw.seed || 0) + (raw.robots || 0) + (raw.bundle || 0),
-        color: "#64748b",
+        color: "var(--color-brand-500)",
         scanned: true,
       },
     ];

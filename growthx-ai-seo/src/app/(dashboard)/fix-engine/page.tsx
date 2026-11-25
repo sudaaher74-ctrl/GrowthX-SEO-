@@ -11,6 +11,7 @@ import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-vie
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub";
 import { ContentStudioView } from "@/components/fix-engine/content-studio-view";
+import { FixEngineCharts } from "@/components/fix-engine/fix-engine-charts";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import { stagingEngine } from "@/lib/staging-engine";
 
@@ -194,6 +195,14 @@ function FixEngineClient() {
           </div>
         </div>
       </div>
+
+      {/* ── VISUAL FIX MIX & REMEDIATION FUNNEL ── */}
+      <FixEngineCharts
+        findings={findings.data?.items ?? []}
+        stagedTasksCount={stagedTasksCount}
+        onOpenFixes={() => setTab("github-fixes")}
+        onOpenResults={() => setTab("results")}
+      />
 
       {statusMessage && (
         <StatusNote tone={statusMessage.includes("verified") ? "good" : "bad"}>

@@ -210,7 +210,7 @@ function Journey({ projectId }: { projectId: string }) {
                     {recommendationRate}% Cited ({recommended}/{measured.length})
                   </span>
                 ) : (
-                  <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
+                  <span className="rounded-full bg-brand-100 border border-brand-200/80 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
                     {configured.length} Engines Connected
                   </span>
                 )}

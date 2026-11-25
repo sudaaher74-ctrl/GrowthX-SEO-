@@ -1,18 +1,11 @@
 {
-  "app/(dashboard)/error.tsx": 11,
   "app/(dashboard)/website/page.tsx": 2,
-  "app/error.tsx": 12,
   "app/global-error.tsx": 9,
   "app/legal/privacy/page.tsx": 2,
   "app/login/page.tsx": 4,
-  "components/settings/ai-configuration-tab.tsx": 15,
   "components/settings/integration-logos.tsx": 9,
   "components/settings/white-label-settings-card.tsx": 11,
-  "components/ui/button.tsx": 26,
   "components/ui/query-state.tsx": 1,
   "components/voice/aiva-orb.tsx": 1,
-  "components/voice/aiva-panel.tsx": 32,
-  "components/website/pages/discovered-not-crawled-panel.tsx": 41,
-  "components/website/pages/pages-kpis.tsx": 4,
-  "components/website/tabs/pages-tab.tsx": 22
+  "components/website/pages/pages-kpis.tsx": 4
 }
