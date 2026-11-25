@@ -5,6 +5,14 @@ import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { IssueCountService } from '../issues/issue-count.service';
 import { IssueGroupService } from '../issues/issue-group.service';
 import { ContentIdeas, ContentIdeasService } from '../content-ideas/content-ideas.service';
+import {
+  BusinessContextSummary,
+  ReportGrowthPlaybook,
+  buildPlaybookSchemaSnippet,
+  formatBusinessContextForPrompt,
+  normalisePlaybook,
+} from '../report-context/report-playbook.types';
+import { UnifiedReportContextService } from '../report-context/unified-report-context.service';
 
 /** Problems sent to the model and listed in the report, most harmful first. */
 const GROUPS_KEPT = 25;
@@ -45,6 +53,8 @@ export interface AuditFacts {
   problems: AuditProblem[];
   /** Problems beyond the ones listed. */
   moreProblems: number;
+  /** Shared business, offerings, micro-area coverage, catalog, and GBP context. */
+  businessContext?: BusinessContextSummary | null;
 }
 
 export type Priority = 'high' | 'medium' | 'low';
@@ -70,6 +80,8 @@ export interface AuditAnalysis {
   whatIsGood: string[];
   plan: Array<{ week: string; actions: string[] }>;
   dataGaps: string[];
+  /** 7-layer hyper-local growth playbook: possibilities, methods, copy-paste assets, 90-day roadmap. */
+  playbook?: ReportGrowthPlaybook;
 }
 
 export interface WebsiteAuditReport {
@@ -116,6 +128,7 @@ export function normaliseAuditAnalysis(raw: unknown): AuditAnalysis {
     whatIsGood: strList(r.whatIsGood),
     plan: list(r.plan).map((w, i) => ({ week: str(w?.week, `Week ${i + 1}`), actions: strList(w?.actions) })),
     dataGaps: strList(r.dataGaps),
+    ...(normalisePlaybook(r.playbook) ? { playbook: normalisePlaybook(r.playbook) } : {}),
   };
 }
 
@@ -141,18 +154,20 @@ export class AuditReportService {
     private readonly groups: IssueGroupService,
     private readonly router: MultiAiRouterService,
     @Optional() private readonly contentIdeas?: ContentIdeasService,
+    @Optional() private readonly reportContext?: UnifiedReportContextService,
   ) {}
 
   async gatherFacts(projectId: string): Promise<AuditFacts> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { name: true, websites: { select: { id: true, domain: true }, take: 1 } },
-    });
-    const website = project?.websites[0];
-    const [counts, groupList] = await Promise.all([
+    const [project, counts, groupList, businessContext] = await Promise.all([
+      this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true, websites: { select: { id: true, domain: true }, take: 1 } },
+      }),
       this.counts.countsForProject(projectId),
       this.groups.groupsForProject(projectId, { limit: 200 }),
+      this.reportContext ? this.reportContext.buildForProject(projectId) : Promise.resolve(null),
     ]);
+    const website = project?.websites[0];
 
     let pages: AuditFacts['pages'] = null;
     if (website) {
@@ -211,6 +226,7 @@ export class AuditReportService {
       problemsBySeverity: counts.bySeverity as unknown as Record<string, number>,
       problems,
       moreProblems: Math.max(0, groupList.groups.length - problems.length),
+      ...(businessContext ? { businessContext } : {}),
     };
   }
 
@@ -253,9 +269,15 @@ export class AuditReportService {
         projectId,
         maxTokens: 6000,
       });
-      return completion.refused || !completion.text.trim()
-        ? { analysis: null, model: completion.model, analysisError: 'Gemini returned no analysis. Try again.' }
-        : { analysis: normaliseAuditAnalysis(extractAndParseJson(completion.text)), model: completion.model, analysisError: null };
+      if (completion.refused || !completion.text.trim()) {
+        return { analysis: null, model: completion.model, analysisError: 'Gemini returned no analysis. Try again.' };
+      }
+      const parsed = normaliseAuditAnalysis(extractAndParseJson(completion.text));
+      return {
+        analysis: parsed,
+        model: completion.model,
+        analysisError: null,
+      };
     } catch (err) {
       this.logger.warn(`[${projectId}] audit report analysis failed: ${(err as Error).message}`);
       return {
@@ -307,11 +329,13 @@ export function buildAuditPrompt(f: AuditFacts): string {
     .map(([k, v]) => `${k.toLowerCase()} ${v}`)
     .join(', ');
 
-  return `Write a website audit report for a business owner who does not know SEO.
+  const bizBlock = formatBusinessContextForPrompt(f.businessContext);
+
+  return `Write a complete, business-grounded website audit & growth report for a business owner who does not know SEO.
 
 WEBSITE
 ${f.site ? `${f.site.name} (${f.site.domain}); read on ${f.site.crawledAt ?? 'never'}; health score ${f.site.healthScore ?? 'unknown'}/100` : 'Not set up.'}
-
+${bizBlock}
 PAGES
 ${pages}
 
@@ -321,29 +345,31 @@ ${f.moreProblems ? `\n...and ${f.moreProblems} smaller problems not listed.` : '
 
 Return JSON exactly in this shape:
 {
-  "summary": "4-6 simple sentences: how healthy the website is, the biggest problems, and what to do first",
+  "summary": "4-6 simple sentences tailored to this exact business and location: how healthy the website is, how the biggest problems cost real local buyers/orders, and what to do first",
   "scoreExplained": "what the health score means for this business, in 1-2 sentences",
   "fixes": [
     {
       "title": "the problem in plain words",
       "priority": "high|medium|low",
       "whatIsWrong": "what is wrong, with the number of pages and an example address",
-      "whyItMatters": "how it loses them customers or visibility on Google",
+      "whyItMatters": "how it loses this specific business real customers, orders, or local visibility on Google",
       "steps": ["step 1", "step 2", "step 3"],
       "whoCanFix": "you|developer",
       "effort": "low|medium|high",
       "pages": 0
     }
   ],
-  "quickWins": ["things they can do today in under an hour"],
+  "quickWins": ["things they can do today in under an hour tailored to their products & area"],
   "whatIsGood": ["what the website already does well, from the numbers"],
   "plan": [ { "week": "Week 1", "actions": ["..."] } ],
-  "dataGaps": ["what this audit could not measure, e.g. Google rankings need Search Console"]
+  "dataGaps": ["what this audit could not measure, e.g. Google rankings need Search Console"],
+  ${buildPlaybookSchemaSnippet('audit')}
 }
 
 Rules:
 - One fix per problem listed, most harmful first. Steps must be concrete, 2-5 each, in simple words.
+- Translate every problem into this business's real world (their actual products, city, and uncovered nearby neighborhoods when provided).
 - whoCanFix is "you" when it can be done in a website builder's page settings or editor, otherwise "developer".
-- Never use jargon like canonical, schema, meta, H1, crawl, indexing, 4xx or 5xx. Say what it means instead.
+- Never use jargon like canonical, schema, meta, H1, crawl, indexing, 4xx or 5xx in the main summary/fixes. Say what it means instead.
 - Use only the facts above. If something is unknown, say it was not measured.`;
 }

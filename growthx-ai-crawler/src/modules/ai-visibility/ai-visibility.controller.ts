@@ -10,12 +10,15 @@ import {
   Req,
   UseGuards,
   NotFoundException,
+  Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { AiVisibilityService } from './ai-visibility.service';
 import { PromptEngineService } from './prompt-engine.service';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { VisibilityWorkflowService } from './visibility-workflow.service';
+import { AiVisibilityInsightsService } from './ai-visibility-insights.service';
 import { SubscriptionQuotaService } from '../organizations/subscription-quota.service';
 
 @Controller(['api/projects/:projectId/ai-visibility', 'projects/:projectId/ai-visibility'])
@@ -27,6 +30,7 @@ export class AiVisibilityController {
     private readonly prisma: PrismaService,
     private readonly workflow: VisibilityWorkflowService,
     private readonly quotaService: SubscriptionQuotaService,
+    @Optional() private readonly insightsService?: AiVisibilityInsightsService,
   ) {}
 
   @Get('journey')
@@ -139,6 +143,25 @@ export class AiVisibilityController {
   @Get('actions')
   async getActions(@Param('projectId') projectId: string) {
     return this.aiVisibilityService.getAiActions(projectId);
+  }
+
+  @Get('insights')
+  async getInsights(@Param('projectId') projectId: string) {
+    if (!this.insightsService) throw new ServiceUnavailableException('AI Visibility insights service unavailable.');
+    return this.insightsService.getInsights(projectId);
+  }
+
+  @Post('insights')
+  async generateInsights(
+    @Param('projectId') projectId: string,
+    @Body('question') question?: string,
+    @Body('forceRefresh') forceRefresh?: boolean,
+  ) {
+    if (!this.insightsService) throw new ServiceUnavailableException('AI Visibility insights service unavailable.');
+    return this.insightsService.getInsights(projectId, {
+      question,
+      forceRefresh: Boolean(forceRefresh) || Boolean(question?.trim()),
+    });
   }
 
   @Get('prompts')

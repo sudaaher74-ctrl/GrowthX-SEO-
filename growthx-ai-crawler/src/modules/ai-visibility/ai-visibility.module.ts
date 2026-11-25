@@ -13,6 +13,7 @@ import { AiVisibilityAdapter } from './ai-visibility.adapter';
 import { AiVisibilityController } from './ai-visibility.controller';
 import { VisibilityContextService } from './visibility-context.service';
 import { VisibilityWorkflowService } from './visibility-workflow.service';
+import { AiVisibilityInsightsService } from './ai-visibility-insights.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
 
 @Module({
@@ -33,8 +34,9 @@ import { OrganizationsModule } from '../organizations/organizations.module';
     MetricsEngineService,
     VisibilityContextService,
     VisibilityWorkflowService,
+    AiVisibilityInsightsService,
     AiVisibilityAdapter,
   ],
-  exports: [AiVisibilityService, AiVisibilityAdapter, VisibilityWorkflowService],
+  exports: [AiVisibilityService, AiVisibilityAdapter, VisibilityWorkflowService, AiVisibilityInsightsService],
 })
 export class AiVisibilityModule {}

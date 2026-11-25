@@ -9,6 +9,7 @@ import { GoogleAlertsService } from './google-alerts.service';
 import { GoogleKeywordsService } from './google-keywords.service';
 import { GoogleOverviewService, GoogleWindow } from './google-overview.service';
 import { IndexStatusService } from './index-status.service';
+import { UnifiedReportContextService } from '../report-context/unified-report-context.service';
 import {
   BusinessTrafficContext,
   GoogleReport,
@@ -95,6 +96,7 @@ export class GoogleReportService {
     private readonly indexStatus: IndexStatusService,
     private readonly router: MultiAiRouterService,
     @Optional() private readonly findingSync?: FindingSyncService,
+    @Optional() private readonly reportContext?: UnifiedReportContextService,
   ) {}
 
   async gatherFacts(projectId: string, days: GoogleWindow = 28, customCities?: string[]): Promise<GoogleReportFacts> {
@@ -117,7 +119,7 @@ export class GoogleReportService {
     const asRows = (rows: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>, extra?: (r: any) => string): RowFact[] =>
       rows.map((r) => ({ key: r.key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position, extra: extra?.(r) }));
 
-    const [queries, pages, striking, ctr, declining, kw, alerts, index, ga4, business, aiVisibility] = await Promise.all([
+    const [queries, pages, striking, ctr, declining, kw, alerts, index, ga4, business, aiVisibility, businessContext] = await Promise.all([
       searchOn ? attempt('Top queries', notMeasured, () => this.gsc.top(projectId, 'QUERY', { days, limit: TOP })) : null,
       searchOn ? attempt('Top pages', notMeasured, () => this.gsc.top(projectId, 'PAGE', { days, limit: TOP })) : null,
       searchOn ? attempt('Queries near page one', notMeasured, () => this.gsc.strikingDistance(projectId, { days, limit: 15 })) : null,
@@ -129,6 +131,7 @@ export class GoogleReportService {
       ga.connected ? attempt('Analytics report', notMeasured, () => this.reports.read(projectId, `${days}d` as Ga4Range)) : null,
       this.gatherBusinessFromAudit(projectId, project, customCities),
       this.gatherAiVisibilitySummary(projectId),
+      this.reportContext ? this.reportContext.buildForProject(projectId) : Promise.resolve(null),
     ]);
 
     if (!sc.connected) notMeasured.push('Search Console is not connected, so nothing about search visibility is measured.');
@@ -241,6 +244,7 @@ export class GoogleReportService {
       alerts: alertList,
       traffic,
       business,
+      ...(businessContext ? { businessContext } : {}),
       locationGaps,
       diagnostics,
       notMeasured,
@@ -326,7 +330,7 @@ export class GoogleReportService {
         allowFallback: true,
         organizationId,
         projectId,
-        maxTokens: 4500,
+        maxTokens: 6000,
       });
       if (completion.refused || !completion.text.trim()) {
         return {

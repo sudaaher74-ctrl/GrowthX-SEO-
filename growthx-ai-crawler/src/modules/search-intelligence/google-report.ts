@@ -7,6 +7,14 @@
  * Kept free of Nest and Prisma so every rule is unit-tested directly.
  */
 
+import {
+  BusinessContextSummary,
+  ReportGrowthPlaybook,
+  buildPlaybookSchemaSnippet,
+  formatBusinessContextForPrompt,
+  normalisePlaybook,
+} from '../report-context/report-playbook.types';
+
 export type Priority = 'high' | 'medium' | 'low';
 export type Platform = 'GSC' | 'GA4' | 'BOTH';
 
@@ -156,6 +164,8 @@ export interface GoogleReportFacts {
   };
   /** What the Website Audit understood about the user's business, offerings, and target service cities. */
   business?: BusinessTrafficContext | null;
+  /** Shared hyper-local context: covered/missing micro-areas, catalog prices, trust proof & GBP presence. */
+  businessContext?: BusinessContextSummary | null;
   /** Comparison between cities/markets where the business operates and actual traffic/clicks received. */
   locationGaps?: LocationTrafficGap[];
   /** Deterministic traffic quality, bot/noise, attribution, conversion & AI visibility diagnostics. */
@@ -213,6 +223,8 @@ export interface GoogleReportAnalysis {
   marketingStrategy?: MarketingStrategy;
   plan: Array<{ week: string; actions: string[] }>;
   dataGaps: string[];
+  /** 7-layer hyper-local growth playbook: possibilities, methods, copy-paste assets, 90-day roadmap. */
+  playbook?: ReportGrowthPlaybook;
 }
 
 export interface GoogleReport {
@@ -648,6 +660,7 @@ export function normaliseAnalysis(raw: unknown): GoogleReportAnalysis {
     },
     plan: list(r.plan).map((w, i) => ({ week: str(w?.week, `Week ${i + 1}`), actions: strList(w?.actions) })),
     dataGaps: strList(r.dataGaps),
+    ...(normalisePlaybook(r.playbook) ? { playbook: normalisePlaybook(r.playbook) } : {}),
   };
 }
 
@@ -728,8 +741,10 @@ ${gaps.map((g) => `  - ${g.location} [${g.status}]: ${g.sessions} GA4 sessions, 
   }\n`
     : '';
 
+  const richBizBlock = formatBusinessContextForPrompt(f.businessContext);
+
   return `Write an executive-grade traffic and growth improvement report for the website${f.site ? ` ${f.site}` : ''}, from its Website Audit, Google Search Console, and Google Analytics 4 data for the last ${f.days} days.
-${businessSection}${locationSection}${diagnosticsSection}
+${businessSection}${richBizBlock}${locationSection}${diagnosticsSection}
 DATA SOURCES
   ${src('Search Console', f.searchConsole)}
   ${src('Google Analytics 4', f.analytics)}
@@ -796,7 +811,8 @@ Return JSON exactly in this shape:
     "audience": ["distinct insights about visitor geography, target market coverage vs. bot noise or untapped adjacent cities — do NOT copy-paste the Target City findings word for word"]
   },
   "plan": [ { "week": "Week 1", "actions": ["2-3 specific actions"] } ],
-  "dataGaps": ["what could not be measured and exactly how to unlock it"]
+  "dataGaps": ["what could not be measured and exactly how to unlock it"],
+  ${buildPlaybookSchemaSnippet('traffic')}
 }
 
 Rules:

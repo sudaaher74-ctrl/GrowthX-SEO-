@@ -8,6 +8,14 @@ import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { CompetitorSeoReportService, SideBySide } from './competitor-seo-report.service';
 import { AdvantagePage, LONG_PAGE_WORDS, RivalAdvantages, computeAdvantages, dedupePages } from './rival-advantages';
 import { ContentIdeas, ContentIdeasService } from '../content-ideas/content-ideas.service';
+import {
+  BusinessContextSummary,
+  ReportGrowthPlaybook,
+  buildPlaybookSchemaSnippet,
+  formatBusinessContextForPrompt,
+  normalisePlaybook,
+} from '../report-context/report-playbook.types';
+import { UnifiedReportContextService } from '../report-context/unified-report-context.service';
 
 /** Rivals read into one report; the rest are named as not included. */
 export const MAX_RIVALS = 7;
@@ -44,6 +52,10 @@ export interface ReportRival {
   comparison: SideBySide[];
   /** Null when either site has no completed crawl to compare. */
   advantages: RivalAdvantages | null;
+  /** Product/pricing highlights detected on this rival's site, when crawled. */
+  catalogHighlights?: Array<{ name: string; price: string | null }>;
+  /** Offer, delivery, or trust positioning claims detected on this rival's site. */
+  marketingSignals?: string[];
   notes: string[];
 }
 
@@ -53,6 +65,8 @@ export interface ReportFacts {
   aiAnswers: { asked: number; namedYou: number };
   rivals: ReportRival[];
   notIncluded: string[];
+  /** Shared business, offerings, micro-area coverage, catalog, and GBP context. */
+  businessContext?: BusinessContextSummary | null;
 }
 
 export type Priority = 'high' | 'medium' | 'low';
@@ -76,6 +90,8 @@ export interface ReportAnalysis {
   whereYouLead: string[];
   plan: Array<{ week: string; actions: string[] }>;
   dataGaps: string[];
+  /** 7-layer hyper-local growth playbook: possibilities, counter-attack methods, copy-paste assets, 90-day roadmap. */
+  playbook?: ReportGrowthPlaybook;
 }
 
 export interface CompetitorIntelReport {
@@ -140,6 +156,7 @@ export function normaliseAnalysis(raw: unknown): ReportAnalysis {
     whereYouLead: strList(r.whereYouLead),
     plan: list(r.plan).map((w, i) => ({ week: str(w?.week, `Week ${i + 1}`), actions: strList(w?.actions) })),
     dataGaps: strList(r.dataGaps),
+    ...(normalisePlaybook(r.playbook) ? { playbook: normalisePlaybook(r.playbook) } : {}),
   };
 }
 
@@ -166,10 +183,11 @@ export class CompetitorIntelReportService {
     private readonly router: MultiAiRouterService,
     @Optional() private readonly contentIdeas?: ContentIdeasService,
     @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
+    @Optional() private readonly reportContext?: UnifiedReportContextService,
   ) {}
 
   async gatherFacts(projectId: string): Promise<ReportFacts> {
-    const [project, competitors] = await Promise.all([
+    const [project, competitors, businessContext, rivalCatalogRows, rivalSignalRows] = await Promise.all([
       this.prisma.project.findUnique({
         where: { id: projectId },
         select: { name: true, websites: { select: { id: true, domain: true }, take: 1 } },
@@ -179,6 +197,26 @@ export class CompetitorIntelReportService {
         select: { id: true, domain: true, websiteId: true, localRating: true, localReviewCount: true },
         orderBy: { createdAt: 'asc' },
       }),
+      this.reportContext ? this.reportContext.buildForProject(projectId) : Promise.resolve(null),
+      this.prisma.catalogProduct?.findMany
+        ? this.prisma.catalogProduct
+            .findMany({
+              where: { projectId, competitorId: { not: null } },
+              orderBy: { completenessScore: 'desc' },
+              take: 40,
+              select: { competitorId: true, name: true, priceMinorUnits: true, currency: true },
+            })
+            .catch(() => [] as Array<{ competitorId: string | null; name: string | null; priceMinorUnits: number | null; currency: string | null }>)
+        : Promise.resolve([] as Array<{ competitorId: string | null; name: string | null; priceMinorUnits: number | null; currency: string | null }>),
+      this.prisma.marketingSignal?.findMany
+        ? this.prisma.marketingSignal
+            .findMany({
+              where: { projectId, competitorId: { not: null } },
+              take: 40,
+              select: { competitorId: true, text: true },
+            })
+            .catch(() => [] as Array<{ competitorId: string | null; text: string }>)
+        : Promise.resolve([] as Array<{ competitorId: string | null; text: string }>),
     ]);
 
     let you: ReportYou | null = null;
@@ -203,6 +241,25 @@ export class CompetitorIntelReportService {
       const theirJob = c.websiteId ? await this.latestCrawl(c.websiteId) : null;
       const theirPages = theirJob ? await this.pagesOf(theirJob.id) : null;
       const hasReviews = (c.localReviewCount ?? 0) > 0;
+      const catalogHighlights = rivalCatalogRows
+        .filter((row) => row.competitorId === c.id && Boolean(row.name?.trim()))
+        .slice(0, 6)
+        .map((row) => {
+          const major = row.priceMinorUnits != null && row.priceMinorUnits > 0 ? row.priceMinorUnits / 100 : null;
+          const code = (row.currency || 'INR').toUpperCase();
+          const sym = code === 'INR' ? '₹' : code === 'USD' ? '$' : `${code} `;
+          return {
+            name: row.name!.trim(),
+            price: major != null ? `${sym}${Number.isInteger(major) ? major : major.toFixed(2)}` : null,
+          };
+        });
+      const marketingSignals = [
+        ...new Set(
+          rivalSignalRows
+            .filter((row) => row.competitorId === c.id && Boolean(row.text?.trim()))
+            .map((row) => row.text.trim()),
+        ),
+      ].slice(0, 5);
       rivals.push({
         name: r.competitor.name,
         domain: r.competitor.domain,
@@ -213,6 +270,8 @@ export class CompetitorIntelReportService {
         googleReviews: hasReviews ? c.localReviewCount : null,
         comparison: r.comparison.filter((row) => STRENGTH_ROWS.has(row.label)),
         advantages: yourPages && theirPages ? computeAdvantages(yourPages, theirPages) : null,
+        ...(catalogHighlights.length ? { catalogHighlights } : {}),
+        ...(marketingSignals.length ? { marketingSignals } : {}),
         notes: r.notes,
       });
     }
@@ -222,6 +281,7 @@ export class CompetitorIntelReportService {
       aiAnswers: { asked: mentions.asked, namedYou: mentions.namedYou },
       rivals,
       notIncluded: competitors.slice(MAX_RIVALS).map((c) => c.domain),
+      ...(businessContext ? { businessContext } : {}),
     };
   }
 
@@ -351,14 +411,15 @@ export class CompetitorIntelReportService {
         allowFallback: false,
         organizationId,
         projectId,
-        maxTokens: 3000,
+        maxTokens: 6000,
       });
       if (completion.refused || !completion.text.trim()) {
         return { ...base, analysis: null, model: completion.model, analysisError: 'Gemini returned no analysis. Try again.' };
       }
+      const parsed = normaliseAnalysis(extractAndParseJson(completion.text));
       return {
         ...base,
-        analysis: normaliseAnalysis(extractAndParseJson(completion.text)),
+        analysis: parsed,
         model: completion.model,
         analysisError: null,
       };
@@ -412,11 +473,20 @@ function rivalBlock(r: ReportRival, facts: ReportFacts): string {
       ? 'not measured (no buyer questions tracked)'
       : `named in ${r.aiMentions} of ${facts.aiAnswers.asked} AI answers (you: ${facts.aiAnswers.namedYou})`;
   const reviews = r.googleReviews == null ? 'not measured' : `${r.googleRating ?? '?'} stars from ${r.googleReviews} reviews`;
+  const catalogLine = r.catalogHighlights?.length
+    ? `\n  detected products/prices: ${r.catalogHighlights.map((c) => `${c.name}${c.price ? ` (${c.price})` : ''}`).join('; ')}`
+    : '';
+  const signalLine = r.marketingSignals?.length
+    ? `\n  offer & trust positioning claims: ${r.marketingSignals.join('; ')}`
+    : '';
   return (
     `${r.name} (${r.domain})\n` +
     `  crawled: ${r.crawledAt ?? 'never'}; pages: ${r.pagesCrawled ?? 'unknown'}\n` +
     `  side by side: ${cmp || 'not measured'}\n` +
-    `  AI assistants: ${ai}\n  Google reviews: ${reviews}\n` +
+    `  AI assistants: ${ai}\n  Google reviews: ${reviews}` +
+    catalogLine +
+    signalLine +
+    `\n` +
     (r.advantages ? advantagesBlock(r.advantages) : '  page-level comparison: not possible until both sites have a completed crawl') +
     (r.notes.length ? `\n  notes: ${r.notes.join(' ')}` : '')
   );
@@ -427,25 +497,26 @@ export function buildPrompt(facts: ReportFacts): string {
     ? `${facts.you.name} (${facts.you.domain}); crawled: ${facts.you.crawledAt ?? 'never'}; pages: ${facts.you.pagesCrawled ?? 'unknown'}`
     : 'Not crawled yet.';
   const rivals = facts.rivals.map((r) => rivalBlock(r, facts)).join('\n\n');
+  const bizBlock = formatBusinessContextForPrompt(facts.businessContext);
 
-  return `Write a competitor intelligence report on why these rivals rank and what they have that my site does not.
+  return `Write a complete competitor intelligence & local counter-attack report on why these rivals rank and how this specific business can beat both national and local rivals.
 
 MY SITE
 ${you}
-
+${bizBlock}
 RIVALS
 ${rivals || 'No rivals tracked.'}
 ${facts.notIncluded.length ? `\nNot included in this report: ${facts.notIncluded.join(', ')}` : ''}
 
 Return JSON exactly in this shape:
 {
-  "executiveSummary": "4-6 sentences: who is ahead of me, the main reasons they rank, and the single most important thing to build",
+  "executiveSummary": "4-6 sentences tailored to this business & location: who is ahead of me, the main reasons they rank, and the single sharpest local + content wedge to beat them",
   "whyTheyRank": [
     { "competitor": "name", "threat": "high|medium|low", "reasons": [ { "factor": "what they have", "evidence": "the exact numbers and URLs from the facts" } ] }
   ],
   "gaps": [
     {
-      "title": "what they have that I do not, e.g. a page topic, a kind of page, structured data, depth, reviews, AI presence",
+      "title": "what they have that I do not, e.g. a page topic, a kind of page, structured data, depth, offers, reviews, AI presence",
       "priority": "high|medium|low",
       "rivals": ["names of the rivals that have it"],
       "evidence": "the exact numbers and example URLs from the facts",
@@ -456,7 +527,8 @@ Return JSON exactly in this shape:
   ],
   "whereYouLead": ["what my site has that they do not, with numbers"],
   "plan": [ { "week": "Week 1", "actions": ["..."] } ],
-  "dataGaps": ["what could not be measured and what would measure it"]
+  "dataGaps": ["what could not be measured and what would measure it"],
+  ${buildPlaybookSchemaSnippet('competitor')}
 }
 
 Rules:
