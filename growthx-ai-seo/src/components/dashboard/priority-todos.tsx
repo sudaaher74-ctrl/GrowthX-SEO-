@@ -1,127 +1,61 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useId, useRef } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowRight,
-  ArrowUpRight,
-  CheckCircle2,
-  ChevronRight,
-  Code2,
-  FileText,
-  Globe,
-  Heading,
-  Layers,
-  Link2,
-  Wrench,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, ChevronRight, ExternalLink, Sparkles, X } from "lucide-react";
 import { type FixClass, type IssueGroup, type IssueSeverity } from "@/lib/api-client";
 import { SEVERITY_PLAIN, asSentence } from "@/lib/plain-language";
 import { cn } from "@/lib/utils";
 
 const SEVERITY = SEVERITY_PLAIN;
 
-const FIX_CLASS_COPY: Record<FixClass, { label: string; hint: string; cta: string; href: string; note: string }> = {
+const FIX_CLASS_COPY: Record<FixClass, { label: string; cta: string; href: string; note: string }> = {
   AUTO: {
     label: "1-Click AI Fix",
-    hint: "Safe automated fix (e.g. metadata, canonicals) ready to deploy via AI.",
-    cta: "Prepare AI Fix",
+    cta: "Stage in Fix Engine",
     href: "/fix-engine",
-    note: "Opens an automated pull request. Nothing is deployed until you review and merge it.",
+    note: "Generates an isolated pull request — nothing goes live until you approve and merge.",
   },
   APPROVAL: {
-    label: "AI Assisted · Needs Review",
-    hint: "AI generated change requiring your review before applying.",
-    cta: "Review Proposed Change",
+    label: "AI Assisted",
+    cta: "Review in Fix Engine",
     href: "/fix-engine",
-    note: "Shown as before-and-after preview. Changes take effect only upon approval.",
+    note: "Shown as a before-and-after diff before applying.",
   },
   MANUAL: {
-    label: "Manual Optimization",
-    hint: "Requires architectural or content edits by you or your developer.",
-    cta: "Inspect Affected Pages",
+    label: "Manual Fix",
+    cta: "Inspect in Website Audit",
     href: "/website?tab=issues",
-    note: "We provide full technical diagnostics and reproduction steps for your team.",
+    note: "Includes technical diagnostics and affected routes for your team.",
   },
 };
 
-function getIssueMeta(group: IssueGroup) {
-  const type = (group.issueType || "").toLowerCase();
-  const cat = (group.category || "").toLowerCase();
-
-  if (type.includes("render") || type.includes("js") || cat.includes("render") || cat.includes("code")) {
-    return {
-      icon: Code2,
-      label: "JS & Rendering",
-      badgeClass: "bg-warning-50 text-warning-700",
-    };
-  }
-  if (type.includes("head") || type.includes("h1") || type.includes("h2") || cat.includes("heading") || cat.includes("structure")) {
-    return {
-      icon: Heading,
-      label: "Heading Hierarchy",
-      badgeClass: "bg-brand-200 text-brand-700",
-    };
-  }
-  if (type.includes("canonical") || type.includes("index") || type.includes("crawl") || type.includes("robot") || type.includes("sitemap") || cat.includes("index")) {
-    return {
-      icon: Layers,
-      label: "Indexing & Canonicals",
-      badgeClass: "bg-accent-50 text-accent-700",
-    };
-  }
-  if (type.includes("link") || type.includes("orphan") || type.includes("anchor") || cat.includes("link")) {
-    return {
-      icon: Link2,
-      label: "Internal Links",
-      badgeClass: "bg-brand-200 text-brand-700",
-    };
-  }
-  if (type.includes("title") || type.includes("meta") || type.includes("desc") || cat.includes("meta") || cat.includes("content")) {
-    return {
-      icon: FileText,
-      label: "Metadata & Titles",
-      badgeClass: "bg-accent-50 text-accent-700",
-    };
-  }
-  if (type.includes("speed") || type.includes("perf") || type.includes("lcp") || type.includes("cls") || cat.includes("perf")) {
-    return {
-      icon: Zap,
-      label: "Core Web Vitals",
-      badgeClass: "bg-error-50 text-error-700",
-    };
-  }
+function severityDotClass(sev: IssueSeverity): string {
   return {
-    icon: AlertTriangle,
-    label: group.category || "Technical SEO",
-    badgeClass: "bg-brand-200 text-brand-700",
-  };
-}
-
-function severityChip(sev: IssueSeverity): string {
-  return {
-    CRITICAL: "bg-error-50 text-error-700",
-    HIGH: "bg-warning-50 text-warning-700",
-    MEDIUM: "bg-accent-50 text-accent-700",
-    LOW: "bg-brand-200 text-brand-600",
+    CRITICAL: "bg-error-500",
+    HIGH: "bg-warning-500",
+    MEDIUM: "bg-accent-500",
+    LOW: "bg-brand-300",
   }[sev];
 }
 
+/**
+ * Linear-style single-row priority issue item: severity dot, clear title,
+ * affected page count, quiet AI-ready hint, and click-to-inspect drawer trigger.
+ */
 export function TodoRow({
   group,
-  rank,
   selected,
   onPick,
 }: {
   group: IssueGroup;
-  rank: number;
+  rank?: number;
   selected: boolean;
   onPick: () => void;
 }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
-  const meta = getIssueMeta(group);
-  const Icon = meta.icon;
   const isAiReady = group.aiFixAvailable || group.fixClass === "AUTO";
+  const pageText = `${group.affectedCount} ${group.affectedCount === 1 ? "affected page" : "affected pages"}`;
 
   return (
     <li>
@@ -130,238 +64,218 @@ export function TodoRow({
         onClick={onPick}
         aria-pressed={selected}
         className={cn(
-          "group flex w-full flex-col gap-2 rounded-xl p-3 text-left transition relative border",
-          selected
-            ? "bg-brand-50 border-brand-300 shadow-sm ring-1 ring-signal-400/40"
-            : "bg-brand-50/50 hover:bg-brand-50 border-brand-200/60 hover:border-brand-300",
+          "group flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition cursor-pointer",
+          selected ? "bg-brand-100/70" : "hover:bg-brand-50/90",
         )}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className={cn(
-                "flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-bold",
-                selected ? "bg-signal-400 text-signal-ink" : "bg-brand-200 text-brand-600",
-              )}
-              aria-hidden
-            >
-              #{rank}
-            </span>
-            <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold truncate", meta.badgeClass)}>
-              <Icon size={11} className="shrink-0" />
-              <span className="truncate">{meta.label}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {isAiReady && (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-signal-400/15 text-signal-ink px-1.5 py-0.2 text-[9.5px] font-bold border border-signal-400/30">
-                <Zap size={10} className="text-signal-400" />
-                AI
-              </span>
-            )}
-            <span className={cn("rounded-md px-1.5 py-0.2 text-[10px] font-bold", severityChip(group.severity))}>
-              {sev.label}
-            </span>
-          </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className={cn("h-2 w-2 shrink-0 rounded-full", severityDotClass(group.severity))}
+            title={sev.label}
+            aria-hidden="true"
+          />
+          <span className="truncate text-[13px] font-medium text-brand-950 group-hover:text-brand-950">
+            {group.title}
+          </span>
         </div>
 
-        <p className="text-[12.5px] font-semibold text-brand-950 leading-snug line-clamp-2">
-          {group.title}
-        </p>
-
-        <div className="flex items-center justify-between pt-1 border-t border-brand-200/50 text-[11px]">
-          <span className="inline-flex items-center gap-1 font-medium text-brand-500">
-            <Layers size={11} className="text-brand-400 shrink-0" />
-            {group.affectedCount} {group.affectedCount === 1 ? "affected page" : "affected pages"}
+        <div className="flex shrink-0 items-center gap-4 text-[11.5px]">
+          {isAiReady && (
+            <span className="hidden sm:inline-flex items-center gap-1 font-medium text-success-700">
+              <Sparkles size={11} />
+              AI fix
+            </span>
+          )}
+          <span className="font-mono text-brand-500 tabular-nums">{pageText}</span>
+          <span className="hidden md:inline-block w-16 text-right text-[11px] font-medium text-brand-400">
+            {sev.label}
           </span>
-
-          <span className={cn("inline-flex items-center gap-0.5 text-[10.5px] font-semibold transition", selected ? "text-brand-950" : "text-brand-400 group-hover:text-brand-700")}>
-            {selected ? "Active" : "Inspect"}
-            <ChevronRight size={11} className={selected ? "text-signal-400" : ""} />
-          </span>
+          <ChevronRight
+            size={14}
+            className="text-brand-300 transition group-hover:translate-x-0.5 group-hover:text-brand-700"
+          />
         </div>
       </button>
     </li>
   );
 }
 
-export function ProblemDetail({ group }: { group: IssueGroup }) {
-  const fix = FIX_CLASS_COPY[group.fixClass] ?? FIX_CLASS_COPY.MANUAL;
-  const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
-  const meta = getIssueMeta(group);
-  const Icon = meta.icon;
-  const isAiReady = group.aiFixAvailable || group.fixClass === "AUTO";
+/**
+ * Calm slide-over native <dialog> Issue Inspector — replaces the nested 6-card
+ * master-detail panel with clean typography, hairline dividers, and 1-click Fix Engine action.
+ */
+export function ProblemDetailDrawer({
+  group,
+  onClose,
+}: {
+  group: IssueGroup | null;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (group && !dialog.open) {
+      dialog.showModal();
+    } else if (!group && dialog.open) {
+      dialog.close();
+    }
+  }, [group]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const handleClose = () => {
+      dialog.returnValue = "";
+      onClose();
+    };
+    dialog.addEventListener("close", handleClose);
+
+    let cleanupOutside: (() => void) | null = null;
+    if (!("closedBy" in HTMLDialogElement.prototype)) {
+      const outside = (e: PointerEvent) => {
+        const r = dialog.getBoundingClientRect();
+        return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      };
+      let pressedOutside = false;
+      const onDown = (e: PointerEvent) => {
+        pressedOutside = outside(e);
+      };
+      const onUp = (e: PointerEvent) => {
+        if (pressedOutside && outside(e)) dialog.close();
+        pressedOutside = false;
+      };
+      dialog.addEventListener("pointerdown", onDown);
+      dialog.addEventListener("pointerup", onUp);
+      cleanupOutside = () => {
+        dialog.removeEventListener("pointerdown", onDown);
+        dialog.removeEventListener("pointerup", onUp);
+      };
+    }
+
+    return () => {
+      dialog.removeEventListener("close", handleClose);
+      cleanupOutside?.();
+    };
+  }, [onClose]);
+
+  const sev = group ? (SEVERITY[group.severity] ?? SEVERITY.LOW) : null;
+  const fix = group ? (FIX_CLASS_COPY[group.fixClass] ?? FIX_CLASS_COPY.MANUAL) : null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-brand-200/70 bg-brand-50 p-4 sm:p-5 text-brand-950 shadow-sm">
-      {/* Header with category, severity, and AI badges */}
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold", meta.badgeClass)}>
-              <Icon size={13} className="shrink-0" />
-              {meta.label}
-            </span>
-            <span className={cn("rounded-lg px-2 py-1 text-[11px] font-bold", severityChip(group.severity))}>
-              {sev.label}
-            </span>
-          </div>
-
-          {isAiReady ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-1 text-[11px] font-bold text-signal-ink">
-              <Zap size={12} className="text-signal-400 shrink-0" />
-              1-Click AI Fix Ready
-            </span>
-          ) : group.fixClass === "APPROVAL" ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-50 border border-accent-200 px-2.5 py-1 text-[11px] font-bold text-accent-700">
-              Assisted Approval
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-200 border border-brand-300 px-2.5 py-1 text-[11px] font-bold text-brand-600">
-              Manual Resolution
-            </span>
-          )}
-        </div>
-
-        <h3 className="mt-2 text-[17px] sm:text-[19px] font-bold leading-snug tracking-tight text-brand-950">
-          {group.title}
-        </h3>
-        {group.summary && (
-          <p className="mt-1.5 text-[12px] leading-relaxed text-brand-500 max-w-2xl">
-            {asSentence(group.summary)}
-          </p>
-        )}
-      </div>
-
-      {/* 3 Metric / Scope Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
-          <div className="flex items-center justify-between text-brand-400">
-            <p className="text-[10px] font-bold uppercase tracking-wider">Affected Footprint</p>
-            <Layers size={13} className="text-brand-500" />
-          </div>
-          <p className="mt-1 text-[20px] font-extrabold tracking-tight text-brand-950 leading-tight">
-            {group.affectedCount}
-          </p>
-          <p className="mt-0.5 text-[10.5px] text-brand-500">
-            {group.affectedCount === 1 ? "Isolated single page" : "Sitewide defect pattern"}
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
-          <div className="flex items-center justify-between text-brand-400">
-            <p className="text-[10px] font-bold uppercase tracking-wider">Resolution Path</p>
-            <ArrowUpRight size={13} className="text-brand-500" />
-          </div>
-          <p className="mt-1 text-[13px] font-bold text-brand-950 truncate leading-tight">
-            {fix.label}
-          </p>
-          <p className="mt-0.5 text-[10.5px] text-brand-500 truncate">
-            {fix.hint}
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
-          <div className="flex items-center justify-between text-brand-400">
-            <p className="text-[10px] font-bold uppercase tracking-wider">Audit Confidence</p>
-            <CheckCircle2 size={13} className="text-success-600" />
-          </div>
-          <p className="mt-1 text-[13px] font-bold text-brand-950 leading-tight">
-            {group.confidence === "CONFIRMED" ? "Confirmed Defect" : group.confidence === "LIKELY" ? "Probable Issue" : "Advisory"}
-          </p>
-          <p className="mt-0.5 text-[10.5px] text-brand-500">
-            Verified by Crawler Engine
-          </p>
-        </div>
-      </div>
-
-      {/* Affected Sample URLs Preview */}
-      {group.sampleUrls && group.sampleUrls.length > 0 && (
-        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5 text-brand-700">
-              <Globe size={13} className="text-brand-500" />
-              <p className="text-[11px] font-bold uppercase tracking-wider">
-                Sample Affected Pages ({group.sampleUrls.length})
-              </p>
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      {...({ closedby: "any" } as Record<string, string>)}
+      className="traffic-inspector-dialog border-l border-brand-200"
+    >
+      {group && sev && fix && (
+        <>
+          <div className="flex items-start justify-between gap-4 border-b border-brand-100 px-6 py-5">
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex items-center gap-2 text-[11px] font-medium text-brand-500">
+                <span className={cn("h-2 w-2 rounded-full", severityDotClass(group.severity))} />
+                <span>{sev.label}</span>
+                <span className="text-brand-300">·</span>
+                <span>{fix.label}</span>
+              </div>
+              <h1 id={titleId} className="text-[16px] font-bold leading-snug tracking-tight text-brand-950">
+                {group.title}
+              </h1>
             </div>
+            <form method="dialog">
+              <button
+                type="submit"
+                autoFocus
+                aria-label="Close issue details"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-400 hover:bg-brand-100 hover:text-brand-950 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </form>
+          </div>
+
+          <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+            {group.summary && (
+              <p className="text-[13px] leading-relaxed text-brand-600">{asSentence(group.summary)}</p>
+            )}
+
+            {/* Single quiet 3-column metadata strip with hairlines */}
+            <div className="grid grid-cols-3 divide-x divide-brand-100 border-y border-brand-100 py-3.5">
+              <div className="pr-3">
+                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Pages</p>
+                <p className="mt-0.5 font-mono text-[16px] font-bold text-brand-950 tabular-nums">
+                  {group.affectedCount}
+                </p>
+              </div>
+              <div className="px-3">
+                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Path</p>
+                <p className="mt-0.5 text-[13px] font-semibold text-brand-950">{fix.label}</p>
+              </div>
+              <div className="pl-3">
+                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Confidence</p>
+                <p className="mt-0.5 text-[13px] font-semibold text-brand-950">
+                  {group.confidence === "CONFIRMED" ? "Confirmed" : "Verified"}
+                </p>
+              </div>
+            </div>
+
+            {group.action && (
+              <div className="space-y-1.5">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+                  How to fix
+                </h2>
+                <p className="text-[13px] leading-relaxed text-brand-700">{asSentence(group.action)}</p>
+              </div>
+            )}
+
+            {group.sampleUrls.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+                    Affected pages ({group.sampleUrls.length})
+                  </h2>
+                  <Link href="/website?tab=issues" className="text-[11.5px] font-medium text-brand-500 hover:text-brand-950">
+                    Full audit →
+                  </Link>
+                </div>
+                <ul className="divide-y divide-brand-100 border-t border-brand-100">
+                  {group.sampleUrls.slice(0, 8).map((u) => (
+                    <li key={u} className="flex items-center justify-between gap-2 py-2 text-[12px]">
+                      <span className="truncate font-mono text-brand-700" title={u}>
+                        {u}
+                      </span>
+                      <a
+                        href={u}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open ${u}`}
+                        className="shrink-0 text-brand-400 hover:text-brand-950"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-brand-100 px-6 py-4">
+            <p className="text-[11px] text-brand-400 max-w-[260px]">{fix.note}</p>
             <Link
-              href="/website?tab=issues"
-              className="text-[10.5px] font-semibold text-brand-500 hover:text-brand-950 hover:underline"
+              href={fix.href}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-[12px] font-semibold text-brand-50 hover:bg-brand-800 transition"
             >
-              View in Audit →
+              <span>{fix.cta}</span>
+              <ArrowRight size={13} />
             </Link>
           </div>
-          <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto">
-            {group.sampleUrls.map((url, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 border border-brand-200/80 px-2.5 py-1 font-mono text-[11px] text-brand-700 shadow-2xs"
-                title={url}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-signal-400 shrink-0" />
-                <span className="max-w-[260px] sm:max-w-[340px] truncate">{url}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        </>
       )}
-
-      {/* AI Resolution Blueprint */}
-      {group.action && (
-        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3.5">
-          <div className="flex items-center gap-1.5 text-brand-950 mb-1">
-            <Wrench size={13} className="text-brand-500" />
-            <p className="text-[11px] font-bold uppercase tracking-wider">How To Fix This</p>
-          </div>
-          <p className="text-[11.5px] leading-relaxed text-brand-600">
-            {asSentence(group.action)}
-          </p>
-        </div>
-      )}
-
-      {/* Deterministic AI Fix Opportunity Strip */}
-      {isAiReady && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-signal-400/40 bg-signal-400/10 p-3 text-xs">
-          <div className="flex items-center gap-2">
-            <Zap size={14} className="text-signal-400 shrink-0" />
-            <div>
-              <span className="font-bold text-brand-950">Deterministic Auto-Fix Ready:</span>
-              <span className="text-brand-600 ml-1">Reigel can generate the exact code/tag diff and stage an isolated pull request.</span>
-            </div>
-          </div>
-          <Link
-            href="/fix-engine"
-            className="inline-flex items-center gap-1 shrink-0 font-bold text-brand-950 underline hover:opacity-80"
-          >
-            Stage in Fix Engine <ArrowRight size={11} />
-          </Link>
-        </div>
-      )}
-
-      {/* Bottom CTA Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-brand-200/60">
-        <p className="text-[11px] text-brand-500 leading-snug max-w-sm">
-          {fix.note}
-        </p>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/website?tab=issues"
-            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-brand-200 bg-brand-100 px-3.5 py-2 text-[11.5px] font-semibold text-brand-700 transition hover:bg-brand-200/60"
-          >
-            Audit detail
-          </Link>
-          <Link
-            href={fix.href}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
-          >
-            {isAiReady && <Zap size={13} className="text-signal-ink" />}
-            {fix.cta}
-            <ArrowRight size={13} />
-          </Link>
-        </div>
-      </div>
-    </div>
+    </dialog>
   );
 }

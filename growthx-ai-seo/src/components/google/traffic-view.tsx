@@ -451,7 +451,7 @@ function TrafficViewClient() {
             </span>
             <div>
               <h1 className="text-base font-bold leading-tight tracking-tight text-brand-950">
-                Traffic Intelligence
+                Traffic
               </h1>
               <p className="text-[11px] text-brand-400">
                 3D global reach · GA4 · Search Console · AI referrals

@@ -1,19 +1,15 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   ArrowRight,
   ArrowUpRight,
-  Bot,
-  CalendarDays,
   Check,
-  Crosshair,
   Globe,
   Layers,
-  Plus,
   PlugZap,
   RefreshCw,
 } from "lucide-react";
@@ -31,26 +27,25 @@ import {
   useStartWorkspacePipeline,
   useWorkspacePipeline,
 } from "@/hooks/use-growthx";
-import { api, type IssueSeverity } from "@/lib/api-client";
+import { api, type IssueGroup, type IssueSeverity } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { SEVERITY_ORDER, SEVERITY_PLAIN } from "@/lib/plain-language";
-import { Ga4Overview } from "@/components/ga4/ga4-panels";
 import { useGa4Report } from "@/hooks/use-ga4-report";
-import { Card, CardHead, EmptyPrompt, LoadingLine, CardSkeletonShimmer, ChartSkeletonShimmer, MicroSparkline } from "@/components/dashboard/dashboard-cards";
+import {
+  CardSkeletonShimmer,
+  ChartSkeletonShimmer,
+  EmptyPrompt,
+  LoadingLine,
+} from "@/components/dashboard/dashboard-cards";
 import { HealthSummary, gradeScore } from "@/components/dashboard/health-summary";
-import { ProblemDetail, TodoRow } from "@/components/dashboard/priority-todos";
+import { ProblemDetailDrawer, TodoRow } from "@/components/dashboard/priority-todos";
 import { ClosedLoopResultsCard } from "@/components/dashboard/closed-loop-results-card";
 import { WorkspacePipelineBar } from "@/components/dashboard/workspace-pipeline-bar";
-import { DashboardPillarRings } from "@/components/dashboard/dashboard-pillar-rings";
-import { AiReferralsCard } from "@/components/analytics/ai-referrals-card";
 import {
   DEFAULT_WINDOW_DAYS,
-  BigMeasure,
   DailyCandles,
-  ChannelShare,
   normalizeTrend,
 } from "@/components/dashboard/traffic-charts";
-
 
 type MetricKey = "searchClicks" | "impressions" | "sessions" | "conversions";
 
@@ -62,34 +57,27 @@ interface SetupStep {
   cta: string;
 }
 
-/**
- * The first screen a business owner sees. Dark theme trial: the skin comes from
- * `.dash-dark` (see globals.css); this page only composes it.
- *
- * Written for someone who has never heard the words "crawl", "severity" or
- * "impressions". Each section answers one plain question — how is my website
- * doing, what should I fix, are people finding me, what do customers say, what
- * could I do next — and every figure on it is still a real measurement or an
- * honest "not connected yet". The detailed, technical views live one click
- * away on their own pages.
- */
 const SEVERITY = SEVERITY_PLAIN;
 
+/**
+ * Minimal Executive Dashboard — 4 calm surfaces with zero duplicate metrics,
+ * zero card-inside-card clutter, and quiet zero-state discipline.
+ */
 export default function UnifiedDashboardPage() {
   const router = useRouter();
   const { orgId, projectId, projects, isLoading: workspaceLoading } = useWorkspace();
   const [metricKey, setMetricKey] = useState<MetricKey>("searchClicks");
   const [severityTab, setSeverityTab] = useState<"ALL" | IssueSeverity>("ALL");
-  const [pickedGroup, setPickedGroup] = useState<string | null>(null);
+  const [inspectedGroup, setInspectedGroup] = useState<IssueGroup | null>(null);
   const [auditActionError, setAuditActionError] = useState<string | null>(null);
-  const [activeHash, setActiveHash] = useState("#health");
+
   const portfolio = usePortfolio(orgId);
   const activeProject = projects.find((p) => p.id === projectId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const currentDomain = activeProject?.name ?? client?.domain ?? null;
 
   useEffect(() => {
-    setPickedGroup(null);
+    setInspectedGroup(null);
     setAuditActionError(null);
   }, [projectId]);
 
@@ -102,7 +90,13 @@ export default function UnifiedDashboardPage() {
       router.replace(`/analyze?url=${encodeURIComponent(pendingDomain)}`);
       return;
     }
-    if (!workspaceLoading && !portfolio.isLoading && orgId && projects.length === 0 && (portfolio.data?.clients.length ?? 0) === 0) {
+    if (
+      !workspaceLoading &&
+      !portfolio.isLoading &&
+      orgId &&
+      projects.length === 0 &&
+      (portfolio.data?.clients.length ?? 0) === 0
+    ) {
       router.replace("/analyze");
     }
   }, [workspaceLoading, portfolio.isLoading, portfolio.data?.clients.length, orgId, projects.length, router]);
@@ -117,11 +111,9 @@ export default function UnifiedDashboardPage() {
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
   const visibility = useVisibility(projectId);
-  // Every issue count on this page comes from here. The card used to read
-  // lowercase severity keys the server never sent, so every tile fell back to
-  // zero and printed CRITICAL 0 · HIGH 0 above a list of HIGH findings.
   const issueCounts = useIssueCounts(projectId);
-  const issueGroups = useIssueGroups(projectId, { limit: 5 });
+  const issueGroups = useIssueGroups(projectId, { limit: 6 });
+  const ga4 = useGa4Report(projectId);
 
   const trackedCompetitors = useQuery({
     queryKey: ["tracked-competitors", projectId],
@@ -129,10 +121,24 @@ export default function UnifiedDashboardPage() {
     enabled: !!projectId,
   });
 
+  const aiReferralsQuery = useQuery({
+    queryKey: ["ai-referrals", projectId, "28d"],
+    queryFn: () => api.aiReferrals(projectId!, "28d"),
+    enabled: !!projectId,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const fixChangesQuery = useQuery({
+    queryKey: ["fix-changes", projectId],
+    queryFn: () => api.listFixChanges(projectId!),
+    enabled: !!projectId,
+    retry: false,
+  });
+
   const hasGsc = Boolean(executive.data?.connections?.searchConsole);
   const hasGa = Boolean(executive.data?.connections?.analytics);
 
-  // 28-day daily clicks and visits, for the trend chart under "Visitors from Google".
   const gscSeries = useQuery({
     queryKey: ["gsc-dash-series", projectId],
     queryFn: () => api.gscTimeseries(projectId!, 28),
@@ -147,66 +153,30 @@ export default function UnifiedDashboardPage() {
     retry: false,
   });
 
-  // The crawl whose figures stand: the latest when it completed, otherwise the
-  // last completed one while a recrawl runs. Showing nothing during a recrawl
-  // read as "Run your first crawl" for a site audited many times.
   const shownCrawl = crawl.data?.status === "COMPLETED" ? crawl.data : (crawl.data?.lastCompleted ?? null);
   const crawlCompleted = Boolean(shownCrawl);
   const crawlRunning = crawl.data?.status === "RUNNING" || crawl.data?.status === "PENDING";
   const healthScore = shownCrawl ? (shownCrawl.healthScore ?? client?.health ?? null) : null;
   const counts = issueCounts.data ?? null;
 
-  // One row per problem, not per page. Sorted by impact on the server, so the
-  // five shown are the five that matter most — not five pages of the same
-  // defect crowding out everything else that is wrong.
   const priorityGroups = issueGroups.data?.groups ?? [];
   const reachAvailable = issueGroups.data?.reachAvailable ?? false;
-  const uniqueAffectedPages = issueGroups.data?.uniqueAffectedPages;
-  const issueOccurrences = priorityGroups.reduce((acc, g) => acc + g.affectedCount, 0);
-  const aiReadyCount = priorityGroups.filter((g) => g.aiFixAvailable || g.fixClass === "AUTO").length;
 
   const hasWebsite = Boolean(client?.domain);
   const hasCompetitors = Boolean((trackedCompetitors.data?.length ?? 0) > 0);
 
   const setupSteps: SetupStep[] = [
-    {
-      label: "Add your website",
-      why: "So we know which website to look after.",
-      done: hasWebsite,
-      href: "/analyze",
-      cta: "Add website",
-    },
-    {
-      label: "Check your website for problems",
-      why: "We look through every page and list what is stopping Google from showing it.",
-      done: crawlCompleted,
-      href: "/website",
-      cta: "Check my website",
-    },
-    {
-      label: "Connect Google Search Console",
-      why: "Shows how many people find you on Google, and what they searched for.",
-      done: hasGsc,
-      href: "/integrations",
-      cta: "Connect",
-    },
-    {
-      label: "Connect Google Analytics",
-      why: "Shows how many people visit your website and what they do there.",
-      done: hasGa,
-      href: "/integrations",
-      cta: "Connect",
-    },
-
-    {
-      label: "Add your competitors",
-      why: "Lets us show where competitors are ahead of you, and how to catch up.",
-      done: hasCompetitors,
-      href: "/competitor-intelligence",
-      cta: "Add competitors",
-    },
+    { label: "Add website", why: "Add your domain", done: hasWebsite, href: "/analyze", cta: "Add website" },
+    { label: "Website audit", why: "Scan pages for technical issues", done: crawlCompleted, href: "/website", cta: "Run audit" },
+    { label: "Search Console", why: "Track Google search clicks & queries", done: hasGsc, href: "/integrations", cta: "Connect GSC" },
+    { label: "Google Analytics", why: "Track visitors & geography", done: hasGa, href: "/integrations", cta: "Connect GA4" },
+    { label: "Competitors", why: "Compare against search rivals", done: hasCompetitors, href: "/competitor-intelligence", cta: "Add rivals" },
   ];
-  const setupIncomplete = setupSteps.some((s) => !s.done);
+  const doneCount = setupSteps.filter((s) => s.done).length;
+  const nextStep = setupSteps.find((s) => !s.done);
+
+  const auditBusy = startCrawlMutation.isPending || crawlRunning;
+  const pipelineBusy = startPipelineMutation.isPending || pipelineActive;
 
   const runAudit = async () => {
     if (!currentDomain || auditBusy) return;
@@ -224,8 +194,6 @@ export default function UnifiedDashboardPage() {
       );
     }
   };
-  const auditBusy = startCrawlMutation.isPending || crawlRunning;
-  const pipelineBusy = startPipelineMutation.isPending || pipelineActive;
 
   const runFullPipeline = async () => {
     if (!currentDomain || pipelineBusy) return;
@@ -239,156 +207,102 @@ export default function UnifiedDashboardPage() {
     }
   };
 
-  // Where visitors come from, from the stored GA4 report. Shown only when the report has channels.
-  const ga4 = useGa4Report(projectId);
-  const ga4Data = ga4.report.data?.data ?? null;
-  const hasChannels = Boolean(ga4Data && !ga4Data.empty && ga4Data.channels.length > 0);
-
   const headline = executive.data?.headline;
-  const metrics: { key: MetricKey; short: string; label: string; hint: string }[] = [
-    { key: "searchClicks", short: "Clicks", label: "Clicks from Google", hint: "People who clicked your website in Google search" },
-    { key: "impressions", short: "Times seen", label: "Times seen on Google", hint: "How often your website appeared in search results" },
-    { key: "sessions", short: "Visits", label: "Website visits", hint: "Visits to your website from anywhere" },
-    { key: "conversions", short: "Goals", label: "Goals reached", hint: "Enquiries, sign-ups or sales you track" },
+  const ga4Totals = ga4.report.data?.data?.totals ?? null;
+  const ga4Countries = ga4.report.data?.data?.countries ?? [];
+  const ga4Cities = ga4.report.data?.data?.cities ?? [];
+
+  const metrics: { key: MetricKey; short: string; label: string }[] = [
+    { key: "searchClicks", short: "Clicks", label: "Google search clicks" },
+    { key: "impressions", short: "Impressions", label: "Search impressions" },
+    { key: "sessions", short: "Visits", label: "Website sessions" },
+    { key: "conversions", short: "Goals", label: "Key events" },
   ];
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
-
   const rangeDays = executive.data?.range?.days ? executive.data.range.days : DEFAULT_WINDOW_DAYS;
 
   const activeSeriesPoints = useMemo(() => {
     if (metricKey === "searchClicks" && gscSeries.data && gscSeries.data.length > 0) {
-      return normalizeTrend(
-        gscSeries.data.map((p) => ({ date: p.date, value: p.clicks })),
-        rangeDays,
-      );
+      return normalizeTrend(gscSeries.data.map((p) => ({ date: p.date, value: p.clicks })), rangeDays);
     }
     if (metricKey === "impressions" && gscSeries.data && gscSeries.data.length > 0) {
-      return normalizeTrend(
-        gscSeries.data.map((p) => ({ date: p.date, value: p.impressions })),
-        rangeDays,
-      );
+      return normalizeTrend(gscSeries.data.map((p) => ({ date: p.date, value: p.impressions })), rangeDays);
     }
     if (metricKey === "sessions" && gaSeries.data && gaSeries.data.length > 0) {
-      return normalizeTrend(
-        gaSeries.data.map((p) => ({ date: p.date, value: p.sessions })),
-        rangeDays,
-      );
+      return normalizeTrend(gaSeries.data.map((p) => ({ date: p.date, value: p.sessions })), rangeDays);
     }
     if (metricKey === "conversions" && gaSeries.data && gaSeries.data.length > 0) {
-      return normalizeTrend(
-        gaSeries.data.map((p) => ({ date: p.date, value: p.conversions ?? 0 })),
-        rangeDays,
-      );
+      return normalizeTrend(gaSeries.data.map((p) => ({ date: p.date, value: p.conversions ?? 0 })), rangeDays);
     }
     return null;
   }, [metricKey, gscSeries.data, gaSeries.data, rangeDays]);
 
-  // The to-do list: filter by how serious, and show the picked problem beside it.
-  const shownGroups = severityTab === "ALL" ? priorityGroups : priorityGroups.filter((g) => g.severity === severityTab);
-  const picked = shownGroups.find((g) => g.groupKey === pickedGroup) ?? shownGroups[0] ?? null;
-  const groupCount = (sev: IssueSeverity) => priorityGroups.filter((g) => g.severity === sev).length;
+  const activeMeasure = headline?.[metric.key];
+  const clicksMeasure = headline?.searchClicks;
+  const sessionsMeasure = headline?.sessions;
+  const visitsDisplay =
+    sessionsMeasure?.state === "MEASURED"
+      ? sessionsMeasure.value
+      : ga4Totals?.sessions ?? null;
 
-  const doneCount = setupSteps.filter((s) => s.done).length;
-  const nextStep = setupSteps.find((s) => !s.done);
+  const aiCited = visibility.data?.summary?.cited ?? 0;
+  const aiChecked = visibility.data?.summary?.checked ?? 0;
+  const aiSharePct = visibility.data?.summary?.citationSharePct ?? null;
+  const aiSessions = aiReferralsQuery.data?.connected ? aiReferralsQuery.data.totalAiSessions : null;
+  const hasShippedFixes = (fixChangesQuery.data?.length ?? 0) > 0;
+  const localRating = localSeo.data?.rating ?? null;
+
+  const shownGroups = severityTab === "ALL" ? priorityGroups : priorityGroups.filter((g) => g.severity === severityTab);
+  const groupCount = (sev: IssueSeverity) => priorityGroups.filter((g) => g.severity === sev).length;
+  const scoreGrade = healthScore != null && crawlCompleted ? gradeScore(healthScore) : null;
 
   return (
-    <div className="space-y-3.5 pb-10">
-      {/* Jump links */}
-      <nav aria-label="On this page" className="inline-flex flex-wrap items-center gap-1 rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold">
-        {[
-          ["#health", "Overview"],
-          ["#visitors", "Visitors"],
-          ["#closed-loop", "Results Ledger"],
-          ["#todo", "To-do list"],
-          ["#telemetry", "GA4 Telemetry"],
-        ].map(([href, label]) => {
-          const isActive = activeHash === href;
-          return (
-            <a
-              key={href}
-              href={href}
-              onClick={() => setActiveHash(href)}
-              className={cn(
-                "rounded-full px-3 py-1.5 transition-colors cursor-pointer",
-                isActive
-                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                  : "text-brand-400 hover:text-brand-950",
-              )}
-            >
-              {label}
-            </a>
-          );
-        })}
-      </nav>
-
-      {/* Title */}
-      <div className="flex flex-col justify-between gap-3 pt-1 sm:flex-row sm:items-end">
+    <div className="space-y-6 pb-14">
+      {/* ── SURFACE 1: WHISPER-QUIET HEADER ── */}
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-[26px] sm:text-[30px] font-bold leading-none tracking-tight text-brand-950">
-              Dashboard
-            </h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-[10.5px] font-semibold text-success-700 border border-success-200/60 shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-              SEO Engine Active
-            </span>
-          </div>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-medium text-brand-400">
+          <h1 className="text-[26px] font-bold leading-none tracking-tight text-brand-950">
+            Dashboard
+          </h1>
+          <p className="mt-2 flex items-center gap-2 text-[12.5px] text-brand-400">
             {currentDomain ? (
               <>
-                <Globe size={12} className="text-brand-400" />
-                <span>{currentDomain}</span>
-                <span className="text-brand-300">·</span>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" aria-hidden="true" />
+                <span className="font-medium text-brand-600">{currentDomain}</span>
+                <span>·</span>
                 <span>
                   {crawlCompleted
-                    ? `Last checked ${relativeTime(shownCrawl?.finishedAt ?? crawl.data?.startedAt)}`
-                    : "Not checked yet"}
+                    ? `Checked ${relativeTime(shownCrawl?.finishedAt ?? crawl.data?.startedAt)}`
+                    : "Not audited yet"}
                 </span>
               </>
             ) : (
-              "Add your website to see how it is doing on Google."
+              "Add your website to start tracking search health and traffic."
             )}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-            }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-brand-50 px-3 py-1.5 text-[12px] font-semibold text-brand-700 transition hover:bg-brand-100 hover:text-brand-950 cursor-pointer shadow-2xs"
-            title="Open Command Palette (⌘K)"
-          >
-            <kbd className="font-mono text-[10px] font-bold bg-surface-1 px-1.5 py-0.5 rounded border border-brand-200">⌘K</kbd>
-            <span>Quick Actions</span>
-          </button>
-          <Link
-            href="/fix-engine"
-            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100"
-          >
-            Improvement plan
-          </Link>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={runFullPipeline}
             disabled={pipelineBusy || !currentDomain}
-            title="Run Website Audit, Competitor Intelligence, AI Visibility, Backlinks, and Fix Engine sync in one continuous flow"
-            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100 disabled:opacity-50 shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3.5 py-2 text-[12px] font-semibold text-brand-700 transition hover:bg-brand-50 hover:text-brand-950 disabled:opacity-50 cursor-pointer"
           >
-            <Layers size={12} className={pipelineBusy ? "animate-pulse text-primary-600" : "text-primary-600"} />
-            {pipelineBusy ? "Pipeline running…" : "Run full pipeline"}
+            <Layers size={13} className={pipelineBusy ? "animate-pulse text-primary-600" : "text-brand-500"} />
+            <span>{pipelineBusy ? "Running…" : "Run pipeline"}</span>
           </button>
           <button
             type="button"
             onClick={runAudit}
             disabled={auditBusy || !currentDomain}
-            className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />
-            {auditBusy ? "Checking…" : "Run audit"}
+            <RefreshCw size={13} className={auditBusy ? "animate-spin" : undefined} />
+            <span>{auditBusy ? "Auditing…" : "Run audit"}</span>
           </button>
         </div>
-      </div>
+      </header>
 
       {auditActionError && (
         <div role="alert">
@@ -398,14 +312,11 @@ export default function UnifiedDashboardPage() {
 
       {crawlRunning && (
         <StatusNote>
-          We&apos;re checking your website now. This page updates by itself when it&apos;s done
-          {crawlCompleted ? " — until then you're seeing the results of the last check." : "."}
+          Checking your website now — metrics update automatically once complete.
         </StatusNote>
       )}
 
-      {/* One step to everything: website in, competitors and full report out. */}
-
-      {/* Live 5-Stage Workspace Growth Pipeline Mission Control */}
+      {/* Live pipeline progress (only visible when active) */}
       <WorkspacePipelineBar
         projectId={projectId}
         pipeline={pipelineQuery.data}
@@ -413,136 +324,272 @@ export default function UnifiedDashboardPage() {
         retrying={pipelineBusy}
       />
 
-      {/* Executive Quick Actions Dock */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <button
-          type="button"
-          onClick={runAudit}
-          disabled={auditBusy || !currentDomain}
-          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal-400/20 text-signal-ink font-bold group-hover:bg-signal-400 transition shrink-0">
-              <RefreshCw size={14} className={auditBusy ? "animate-spin" : undefined} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[12px] font-bold text-brand-950 truncate">Verify Live HTML</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Re-scan</span>
-              </div>
-              <p className="text-[10px] text-brand-500 truncate">Run crawler re-scan</p>
-            </div>
+      {/* Quiet 1-line setup nudge only when incomplete */}
+      {nextStep && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/70 bg-surface-1 px-4 py-2.5 text-[12px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-brand-500">
+              <Check size={12} className="text-success-600" />
+              {doneCount}/{setupSteps.length} setup
+            </span>
+            <span className="h-3.5 w-px bg-brand-200" aria-hidden="true" />
+            <span className="truncate text-brand-600">
+              Next: <strong className="font-semibold text-brand-950">{nextStep.label}</strong> — {nextStep.why}
+            </span>
           </div>
-          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
-        </button>
+          <Link
+            href={nextStep.href}
+            className="inline-flex shrink-0 items-center gap-1 font-semibold text-brand-950 hover:text-primary-700 transition"
+          >
+            <span>{nextStep.cta}</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
+      {/* ── SURFACE 2: ONE UNIFIED 4-COLUMN HAIRLINE KPI STRIP (ZERO NESTED CARDS) ── */}
+      <div className="grid grid-cols-1 divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xs sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
+        {/* 1. Website Health */}
+        <Link
+          href="/website"
+          className="group flex flex-col justify-between p-5 transition hover:bg-brand-50/60"
+        >
+          <div className="flex items-center justify-between text-[11px] font-medium text-brand-400">
+            <span>Site Health</span>
+            <ArrowUpRight size={13} className="text-brand-300 transition group-hover:text-brand-700" />
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="font-mono text-[30px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
+              {healthScore != null && crawlCompleted ? healthScore : "—"}
+            </span>
+            {scoreGrade && (
+              <span
+                className={cn(
+                  "text-[11.5px] font-semibold",
+                  scoreGrade.tone === "good"
+                    ? "text-success-700"
+                    : scoreGrade.tone === "warn"
+                      ? "text-warning-700"
+                      : "text-error-700",
+                )}
+              >
+                {scoreGrade.label}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11.5px] text-brand-400">
+            {counts ? `${counts.openGroups} open issues · ${shownCrawl?.pagesCrawled ?? 0} pages` : "Run an audit to score"}
+          </p>
+        </Link>
+
+        {/* 2. Search Clicks */}
+        <Link
+          href="/traffic"
+          className="group flex flex-col justify-between border-t border-brand-100 p-5 transition hover:bg-brand-50/60 sm:border-t-0 sm:border-l lg:border-l-0"
+        >
+          <div className="flex items-center justify-between text-[11px] font-medium text-brand-400">
+            <span>Google Clicks</span>
+            <ArrowUpRight size={13} className="text-brand-300 transition group-hover:text-brand-700" />
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="font-mono text-[30px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
+              {clicksMeasure?.state === "MEASURED" ? clicksMeasure.value.toLocaleString() : "—"}
+            </span>
+            {clicksMeasure?.state === "MEASURED" && clicksMeasure.changePct != null && Number.isFinite(clicksMeasure.changePct) && (
+              <span
+                className={cn(
+                  "font-mono text-[11px] font-semibold",
+                  clicksMeasure.changePct >= 0 ? "text-success-700" : "text-error-700",
+                )}
+              >
+                {clicksMeasure.changePct >= 0 ? "+" : ""}
+                {Math.round(clicksMeasure.changePct * 10) / 10}%
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11.5px] text-brand-400">
+            {hasGsc ? `Last ${rangeDays} days · Search Console` : "Connect Search Console"}
+          </p>
+        </Link>
+
+        {/* 3. Website Visits */}
+        <Link
+          href="/traffic"
+          className="group flex flex-col justify-between border-t border-brand-100 p-5 transition hover:bg-brand-50/60 lg:border-t-0"
+        >
+          <div className="flex items-center justify-between text-[11px] font-medium text-brand-400">
+            <span>Website Visits</span>
+            <ArrowUpRight size={13} className="text-brand-300 transition group-hover:text-brand-700" />
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="font-mono text-[30px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
+              {visitsDisplay != null ? visitsDisplay.toLocaleString() : "—"}
+            </span>
+            {ga4Countries.length > 0 && (
+              <span className="font-mono text-[11px] text-brand-400">
+                {ga4Countries.length} {ga4Countries.length === 1 ? "country" : "countries"}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11.5px] text-brand-400">
+            {hasGa ? "Open 3D Global Traffic Map" : "Connect Google Analytics"}
+          </p>
+        </Link>
+
+        {/* 4. AI Visibility & Local */}
         <Link
           href="/ai-visibility"
-          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
+          className="group flex flex-col justify-between border-t border-brand-100 p-5 transition hover:bg-brand-50/60 sm:border-l lg:border-t-0 lg:border-l-0"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
-              <Bot size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[12px] font-bold text-brand-950 truncate">AI Visibility Scan</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">5 AI Engines</span>
-              </div>
-              <p className="text-[10px] text-brand-500 truncate">Check AI citations</p>
-            </div>
+          <div className="flex items-center justify-between text-[11px] font-medium text-brand-400">
+            <span>AI Citations</span>
+            <ArrowUpRight size={13} className="text-brand-300 transition group-hover:text-brand-700" />
           </div>
-          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
-        </Link>
-
-        <Link
-          href="/competitor-intelligence?tab=gaps"
-          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
-              <Crosshair size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[12px] font-bold text-brand-950 truncate">Competitor Gaps</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Rivals</span>
-              </div>
-              <p className="text-[10px] text-brand-500 truncate">Review rival schema</p>
-            </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="font-mono text-[30px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
+              {aiSharePct != null ? `${Math.round(aiSharePct)}%` : "—"}
+            </span>
+            {aiChecked > 0 && (
+              <span className="font-mono text-[11px] text-brand-400">
+                {aiCited}/{aiChecked} prompts
+              </span>
+            )}
           </div>
-          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
-        </Link>
-
-        <Link
-          href="/monthly-report"
-          className="group flex items-center justify-between p-3 rounded-xl border border-brand-200/80 bg-surface-1 hover:border-signal-400 hover:shadow-xs transition text-left"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-brand-700 group-hover:bg-signal-400 group-hover:text-signal-ink transition shrink-0">
-              <CalendarDays size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[12px] font-bold text-brand-950 truncate">Executive Report</p>
-                <span className="hidden sm:inline-block rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-medium text-brand-600">Reports</span>
-              </div>
-              <p className="text-[10px] text-brand-500 truncate">Monthly proof &amp; PDF</p>
-            </div>
-          </div>
-          <ArrowRight size={13} className="text-brand-400 group-hover:text-brand-950 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
+          <p className="mt-2 text-[11.5px] text-brand-400">
+            {localRating != null && localRating > 0
+              ? `Maps ${localRating.toFixed(1)}★ · AI engines`
+              : aiSessions != null
+                ? `${aiSessions} AI visits · Last 28d`
+                : "Across 5 AI assistants"}
+          </p>
         </Link>
       </div>
 
-      {/* 4-Pillar Executive Mini-Ring Strip */}
-      <DashboardPillarRings
-        healthScore={healthScore}
-        pagesChecked={shownCrawl?.pagesCrawled ?? null}
-        crawlCompleted={crawlCompleted}
-        searchClicks={headline?.searchClicks}
-        sessions={headline?.sessions}
-        hasGoogle={hasGsc || hasGa}
-        localRating={localSeo.data?.rating ?? null}
-        localReviews={localSeo.data?.reviewCount ?? null}
-        hasLocal={Boolean(localSeo.data?.placeId || (localSeo.data?.rating && localSeo.data.rating > 0))}
-        aiCitationSharePct={visibility.data?.summary?.citationSharePct ?? null}
-        aiCited={visibility.data?.summary?.cited ?? 0}
-        aiChecked={visibility.data?.summary?.checked ?? 0}
-      />
+      {/* ── SURFACE 3: SPACIOUS TWO-COLUMN HERO (TREND CANVAS + HEALTH SUMMARY) ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+        {/* Left (7 cols): Calm, Uncluttered Search & Traffic Trend */}
+        <section
+          id="visitors"
+          className="lg:col-span-7 flex flex-col justify-between rounded-2xl border border-brand-200/80 bg-surface-1 p-6 shadow-2xs"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-bold tracking-tight text-brand-950">
+                Search &amp; Traffic Trend
+              </h2>
+              <p className="mt-0.5 text-[12px] text-brand-400">
+                {metric.label} · last {rangeDays} days
+              </p>
+            </div>
 
-      {/* Row 1: how is my website doing / are people finding me */}
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">
-        <Card id="health" className="scroll-mt-4 flex flex-col justify-between gap-4">
-          <CardHead
-            title="How healthy is your website?"
-            subtitle="A score out of 100 for how easily Google can find, read and show your pages. Higher is better."
-            aside={
-              healthScore != null && crawlCompleted ? (
-                <span
+            <div
+              className="inline-flex items-center gap-0.5 rounded-xl bg-brand-100/70 p-1 text-[11.5px]"
+              role="tablist"
+              aria-label="Choose trend metric"
+            >
+              {metrics.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={m.key === metricKey}
+                  onClick={() => setMetricKey(m.key)}
                   className={cn(
-                    "rounded-full px-2.5 py-0.5 text-[10.5px] font-bold",
-                    gradeScore(healthScore).tone === "good" && "bg-success-50 text-success-700",
-                    gradeScore(healthScore).tone === "warn" && "bg-warning-50 text-warning-700",
-                    gradeScore(healthScore).tone === "bad" && "bg-error-50 text-error-700",
+                    "rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer",
+                    m.key === metricKey
+                      ? "bg-surface-1 text-brand-950 shadow-2xs"
+                      : "text-brand-500 hover:text-brand-950",
                   )}
                 >
-                  {gradeScore(healthScore).label}
-                </span>
-              ) : undefined
-            }
-          />
+                  {m.short}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 flex-1">
+            {executive.isLoading ? (
+              <ChartSkeletonShimmer />
+            ) : !hasGsc && !hasGa ? (
+              <EmptyPrompt
+                icon={PlugZap}
+                title="Connect Google to see your traffic trend"
+                body="Link Search Console or Google Analytics to track clicks, impressions, and visits."
+                action={{ label: "Connect Google", href: "/integrations" }}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-mono text-[28px] font-bold leading-none tracking-tight text-brand-950 tabular-nums">
+                      {activeMeasure?.state === "MEASURED" ? activeMeasure.value.toLocaleString() : "—"}
+                    </span>
+                    {activeMeasure?.state === "MEASURED" &&
+                      activeMeasure.changePct != null &&
+                      Number.isFinite(activeMeasure.changePct) && (
+                        <span
+                          className={cn(
+                            "font-mono text-[11.5px] font-semibold",
+                            activeMeasure.changePct >= 0 ? "text-success-700" : "text-error-700",
+                          )}
+                        >
+                          {activeMeasure.changePct >= 0 ? "+" : ""}
+                          {Math.round(activeMeasure.changePct * 10) / 10}% vs prior
+                        </span>
+                      )}
+                  </div>
+                  <Link
+                    href="/traffic"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500 hover:text-brand-950 transition"
+                  >
+                    <span>3D Global Map</span>
+                    <ArrowUpRight size={12} />
+                  </Link>
+                </div>
+
+                {activeSeriesPoints && activeSeriesPoints.length >= 2 ? (
+                  <DailyCandles
+                    points={activeSeriesPoints}
+                    unit={metric.short.toLowerCase()}
+                    days={rangeDays}
+                  />
+                ) : (
+                  <p className="py-10 text-center text-[12px] text-brand-400">
+                    Daily measurements for {metric.short.toLowerCase()} will appear once synced.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Right (5 cols): Minimal Technical Health Breakdown */}
+        <section
+          id="health"
+          className="lg:col-span-5 flex flex-col justify-between rounded-2xl border border-brand-200/80 bg-surface-1 p-6 shadow-2xs"
+        >
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-[15px] font-bold tracking-tight text-brand-950">
+              How healthy is your website?
+            </h2>
+            <Link
+              href="/website"
+              className="text-[11.5px] font-semibold text-brand-500 hover:text-brand-950 transition"
+            >
+              Audit →
+            </Link>
+          </div>
+
           {(portfolio.isLoading || crawl.isLoading) && !crawl.data ? (
             <CardSkeletonShimmer />
           ) : !crawlCompleted ? (
             <EmptyPrompt
               icon={Globe}
-              title={crawlRunning ? "Checking your website…" : "We haven't checked your website yet"}
+              title={crawlRunning ? "Checking your website…" : "No website audit yet"}
               body={
                 crawlRunning
-                  ? "Your score and to-do list will appear here as soon as the check is finished."
-                  : currentDomain
-                    ? "Run a check and we'll give your website a score and a simple list of things to fix."
-                    : "Add your website above and we'll give it a score and a simple list of things to fix."
+                  ? "Your health score and priority fixes will appear here once finished."
+                  : "Run a quick crawl to measure site health and generate your priority fix list."
               }
               action={
                 crawlRunning || !currentDomain
@@ -553,160 +600,28 @@ export default function UnifiedDashboardPage() {
           ) : (
             <HealthSummary score={healthScore} counts={counts} pagesChecked={shownCrawl?.pagesCrawled ?? null} />
           )}
-        </Card>
-
-        <Card id="visitors" className="scroll-mt-4 flex flex-col justify-between gap-4 overflow-hidden">
-          <CardHead
-            title="Visitors from Google"
-            subtitle={
-              executive.data?.range?.days
-                ? `Last ${executive.data.range.days} days · how people found and used your website.`
-                : "How people find and use your website."
-            }
-            aside={
-              hasGsc || hasGa ? (
-                <Link
-                  href="/google"
-                  aria-label="More detail on visitors"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-200/60 text-brand-600 transition hover:bg-brand-200 hover:text-brand-950"
-                >
-                  <ArrowUpRight size={13} />
-                </Link>
-              ) : undefined
-            }
-          />
-          {executive.isLoading ? (
-            <ChartSkeletonShimmer />
-          ) : !hasGsc && !hasGa ? (
-            <EmptyPrompt
-              icon={PlugZap}
-              title="Connect Google to see your visitors"
-              body="Link your Google account and we'll show how many people find your website on Google and how many visit it."
-              action={{ label: "Connect Google", href: "/integrations" }}
-            />
-          ) : (
-            <>
-              <div className="flex flex-col gap-3.5 min-w-0">
-                <div className="flex items-center justify-between gap-3">
-                  <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
-                  {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
-                    <div className="flex flex-col items-end gap-0.5 shrink-0">
-                      <MicroSparkline points={activeSeriesPoints.map((p) => p.value ?? 0)} />
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-brand-400">Velocity</span>
-                    </div>
-                  )}
-                </div>
-
-                {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
-                  <DailyCandles
-                    points={activeSeriesPoints}
-                    unit={metric.short.toLowerCase()}
-                    days={rangeDays}
-                  />
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-brand-100/50 border border-brand-200/40" role="tablist" aria-label="Choose a figure">
-                {metrics.map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={m.key === metricKey}
-                    onClick={() => setMetricKey(m.key)}
-                    className={cn(
-                      "min-w-0 flex-1 rounded-lg py-1.5 px-2 text-center text-[11px] font-semibold transition",
-                      m.key === metricKey
-                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-                        : "text-brand-400 hover:text-brand-700 hover:bg-brand-200/40",
-                    )}
-                  >
-                    {m.short}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </Card>
+        </section>
       </div>
 
-      {/* Row 2: finish setting up */}
-      {setupIncomplete && (
-        <Card className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-5 p-4 sm:p-4.5">
-          <div className="w-full shrink-0 lg:w-[210px]">
-            <p className="text-[13px] font-bold text-brand-950">Finish setting up</p>
-            <p className="mt-0.5 text-[11.5px] text-brand-400">
-              {doneCount} of {setupSteps.length} steps done
-            </p>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-brand-200/50">
-              <div className="h-full rounded-full bg-signal-400 transition-all duration-300" style={{ width: `${(doneCount / setupSteps.length) * 100}%` }} />
-            </div>
-            {nextStep && (
-              <p className="mt-1.5 text-[11px] leading-snug text-brand-500">
-                <span className="font-semibold text-brand-700">Next:</span> {nextStep.why}
-              </p>
-            )}
-          </div>
-          <ul className="flex flex-1 flex-wrap gap-1.5">
-            {setupSteps.map((step) => (
-              <li key={step.label}>
-                <Link
-                  href={step.href}
-                  title={step.why}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg bg-brand-100/70 border border-brand-200/40 px-2.5 py-1 text-[11.5px] font-medium transition hover:bg-brand-200/60",
-                    step.done ? "text-brand-950" : "text-brand-500",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded-full",
-                      step.done ? "bg-signal-400 text-signal-ink" : "bg-brand-300 text-brand-100",
-                    )}
-                  >
-                    {step.done ? <Check size={9} strokeWidth={3.2} /> : <Plus size={9} strokeWidth={3.2} />}
-                  </span>
-                  {step.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {nextStep && (
-            <Link
-              href={nextStep.href}
-              title={nextStep.why}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
-            >
-              {nextStep.cta}
-              <ArrowRight size={12} />
-            </Link>
-          )}
-        </Card>
-      )}
-
-      {/* AI Referral Traffic & Impact Ledger Correlation */}
-      <AiReferralsCard projectId={projectId || ""} />
-
-      {/* Closed-Loop Adaptive Results Engine */}
-      <ClosedLoopResultsCard />
-
-      {/* Row 3: what should I fix first? */}
-      <section id="todo" className="scroll-mt-4 flex flex-col gap-4 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+      {/* ── SURFACE 4: LINEAR-STYLE PRIORITY FIX LIST (CLICK ROW -> SLIDE-OVER INSPECTOR) ── */}
+      <section
+        id="todo"
+        className="overflow-hidden rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xs"
+      >
+        <div className="flex flex-col justify-between gap-3 border-b border-brand-100 px-6 py-4 sm:flex-row sm:items-center">
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-[17px] font-bold tracking-tight text-brand-950">Your to-do list</h2>
-              <span className="rounded-full bg-brand-200 px-2 py-0.5 text-[10.5px] font-bold text-brand-700">
-                {priorityGroups.length} prioritized
-              </span>
-            </div>
-            <p className="mt-0.5 max-w-lg text-[11.5px] text-brand-500 leading-normal">
+            <h2 className="text-[15px] font-bold tracking-tight text-brand-950">
+              Your to-do list
+            </h2>
+            <p className="mt-0.5 text-[12px] text-brand-400">
               {reachAvailable
-                ? "The most important fixes first — sorted by how many of your Google visitors each one affects."
-                : "The most important fixes first — sorted by how serious each problem is. Connect Search Console to sort by how many visitors each one affects."}
+                ? "Highest-impact fixes first, weighted by Google visitor reach."
+                : "Highest-impact fixes first. Connect Search Console to sort by how many visitors each one affects."}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-            <div role="tablist" aria-label="Filter by how serious" className="flex items-center gap-0.5 rounded-full bg-brand-50 border border-brand-200/60 p-1 shadow-xs">
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div role="tablist" aria-label="Filter by severity" className="inline-flex items-center gap-1 text-[11.5px]">
               {(["ALL", ...SEVERITY_ORDER] as const).map((sev) => {
                 const n = sev === "ALL" ? priorityGroups.length : groupCount(sev);
                 if (sev !== "ALL" && n === 0) return null;
@@ -717,98 +632,96 @@ export default function UnifiedDashboardPage() {
                     type="button"
                     role="tab"
                     aria-selected={on}
-                    onClick={() => {
-                      setSeverityTab(sev);
-                      setPickedGroup(null);
-                    }}
+                    onClick={() => setSeverityTab(sev)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                      on ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-950",
+                      "rounded-lg px-2.5 py-1 font-medium transition cursor-pointer",
+                      on ? "bg-brand-950 text-brand-50 font-semibold" : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
                     )}
                   >
                     {sev === "ALL" ? "All" : SEVERITY[sev].label}
-                    <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", on ? "bg-signal-ink text-signal-400" : "bg-brand-200 text-brand-400")}>{n}</span>
+                    <span className="ml-1 font-mono text-[10.5px] opacity-75">{n}</span>
                   </button>
                 );
               })}
             </div>
+
             {counts && counts.openGroups > 0 && (
-              <Link href="/website?tab=issues" className="text-[11.5px] font-bold text-brand-700 hover:underline shrink-0">
+              <Link
+                href="/website?tab=issues"
+                className="text-[12px] font-semibold text-brand-600 hover:text-brand-950 transition"
+              >
                 See all {counts.openGroups} →
               </Link>
             )}
           </div>
         </div>
 
-        {/* 3-metric KPI micro-ribbon */}
-        {priorityGroups.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
-                <AlertTriangle size={15} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Action Queue</p>
-                <p className="text-[14px] font-bold text-brand-950 leading-tight">
-                  {priorityGroups.length} {priorityGroups.length === 1 ? "defect prioritized" : "defects prioritized"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
-                <Layers size={15} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Audit scope</p>
-                <p className="text-[14px] font-bold text-brand-950 leading-tight">
-                  {uniqueAffectedPages == null
-                    ? `${issueOccurrences} issue ${issueOccurrences === 1 ? "occurrence" : "occurrences"}`
-                    : `${uniqueAffectedPages} ${uniqueAffectedPages === 1 ? "page" : "pages"} affected`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-signal-400/15 text-signal-ink border border-signal-400/30">
-                <Bot size={15} className="text-signal-400" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">AI Automation</p>
-                <p className="text-[14px] font-bold text-brand-950 leading-tight">
-                  {aiReadyCount} {aiReadyCount === 1 ? "fix AI ready" : "fixes AI ready"}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {issueGroups.isLoading ? (
-          <LoadingLine text="Loading your to-do list…" />
-        ) : priorityGroups.length === 0 ? (
-          <div className="rounded-xl bg-brand-50 p-6 text-center text-[12px] text-brand-500">
+          <div className="p-6">
+            <LoadingLine text="Loading priority fixes…" />
+          </div>
+        ) : shownGroups.length === 0 ? (
+          <div className="px-6 py-10 text-center text-[12.5px] text-brand-400">
             {crawlCompleted
-              ? "Nothing to fix right now — your website is in good shape."
-              : "Your to-do list will appear here after we check your website."}
+              ? "Nothing to fix in this category — your site looks clean."
+              : "Priority fixes will appear here after your first audit."}
           </div>
         ) : (
-          <div className="grid gap-3.5 lg:grid-cols-[360px_1fr] items-start">
-            <ol className="space-y-2">
-              {shownGroups.map((group, i) => (
-                <TodoRow key={group.groupKey} group={group} rank={i + 1} selected={group.groupKey === picked?.groupKey} onPick={() => setPickedGroup(group.groupKey)} />
-              ))}
-            </ol>
-            {picked && <ProblemDetail group={picked} />}
-          </div>
+          <ol className="divide-y divide-brand-100">
+            {shownGroups.map((group) => (
+              <TodoRow
+                key={group.groupKey}
+                group={group}
+                selected={inspectedGroup?.groupKey === group.groupKey}
+                onPick={() => setInspectedGroup(group)}
+              />
+            ))}
+          </ol>
         )}
       </section>
 
+      {/* Only render full Closed-Loop Proof Ledger when real fixes exist; otherwise keep a whisper-quiet status bar */}
+      {hasShippedFixes ? (
+        <ClosedLoopResultsCard />
+      ) : (
+        <footer className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200/70 bg-surface-1 px-6 py-3.5 text-[12px]">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-brand-500">
+            <Link href="/traffic" className="inline-flex items-center gap-1.5 hover:text-brand-950 transition">
+              <span className="font-medium text-brand-400">Global Map</span>
+              <span className="font-semibold text-brand-950">
+                {ga4Countries.length > 0
+                  ? `${ga4Countries.length} countries · ${ga4Cities.length} cities`
+                  : "Explore 3D Earth"}
+              </span>
+            </Link>
+            <span className="hidden sm:inline h-3.5 w-px bg-brand-200" aria-hidden="true" />
+            <Link href="/traffic" className="inline-flex items-center gap-1.5 hover:text-brand-950 transition">
+              <span className="font-medium text-brand-400">AI Referrals</span>
+              <span className="font-semibold text-brand-950">
+                {aiSessions != null ? `${aiSessions} visits (28d)` : "GA4 ready"}
+              </span>
+            </Link>
+            <span className="hidden sm:inline h-3.5 w-px bg-brand-200" aria-hidden="true" />
+            <Link href="/fix-engine" className="inline-flex items-center gap-1.5 hover:text-brand-950 transition">
+              <span className="font-medium text-brand-400">Results Ledger</span>
+              <span className="font-semibold text-brand-950">No shipped fixes yet</span>
+            </Link>
+          </div>
+          <Link
+            href="/monthly-report"
+            className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:text-brand-950 transition"
+          >
+            <span>Monthly Report</span>
+            <ArrowUpRight size={13} />
+          </Link>
+        </footer>
+      )}
 
-
-      {/* GA4 traffic — real figures from the customer's own property, or the reason there are none. */}
-      <section id="telemetry" className="scroll-mt-4">
-        <Ga4Overview projectId={projectId} />
-      </section>
+      {/* Slide-Over Native <dialog> Issue Inspector */}
+      <ProblemDetailDrawer
+        group={inspectedGroup}
+        onClose={() => setInspectedGroup(null)}
+      />
     </div>
   );
 }
