@@ -1233,6 +1233,67 @@ dialog.traffic-inspector-dialog::backdrop {
 .city-map-grid-warn { background: #f59e0b; color: #ffffff; }
 .city-map-grid-bad { background: #ef4444; color: #ffffff; }
 .city-map-grid-none { background: #64748b; color: #ffffff; }
+
+/* ── Local & Maps Interactive Geo-Grid Street Heatmap Pins ── */
+.local-rank-pin {
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.local-rank-pin:hover {
+  transform: scale(1.12);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+}
+
+.local-rank-pin-compact {
+  width: 24px;
+  height: 24px;
+  font-size: 9.5px;
+  border-width: 2px;
+}
+
+.local-rank-pin-selected {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.24), 0 8px 20px rgba(15, 23, 42, 0.38);
+  z-index: 20;
+}
+
+.dash-dark .local-rank-pin-selected,
+.dark .local-rank-pin-selected {
+  box-shadow: 0 0 0 4px rgba(212, 255, 63, 0.4), 0 8px 20px rgba(0, 0, 0, 0.55);
+}
+
+.local-biz-pin {
+  padding: 5px 11px;
+  border-radius: 9999px;
+  background: #09090b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 2px solid #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.32);
+  pointer-events: auto;
+}
+
+.dash-dark .local-biz-pin,
+.dark .local-biz-pin {
+  background: #d4ff3f;
+  color: #09090b;
+  border-color: #09090b;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   details.faq-details::details-content {
     transition: block-size 0.25s ease-in-out, content-visibility 0.25s ease-in-out allow-discrete;
