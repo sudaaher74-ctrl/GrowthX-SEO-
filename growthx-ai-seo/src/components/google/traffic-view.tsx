@@ -6,12 +6,9 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
-  Building2,
   Calendar,
   Compass,
   FileText,
-  Globe,
-  MapPin,
   MousePointerClick,
   Search,
   Share2,
@@ -21,6 +18,12 @@ import {
 import { Panel, Tabs } from "@/components/ui/console";
 import { ImprovementReportView } from "@/components/google/improvement-report-view";
 import { RealtimeActivity } from "@/components/google/realtime-activity";
+import {
+  GlobalTrafficGlobe,
+  type TrafficCityRow,
+  type TrafficCountryRow,
+} from "@/components/google/global-traffic-globe";
+import { resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
 import {
   Area,
   CartesianGrid,
@@ -50,96 +53,6 @@ import type { Ga4ReportData } from "@/lib/api-client";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 
-/** Geographic coordinates in a 800×360 equirectangular map projection. */
-const COUNTRY_COORDINATES: Record<string, { x: number; y: number; flag: string; name: string }> = {
-  IN: { x: 550, y: 175, flag: "🇮🇳", name: "India" },
-  INDIA: { x: 550, y: 175, flag: "🇮🇳", name: "India" },
-  IND: { x: 550, y: 175, flag: "🇮🇳", name: "India" },
-  US: { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
-  USA: { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
-  "UNITED STATES": { x: 175, y: 115, flag: "🇺🇸", name: "United States" },
-  GB: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, UK: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, GBR: { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" }, "UNITED KINGDOM": { x: 395, y: 86, flag: "🇬🇧", name: "United Kingdom" },
-  CA: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" }, CAN: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" }, CANADA: { x: 175, y: 83, flag: "🇨🇦", name: "Canada" },
-  DE: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" }, DEU: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" }, GERMANY: { x: 418, y: 96, flag: "🇩🇪", name: "Germany" },
-  AU: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" }, AUS: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" }, AUSTRALIA: { x: 680, y: 258, flag: "🇦🇺", name: "Australia" },
-  FR: { x: 408, y: 99, flag: "🇫🇷", name: "France" }, FRA: { x: 408, y: 99, flag: "🇫🇷", name: "France" }, FRANCE: { x: 408, y: 99, flag: "🇫🇷", name: "France" },
-  JP: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" }, JPN: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" }, JAPAN: { x: 665, y: 112, flag: "🇯🇵", name: "Japan" },
-  SG: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" }, SGP: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" }, SINGAPORE: { x: 600, y: 181, flag: "🇸🇬", name: "Singapore" },
-  AE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" }, ARE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" }, UAE: { x: 492, y: 132, flag: "🇦🇪", name: "United Arab Emirates" },
-  BR: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" }, BRA: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" }, BRAZIL: { x: 249, y: 220, flag: "🇧🇷", name: "Brazil" },
-  NL: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" }, NLD: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" }, NETHERLANDS: { x: 414, y: 95, flag: "🇳🇱", name: "Netherlands" },
-  IT: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" }, ITA: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" }, ITALY: { x: 420, y: 108, flag: "🇮🇹", name: "Italy" },
-  ES: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" }, ESP: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" }, SPAIN: { x: 399, y: 112, flag: "🇪🇸", name: "Spain" },
-  MX: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" }, MEX: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" }, MEXICO: { x: 215, y: 142, flag: "🇲🇽", name: "Mexico" },
-  CN: { x: 610, y: 117, flag: "🇨🇳", name: "China" }, CHN: { x: 610, y: 117, flag: "🇨🇳", name: "China" }, CHINA: { x: 610, y: 117, flag: "🇨🇳", name: "China" },
-  KR: { x: 655, y: 116, flag: "🇰🇷", name: "South Korea" }, KOR: { x: 655, y: 116, flag: "🇰🇷", name: "South Korea" },
-  ID: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" }, IDN: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" }, INDONESIA: { x: 622, y: 181, flag: "🇮🇩", name: "Indonesia" },
-  RU: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" }, RUS: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" }, RUSSIA: { x: 535, y: 70, flag: "🇷🇺", name: "Russia" },
-  ZA: { x: 422, y: 254, flag: "🇿🇦", name: "South Africa" }, ZAF: { x: 422, y: 254, flag: "🇿🇦", name: "South Africa" },
-  NG: { x: 408, y: 157, flag: "🇳🇬", name: "Nigeria" }, NGA: { x: 408, y: 157, flag: "🇳🇬", name: "Nigeria" },
-  SE: { x: 425, y: 71, flag: "🇸🇪", name: "Sweden" }, SWE: { x: 425, y: 71, flag: "🇸🇪", name: "Sweden" },
-  CH: { x: 411, y: 100, flag: "🇨🇭", name: "Switzerland" }, CHE: { x: 411, y: 100, flag: "🇨🇭", name: "Switzerland" },
-  PL: { x: 427, y: 92, flag: "🇵🇱", name: "Poland" }, POL: { x: 427, y: 92, flag: "🇵🇱", name: "Poland" },
-  TR: { x: 462, y: 116, flag: "🇹🇷", name: "Türkiye" }, TUR: { x: 462, y: 116, flag: "🇹🇷", name: "Türkiye" },
-  TH: { x: 585, y: 151, flag: "🇹🇭", name: "Thailand" }, THA: { x: 585, y: 151, flag: "🇹🇭", name: "Thailand" },
-  VN: { x: 603, y: 144, flag: "🇻🇳", name: "Vietnam" }, VNM: { x: 603, y: 144, flag: "🇻🇳", name: "Vietnam" },
-  PH: { x: 660, y: 145, flag: "🇵🇭", name: "Philippines" }, PHL: { x: 660, y: 145, flag: "🇵🇭", name: "Philippines" },
-  PK: { x: 523, y: 132, flag: "🇵🇰", name: "Pakistan" }, PAK: { x: 523, y: 132, flag: "🇵🇰", name: "Pakistan" },
-  BD: { x: 562, y: 137, flag: "🇧🇩", name: "Bangladesh" }, BGD: { x: 562, y: 137, flag: "🇧🇩", name: "Bangladesh" },
-  AR: { x: 255, y: 248, flag: "🇦🇷", name: "Argentina" }, ARG: { x: 255, y: 248, flag: "🇦🇷", name: "Argentina" },
-  CL: { x: 240, y: 253, flag: "🇨🇱", name: "Chile" }, CHL: { x: 240, y: 253, flag: "🇨🇱", name: "Chile" },
-  CO: { x: 235, y: 154, flag: "🇨🇴", name: "Colombia" }, COL: { x: 235, y: 154, flag: "🇨🇴", name: "Colombia" },
-};
-
-const COUNTRY_NAME_TO_CODE: Record<string, string> = {
-  INDIA: "IN",
-  "UNITED STATES": "US",
-  "UNITED KINGDOM": "GB",
-  CANADA: "CA",
-  GERMANY: "DE",
-  AUSTRALIA: "AU",
-  FRANCE: "FR",
-  JAPAN: "JP",
-  SINGAPORE: "SG",
-  "UNITED ARAB EMIRATES": "AE",
-  BRAZIL: "BR",
-  NETHERLANDS: "NL",
-  ITALY: "IT",
-  SPAIN: "ES",
-  MEXICO: "MX",
-  CHINA: "CN",
-  INDONESIA: "ID",
-  RUSSIA: "RU",
-  "SOUTH AFRICA": "ZA",
-  NIGERIA: "NG",
-  SWEDEN: "SE",
-  SWITZERLAND: "CH",
-  POLAND: "PL",
-  TÜRKIYE: "TR",
-  TURKEY: "TR",
-  THAILAND: "TH",
-  VIETNAM: "VN",
-  PHILIPPINES: "PH",
-  PAKISTAN: "PK",
-  BANGLADESH: "BD",
-  ARGENTINA: "AR",
-  CHILE: "CL",
-  COLOMBIA: "CO",
-};
-
-const MAP_CONTINENTS = [
-  // Low-detail continent silhouettes in the same equirectangular projection.
-  "M58 65 79 50 112 40 145 46 172 54 196 52 222 63 239 78 233 91 217 99 212 113 199 121 187 143 174 151 169 170 157 189 151 209 140 219 131 210 124 192 116 178 107 165 98 154 91 136 81 122 72 102 64 83Z",
-  "M183 194 199 188 217 194 233 208 243 229 246 251 239 278 230 302 222 328 211 344 202 329 198 305 191 282 187 257 179 231Z",
-  "M365 75 379 66 393 67 402 77 397 89 386 94 378 89Z",
-  "M382 98 399 92 417 96 430 106 426 119 412 124 396 119 385 111Z",
-  "M394 130 416 127 435 138 447 157 451 182 445 208 436 233 425 259 411 271 400 256 393 232 387 206 380 181 379 158Z",
-  "M419 85 435 69 457 62 478 59 498 55 521 57 544 52 568 55 590 59 615 59 642 66 666 70 688 78 713 84 734 96 750 110 747 126 735 139 719 149 703 161 684 171 664 181 645 194 626 199 608 192 591 184 573 176 557 166 539 163 522 151 506 142 490 132 475 120 459 112 442 107 429 99Z",
-  "M449 188 465 181 481 187 492 200 487 216 477 229 462 226 452 212Z",
-  "M631 221 650 215 672 219 693 228 710 242 717 258 708 274 693 282 674 280 657 270 644 256 635 240Z",
-  "M740 222 758 215 777 219 790 230 790 244 777 252 760 248 748 239Z",
-];
-
 /** Normalizes URL path for clean display */
 function pathOf(urlOrPath: string): string {
   try {
@@ -151,23 +64,6 @@ function pathOf(urlOrPath: string): string {
   } catch {
     return urlOrPath || "/";
   }
-}
-
-interface CountryBreakdownItem {
-  country: string;
-  code: string;
-  flag: string;
-  count: number;
-  share: number;
-  coords: { x: number; y: number } | null;
-}
-
-interface CityBreakdownItem {
-  city: string;
-  country: string;
-  flag: string;
-  count: number;
-  share: number;
 }
 
 interface TrafficOriginItem {
@@ -220,7 +116,6 @@ function TrafficViewClient() {
   const { projectId } = useWorkspace();
   const periodDays = usePeriodDays();
   const [trafficOriginMode, setTrafficOriginMode] = useState<"channels" | "sites">("channels");
-  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
 
   // Queries
   const { report } = useGa4Report(projectId);
@@ -323,23 +218,24 @@ function TrafficViewClient() {
       .slice(0, 10);
   }, [reportData]);
 
-  // Countries Breakdown
-  const countriesBreakdown = useMemo<CountryBreakdownItem[]>(() => {
+  // Countries Breakdown (mapped to real lat/lng coordinates for 3D Earth & 2D Map)
+  const countriesBreakdown = useMemo<TrafficCountryRow[]>(() => {
     const ga4Countries = reportData?.countries ?? [];
     if (ga4Countries.length > 0) {
       const totalSessions = ga4Countries.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions ?? c.users ?? 0), 0) || 1;
       return ga4Countries
         .map((c) => {
-          const rawCode = COUNTRY_NAME_TO_CODE[c.country.toUpperCase()] || c.country.slice(0, 2).toUpperCase();
-          const geo = COUNTRY_COORDINATES[rawCode] || COUNTRY_COORDINATES[c.country.toUpperCase()];
+          const geo = resolveCountryGeo(c.country);
+          const rawCode = geo?.code ?? c.country.slice(0, 2).toUpperCase();
           const countVal = c.sessions ?? c.users ?? 0;
           return {
-            country: c.country,
+            country: geo?.name ?? c.country,
             code: rawCode,
-            flag: geo?.flag || "🌐",
+            flag: geo?.flag ?? "🌐",
             count: countVal,
             share: countVal / totalSessions,
-            coords: geo ? { x: geo.x, y: geo.y } : null,
+            lat: geo?.lat ?? null,
+            lng: geo?.lng ?? null,
           };
         })
         .sort((a, b) => b.count - a.count);
@@ -350,16 +246,17 @@ function TrafficViewClient() {
       const totalClicks = gscRows.reduce((sum: number, r: { clicks?: number; impressions?: number }) => sum + (r.clicks ?? 0), 0) || 1;
       return gscRows
         .map((r) => {
-          const rawCode = r.key.toUpperCase();
-          const geo = COUNTRY_COORDINATES[rawCode];
+          const geo = resolveCountryGeo(r.key);
+          const rawCode = geo?.code ?? r.key.toUpperCase();
           const countVal = r.clicks ?? 0;
           return {
-            country: geo?.name || r.key.toUpperCase(),
+            country: geo?.name ?? r.key.toUpperCase(),
             code: rawCode,
-            flag: geo?.flag || "🌐",
+            flag: geo?.flag ?? "🌐",
             count: countVal,
             share: countVal / totalClicks,
-            coords: geo ? { x: geo.x, y: geo.y } : null,
+            lat: geo?.lat ?? null,
+            lng: geo?.lng ?? null,
           };
         })
         .sort((a, b) => b.count - a.count);
@@ -368,8 +265,8 @@ function TrafficViewClient() {
     return [];
   }, [reportData?.countries, countryBreakdown.query.data?.rows]);
 
-  // Cities Breakdown
-  const citiesBreakdown = useMemo<CityBreakdownItem[]>(() => {
+  // Cities Breakdown (mapped to exact city lat/lng or country fallback)
+  const citiesBreakdown = useMemo<TrafficCityRow[]>(() => {
     if (!reportData?.cities || reportData.cities.length === 0) {
       return [];
     }
@@ -378,18 +275,21 @@ function TrafficViewClient() {
       .filter((c) => c.city && c.city !== "(not set)")
       .map((c) => {
         const countVal = c.sessions ?? c.users ?? 0;
-        const rawCode = COUNTRY_NAME_TO_CODE[c.country?.toUpperCase()] || c.country?.slice(0, 2).toUpperCase() || "";
-        const geo = COUNTRY_COORDINATES[rawCode] || COUNTRY_COORDINATES[c.country?.toUpperCase()];
+        const resolved = resolveCityGeo(c.city, c.country || "");
         return {
           city: c.city,
-          country: c.country || "Unknown",
-          flag: geo?.flag || "📍",
+          country: resolved?.countryName ?? c.country ?? "Unknown",
+          code: resolved?.code ?? (c.country?.slice(0, 2).toUpperCase() || ""),
+          flag: resolved?.flag ?? "📍",
           count: countVal,
           share: countVal / totalSessions,
+          lat: resolved?.lat ?? null,
+          lng: resolved?.lng ?? null,
+          exactCity: resolved?.exactCity ?? false,
         };
       })
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+      .slice(0, 25);
   }, [reportData]);
 
   // Queries
@@ -867,232 +767,20 @@ function TrafficViewClient() {
         </div>
       </div>
 
-      {/* ── ROW 2: GEOGRAPHY & REGIONAL REACH ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-        {/* Interactive World Map & Country Breakdown */}
-        <div className="lg:col-span-7 rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-brand-500" />
-                  <h2 className="text-sm font-bold text-brand-950">Global geography &amp; visitor map</h2>
-                </div>
-                <p className="mt-1 text-xs text-brand-400">
-                  Visitor distribution mapped by international coordinates
-                </p>
-              </div>
-              {countriesBreakdown.length > 0 && (
-                <span className="rounded-full bg-brand-100 px-3 py-1 font-mono text-xs font-semibold text-brand-700">
-                  {countriesBreakdown.length} {countriesBreakdown.length === 1 ? "country" : "countries"}
-                </span>
-              )}
-            </div>
-
-            {/* SVG Interactive Map */}
-            <div className="mt-4 relative rounded-xl border border-brand-200/50 bg-surface-1 p-3 overflow-hidden shadow-2xs">
-              <svg viewBox="0 0 800 360" className="w-full h-auto max-h-[220px]">
-                {/* Continents */}
-                {MAP_CONTINENTS.map((path, i) => (
-                  <path
-                    key={i}
-                    d={path}
-                    fill="var(--color-brand-200)"
-                    opacity={0.45}
-                    stroke="var(--color-brand-300)"
-                    strokeWidth={0.5}
-                  />
-                ))}
-
-                {/* Country Hotspot Pins */}
-                {countriesBreakdown.map((item) => {
-                  if (!item.coords) return null;
-                  const isHovered = hoveredCountry === item.code;
-                  return (
-                    <g
-                      key={item.code}
-                      className="cursor-pointer transition-all"
-                      onMouseEnter={() => setHoveredCountry(item.code)}
-                      onMouseLeave={() => setHoveredCountry(null)}
-                    >
-                      <circle
-                        cx={item.coords.x}
-                        cy={item.coords.y}
-                        r={isHovered ? 12 : 7}
-                        fill="var(--color-primary-500)"
-                        opacity={isHovered ? 0.35 : 0.2}
-                        className={isHovered ? "animate-pulse" : ""}
-                      />
-                      <circle
-                        cx={item.coords.x}
-                        cy={item.coords.y}
-                        r={isHovered ? 5 : 3.5}
-                        fill={isHovered ? "var(--color-primary-600)" : "var(--color-primary-500)"}
-                        stroke="var(--color-surface-1)"
-                        strokeWidth={1}
-                      />
-                    </g>
-                  );
-                })}
-              </svg>
-
-              {/* Hover Tooltip Badge */}
-              {hoveredCountry && (
-                <div className="absolute bottom-2 left-3 rounded-lg bg-brand-950 px-2.5 py-1 text-[11px] font-medium text-brand-50 shadow-md">
-                  {(() => {
-                    const found = countriesBreakdown.find((c) => c.code === hoveredCountry);
-                    return found ? `${found.flag} ${found.country}: ${count(found.count)} visitors (${percent(found.share)})` : hoveredCountry;
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Country Micro-table */}
-          <div className="mt-4 overflow-x-auto max-h-48 overflow-y-auto">
-            {countriesBreakdown.length > 0 ? (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-brand-200/60 text-brand-400">
-                    <th className="pb-2 font-medium">Country</th>
-                    <th className="pb-2 font-medium">Share</th>
-                    <th className="pb-2 text-right font-medium">Visitors</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-100">
-                  {countriesBreakdown.slice(0, 6).map((item) => (
-                    <tr
-                      key={item.code}
-                      onMouseEnter={() => setHoveredCountry(item.code)}
-                      onMouseLeave={() => setHoveredCountry(null)}
-                      className={cn(
-                        "transition cursor-pointer",
-                        hoveredCountry === item.code ? "bg-brand-100/70" : "hover:bg-brand-100/40"
-                      )}
-                    >
-                      <td className="py-2 font-semibold text-brand-950">
-                        <div className="flex items-center gap-1.5">
-                          <span>{item.flag}</span>
-                          <span>{item.country}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 pr-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-200/50">
-                            <div
-                              className="h-full rounded-full bg-primary-500"
-                              style={{ width: `${Math.max(item.share * 100, 4)}%` }}
-                            />
-                          </div>
-                          <span className="font-mono text-[11px] text-brand-500">{percent(item.share)}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 text-right font-mono font-bold text-brand-950">
-                        {count(item.count)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="py-3 text-center text-xs text-brand-400">
-                No international country data recorded yet.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Top Cities Box */}
-        <div className="lg:col-span-5 rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-brand-500" />
-                  <h2 className="text-sm font-bold text-brand-950">Top cities</h2>
-                </div>
-                <p className="mt-1 text-xs text-brand-400">
-                  Visitor distribution by metropolitan area
-                </p>
-              </div>
-              {citiesBreakdown.length > 0 && (
-                <span className="rounded-full bg-brand-100 px-3 py-1 font-mono text-xs font-semibold text-brand-700">
-                  {citiesBreakdown.length} cities
-                </span>
-              )}
-            </div>
-
-            <div className="mt-4 overflow-x-auto max-h-[340px] overflow-y-auto">
-              {citiesBreakdown.length > 0 ? (
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-brand-200/60 text-brand-400">
-                      <th className="pb-2.5 font-medium">City</th>
-                      <th className="pb-2.5 font-medium">Share</th>
-                      <th className="pb-2.5 text-right font-medium">Visitors</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-100">
-                    {citiesBreakdown.map((row: CityBreakdownItem, idx: number) => (
-                      <tr key={`${row.city}-${idx}`} className="hover:bg-brand-100/40 transition">
-                        <td className="py-2.5 font-semibold text-brand-950">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[10px] font-bold text-brand-600">
-                              #{idx + 1}
-                            </span>
-                            <div>
-                              <p className="font-semibold text-brand-950">{row.city}</p>
-                              <p className="text-[10px] text-brand-400">
-                                {row.flag} {row.country}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 pr-2">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-200/50">
-                              <div
-                                className="h-full rounded-full bg-accent-500"
-                                style={{ width: `${Math.max(row.share * 100, 4)}%` }}
-                              />
-                            </div>
-                            <span className="font-mono text-[11px] text-brand-500">
-                              {percent(row.share)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right font-mono font-bold text-brand-950">
-                          {count(row.count)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-500">
-                    <MapPin className="h-5 w-5" />
-                  </div>
-                  <p className="mt-3 text-xs font-semibold text-brand-950">
-                    No city-level clicks or visitors recorded for this period yet
-                  </p>
-                  <p className="mt-1 max-w-[260px] text-[11px] text-brand-400">
-                    Open the Report tab to analyze where your business operates (from Website Audit) and plan local traffic acquisition for your target cities.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => selectTab("report")}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800 transition cursor-pointer"
-                  >
-                    <FileText size={12} />
-                    <span>Plan Target City Traffic in Report →</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* ── ROW 2: INTERACTIVE 3D GLOBAL TRAFFIC EARTH & REGIONAL REACH ── */}
+      <GlobalTrafficGlobe
+        projectId={projectId}
+        periodDays={periodDays}
+        visitorsCount={visitorsCount}
+        sessionsCount={sessionsCount}
+        searchClicks={searchClicks}
+        clicksChangePct={roundedClicksChangePct}
+        dailyChartData={dailyChartData}
+        channels={channelBreakdown}
+        countries={countriesBreakdown}
+        cities={citiesBreakdown}
+        onOpenReport={() => selectTab("report")}
+      />
 
       {/* ── ROW 3: TOP SEARCH QUERIES TABLE ── */}
       <div className="rounded-2xl border border-brand-200/60 bg-brand-50/70 p-6 shadow-card">

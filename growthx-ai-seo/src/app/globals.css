@@ -799,6 +799,195 @@ details.faq-details::details-content {
 details.faq-details:not([open])::details-content {
   block-size: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Global Traffic 3D Earth Command Stage (Light & Dark themes)
+   Follows modern-web-guidance: content-visibility auto for off-screen
+   pause, compositor-only transform/opacity animations, reduced-motion
+   opt-in via prefers-reduced-motion: no-preference.
+   ═══════════════════════════════════════════════════════════════════ */
+.globe-stage {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 660px;
+  background: radial-gradient(
+    ellipse 80% 72% at 50% 48%,
+    #f2f6fa 0%,
+    #e5edf4 48%,
+    #d4e0eb 100%
+  );
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.dash-dark .globe-stage,
+.dark .globe-stage {
+  background: radial-gradient(
+    ellipse 80% 72% at 50% 48%,
+    #131c2c 0%,
+    #0d1421 52%,
+    #080c14 100%
+  );
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.globe-glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px) saturate(1.45);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 10px 30px -10px rgba(15, 23, 42, 0.1),
+    0 2px 6px -1px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.globe-glass-pill {
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 8px 24px -8px rgba(15, 23, 42, 0.12),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.dash-dark .globe-glass,
+.dark .globe-glass {
+  background: rgba(15, 19, 28, 0.78);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 14px 36px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dash-dark .globe-glass-pill,
+.dark .globe-glass-pill {
+  background: rgba(15, 19, 28, 0.86);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.6);
+}
+
+/* Glowing white translucent marker rings matching reference Earth UI */
+.globe-pin-halo {
+  background: rgba(255, 255, 255, 0.34);
+  border: 1.5px solid rgba(255, 255, 255, 0.76);
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.18),
+    0 0 16px rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.globe-pin-core {
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.95);
+}
+
+.globe-pin-active .globe-pin-halo {
+  background: rgba(255, 255, 255, 0.52);
+  border-color: #ffffff;
+  box-shadow:
+    0 6px 20px rgba(15, 23, 42, 0.25),
+    0 0 24px rgba(255, 255, 255, 0.85);
+}
+
+.globe-pin-live .globe-pin-halo {
+  border-color: rgba(16, 185, 129, 0.95);
+  background: rgba(16, 185, 129, 0.24);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.55);
+}
+
+.dash-dark .globe-pin-halo,
+.dark .globe-pin-halo {
+  background: rgba(200, 245, 58, 0.18);
+  border-color: rgba(200, 245, 58, 0.82);
+  box-shadow: 0 0 18px rgba(200, 245, 58, 0.35);
+}
+
+.dash-dark .globe-pin-core,
+.dark .globe-pin-core {
+  background: #c8f53a;
+  box-shadow: 0 0 12px rgba(200, 245, 58, 0.95);
+}
+
+@keyframes globe-pin-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.globe-pin-ring-pulse {
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
+.dash-dark .globe-pin-ring-pulse,
+.dark .globe-pin-ring-pulse {
+  border-color: rgba(200, 245, 58, 0.8);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .globe-pin-ring-pulse {
+    animation: globe-pin-pulse 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
+}
+
+/* Segmented bar tracks inside left status card */
+.globe-seg-0 { background-color: var(--color-series-1); }
+.globe-seg-1 { background-color: var(--color-series-4); }
+.globe-seg-2 { background-color: var(--color-series-2); }
+.globe-seg-3 { background-color: var(--color-series-3); }
+
+/* 2D map land & ocean fills */
+.globe-2d-land {
+  fill: #d8c2a6;
+  stroke: #eef3f7;
+  stroke-width: 0.6;
+  transition: fill 0.18s ease, opacity 0.18s ease;
+}
+
+.globe-2d-land-active {
+  fill: #a2b890;
+}
+
+.globe-2d-land-selected {
+  fill: var(--color-primary-600);
+}
+
+.dash-dark .globe-2d-land,
+.dark .globe-2d-land {
+  fill: #242d3d;
+  stroke: #101622;
+}
+
+.dash-dark .globe-2d-land-active,
+.dark .globe-2d-land-active {
+  fill: #33435c;
+}
+
+.dash-dark .globe-2d-land-selected,
+.dark .globe-2d-land-selected {
+  fill: var(--color-signal-400);
+}
+
+/* Mini city spotlight card terrain preview tint */
+.globe-city-thumb {
+  background:
+    radial-gradient(circle at 28% 35%, rgba(167, 196, 155, 0.52) 0%, transparent 56%),
+    radial-gradient(circle at 78% 72%, rgba(217, 179, 138, 0.55) 0%, transparent 58%),
+    linear-gradient(135deg, #dce9ee 0%, #f1ece2 55%, #d6e4e8 100%);
+}
+
+.dash-dark .globe-city-thumb,
+.dark .globe-city-thumb {
+  background:
+    radial-gradient(circle at 28% 35%, rgba(200, 245, 58, 0.16) 0%, transparent 56%),
+    radial-gradient(circle at 78% 72%, rgba(59, 130, 246, 0.22) 0%, transparent 58%),
+    linear-gradient(135deg, #161e2e 0%, #101725 100%);
+}
 @media (prefers-reduced-motion: no-preference) {
   details.faq-details::details-content {
     transition: block-size 0.25s ease-in-out, content-visibility 0.25s ease-in-out allow-discrete;
