@@ -12,6 +12,7 @@ import type { GlobePin } from "./earth-globe-canvas";
 interface WorldMap2DProps {
   pins: GlobePin[];
   activeCountryCodes: Set<string>;
+  highlightedCountryCode: string | null;
   selectedPinId: string | null;
   hoveredPinId: string | null;
   onSelectPin: (pin: GlobePin) => void;
@@ -24,6 +25,7 @@ const HEIGHT = 500;
 export function WorldMap2D({
   pins,
   activeCountryCodes,
+  highlightedCountryCode,
   selectedPinId,
   hoveredPinId,
   onSelectPin,
@@ -68,17 +70,17 @@ export function WorldMap2D({
         role="img"
         aria-label="Interactive 2D world map of visitor distribution"
       >
-        {/* Subtle latitude/longitude graticule arcs */}
         <g opacity={0.18} stroke="currentColor" strokeWidth={0.6} className="text-brand-400">
           <line x1={40} y1={HEIGHT / 2 + 16} x2={WIDTH - 40} y2={HEIGHT / 2 + 16} strokeDasharray="3 5" />
           <line x1={WIDTH / 2} y1={42} x2={WIDTH / 2} y2={HEIGHT - 24} strokeDasharray="3 5" />
         </g>
 
-        {/* Detailed Natural Earth country shapes */}
         <g>
           {countryShapes.map((shape) => {
             if (!shape.d) return null;
-            const isSelectedCountry = selectedPin && selectedPin.code === shape.code;
+            const isHighlighted =
+              (highlightedCountryCode && shape.code === highlightedCountryCode) ||
+              (selectedPin && selectedPin.code === shape.code);
             const hasTraffic = shape.code ? activeCountryCodes.has(shape.code) : false;
             return (
               <path
@@ -87,14 +89,13 @@ export function WorldMap2D({
                 className={cn(
                   "globe-2d-land",
                   hasTraffic ? "globe-2d-land-active" : "",
-                  isSelectedCountry ? "globe-2d-land-selected" : "",
+                  isHighlighted ? "globe-2d-land-selected" : "",
                 )}
               />
             );
           })}
         </g>
 
-        {/* Glowing location pins */}
         <g>
           {pins.map((pin) => {
             const pt = projection([pin.lng, pin.lat]);
@@ -102,7 +103,13 @@ export function WorldMap2D({
             const [cx, cy] = pt;
             const active = selectedPinId === pin.id || hoveredPinId === pin.id;
             const isLive = (pin.liveUsers ?? 0) > 0;
+            const isBot = Boolean(pin.botHubReason);
             const outerR = active ? 15 : pin.share > 0.3 ? 12 : 9.5;
+            const fillColor = isLive
+              ? "var(--color-success-500)"
+              : isBot
+                ? "var(--color-warning-500)"
+                : "var(--color-primary-600)";
             return (
               <g
                 key={pin.id}
@@ -116,12 +123,12 @@ export function WorldMap2D({
                   r={outerR}
                   fill="var(--color-surface-1)"
                   fillOpacity={active ? 0.58 : 0.36}
-                  stroke={isLive ? "var(--color-success-500)" : "var(--color-surface-1)"}
+                  stroke={isLive ? "var(--color-success-500)" : isBot ? "var(--color-warning-500)" : "var(--color-surface-1)"}
                   strokeWidth={active ? 2 : 1.4}
                 />
                 <circle
                   r={active ? 5 : 4}
-                  fill={isLive ? "var(--color-success-500)" : "var(--color-primary-600)"}
+                  fill={fillColor}
                   stroke="var(--color-surface-1)"
                   strokeWidth={1.5}
                 />
@@ -136,8 +143,13 @@ export function WorldMap2D({
           <span className="font-semibold">
             {activeCalloutPin.flag} {activeCalloutPin.label}
           </span>
+          {activeCalloutPin.botHubReason && (
+            <span className="ml-1.5 rounded-full bg-warning-50 px-1.5 py-0.5 text-[10px] font-bold text-warning-700">
+              Cloud/Bot
+            </span>
+          )}
           <span className="ml-2 font-mono text-[11px] text-brand-500">
-            {count(activeCalloutPin.visitors)} visitors · {percent(activeCalloutPin.share)}
+            {count(activeCalloutPin.visitors)} {activeCalloutPin.metricUnit ?? "visitors"} · {percent(activeCalloutPin.share)}
           </span>
         </div>
       )}

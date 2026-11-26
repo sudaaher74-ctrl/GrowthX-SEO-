@@ -5,22 +5,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  Bot,
   Building2,
+  Camera,
   Download,
+  Eye,
   FileText,
   Globe,
+  Grid,
   Layers,
   Map as MapIcon,
   MapPin,
   Maximize2,
   Minimize2,
   Minus,
+  MousePointerClick,
   Pause,
   Play,
   Plus,
   Radio,
   RotateCcw,
+  Search,
   Share2,
+  ShieldCheck,
+  Users,
   X,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
@@ -28,7 +36,7 @@ import { api } from "@/lib/api-client";
 import { resolveCountryGeo } from "@/lib/geo-coordinates";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
-import type { GlobeFlowArc, GlobePin } from "./earth-globe-canvas";
+import type { GlobeCapturePayload, GlobeFlowArc, GlobePin } from "./earth-globe-canvas";
 import { WorldMap2D } from "./world-map-2d";
 
 const EarthGlobeCanvas = dynamic(
@@ -50,6 +58,11 @@ export interface TrafficCountryRow {
   country: string;
   code: string;
   flag: string;
+  visitors: number | null;
+  clicks: number | null;
+  impressions: number | null;
+  ctr: number | null;
+  position: number | null;
   count: number;
   share: number;
   lat: number | null;
@@ -66,6 +79,7 @@ export interface TrafficCityRow {
   lat: number | null;
   lng: number | null;
   exactCity: boolean;
+  botHubReason: string | null;
 }
 
 export interface TrafficChannelRow {
@@ -87,6 +101,7 @@ interface GlobalTrafficGlobeProps {
   visitorsCount: number | null;
   sessionsCount: number | null;
   searchClicks: number | null;
+  searchImpressions: number | null;
   clicksChangePct: number | null;
   dailyChartData: DailyTrafficPoint[];
   channels: TrafficChannelRow[];
@@ -97,20 +112,52 @@ interface GlobalTrafficGlobeProps {
 
 type GlobeViewMode = "globe" | "map" | "flows";
 type RightPanelTab = "countries" | "cities" | "live";
+type GlobeMetricMode = "visitors" | "clicks" | "impressions";
+
+const METRIC_META: Record<GlobeMetricMode, { label: string; unit: string; short: string }> = {
+  visitors: { label: "Global Visitors", unit: "visitors", short: "Visitors" },
+  clicks: { label: "Search Clicks", unit: "clicks", short: "Clicks" },
+  impressions: { label: "Search Impressions", unit: "impressions", short: "Impressions" },
+};
 
 function buildCsvAndDownload(
   countries: TrafficCountryRow[],
   cities: TrafficCityRow[],
   periodDays: number,
 ) {
-  const escape = (val: string | number) => `"${String(val).replace(/"/g, '""')}"`;
+  const escape = (val: string | number | null) =>
+    `"${String(val ?? "").replace(/"/g, '""')}"`;
   const lines: string[] = [
-    ["Type", "Name", "Country", "Visitors", "Share %"].map(escape).join(","),
+    ["Type", "Name", "Country", "Visitors", "Search Clicks", "Impressions", "Share %", "Traffic Classification"]
+      .map(escape)
+      .join(","),
     ...countries.map((c) =>
-      ["Country", c.country, c.code, c.count, (c.share * 100).toFixed(2)].map(escape).join(","),
+      [
+        "Country",
+        c.country,
+        c.code,
+        c.visitors ?? c.count,
+        c.clicks ?? "",
+        c.impressions ?? "",
+        (c.share * 100).toFixed(2),
+        "Country total",
+      ]
+        .map(escape)
+        .join(","),
     ),
     ...cities.map((c) =>
-      ["City", c.city, c.country, c.count, (c.share * 100).toFixed(2)].map(escape).join(","),
+      [
+        "City",
+        c.city,
+        c.country,
+        c.count,
+        "",
+        "",
+        (c.share * 100).toFixed(2),
+        c.botHubReason ? `Cloud/Bot hub (${c.botHubReason})` : "Standard",
+      ]
+        .map(escape)
+        .join(","),
     ),
   ];
 
@@ -125,12 +172,161 @@ function buildCsvAndDownload(
   URL.revokeObjectURL(url);
 }
 
+/** Composites a crisp 1600x900 presentation PNG of the live 3D globe + markers + KPI stamp. */
+function exportPresentationPng(
+  capture: GlobeCapturePayload,
+  opts: {
+    isDark: boolean;
+    title: string;
+    subtitle: string;
+    heroValue: string;
+    topRows: Array<{ label: string; value: string; share: string }>;
+    periodDays: number;
+  },
+) {
+  const img = new Image();
+  img.onload = () => {
+    const outW = 1600;
+    const outH = 900;
+    const canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Sky / night radial backdrop
+    const grad = ctx.createRadialGradient(outW * 0.52, outH * 0.48, 80, outW * 0.52, outH * 0.48, outW * 0.65);
+    if (opts.isDark) {
+      grad.addColorStop(0, "rgb(19, 28, 44)");
+      grad.addColorStop(0.55, "rgb(13, 20, 33)");
+      grad.addColorStop(1, "rgb(8, 12, 20)");
+    } else {
+      grad.addColorStop(0, "rgb(242, 246, 250)");
+      grad.addColorStop(0.5, "rgb(229, 237, 244)");
+      grad.addColorStop(1, "rgb(212, 224, 235)");
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, outW, outH);
+
+    // Draw WebGL Earth centered with aspect preservation
+    const srcAspect = capture.width / Math.max(capture.height, 1);
+    const dstAspect = outW / outH;
+    let drawW = outW;
+    let drawH = outH;
+    if (srcAspect > dstAspect) {
+      drawH = outW / srcAspect;
+    } else {
+      drawW = outH * srcAspect;
+    }
+    const offsetX = (outW - drawW) / 2;
+    const offsetY = (outH - drawH) / 2;
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+
+    // Draw visible projected glowing markers onto the Earth
+    const scaleX = drawW / Math.max(capture.width, 1);
+    const scaleY = drawH / Math.max(capture.height, 1);
+    for (const pin of capture.visiblePins) {
+      const px = offsetX + pin.x * scaleX;
+      const py = offsetY + pin.y * scaleY;
+      const haloR = pin.share > 0.35 ? 20 : pin.share > 0.08 ? 15 : 12;
+
+      ctx.beginPath();
+      ctx.arc(px, py, haloR, 0, Math.PI * 2);
+      ctx.fillStyle = pin.isLive
+        ? "rgba(16, 185, 129, 0.28)"
+        : pin.isBot
+          ? "rgba(245, 158, 11, 0.28)"
+          : opts.isDark
+            ? "rgba(200, 245, 58, 0.22)"
+            : "rgba(255, 255, 255, 0.42)";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = pin.isLive
+        ? "rgba(16, 185, 129, 0.95)"
+        : pin.isBot
+          ? "rgba(245, 158, 11, 0.95)"
+          : opts.isDark
+            ? "rgba(200, 245, 58, 0.85)"
+            : "rgba(255, 255, 255, 0.88)";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fillStyle = pin.isBot
+        ? "rgb(245, 158, 11)"
+        : opts.isDark
+          ? "rgb(200, 245, 58)"
+          : "rgb(255, 255, 255)";
+      ctx.fill();
+    }
+
+    // Draw clean glass summary card (top-left)
+    const cardX = 48;
+    const cardY = 48;
+    const cardW = 360;
+    const cardH = 148 + Math.min(opts.topRows.length, 4) * 34;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 22);
+    ctx.fillStyle = opts.isDark ? "rgba(15, 19, 28, 0.86)" : "rgba(255, 255, 255, 0.86)";
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = opts.isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.95)";
+    ctx.stroke();
+
+    const textPrimary = opts.isDark ? "rgb(250, 250, 250)" : "rgb(9, 9, 11)";
+    const textMuted = opts.isDark ? "rgb(143, 151, 164)" : "rgb(100, 116, 139)";
+
+    ctx.fillStyle = textMuted;
+    ctx.font = "600 13px Inter, system-ui, sans-serif";
+    ctx.fillText(opts.title.toUpperCase(), cardX + 24, cardY + 38);
+
+    ctx.fillStyle = textPrimary;
+    ctx.font = "800 40px Inter, system-ui, sans-serif";
+    ctx.fillText(opts.heroValue, cardX + 24, cardY + 86);
+
+    ctx.fillStyle = textMuted;
+    ctx.font = "500 13px Inter, system-ui, sans-serif";
+    ctx.fillText(opts.subtitle, cardX + 24, cardY + 112);
+
+    ctx.strokeStyle = opts.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.08)";
+    ctx.beginPath();
+    ctx.moveTo(cardX + 24, cardY + 128);
+    ctx.lineTo(cardX + cardW - 24, cardY + 128);
+    ctx.stroke();
+
+    opts.topRows.slice(0, 4).forEach((row, idx) => {
+      const y = cardY + 158 + idx * 34;
+      ctx.fillStyle = textPrimary;
+      ctx.font = "600 14px Inter, system-ui, sans-serif";
+      ctx.fillText(row.label, cardX + 24, y);
+      ctx.fillStyle = textMuted;
+      ctx.font = "600 13px monospace";
+      const valStr = `${row.value} (${row.share})`;
+      const measured = ctx.measureText(valStr).width;
+      ctx.fillText(valStr, cardX + cardW - 24 - measured, y);
+    });
+    ctx.restore();
+
+    const outUrl = canvas.toDataURL("image/png");
+    const anchor = document.createElement("a");
+    anchor.href = outUrl;
+    anchor.download = `traffic-globe-snapshot-${opts.periodDays}d.png`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+  img.src = capture.dataUrl;
+}
+
 export function GlobalTrafficGlobe({
   projectId,
   periodDays,
   visitorsCount,
   sessionsCount,
   searchClicks,
+  searchImpressions,
   clicksChangePct,
   dailyChartData,
   channels,
@@ -140,10 +336,15 @@ export function GlobalTrafficGlobe({
 }: GlobalTrafficGlobeProps) {
   const { isDark } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const captureFnRef = useRef<(() => GlobeCapturePayload | null) | null>(null);
 
   const [viewMode, setViewMode] = useState<GlobeViewMode>("globe");
+  const [metricMode, setMetricMode] = useState<GlobeMetricMode>("visitors");
   const [rightTab, setRightTab] = useState<RightPanelTab>("countries");
   const [pinLayer, setPinLayer] = useState<"countries" | "cities">("countries");
+  const [showBorders, setShowBorders] = useState<boolean>(true);
+  const [hideBotHubs, setHideBotHubs] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null);
@@ -157,7 +358,10 @@ export function GlobalTrafficGlobe({
   const [zoomSignal, setZoomSignal] = useState<{ delta?: number; reset?: boolean; nonce: number } | null>(null);
   const [hoveredBarIdx, setHoveredBarIdx] = useState<number | null>(null);
 
-  // Share React Query cache with RealtimeActivity card (zero extra fetch)
+  const registerCapture = useCallback((fn: (() => GlobeCapturePayload | null) | null) => {
+    captureFnRef.current = fn;
+  }, []);
+
   const realtimeQuery = useQuery({
     queryKey: ["ga4-realtime", projectId],
     queryFn: () => api.ga4Realtime(projectId!),
@@ -172,7 +376,6 @@ export function GlobalTrafficGlobe({
     ? realtimeQuery.data.data
     : null;
 
-  // Map realtime users per country code
   const realtimeByCountryCode = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of realtimeData?.countries ?? []) {
@@ -183,7 +386,6 @@ export function GlobalTrafficGlobe({
     return map;
   }, [realtimeData]);
 
-  // ESC closes overlay fullscreen cleanly
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -193,12 +395,71 @@ export function GlobalTrafficGlobe({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isFullscreen]);
 
+  // Check if GSC country metrics exist so metric switcher highlights real availability
+  const hasGscCountryMetrics = useMemo(
+    () => countries.some((c) => (c.clicks ?? 0) > 0 || (c.impressions ?? 0) > 0),
+    [countries],
+  );
+
+  // Re-rank countries dynamically for the active metric (Visitors / Clicks / Impressions)
+  const metricCountries = useMemo<TrafficCountryRow[]>(() => {
+    const getVal = (c: TrafficCountryRow) => {
+      if (metricMode === "clicks") return c.clicks ?? 0;
+      if (metricMode === "impressions") return c.impressions ?? 0;
+      return c.visitors ?? c.count;
+    };
+    const rows = countries
+      .map((c) => ({ ...c, count: getVal(c) }))
+      .filter((c) => (metricMode === "visitors" ? true : c.count > 0));
+    const total = rows.reduce((sum, c) => sum + c.count, 0) || 1;
+    return rows
+      .map((c) => ({ ...c, share: c.count / total }))
+      .sort((a, b) => b.count - a.count);
+  }, [countries, metricMode]);
+
+  // Cloud / bot hub stats across GA4 cities
+  const botHubStats = useMemo(() => {
+    const botCities = cities.filter((c) => Boolean(c.botHubReason));
+    const botSessions = botCities.reduce((sum, c) => sum + c.count, 0);
+    const totalCitySessions = cities.reduce((sum, c) => sum + c.count, 0);
+    return {
+      botCityCount: botCities.length,
+      botSessions,
+      totalCitySessions,
+      humanSessions: Math.max(0, totalCitySessions - botSessions),
+    };
+  }, [cities]);
+
+  // Cities after optional Cloud/Bot filter (recomputing shares honestly!)
+  const filteredCities = useMemo<TrafficCityRow[]>(() => {
+    const base = hideBotHubs ? cities.filter((c) => !c.botHubReason) : cities;
+    const total = base.reduce((sum, c) => sum + c.count, 0) || 1;
+    return base.map((c) => ({ ...c, share: c.count / total }));
+  }, [cities, hideBotHubs]);
+
+  // Selected country object for country-scoped drilldown
+  const selectedCountry = useMemo(() => {
+    if (!selectedCountryCode) return null;
+    return (
+      metricCountries.find((c) => c.code === selectedCountryCode) ??
+      countries.find((c) => c.code === selectedCountryCode) ??
+      null
+    );
+  }, [selectedCountryCode, metricCountries, countries]);
+
+  const selectedCountryCities = useMemo(() => {
+    if (!selectedCountryCode) return filteredCities;
+    const list = filteredCities.filter((c) => c.code === selectedCountryCode);
+    const total = list.reduce((sum, c) => sum + c.count, 0) || 1;
+    return list.map((c) => ({ ...c, share: c.count / total }));
+  }, [filteredCities, selectedCountryCode]);
+
   // Derive default focus target from top mapped country until user explicitly flies somewhere
   const defaultFocusTarget = useMemo(() => {
-    const topMapped = countries.find((c) => c.lat !== null && c.lng !== null);
+    const topMapped = metricCountries.find((c) => c.lat !== null && c.lng !== null);
     if (!topMapped || topMapped.lat === null || topMapped.lng === null) return null;
     return { lat: topMapped.lat, lng: topMapped.lng, nonce: 0 };
-  }, [countries]);
+  }, [metricCountries]);
 
   const activeFocusTarget = focusTarget ?? defaultFocusTarget;
 
@@ -210,9 +471,11 @@ export function GlobalTrafficGlobe({
     setZoomSignal((prev) => ({ delta, nonce: (prev?.nonce ?? 0) + 1 }));
   }, []);
 
+  const metricMeta = METRIC_META[metricMode];
+
   // Build pins for 3D Earth & 2D Map
   const countryPins = useMemo<GlobePin[]>(() => {
-    return countries
+    return metricCountries
       .filter((c) => c.lat !== null && c.lng !== null)
       .map((c) => ({
         id: `country:${c.code}`,
@@ -223,14 +486,14 @@ export function GlobalTrafficGlobe({
         lng: c.lng!,
         visitors: c.count,
         share: c.share,
+        metricUnit: metricMeta.unit,
         liveUsers: realtimeByCountryCode.get(c.code) ?? 0,
       }));
-  }, [countries, realtimeByCountryCode]);
+  }, [metricCountries, metricMeta.unit, realtimeByCountryCode]);
 
   const cityPins = useMemo<GlobePin[]>(() => {
-    return cities
+    return selectedCountryCities
       .filter((c) => c.lat !== null && c.lng !== null)
-      .filter((c) => !selectedCountryCode || c.code === selectedCountryCode)
       .map((c, idx) => ({
         id: `city:${c.code}:${c.city}:${idx}`,
         label: c.city,
@@ -241,9 +504,11 @@ export function GlobalTrafficGlobe({
         lng: c.lng!,
         visitors: c.count,
         share: c.share,
+        metricUnit: "visitors",
         liveUsers: 0,
+        botHubReason: c.botHubReason,
       }));
-  }, [cities, selectedCountryCode]);
+  }, [selectedCountryCities]);
 
   const visiblePins = useMemo(() => {
     if (pinLayer === "cities" && cityPins.length > 0) return cityPins;
@@ -254,7 +519,15 @@ export function GlobalTrafficGlobe({
     return countryPins;
   }, [pinLayer, cityPins, countryPins, selectedCountryCode]);
 
-  // Build 3D curved flow arcs linking secondary traffic regions into top hub
+  // Highlighted country code on 3D borders (hovered pin or selected country)
+  const highlightedCountryCode = useMemo(() => {
+    if (hoveredPinId) {
+      const match = [...countryPins, ...cityPins].find((p) => p.id === hoveredPinId);
+      if (match?.code) return match.code;
+    }
+    return selectedCountryCode;
+  }, [hoveredPinId, countryPins, cityPins, selectedCountryCode]);
+
   const flowArcs = useMemo<GlobeFlowArc[]>(() => {
     const sourcePins = visiblePins.length >= 2 ? visiblePins : countryPins;
     if (sourcePins.length < 2) return [];
@@ -270,27 +543,69 @@ export function GlobalTrafficGlobe({
   }, [visiblePins, countryPins]);
 
   const activeCountryCodes = useMemo(
-    () => new Set(countries.map((c) => c.code).filter(Boolean)),
-    [countries],
+    () => new Set(metricCountries.map((c) => c.code).filter(Boolean)),
+    [metricCountries],
   );
 
-  // Filtered country pills & spotlight city cards
   const filterCountries = useMemo(
-    () => countries.filter((c) => c.lat !== null && c.lng !== null).slice(0, 5),
-    [countries],
+    () => metricCountries.filter((c) => c.lat !== null && c.lng !== null).slice(0, 5),
+    [metricCountries],
   );
 
   const spotlightCities = useMemo(() => {
-    const base = selectedCountryCode
-      ? cities.filter((c) => c.code === selectedCountryCode)
-      : cities;
-    return (base.length > 0 ? base : cities).slice(0, 3);
-  }, [cities, selectedCountryCode]);
+    const base = selectedCountryCode ? selectedCountryCities : filteredCities;
+    return (base.length > 0 ? base : filteredCities).slice(0, 3);
+  }, [selectedCountryCode, selectedCountryCities, filteredCities]);
 
-  // Daily bar histogram data (last up to 30 days)
+  // Search-filtered lists for Right Panel
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const searchedCountries = useMemo(() => {
+    if (!normalizedQuery) return metricCountries;
+    return metricCountries.filter(
+      (c) =>
+        c.country.toLowerCase().includes(normalizedQuery) ||
+        c.code.toLowerCase().includes(normalizedQuery),
+    );
+  }, [metricCountries, normalizedQuery]);
+
+  const searchedCities = useMemo(() => {
+    const base = selectedCountryCode ? selectedCountryCities : filteredCities;
+    if (!normalizedQuery) return base;
+    return base.filter(
+      (c) =>
+        c.city.toLowerCase().includes(normalizedQuery) ||
+        c.country.toLowerCase().includes(normalizedQuery),
+    );
+  }, [selectedCountryCode, selectedCountryCities, filteredCities, normalizedQuery]);
+
+  const displayedCountries = showAllRows ? searchedCountries : searchedCountries.slice(0, 7);
+  const displayedCities = showAllRows ? searchedCities : searchedCities.slice(0, 7);
+
+  const realtimeRows = useMemo(() => {
+    const base = (realtimeData?.countries ?? []).map((row) => {
+      const geo = resolveCountryGeo(row.country);
+      return {
+        country: geo?.name ?? row.country,
+        code: geo?.code ?? row.country.slice(0, 2).toUpperCase(),
+        flag: geo?.flag ?? "🌐",
+        activeUsers: row.activeUsers,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+      };
+    });
+    if (!normalizedQuery) return base;
+    return base.filter((r) => r.country.toLowerCase().includes(normalizedQuery));
+  }, [realtimeData, normalizedQuery]);
+
+  // Daily bar histogram data
   const histogramBars = useMemo(() => {
     const slice = dailyChartData.slice(-30);
-    const values = slice.map((d) => d.visitors ?? d.searchClicks ?? 0);
+    const values = slice.map((d) =>
+      metricMode === "clicks"
+        ? (d.searchClicks ?? 0)
+        : (d.visitors ?? d.searchClicks ?? 0),
+    );
     const maxVal = Math.max(...values, 1);
     return slice.map((d, i) => ({
       date: d.date,
@@ -298,9 +613,8 @@ export function GlobalTrafficGlobe({
       value: values[i],
       ratio: values[i] / maxVal,
     }));
-  }, [dailyChartData]);
+  }, [dailyChartData, metricMode]);
 
-  // Sparkline polyline points for Card 2
   const sparkline = useMemo(() => {
     const slice = dailyChartData.slice(-28);
     if (slice.length < 2) return null;
@@ -313,16 +627,34 @@ export function GlobalTrafficGlobe({
     const pts = vals.map((v, idx) => {
       const x = (idx / (vals.length - 1)) * w;
       const y = h - 4 - ((v - minV) / span) * (h - 10);
-      return { x, y, val: v, date: slice[idx].date };
+      return { x, y };
     });
     const lineD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
     const areaD = `${lineD} L${w} ${h} L0 ${h} Z`;
-    const midPt = pts[Math.floor(pts.length / 2)];
-    return { lineD, areaD, midPt, w, h };
+    return { lineD, areaD, w, h };
   }, [dailyChartData]);
 
-  // 4-segment breakdown bar for Card 3 (Channel mix or Country mix fallback)
+  // Left Card 3: Country-scoped Top Cities / Bot split OR Global Channel Mix
   const segmentedMix = useMemo(() => {
+    if (selectedCountry) {
+      if (selectedCountryCities.length > 0) {
+        return {
+          title: `${selectedCountry.code} City Split`,
+          items: selectedCountryCities.slice(0, 4).map((c) => ({
+            label: c.city,
+            share: c.share,
+          })),
+        };
+      }
+      return {
+        title: `${selectedCountry.country} Share`,
+        items: [
+          { label: selectedCountry.code, share: selectedCountry.share },
+          { label: "Rest of World", share: Math.max(0, 1 - selectedCountry.share) },
+        ],
+      };
+    }
+
     if (channels.length > 0) {
       return {
         title: "Channel Mix",
@@ -334,28 +666,43 @@ export function GlobalTrafficGlobe({
     }
     return {
       title: "Market Share",
-      items: countries.slice(0, 4).map((c) => ({
+      items: metricCountries.slice(0, 4).map((c) => ({
         label: c.code || c.country.slice(0, 8),
         share: c.share,
       })),
     };
-  }, [channels, countries]);
+  }, [selectedCountry, selectedCountryCities, channels, metricCountries]);
 
-  // Total visitors display for Hero Card 1
-  const geoTotalVisitors = useMemo(
-    () => countries.reduce((sum, c) => sum + c.count, 0),
-    [countries],
+  // Hero metric value (supports both global & country-scoped drilldown!)
+  const geoMetricTotal = useMemo(
+    () => metricCountries.reduce((sum, c) => sum + c.count, 0),
+    [metricCountries],
   );
-  const heroMetricValue = visitorsCount ?? (geoTotalVisitors > 0 ? geoTotalVisitors : searchClicks);
-  const heroMetricLabel = visitorsCount !== null
-    ? "Global Visitors"
-    : geoTotalVisitors > 0
-      ? "Geo Visitors"
-      : "Search Clicks";
+
+  const heroMetricValue = useMemo(() => {
+    if (selectedCountry) return selectedCountry.count;
+    if (metricMode === "clicks") return searchClicks ?? (geoMetricTotal > 0 ? geoMetricTotal : null);
+    if (metricMode === "impressions") return searchImpressions ?? (geoMetricTotal > 0 ? geoMetricTotal : null);
+    return visitorsCount ?? (geoMetricTotal > 0 ? geoMetricTotal : searchClicks);
+  }, [selectedCountry, metricMode, searchClicks, searchImpressions, visitorsCount, geoMetricTotal]);
+
+  const heroMetricLabel = selectedCountry
+    ? `${selectedCountry.flag} ${selectedCountry.country} · ${metricMeta.short}`
+    : metricMeta.label;
+
+  const dateRangePill = useMemo(() => {
+    if (dailyChartData.length >= 2) {
+      return `${shortDay(dailyChartData[0].date)} – ${shortDay(dailyChartData[dailyChartData.length - 1].date)}`;
+    }
+    return `Last ${periodDays} days`;
+  }, [dailyChartData, periodDays]);
 
   const handleSelectPin = useCallback(
     (pin: GlobePin) => {
       setSelectedPinId(pin.id);
+      if (pin.id.startsWith("country:") && pin.code) {
+        setSelectedCountryCode(pin.code);
+      }
       flyTo(pin.lat, pin.lng);
     },
     [flyTo],
@@ -366,57 +713,80 @@ export function GlobalTrafficGlobe({
       setSelectedCountryCode(code);
       if (!code) {
         setSelectedPinId(null);
-        const top = countries.find((c) => c.lat !== null && c.lng !== null);
+        const top = metricCountries.find((c) => c.lat !== null && c.lng !== null);
         if (top && top.lat !== null && top.lng !== null) flyTo(top.lat, top.lng);
         return;
       }
-      const match = countries.find((c) => c.code === code);
+      const match = metricCountries.find((c) => c.code === code) ?? countries.find((c) => c.code === code);
       if (match && match.lat !== null && match.lng !== null) {
         setSelectedPinId(`country:${match.code}`);
         flyTo(match.lat, match.lng);
       }
     },
-    [countries, flyTo],
+    [metricCountries, countries, flyTo],
   );
 
   const handleResetGlobe = useCallback(() => {
     setSelectedCountryCode(null);
     setSelectedPinId(null);
-    const top = countries.find((c) => c.lat !== null && c.lng !== null);
+    setSearchQuery("");
+    const top = metricCountries.find((c) => c.lat !== null && c.lng !== null);
     if (top && top.lat !== null && top.lng !== null) {
       flyTo(top.lat, top.lng);
     } else {
       flyTo(26, 18);
     }
     setZoomSignal((prev) => ({ reset: true, nonce: (prev?.nonce ?? 0) + 1 }));
-  }, [countries, flyTo]);
+  }, [metricCountries, flyTo]);
 
-  const displayedCountries = showAllRows ? countries : countries.slice(0, 7);
-  const displayedCities = useMemo(() => {
-    const base = selectedCountryCode ? cities.filter((c) => c.code === selectedCountryCode) : cities;
-    return showAllRows ? base : base.slice(0, 7);
-  }, [cities, selectedCountryCode, showAllRows]);
+  const handleSearchSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!normalizedQuery) return;
+      if (rightTab === "cities" && searchedCities.length > 0) {
+        const hit = searchedCities[0];
+        setPinLayer("cities");
+        setSelectedPinId(`city:${hit.code}:${hit.city}:0`);
+        if (hit.lat !== null && hit.lng !== null) flyTo(hit.lat, hit.lng);
+      } else if (searchedCountries.length > 0) {
+        const hit = searchedCountries[0];
+        setPinLayer("countries");
+        setSelectedCountryCode(hit.code);
+        setSelectedPinId(`country:${hit.code}`);
+        if (hit.lat !== null && hit.lng !== null) flyTo(hit.lat, hit.lng);
+      }
+    },
+    [normalizedQuery, rightTab, searchedCities, searchedCountries, flyTo],
+  );
 
-  const realtimeRows = useMemo(() => {
-    return (realtimeData?.countries ?? []).map((row) => {
-      const geo = resolveCountryGeo(row.country);
-      return {
-        country: geo?.name ?? row.country,
-        code: geo?.code ?? row.country.slice(0, 2).toUpperCase(),
-        flag: geo?.flag ?? "🌐",
-        activeUsers: row.activeUsers,
-        lat: geo?.lat ?? null,
-        lng: geo?.lng ?? null,
-      };
+  const handleSnapshotDownload = useCallback(() => {
+    const capture = captureFnRef.current?.();
+    if (!capture) return;
+    exportPresentationPng(capture, {
+      isDark,
+      title: selectedCountry
+        ? `${selectedCountry.country} · ${metricMeta.short}`
+        : `Global Traffic · ${metricMeta.short}`,
+      subtitle: `${dateRangePill} · ${metricCountries.length} countries · ${filteredCities.length} cities`,
+      heroValue: count(heroMetricValue),
+      topRows: (selectedCountry ? selectedCountryCities : metricCountries).slice(0, 4).map((r) => ({
+        label: "city" in r ? `${r.flag} ${r.city}` : `${r.flag} ${r.country}`,
+        value: count(r.count),
+        share: percent(r.share),
+      })),
+      periodDays,
     });
-  }, [realtimeData]);
-
-  const dateRangePill = useMemo(() => {
-    if (dailyChartData.length >= 2) {
-      return `${shortDay(dailyChartData[0].date)} – ${shortDay(dailyChartData[dailyChartData.length - 1].date)}`;
-    }
-    return `Last ${periodDays} days`;
-  }, [dailyChartData, periodDays]);
+  }, [
+    isDark,
+    selectedCountry,
+    metricMeta.short,
+    dateRangePill,
+    metricCountries,
+    filteredCities.length,
+    heroMetricValue,
+    selectedCountryCities,
+    periodDays,
+  ]);
 
   return (
     <section
@@ -433,13 +803,14 @@ export function GlobalTrafficGlobe({
       <div
         className={cn(
           "relative w-full",
-          isFullscreen ? "h-full" : "h-[460px] sm:h-[520px] lg:h-[690px]",
+          isFullscreen ? "h-full" : "h-[460px] sm:h-[520px] lg:h-[710px]",
         )}
       >
         {viewMode === "map" ? (
           <WorldMap2D
             pins={visiblePins}
             activeCountryCodes={activeCountryCodes}
+            highlightedCountryCode={highlightedCountryCode}
             selectedPinId={selectedPinId}
             hoveredPinId={hoveredPinId}
             onSelectPin={handleSelectPin}
@@ -450,6 +821,8 @@ export function GlobalTrafficGlobe({
             pins={visiblePins}
             arcs={flowArcs}
             showFlows={viewMode === "flows"}
+            showBorders={showBorders}
+            highlightedCountryCode={highlightedCountryCode}
             isDark={isDark}
             autoRotate={autoRotate}
             selectedPinId={selectedPinId}
@@ -458,15 +831,16 @@ export function GlobalTrafficGlobe({
             zoomSignal={zoomSignal}
             onSelectPin={handleSelectPin}
             onHoverPin={setHoveredPinId}
+            onRegisterCapture={registerCapture}
           />
         )}
 
-        {/* ── DESKTOP OVERLAY HUD (POINTER-EVENTS-NONE WRAPPER SO EARTH REMAINS DRAGGABLE) ── */}
+        {/* ── FLOATING OVERLAY HUD ── */}
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3.5 sm:p-5">
-          {/* TOP ROW: LEFT STACK + RIGHT STACK */}
-          <div className="flex items-start justify-between gap-4">
+          {/* TOP ROW: LEFT STACK + CENTER METRIC PILL + RIGHT STACK */}
+          <div className="flex items-start justify-between gap-3">
             {/* LEFT FLOATING STACK */}
-            <div className="pointer-events-auto flex w-auto flex-col gap-3 lg:w-[274px] xl:w-[292px]">
+            <div className="pointer-events-auto flex w-auto flex-col gap-3 lg:w-[276px] xl:w-[294px]">
               {/* Top-left floating icon toolbar pill */}
               <div
                 role="toolbar"
@@ -475,7 +849,10 @@ export function GlobalTrafficGlobe({
               >
                 <button
                   type="button"
-                  onClick={() => setPinLayer("countries")}
+                  onClick={() => {
+                    setPinLayer("countries");
+                    setRightTab("countries");
+                  }}
                   title="Show country pins"
                   aria-label="Show country pins"
                   className={cn(
@@ -503,6 +880,20 @@ export function GlobalTrafficGlobe({
                   )}
                 >
                   <MapPin className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBorders((prev) => !prev)}
+                  title={showBorders ? "Hide country borders" : "Show country borders"}
+                  aria-label={showBorders ? "Hide country borders" : "Show country borders"}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer",
+                    showBorders
+                      ? "bg-brand-200/80 text-brand-950"
+                      : "text-brand-500 hover:bg-brand-100/70 hover:text-brand-950",
+                  )}
+                >
+                  <Grid className="h-3.5 w-3.5" />
                 </button>
                 <span className="mx-0.5 h-4 w-px bg-brand-200/70" aria-hidden="true" />
                 <button
@@ -543,20 +934,33 @@ export function GlobalTrafficGlobe({
                 </button>
               </div>
 
-              {/* Left Card 1: Hero Visitors + Daily Vertical Bar Histogram (Desktop floating) */}
+              {/* Left Card 1: Hero Visitors / Metric + Country Drilldown or Histogram */}
               <div className="globe-glass hidden rounded-2xl p-4 lg:block">
                 <div className="text-center">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">
-                    {heroMetricLabel}
-                  </p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-brand-400">
+                      {heroMetricLabel}
+                    </p>
+                    {selectedCountry && (
+                      <button
+                        type="button"
+                        onClick={() => handleCountryChipClick(null)}
+                        aria-label="Clear country filter"
+                        title="Back to Global view"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-200/80 text-brand-700 hover:bg-brand-300 cursor-pointer"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                  </div>
                   <p className="mt-1 font-mono text-[28px] font-extrabold leading-none tracking-tight text-brand-950 tabular-nums">
                     {count(heroMetricValue)}
                   </p>
-                  <div className="mt-2 flex items-center justify-center gap-1.5">
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
                     <span className="rounded-md bg-brand-100/80 px-2 py-0.5 text-[10px] font-medium text-brand-600">
-                      {dateRangePill}
+                      {selectedCountry ? `${percent(selectedCountry.share)} of total` : dateRangePill}
                     </span>
-                    {clicksChangePct !== null ? (
+                    {!selectedCountry && clicksChangePct !== null ? (
                       <span
                         className={cn(
                           "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold",
@@ -569,70 +973,104 @@ export function GlobalTrafficGlobe({
                       </span>
                     ) : (
                       <span className="rounded-md bg-brand-100/80 px-2 py-0.5 font-mono text-[10px] font-semibold text-brand-600">
-                        {countries.length} {countries.length === 1 ? "country" : "countries"}
+                        {selectedCountry
+                          ? `${selectedCountryCities.length} ${selectedCountryCities.length === 1 ? "city" : "cities"}`
+                          : `${metricCountries.length} ${metricCountries.length === 1 ? "country" : "countries"}`}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Vertical Daily Histogram Bars */}
-                <div className="mt-3.5">
-                  {histogramBars.length > 0 ? (
-                    <>
-                      <div
-                        className="flex h-[58px] items-end gap-[3px]"
-                        onMouseLeave={() => setHoveredBarIdx(null)}
-                      >
-                        {histogramBars.map((bar, idx) => {
-                          const isHot = hoveredBarIdx === idx;
-                          const isAccent = bar.ratio >= 0.45;
-                          return (
-                            <div
-                              key={bar.date}
-                              onMouseEnter={() => setHoveredBarIdx(idx)}
-                              title={`${bar.label}: ${count(bar.value)}`}
-                              className="group flex h-full flex-1 items-end"
-                            >
-                              <span
-                                className={cn(
-                                  "block w-full rounded-t-sm transition-all duration-150",
-                                  isHot
-                                    ? "bg-brand-950"
-                                    : isAccent
-                                      ? "bg-brand-600/75"
-                                      : "bg-brand-300/75",
-                                )}
-                                style={{ height: `${Math.max(10, Math.round(bar.ratio * 100))}%` }}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between text-[9.5px] font-medium text-brand-400">
-                        <span>{histogramBars[0]?.label}</span>
-                        <span className="font-mono text-brand-700">
-                          {hoveredBarIdx !== null && histogramBars[hoveredBarIdx]
-                            ? `${histogramBars[hoveredBarIdx].label}: ${count(histogramBars[hoveredBarIdx].value)}`
-                            : histogramBars[Math.floor(histogramBars.length / 2)]?.label}
-                        </span>
-                        <span>{histogramBars[histogramBars.length - 1]?.label}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="py-4 text-center text-[11px] text-brand-400">
-                      Daily visitor bars appear after GA4/GSC sync
-                    </p>
-                  )}
-                </div>
+                {/* When scoped to a country, show country GSC + GA4 drilldown metrics; otherwise show daily bar histogram */}
+                {selectedCountry ? (
+                  <div className="mt-3.5 grid grid-cols-2 gap-1.5 border-t border-brand-200/50 pt-3 text-left">
+                    <div className="rounded-xl bg-brand-100/65 px-2.5 py-1.5">
+                      <p className="text-[9.5px] font-medium text-brand-400">GA4 Visitors</p>
+                      <p className="font-mono text-xs font-bold text-brand-950">
+                        {count(selectedCountry.visitors)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-brand-100/65 px-2.5 py-1.5">
+                      <p className="text-[9.5px] font-medium text-brand-400">GSC Clicks</p>
+                      <p className="font-mono text-xs font-bold text-brand-950">
+                        {count(selectedCountry.clicks)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-brand-100/65 px-2.5 py-1.5">
+                      <p className="text-[9.5px] font-medium text-brand-400">Impressions</p>
+                      <p className="font-mono text-xs font-bold text-brand-950">
+                        {count(selectedCountry.impressions)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-brand-100/65 px-2.5 py-1.5">
+                      <p className="text-[9.5px] font-medium text-brand-400">CTR · Pos</p>
+                      <p className="font-mono text-xs font-bold text-brand-950">
+                        {selectedCountry.ctr !== null ? percent(selectedCountry.ctr) : "—"}
+                        {selectedCountry.position !== null ? ` · #${selectedCountry.position.toFixed(1)}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3.5">
+                    {histogramBars.length > 0 ? (
+                      <>
+                        <div
+                          className="flex h-[56px] items-end gap-[3px]"
+                          onMouseLeave={() => setHoveredBarIdx(null)}
+                        >
+                          {histogramBars.map((bar, idx) => {
+                            const isHot = hoveredBarIdx === idx;
+                            const isAccent = bar.ratio >= 0.45;
+                            return (
+                              <div
+                                key={bar.date}
+                                onMouseEnter={() => setHoveredBarIdx(idx)}
+                                title={`${bar.label}: ${count(bar.value)}`}
+                                className="group flex h-full flex-1 items-end"
+                              >
+                                <span
+                                  className={cn(
+                                    "block w-full rounded-t-sm transition-all duration-150",
+                                    isHot
+                                      ? "bg-brand-950"
+                                      : isAccent
+                                        ? "bg-brand-600/75"
+                                        : "bg-brand-300/75",
+                                  )}
+                                  style={{ height: `${Math.max(10, Math.round(bar.ratio * 100))}%` }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between text-[9.5px] font-medium text-brand-400">
+                          <span>{histogramBars[0]?.label}</span>
+                          <span className="font-mono text-brand-700">
+                            {hoveredBarIdx !== null && histogramBars[hoveredBarIdx]
+                              ? `${histogramBars[hoveredBarIdx].label}: ${count(histogramBars[hoveredBarIdx].value)}`
+                              : histogramBars[Math.floor(histogramBars.length / 2)]?.label}
+                          </span>
+                          <span>{histogramBars[histogramBars.length - 1]?.label}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="py-4 text-center text-[11px] text-brand-400">
+                        Daily bars appear after GA4/GSC sync
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Left Card 2: Total Sessions / Reach Sparkline (Desktop floating) */}
+              {/* Left Card 2: Total Sessions Sparkline + Cloud/Bot Hygiene */}
               <div className="globe-glass hidden rounded-2xl px-4 py-3.5 lg:block">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-semibold text-brand-950">Total Sessions</span>
+                  <span className="font-semibold text-brand-950">
+                    {botHubStats.botCityCount > 0 && hideBotHubs ? "Est. Human City Traffic" : "Total Sessions"}
+                  </span>
                   <span className="text-[10px] text-brand-400">last {periodDays} days</span>
                 </div>
-                <div className="relative mt-2 h-[46px] w-full">
+                <div className="relative mt-2 h-[44px] w-full">
                   {sparkline ? (
                     <svg
                       viewBox={`0 0 ${sparkline.w} ${sparkline.h}`}
@@ -662,20 +1100,44 @@ export function GlobalTrafficGlobe({
                   )}
                   <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
                     <span className="rounded-lg bg-brand-950 px-2.5 py-0.5 font-mono text-[11px] font-bold text-brand-50 shadow-sm">
-                      {sessionsCount !== null ? count(sessionsCount) : `${countries.length} regions`}
+                      {botHubStats.botCityCount > 0 && hideBotHubs
+                        ? count(botHubStats.humanSessions)
+                        : sessionsCount !== null
+                          ? count(sessionsCount)
+                          : `${metricCountries.length} regions`}
                     </span>
                   </div>
                 </div>
+                {botHubStats.botCityCount > 0 && (
+                  <div className="mt-2 flex items-center justify-between border-t border-brand-200/50 pt-2 text-[10px]">
+                    <span className="inline-flex items-center gap-1 font-medium text-warning-700">
+                      <Bot className="h-3 w-3" />
+                      {botHubStats.botCityCount} cloud hubs ({count(botHubStats.botSessions)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setHideBotHubs((prev) => !prev)}
+                      className="font-semibold text-primary-700 hover:underline cursor-pointer"
+                    >
+                      {hideBotHubs ? "Show all" : "Filter out"}
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Left Card 3: Segmented Traffic Mix Status Card (Desktop floating) */}
+              {/* Left Card 3: Segmented Traffic Mix / Country City Split Card */}
               <div className="globe-glass hidden rounded-2xl px-4 py-3.5 lg:block">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-semibold text-brand-950">{segmentedMix.title}</span>
                   <span className="text-[10px] text-brand-400">last {periodDays} days</span>
                 </div>
                 {segmentedMix.items.length > 0 ? (
-                  <div className="mt-3 grid grid-cols-4 gap-1.5">
+                  <div
+                    className={cn(
+                      "mt-3 grid gap-1.5",
+                      segmentedMix.items.length <= 2 ? "grid-cols-2" : "grid-cols-4",
+                    )}
+                  >
                     {segmentedMix.items.map((seg, idx) => (
                       <div key={seg.label} className="min-w-0">
                         <p className="truncate text-[10px] font-medium text-brand-700" title={seg.label}>
@@ -710,15 +1172,68 @@ export function GlobalTrafficGlobe({
               </div>
             </div>
 
+            {/* TOP-CENTER METRIC SWITCHER PILL (Visitors | Clicks | Impressions) */}
+            <div
+              role="tablist"
+              aria-label="Globe traffic metric"
+              className="globe-glass-pill pointer-events-auto hidden items-center gap-1 rounded-2xl p-1 xl:inline-flex"
+            >
+              {(
+                [
+                  { id: "visitors", label: "Visitors", icon: Users, disabled: false },
+                  { id: "clicks", label: "Clicks", icon: MousePointerClick, disabled: !hasGscCountryMetrics },
+                  { id: "impressions", label: "Impressions", icon: Eye, disabled: !hasGscCountryMetrics },
+                ] as const
+              ).map((m) => {
+                const Icon = m.icon;
+                const active = metricMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    disabled={m.disabled}
+                    title={m.disabled ? "Connect Search Console for per-country search metrics" : `Color & size map by ${m.label}`}
+                    onClick={() => {
+                      setMetricMode(m.id);
+                      setPinLayer("countries");
+                      setRightTab("countries");
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11.5px] font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
+                      active
+                        ? "bg-brand-950 text-brand-50 shadow-xs"
+                        : "text-brand-600 hover:text-brand-950",
+                    )}
+                  >
+                    <Icon className="h-3 w-3" />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* RIGHT FLOATING STACK */}
-            <div className="pointer-events-auto flex flex-col items-end gap-3 lg:w-[308px] xl:w-[328px]">
-              {/* Top-right action buttons (Export + Plan Traffic + Fullscreen) */}
-              <div className="flex items-center gap-2">
+            <div className="pointer-events-auto flex flex-col items-end gap-3 lg:w-[314px] xl:w-[334px]">
+              {/* Top-right action buttons (PNG Snapshot + CSV Export + Report + Fullscreen) */}
+              <div className="flex items-center gap-1.5">
+                {viewMode !== "map" && (
+                  <button
+                    type="button"
+                    onClick={handleSnapshotDownload}
+                    title="Download presentation PNG snapshot"
+                    aria-label="Download PNG snapshot"
+                    className="globe-glass-pill inline-flex h-9 w-9 items-center justify-center rounded-2xl text-brand-700 transition hover:text-brand-950 cursor-pointer"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => buildCsvAndDownload(countries, cities, periodDays)}
-                  disabled={countries.length === 0 && cities.length === 0}
-                  className="globe-glass-pill inline-flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-semibold text-brand-800 transition hover:text-brand-950 disabled:opacity-45 cursor-pointer"
+                  onClick={() => buildCsvAndDownload(metricCountries, filteredCities, periodDays)}
+                  disabled={metricCountries.length === 0 && filteredCities.length === 0}
+                  className="globe-glass-pill inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold text-brand-800 transition hover:text-brand-950 disabled:opacity-45 cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
                   <span>Export</span>
@@ -729,7 +1244,7 @@ export function GlobalTrafficGlobe({
                   className="inline-flex items-center gap-1.5 rounded-2xl bg-brand-950 px-3.5 py-2 text-xs font-semibold text-brand-50 shadow-sm transition hover:bg-brand-800 cursor-pointer"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Traffic Report</span>
+                  <span className="hidden sm:inline">Report</span>
                 </button>
                 <button
                   type="button"
@@ -742,15 +1257,15 @@ export function GlobalTrafficGlobe({
                 </button>
               </div>
 
-              {/* Right Main Tabbed Panel (Countries / Cities / Live 30m) — Desktop Floating */}
+              {/* Right Main Tabbed Panel (Countries / Cities / Live 30m) + Instant Search */}
               <div className="globe-glass hidden w-full flex-col rounded-2xl p-3.5 lg:flex">
                 {/* Segmented Pill Tabs */}
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-brand-100/75 p-1 text-[11px] font-semibold">
                   {(
                     [
-                      { id: "countries", label: "Countries", badge: countries.length },
-                      { id: "cities", label: "Cities", badge: cities.length },
-                      { id: "live", label: "Live 30m", badge: realtimeData?.activeUsers ?? null },
+                      { id: "countries", label: "Countries" },
+                      { id: "cities", label: "Cities" },
+                      { id: "live", label: "Live 30m" },
                     ] as const
                   ).map((tab) => {
                     const active = rightTab === tab.id;
@@ -786,13 +1301,55 @@ export function GlobalTrafficGlobe({
                   })}
                 </div>
 
+                {/* Instant Search Filter + Bot Filter Row */}
+                <div className="mt-2.5 flex items-center gap-1.5">
+                  <form onSubmit={handleSearchSubmit} className="relative flex-1">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3 w-3 -translate-y-1/2 text-brand-400" />
+                    <input
+                      type="search"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={rightTab === "cities" ? "Find city & press Enter…" : "Find country & press Enter…"}
+                      aria-label="Filter regions on globe"
+                      className="w-full rounded-xl border border-brand-200/70 bg-surface-1/80 py-1.5 pr-6 pl-7 text-[11px] text-brand-950 placeholder:text-brand-400 focus:border-primary-500 focus:outline-none"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        aria-label="Clear search"
+                        className="absolute top-1/2 right-2 -translate-y-1/2 text-brand-400 hover:text-brand-950 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </form>
+
+                  {rightTab === "cities" && botHubStats.botCityCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setHideBotHubs((prev) => !prev)}
+                      title={hideBotHubs ? "Showing non-datacenter cities only. Click to show all." : "Hide known cloud/bot datacenter hubs"}
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded-xl border px-2 py-1.5 text-[10px] font-bold transition cursor-pointer",
+                        hideBotHubs
+                          ? "border-success-500/40 bg-success-50 text-success-700"
+                          : "border-warning-500/40 bg-warning-50 text-warning-700",
+                      )}
+                    >
+                      {hideBotHubs ? <ShieldCheck className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                      <span>{hideBotHubs ? "Human" : `${botHubStats.botCityCount} Bots`}</span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Tab Content Feed */}
-                <div className="mt-2.5 max-h-[340px] divide-y divide-brand-200/50 overflow-y-auto pr-0.5">
+                <div className="mt-2 max-h-[305px] divide-y divide-brand-200/50 overflow-y-auto pr-0.5">
                   {rightTab === "countries" && (
                     displayedCountries.length > 0 ? (
                       displayedCountries.map((row) => {
                         const pinId = `country:${row.code}`;
-                        const active = selectedPinId === pinId || hoveredPinId === pinId;
+                        const active = selectedPinId === pinId || hoveredPinId === pinId || selectedCountryCode === row.code;
                         const liveHere = realtimeByCountryCode.get(row.code) ?? 0;
                         return (
                           <button
@@ -800,6 +1357,7 @@ export function GlobalTrafficGlobe({
                             type="button"
                             onClick={() => {
                               setPinLayer("countries");
+                              setSelectedCountryCode(row.code);
                               setSelectedPinId(pinId);
                               if (row.lat !== null && row.lng !== null) flyTo(row.lat, row.lng);
                             }}
@@ -825,7 +1383,6 @@ export function GlobalTrafficGlobe({
                                 {count(row.count)}
                               </span>
                             </div>
-                            {/* Dotted share track inspired by reference route indicator */}
                             <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-brand-500">
                               <span className="font-mono uppercase text-[10px] text-brand-400">
                                 {row.code}
@@ -850,7 +1407,9 @@ export function GlobalTrafficGlobe({
                       })
                     ) : (
                       <div className="py-8 text-center text-xs text-brand-400">
-                        No country-level traffic recorded in this period yet.
+                        {normalizedQuery
+                          ? `No countries match "${searchQuery}".`
+                          : "No country-level traffic recorded in this period yet."}
                       </div>
                     )
                   )}
@@ -880,6 +1439,14 @@ export function GlobalTrafficGlobe({
                               <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950 truncate">
                                 <span className="font-mono text-[10px] text-brand-400">#{idx + 1}</span>
                                 <span className="truncate">{row.city}</span>
+                                {row.botHubReason && (
+                                  <span
+                                    title={row.botHubReason}
+                                    className="inline-flex shrink-0 items-center rounded-full bg-warning-50 px-1.5 py-0.5 text-[9px] font-bold text-warning-700"
+                                  >
+                                    Bot
+                                  </span>
+                                )}
                               </span>
                               <span className="font-mono text-xs font-bold text-brand-950">
                                 {count(row.count)}
@@ -892,7 +1459,10 @@ export function GlobalTrafficGlobe({
                               <div className="relative flex flex-1 items-center">
                                 <div className="h-[2px] w-full border-b border-dashed border-brand-300" />
                                 <div
-                                  className="absolute left-0 h-[3px] rounded-full bg-accent-500"
+                                  className={cn(
+                                    "absolute left-0 h-[3px] rounded-full",
+                                    row.botHubReason ? "bg-warning-500" : "bg-accent-500",
+                                  )}
                                   style={{ width: `${Math.max(4, Math.min(100, row.share * 100))}%` }}
                                 />
                                 <span
@@ -911,15 +1481,29 @@ export function GlobalTrafficGlobe({
                       <div className="flex flex-col items-center justify-center py-7 text-center">
                         <MapPin className="h-5 w-5 text-brand-400" />
                         <p className="mt-2 text-xs font-semibold text-brand-950">
-                          No city visitors recorded yet
+                          {normalizedQuery
+                            ? `No cities match "${searchQuery}"`
+                            : hideBotHubs && cities.length > 0
+                              ? "All recorded cities were flagged as cloud/bot hubs"
+                              : "No city visitors recorded yet"}
                         </p>
-                        <button
-                          type="button"
-                          onClick={onOpenReport}
-                          className="mt-2.5 rounded-full bg-brand-950 px-3 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 cursor-pointer"
-                        >
-                          Plan Target Cities →
-                        </button>
+                        {hideBotHubs && cities.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setHideBotHubs(false)}
+                            className="mt-2.5 rounded-full bg-brand-950 px-3 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 cursor-pointer"
+                          >
+                            Show All Cities
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={onOpenReport}
+                            className="mt-2.5 rounded-full bg-brand-950 px-3 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 cursor-pointer"
+                          >
+                            Plan Target Cities →
+                          </button>
+                        )}
                       </div>
                     )
                   )}
@@ -934,6 +1518,7 @@ export function GlobalTrafficGlobe({
                             onClick={() => {
                               if (row.lat !== null && row.lng !== null) {
                                 setPinLayer("countries");
+                                setSelectedCountryCode(row.code);
                                 setSelectedPinId(`country:${row.code}`);
                                 flyTo(row.lat, row.lng);
                               }
@@ -956,7 +1541,7 @@ export function GlobalTrafficGlobe({
                             {count(realtimeData.activeUsers)}
                           </p>
                           <p className="mt-1 text-[11px] text-brand-400">
-                            Active in last 30 min · no country breakdown rows reported yet
+                            Active in last 30 min · no country rows matched
                           </p>
                         </div>
                       )
@@ -974,8 +1559,8 @@ export function GlobalTrafficGlobe({
                 </div>
 
                 {/* Footer See All / Show Less */}
-                {((rightTab === "countries" && countries.length > 7) ||
-                  (rightTab === "cities" && cities.length > 7)) && (
+                {((rightTab === "countries" && searchedCountries.length > 7) ||
+                  (rightTab === "cities" && searchedCities.length > 7)) && (
                   <button
                     type="button"
                     onClick={() => setShowAllRows((prev) => !prev)}
@@ -983,7 +1568,7 @@ export function GlobalTrafficGlobe({
                   >
                     {showAllRows
                       ? "Show Top 7"
-                      : `See All (${rightTab === "countries" ? countries.length : cities.length})`}
+                      : `See All (${rightTab === "countries" ? searchedCountries.length : searchedCities.length})`}
                   </button>
                 )}
               </div>
@@ -999,9 +1584,11 @@ export function GlobalTrafficGlobe({
                   <Activity className="h-3.5 w-3.5" />
                 </span>
                 <div className="leading-tight">
-                  <p className="text-[11.5px] font-bold text-brand-950">Global Traffic</p>
+                  <p className="text-[11.5px] font-bold text-brand-950">
+                    {selectedCountry ? `${selectedCountry.flag} ${selectedCountry.country}` : "Global Traffic"}
+                  </p>
                   <p className="text-[10px] text-brand-500">
-                    {countries.length} {countries.length === 1 ? "country" : "countries"} · {cities.length} {cities.length === 1 ? "city" : "cities"}
+                    {metricCountries.length} {metricCountries.length === 1 ? "country" : "countries"} · {filteredCities.length} {filteredCities.length === 1 ? "city" : "cities"}
                   </p>
                 </div>
                 {realtimeData && (
@@ -1087,7 +1674,6 @@ export function GlobalTrafficGlobe({
                 </div>
               )}
 
-              {/* Mini City Spotlight Cards matching reference bottom-right preview cards */}
               {spotlightCities.length > 0 && (
                 <div className="flex items-stretch gap-2">
                   {spotlightCities.map((city, idx) => (
@@ -1103,8 +1689,15 @@ export function GlobalTrafficGlobe({
                       className="globe-city-thumb group relative flex h-[76px] w-[156px] flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/70 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-950 text-brand-50">
-                          <MapPin className="h-2.5 w-2.5" />
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 items-center justify-center rounded-full",
+                            city.botHubReason
+                              ? "bg-warning-500 text-surface-1"
+                              : "bg-brand-950 text-brand-50",
+                          )}
+                        >
+                          {city.botHubReason ? <Bot className="h-2.5 w-2.5" /> : <MapPin className="h-2.5 w-2.5" />}
                         </span>
                         <span className="globe-glass-pill rounded-md px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-brand-800">
                           {percent(city.share)}
@@ -1115,7 +1708,7 @@ export function GlobalTrafficGlobe({
                           #{idx + 1} {city.city}
                         </p>
                         <p className="truncate font-mono text-[9.5px] text-brand-500">
-                          {city.flag} {count(city.count)} visitors
+                          {city.flag} {count(city.count)} {city.botHubReason ? "· bot hub" : "visitors"}
                         </p>
                       </div>
                     </button>
@@ -1126,7 +1719,7 @@ export function GlobalTrafficGlobe({
           </div>
         </div>
 
-        {/* Fullscreen close pill helper */}
+        {/* Fullscreen close helper on small screens */}
         {isFullscreen && (
           <button
             type="button"
@@ -1147,18 +1740,19 @@ export function GlobalTrafficGlobe({
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-bold text-brand-950">
                 <Layers className="h-3.5 w-3.5 text-brand-500" />
-                <span>Top Countries</span>
+                <span>Top Countries ({metricMeta.short})</span>
               </h3>
-              <span className="font-mono text-[11px] text-brand-500">{countries.length} total</span>
+              <span className="font-mono text-[11px] text-brand-500">{metricCountries.length} total</span>
             </div>
             <div className="mt-3 space-y-2">
-              {countries.length > 0 ? (
-                countries.slice(0, 5).map((row) => (
+              {metricCountries.length > 0 ? (
+                metricCountries.slice(0, 5).map((row) => (
                   <button
                     key={row.code}
                     type="button"
                     onClick={() => {
                       setPinLayer("countries");
+                      setSelectedCountryCode(row.code);
                       setSelectedPinId(`country:${row.code}`);
                       if (row.lat !== null && row.lng !== null) flyTo(row.lat, row.lng);
                     }}
@@ -1184,11 +1778,21 @@ export function GlobalTrafficGlobe({
                 <Building2 className="h-3.5 w-3.5 text-brand-500" />
                 <span>Top Cities</span>
               </h3>
-              <span className="font-mono text-[11px] text-brand-500">{cities.length} total</span>
+              {botHubStats.botCityCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setHideBotHubs((prev) => !prev)}
+                  className="text-[11px] font-semibold text-primary-700 underline"
+                >
+                  {hideBotHubs ? "Show bots" : `Hide ${botHubStats.botCityCount} bots`}
+                </button>
+              ) : (
+                <span className="font-mono text-[11px] text-brand-500">{filteredCities.length} total</span>
+              )}
             </div>
             <div className="mt-3 space-y-2">
-              {cities.length > 0 ? (
-                cities.slice(0, 5).map((row, idx) => (
+              {filteredCities.length > 0 ? (
+                filteredCities.slice(0, 5).map((row, idx) => (
                   <button
                     key={`${row.city}-${idx}`}
                     type="button"
@@ -1199,8 +1803,13 @@ export function GlobalTrafficGlobe({
                     }}
                     className="flex w-full items-center justify-between text-xs"
                   >
-                    <span className="font-semibold text-brand-950">
-                      #{idx + 1} {row.city}
+                    <span className="flex items-center gap-1.5 font-semibold text-brand-950">
+                      <span>#{idx + 1} {row.city}</span>
+                      {row.botHubReason && (
+                        <span className="rounded bg-warning-50 px-1 py-0.5 text-[9px] font-bold text-warning-700">
+                          Bot
+                        </span>
+                      )}
                     </span>
                     <span className="font-mono text-brand-600">
                       {count(row.count)} ({percent(row.share)})

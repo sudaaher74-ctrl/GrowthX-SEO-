@@ -23,7 +23,7 @@ import {
   type TrafficCityRow,
   type TrafficCountryRow,
 } from "@/components/google/global-traffic-globe";
-import { resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
+import { detectDatacenterCity, resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
 import {
   Area,
   CartesianGrid,
@@ -169,7 +169,7 @@ function TrafficViewClient() {
     }
 
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [gscTimeseries.query.data, reportData?.daily, periodDays]);
+  }, [gscTimeseries.query.data, reportData?.daily]);
 
   // Channels / Sources Breakdown
   const channelBreakdown = useMemo<TrafficOriginItem[]>(() => {
@@ -218,54 +218,92 @@ function TrafficViewClient() {
       .slice(0, 10);
   }, [reportData]);
 
-  // Countries Breakdown (mapped to real lat/lng coordinates for 3D Earth & 2D Map)
+  // Countries Breakdown: merge GA4 visitors and GSC search metrics per country for metric switching & drilldown
   const countriesBreakdown = useMemo<TrafficCountryRow[]>(() => {
     const ga4Countries = reportData?.countries ?? [];
-    if (ga4Countries.length > 0) {
-      const totalSessions = ga4Countries.reduce((sum: number, c: { sessions?: number; users?: number }) => sum + (c.sessions ?? c.users ?? 0), 0) || 1;
-      return ga4Countries
-        .map((c) => {
-          const geo = resolveCountryGeo(c.country);
-          const rawCode = geo?.code ?? c.country.slice(0, 2).toUpperCase();
-          const countVal = c.sessions ?? c.users ?? 0;
-          return {
-            country: geo?.name ?? c.country,
-            code: rawCode,
-            flag: geo?.flag ?? "🌐",
-            count: countVal,
-            share: countVal / totalSessions,
-            lat: geo?.lat ?? null,
-            lng: geo?.lng ?? null,
-          };
-        })
-        .sort((a, b) => b.count - a.count);
-    }
-
     const gscRows = countryBreakdown.query.data?.rows ?? [];
-    if (gscRows.length > 0) {
-      const totalClicks = gscRows.reduce((sum: number, r: { clicks?: number; impressions?: number }) => sum + (r.clicks ?? 0), 0) || 1;
-      return gscRows
-        .map((r) => {
-          const geo = resolveCountryGeo(r.key);
-          const rawCode = geo?.code ?? r.key.toUpperCase();
-          const countVal = r.clicks ?? 0;
-          return {
-            country: geo?.name ?? r.key.toUpperCase(),
-            code: rawCode,
-            flag: geo?.flag ?? "🌐",
-            count: countVal,
-            share: countVal / totalClicks,
-            lat: geo?.lat ?? null,
-            lng: geo?.lng ?? null,
-          };
-        })
-        .sort((a, b) => b.count - a.count);
+    const merged = new Map<
+      string,
+      {
+        country: string;
+        code: string;
+        flag: string;
+        visitors: number | null;
+        clicks: number | null;
+        impressions: number | null;
+        ctr: number | null;
+        position: number | null;
+        lat: number | null;
+        lng: number | null;
+      }
+    >();
+
+    for (const c of ga4Countries) {
+      const geo = resolveCountryGeo(c.country);
+      const code = geo?.code ?? c.country.slice(0, 2).toUpperCase();
+      const visitorsVal = c.sessions ?? c.users ?? 0;
+      const existing = merged.get(code);
+      if (existing) {
+        existing.visitors = (existing.visitors ?? 0) + visitorsVal;
+      } else {
+        merged.set(code, {
+          country: geo?.name ?? c.country,
+          code,
+          flag: geo?.flag ?? "🌐",
+          visitors: visitorsVal,
+          clicks: null,
+          impressions: null,
+          ctr: null,
+          position: null,
+          lat: geo?.lat ?? null,
+          lng: geo?.lng ?? null,
+        });
+      }
     }
 
-    return [];
+    for (const r of gscRows) {
+      const geo = resolveCountryGeo(r.key);
+      const code = geo?.code ?? r.key.toUpperCase();
+      const existing = merged.get(code);
+      if (existing) {
+        existing.clicks = (existing.clicks ?? 0) + (r.clicks ?? 0);
+        existing.impressions = (existing.impressions ?? 0) + (r.impressions ?? 0);
+        existing.ctr = r.ctr ?? existing.ctr;
+        existing.position = r.position ?? existing.position;
+      } else {
+        merged.set(code, {
+          country: geo?.name ?? r.key.toUpperCase(),
+          code,
+          flag: geo?.flag ?? "🌐",
+          visitors: null,
+          clicks: r.clicks ?? 0,
+          impressions: r.impressions ?? 0,
+          ctr: r.ctr ?? null,
+          position: r.position ?? null,
+          lat: geo?.lat ?? null,
+          lng: geo?.lng ?? null,
+        });
+      }
+    }
+
+    const entries = Array.from(merged.values());
+    if (entries.length === 0) return [];
+
+    const hasGa4 = ga4Countries.length > 0;
+    const total = entries.reduce((sum, item) => sum + (hasGa4 ? (item.visitors ?? 0) : (item.clicks ?? 0)), 0) || 1;
+    return entries
+      .map((item) => {
+        const primaryCount = hasGa4 ? (item.visitors ?? 0) : (item.clicks ?? 0);
+        return {
+          ...item,
+          count: primaryCount,
+          share: primaryCount / total,
+        };
+      })
+      .sort((a, b) => b.count - a.count || (b.impressions ?? 0) - (a.impressions ?? 0));
   }, [reportData?.countries, countryBreakdown.query.data?.rows]);
 
-  // Cities Breakdown (mapped to exact city lat/lng or country fallback)
+  // Cities Breakdown (mapped to exact city lat/lng or country fallback + cloud/bot hub flagging)
   const citiesBreakdown = useMemo<TrafficCityRow[]>(() => {
     if (!reportData?.cities || reportData.cities.length === 0) {
       return [];
@@ -286,6 +324,7 @@ function TrafficViewClient() {
           lat: resolved?.lat ?? null,
           lng: resolved?.lng ?? null,
           exactCity: resolved?.exactCity ?? false,
+          botHubReason: detectDatacenterCity(c.city),
         };
       })
       .sort((a, b) => b.count - a.count)
@@ -774,6 +813,7 @@ function TrafficViewClient() {
         visitorsCount={visitorsCount}
         sessionsCount={sessionsCount}
         searchClicks={searchClicks}
+        searchImpressions={searchImpressions}
         clicksChangePct={roundedClicksChangePct}
         dailyChartData={dailyChartData}
         channels={channelBreakdown}

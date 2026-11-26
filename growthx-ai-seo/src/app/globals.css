@@ -896,6 +896,31 @@ details.faq-details:not([open])::details-content {
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.55);
 }
 
+.globe-pin-bot .globe-pin-halo {
+  border-color: rgba(245, 158, 11, 0.92);
+  background: rgba(245, 158, 11, 0.24);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.45);
+}
+
+.globe-pin-bot .globe-pin-core {
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.9);
+}
+
+.globe-cluster-badge {
+  background: rgba(9, 9, 11, 0.88);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.28);
+}
+
+.dash-dark .globe-cluster-badge,
+.dark .globe-cluster-badge {
+  background: #c8f53a;
+  color: #10130a;
+  border-color: #0f1115;
+}
+
 .dash-dark .globe-pin-halo,
 .dark .globe-pin-halo {
   background: rgba(200, 245, 58, 0.18);

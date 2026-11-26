@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { feature, mesh as topoMesh } from "topojson-client";
+import countriesAtlas from "world-atlas/countries-110m.json";
+import { ISO_NUMERIC_TO_CODE } from "@/lib/geo-coordinates";
 import { count, percent } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +18,9 @@ export interface GlobePin {
   lng: number;
   visitors: number;
   share: number;
+  metricUnit?: string;
   liveUsers?: number;
+  botHubReason?: string | null;
 }
 
 export interface GlobeFlowArc {
@@ -27,10 +32,30 @@ export interface GlobeFlowArc {
   weight: number;
 }
 
+export interface GlobeProjectedSnapshotPin {
+  x: number;
+  y: number;
+  label: string;
+  flag: string;
+  valueLabel: string;
+  isBot: boolean;
+  isLive: boolean;
+  share: number;
+}
+
+export interface GlobeCapturePayload {
+  dataUrl: string;
+  width: number;
+  height: number;
+  visiblePins: GlobeProjectedSnapshotPin[];
+}
+
 interface EarthGlobeCanvasProps {
   pins: GlobePin[];
   arcs: GlobeFlowArc[];
   showFlows: boolean;
+  showBorders: boolean;
+  highlightedCountryCode: string | null;
   isDark: boolean;
   autoRotate: boolean;
   selectedPinId: string | null;
@@ -39,10 +64,11 @@ interface EarthGlobeCanvasProps {
   zoomSignal: { delta?: number; reset?: boolean; nonce: number } | null;
   onSelectPin: (pin: GlobePin) => void;
   onHoverPin: (id: string | null) => void;
+  onRegisterCapture?: (captureFn: (() => GlobeCapturePayload | null) | null) => void;
 }
 
 const GLOBE_RADIUS = 1;
-const MIN_CAMERA_Z = 2.05;
+const MIN_CAMERA_Z = 1.92;
 const MAX_CAMERA_Z = 3.7;
 const DEFAULT_CAMERA_Z = 2.62;
 const INITIAL_LAT = 28;
@@ -67,6 +93,86 @@ function shortestAngleDiff(from: number, to: number): number {
   let diff = ((to - from + Math.PI) % (Math.PI * 2)) - Math.PI;
   if (diff < -Math.PI) diff += Math.PI * 2;
   return diff;
+}
+
+/** Precomputes 3D border vertex buffers (all world borders + per-country highlight borders). */
+interface CountryBorderAtlasCache {
+  allPositions: Float32Array;
+  byCountryCode: Map<string, Float32Array>;
+}
+
+let cachedBorderAtlas: CountryBorderAtlasCache | null = null;
+
+function pushRingSegments(ring: number[][], radius: number, out: number[]) {
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [lngA, latA] = ring[i];
+    const [lngB, latB] = ring[i + 1];
+    // Skip antimeridian wrap jumps so lines never cut across the globe interior
+    if (Math.abs(lngB - lngA) > 170) continue;
+    const a = latLngToVector3(latA, lngA, radius);
+    const b = latLngToVector3(latB, lngB, radius);
+    out.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+}
+
+function getCountryBorderAtlas(): CountryBorderAtlasCache {
+  if (cachedBorderAtlas) return cachedBorderAtlas;
+
+  type AtlasTopology = Parameters<typeof feature>[0];
+  type AtlasGeometry = Parameters<typeof feature>[1];
+  const topo = countriesAtlas as unknown as AtlasTopology & {
+    objects: { countries: AtlasGeometry };
+  };
+
+  // All borders merged once via topojson.mesh
+  const merged = topoMesh(
+    topo as unknown as Parameters<typeof topoMesh>[0],
+    topo.objects.countries as unknown as Parameters<typeof topoMesh>[1],
+  );
+  const allCoords: number[] = [];
+  for (const line of merged.coordinates) {
+    pushRingSegments(line as number[][], GLOBE_RADIUS * 1.003, allCoords);
+  }
+
+  // Per-country border loops for instant hover/selection highlight
+  const fc = feature(topo, topo.objects.countries);
+  const features = "features" in fc ? fc.features : [];
+  const countryBuckets = new Map<string, number[]>();
+
+  for (const f of features) {
+    const rawId = String(f.id ?? "");
+    const code = ISO_NUMERIC_TO_CODE.get(rawId.padStart(3, "0")) ?? ISO_NUMERIC_TO_CODE.get(rawId);
+    if (!code || !f.geometry) continue;
+
+    let bucket = countryBuckets.get(code);
+    if (!bucket) {
+      bucket = [];
+      countryBuckets.set(code, bucket);
+    }
+
+    if (f.geometry.type === "Polygon") {
+      for (const ring of f.geometry.coordinates) {
+        pushRingSegments(ring as number[][], GLOBE_RADIUS * 1.0065, bucket);
+      }
+    } else if (f.geometry.type === "MultiPolygon") {
+      for (const poly of f.geometry.coordinates) {
+        for (const ring of poly) {
+          pushRingSegments(ring as number[][], GLOBE_RADIUS * 1.0065, bucket);
+        }
+      }
+    }
+  }
+
+  const byCountryCode = new Map<string, Float32Array>();
+  for (const [code, arr] of countryBuckets.entries()) {
+    if (arr.length > 0) byCountryCode.set(code, new Float32Array(arr));
+  }
+
+  cachedBorderAtlas = {
+    allPositions: new Float32Array(allCoords),
+    byCountryCode,
+  };
+  return cachedBorderAtlas;
 }
 
 const INNER_ATMOS_VERT = `
@@ -119,6 +225,8 @@ export function EarthGlobeCanvas({
   pins,
   arcs,
   showFlows,
+  showBorders,
+  highlightedCountryCode,
   isDark,
   autoRotate,
   selectedPinId,
@@ -127,18 +235,24 @@ export function EarthGlobeCanvas({
   zoomSignal,
   onSelectPin,
   onHoverPin,
+  onRegisterCapture,
 }: EarthGlobeCanvasProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const pinElementsRef = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const clusterBadgeElementsRef = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const clusteredPinIdsRef = useRef<Set<string>>(new Set());
   const [webglError, setWebglError] = useState(false);
 
-  // Live reactive refs read by animation loop without recreating WebGL context
   const pinsRef = useRef<GlobePin[]>(pins);
   const autoRotateRef = useRef<boolean>(autoRotate);
   const isDarkRef = useRef<boolean>(isDark);
   const showFlowsRef = useRef<boolean>(showFlows);
+  const showBordersRef = useRef<boolean>(showBorders);
   const arcsRef = useRef<GlobeFlowArc[]>(arcs);
+  const selectedPinIdRef = useRef<string | null>(selectedPinId);
+  const hoveredPinIdRef = useRef<string | null>(hoveredPinId);
+  const highlightedCountryCodeRef = useRef<string | null>(highlightedCountryCode);
 
   useEffect(() => {
     pinsRef.current = pins;
@@ -148,7 +262,14 @@ export function EarthGlobeCanvas({
     autoRotateRef.current = autoRotate;
   }, [autoRotate]);
 
-  // Rotation / camera target state shared with focus & zoom signals
+  useEffect(() => {
+    selectedPinIdRef.current = selectedPinId;
+  }, [selectedPinId]);
+
+  useEffect(() => {
+    hoveredPinIdRef.current = hoveredPinId;
+  }, [hoveredPinId]);
+
   const initialRot = targetRotationsForLatLng(INITIAL_LAT, INITIAL_LNG);
   const motionRef = useRef({
     rotX: initialRot.rotX,
@@ -161,18 +282,16 @@ export function EarthGlobeCanvas({
     targetCameraZ: DEFAULT_CAMERA_Z,
     dragging: false,
     flying: false,
-    pointerStartX: 0,
-    pointerStartY: 0,
     lastPointerX: 0,
     lastPointerY: 0,
     pausedByVisibility: false,
     reducedMotion: false,
   });
 
-  // Theme / arc updater callbacks populated by the Three.js setup effect
   const sceneHooksRef = useRef<{
     applyTheme: (dark: boolean) => void;
     rebuildArcs: (nextArcs: GlobeFlowArc[], visible: boolean, dark: boolean) => void;
+    updateBorders: (visible: boolean, highlightCode: string | null, dark: boolean) => void;
     resumeLoop: () => void;
   } | null>(null);
 
@@ -180,6 +299,7 @@ export function EarthGlobeCanvas({
     isDarkRef.current = isDark;
     sceneHooksRef.current?.applyTheme(isDark);
     sceneHooksRef.current?.rebuildArcs(arcsRef.current, showFlowsRef.current, isDark);
+    sceneHooksRef.current?.updateBorders(showBordersRef.current, highlightedCountryCodeRef.current, isDark);
   }, [isDark]);
 
   useEffect(() => {
@@ -187,6 +307,12 @@ export function EarthGlobeCanvas({
     showFlowsRef.current = showFlows;
     sceneHooksRef.current?.rebuildArcs(arcs, showFlows, isDarkRef.current);
   }, [arcs, showFlows]);
+
+  useEffect(() => {
+    showBordersRef.current = showBorders;
+    highlightedCountryCodeRef.current = highlightedCountryCode;
+    sceneHooksRef.current?.updateBorders(showBorders, highlightedCountryCode, isDarkRef.current);
+  }, [showBorders, highlightedCountryCode]);
 
   const lastFocusKeyRef = useRef<string | null>(null);
 
@@ -255,7 +381,6 @@ export function EarthGlobeCanvas({
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 20);
     camera.position.set(0, 0, motionRef.current.cameraZ);
 
-    // Studio soft editorial lighting
     const hemiLight = new THREE.HemisphereLight(0xf6fbff, 0xbed2de, 1.45);
     scene.add(hemiLight);
 
@@ -267,7 +392,6 @@ export function EarthGlobeCanvas({
     fillLight.position.set(3.4, -0.6, 2.2);
     scene.add(fillLight);
 
-    // Main rotating Earth group
     const globeGroup = new THREE.Group();
     globeGroup.rotation.order = "XYZ";
     globeGroup.rotation.x = motionRef.current.rotX;
@@ -292,7 +416,7 @@ export function EarthGlobeCanvas({
     const earthMat = new THREE.MeshStandardMaterial({
       map: isDarkRef.current ? nightTex : dayTex,
       bumpMap: bumpTex,
-      bumpScale: 0.032,
+      bumpScale: 0.034,
       roughnessMap: roughTex,
       roughness: 0.92,
       metalness: 0.04,
@@ -300,8 +424,33 @@ export function EarthGlobeCanvas({
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
     globeGroup.add(earthMesh);
 
+    // 3D Country Borders (single LineSegments draw call) + Selected/Hovered Highlight Outline
+    const borderAtlas = getCountryBorderAtlas();
+    const bordersGeo = new THREE.BufferGeometry();
+    bordersGeo.setAttribute("position", new THREE.BufferAttribute(borderAtlas.allPositions, 3));
+    const bordersMat = new THREE.LineBasicMaterial({
+      color: isDarkRef.current ? 0x94b8e6 : 0xffffff,
+      transparent: true,
+      opacity: isDarkRef.current ? 0.24 : 0.34,
+      depthWrite: false,
+    });
+    const bordersLines = new THREE.LineSegments(bordersGeo, bordersMat);
+    bordersLines.visible = showBordersRef.current;
+    globeGroup.add(bordersLines);
+
+    const highlightGeo = new THREE.BufferGeometry();
+    const highlightMat = new THREE.LineBasicMaterial({
+      color: isDarkRef.current ? 0xc8f53a : 0x4f46e5,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+    });
+    const highlightLines = new THREE.LineSegments(highlightGeo, highlightMat);
+    highlightLines.visible = false;
+    globeGroup.add(highlightLines);
+
     // Drifting clouds layer
-    const cloudGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.013, 72, 72);
+    const cloudGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.014, 72, 72);
     const cloudMat = new THREE.MeshStandardMaterial({
       map: cloudTex,
       transparent: true,
@@ -313,8 +462,8 @@ export function EarthGlobeCanvas({
     const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
     globeGroup.add(cloudMesh);
 
-    // Soft atmospheric rim glow (inner Fresnel + outer soft sky halo)
-    const innerAtmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.018, 64, 64);
+    // Soft atmospheric rim glow
+    const innerAtmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.019, 64, 64);
     const innerAtmosMat = new THREE.ShaderMaterial({
       vertexShader: INNER_ATMOS_VERT,
       fragmentShader: INNER_ATMOS_FRAG,
@@ -326,8 +475,7 @@ export function EarthGlobeCanvas({
       depthWrite: false,
       blending: THREE.NormalBlending,
     });
-    const innerAtmosMesh = new THREE.Mesh(innerAtmosGeo, innerAtmosMat);
-    scene.add(innerAtmosMesh);
+    scene.add(new THREE.Mesh(innerAtmosGeo, innerAtmosMat));
 
     const outerHaloGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.09, 64, 64);
     const outerHaloMat = new THREE.ShaderMaterial({
@@ -341,10 +489,9 @@ export function EarthGlobeCanvas({
       transparent: true,
       depthWrite: false,
     });
-    const outerHaloMesh = new THREE.Mesh(outerHaloGeo, outerHaloMat);
-    scene.add(outerHaloMesh);
+    scene.add(new THREE.Mesh(outerHaloGeo, outerHaloMat));
 
-    // Flows group (3D Bezier arcs + moving beacon orbs)
+    // Flows group (3D Bezier arcs + moving beacons)
     const flowsGroup = new THREE.Group();
     globeGroup.add(flowsGroup);
     let flowPulses: Array<{ curve: THREE.QuadraticBezierCurve3; mesh: THREE.Mesh; phase: number; speed: number }> = [];
@@ -373,8 +520,8 @@ export function EarthGlobeCanvas({
       const pulseColor = dark ? 0xf8ffcf : 0xffffff;
 
       nextArcs.forEach((arc, index) => {
-        const start = latLngToVector3(arc.fromLat, arc.fromLng, GLOBE_RADIUS * 1.008);
-        const end = latLngToVector3(arc.toLat, arc.toLng, GLOBE_RADIUS * 1.008);
+        const start = latLngToVector3(arc.fromLat, arc.fromLng, GLOBE_RADIUS * 1.009);
+        const end = latLngToVector3(arc.toLat, arc.toLng, GLOBE_RADIUS * 1.009);
         const dist = start.distanceTo(end);
         if (dist < 0.03) return;
 
@@ -411,9 +558,27 @@ export function EarthGlobeCanvas({
       });
     };
 
+    const updateBorders = (visible: boolean, highlightCode: string | null, dark: boolean) => {
+      bordersLines.visible = visible;
+      bordersMat.color.setHex(dark ? 0x94b8e6 : 0xffffff);
+      bordersMat.opacity = dark ? 0.24 : 0.36;
+
+      highlightMat.color.setHex(dark ? 0xc8f53a : 0x4f46e5);
+      if (highlightCode) {
+        const buf = borderAtlas.byCountryCode.get(highlightCode.toUpperCase());
+        if (buf && buf.length > 0) {
+          highlightGeo.setAttribute("position", new THREE.BufferAttribute(buf, 3));
+          highlightGeo.computeBoundingSphere();
+          highlightLines.visible = true;
+          return;
+        }
+      }
+      highlightLines.visible = false;
+    };
+
     const applyTheme = (dark: boolean) => {
       earthMat.map = dark ? nightTex : dayTex;
-      earthMat.bumpScale = dark ? 0.022 : 0.034;
+      earthMat.bumpScale = dark ? 0.022 : 0.036;
       earthMat.roughness = dark ? 0.84 : 0.92;
       earthMat.needsUpdate = true;
 
@@ -432,6 +597,7 @@ export function EarthGlobeCanvas({
 
     applyTheme(isDarkRef.current);
     rebuildArcs(arcsRef.current, showFlowsRef.current, isDarkRef.current);
+    updateBorders(showBordersRef.current, highlightedCountryCodeRef.current, isDarkRef.current);
 
     const FALLBACK_STAGE_PX = 640;
     let width = host.clientWidth > 0 ? host.clientWidth : FALLBACK_STAGE_PX;
@@ -448,23 +614,51 @@ export function EarthGlobeCanvas({
     const resizeObserver = new ResizeObserver(() => resize());
     resizeObserver.observe(host);
 
-    // Pointer drag & wheel zoom interactions on stage
+    // Multi-touch pinch + pointer drag + double-click zoom
+    const activePointers = new Map<number, { x: number; y: number }>();
+    let lastPinchDist: number | null = null;
+
+    const getPinchDistance = (): number | null => {
+      if (activePointers.size < 2) return null;
+      const pts = Array.from(activePointers.values());
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if ((e.target as HTMLElement)?.closest("button, a, input, select")) return;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const m = motionRef.current;
-      m.dragging = true;
-      m.flying = false;
-      m.velX = 0;
-      m.velY = 0;
-      m.pointerStartX = e.clientX;
-      m.pointerStartY = e.clientY;
-      m.lastPointerX = e.clientX;
-      m.lastPointerY = e.clientY;
+
+      if (activePointers.size === 1) {
+        m.dragging = true;
+        m.flying = false;
+        m.velX = 0;
+        m.velY = 0;
+        m.lastPointerX = e.clientX;
+        m.lastPointerY = e.clientY;
+        lastPinchDist = null;
+      } else if (activePointers.size === 2) {
+        m.dragging = false;
+        lastPinchDist = getPinchDistance();
+      }
       host.setPointerCapture(e.pointerId);
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const m = motionRef.current;
+
+      if (activePointers.size >= 2) {
+        const nextDist = getPinchDistance();
+        if (nextDist !== null && lastPinchDist !== null) {
+          const delta = (lastPinchDist - nextDist) * 0.0045;
+          m.targetCameraZ = Math.max(MIN_CAMERA_Z, Math.min(MAX_CAMERA_Z, m.targetCameraZ + delta));
+        }
+        lastPinchDist = nextDist;
+        return;
+      }
+
       if (!m.dragging) return;
       const dx = e.clientX - m.lastPointerX;
       const dy = e.clientY - m.lastPointerY;
@@ -479,9 +673,10 @@ export function EarthGlobeCanvas({
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      activePointers.delete(e.pointerId);
       const m = motionRef.current;
-      if (!m.dragging) return;
-      m.dragging = false;
+      if (activePointers.size < 2) lastPinchDist = null;
+      if (activePointers.size === 0) m.dragging = false;
       try {
         host.releasePointerCapture(e.pointerId);
       } catch {
@@ -489,8 +684,13 @@ export function EarthGlobeCanvas({
       }
     };
 
+    const onDoubleClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest("button, a, input, select")) return;
+      const m = motionRef.current;
+      m.targetCameraZ = Math.max(MIN_CAMERA_Z, m.targetCameraZ - 0.32);
+    };
+
     const onWheel = (e: WheelEvent) => {
-      // Only intercept zoom when Shift/Ctrl/Meta held or inside fullscreen, or gently zoom while allowing page scroll if at bounds
       if (!e.ctrlKey && !e.metaKey && !document.fullscreenElement) return;
       e.preventDefault();
       const m = motionRef.current;
@@ -504,9 +704,9 @@ export function EarthGlobeCanvas({
     host.addEventListener("pointermove", onPointerMove);
     host.addEventListener("pointerup", onPointerUp);
     host.addEventListener("pointercancel", onPointerUp);
+    host.addEventListener("dblclick", onDoubleClick);
     host.addEventListener("wheel", onWheel, { passive: false });
 
-    // Project 3D pins to 2D DOM buttons using compositor-only transform
     const tempWorld = new THREE.Vector3();
     const tempProjected = new THREE.Vector3();
     const tempNormal = new THREE.Vector3();
@@ -515,6 +715,125 @@ export function EarthGlobeCanvas({
 
     let rafId: number | null = null;
     let disposed = false;
+
+    const projectVisiblePins = () => {
+      const activePins = pinsRef.current;
+      const selId = selectedPinIdRef.current;
+      const hovId = hoveredPinIdRef.current;
+
+      // Zoom-aware minimum pixel spacing: tighter when zoomed in, wider when zoomed out
+      const zoomNorm = Math.max(
+        0,
+        Math.min(1, (motionRef.current.cameraZ - MIN_CAMERA_Z) / (MAX_CAMERA_Z - MIN_CAMERA_Z)),
+      );
+      const minSpacingPx = 11 + zoomNorm * 22;
+
+      type ProjectedCandidate = {
+        pin: GlobePin;
+        sx: number;
+        sy: number;
+        facing: number;
+        edgeFade: number;
+        scale: number;
+        priority: number;
+      };
+
+      const candidates: ProjectedCandidate[] = [];
+      for (const pin of activePins) {
+        tempWorld.copy(latLngToVector3(pin.lat, pin.lng, GLOBE_RADIUS * 1.016));
+        tempWorld.applyMatrix4(globeGroup.matrixWorld);
+        tempNormal.copy(tempWorld).normalize();
+        tempToCam.copy(camera.position).sub(tempWorld).normalize();
+        const facing = tempNormal.dot(tempToCam);
+
+        if (facing <= 0.14) {
+          const el = pinElementsRef.current.get(pin.id);
+          if (el) {
+            el.style.opacity = "0";
+            el.style.pointerEvents = "none";
+          }
+          continue;
+        }
+
+        tempProjected.copy(tempWorld).project(camera);
+        const sx = (tempProjected.x * 0.5 + 0.5) * width;
+        const sy = (-tempProjected.y * 0.5 + 0.5) * height;
+        const edgeFade = Math.min(1, (facing - 0.14) / 0.24);
+        const scale = 0.85 + Math.min(0.28, facing * 0.22);
+        const priority =
+          pin.id === selId || pin.id === hovId
+            ? Number.MAX_SAFE_INTEGER
+            : pin.visitors + (pin.liveUsers ?? 0) * 1000;
+
+        candidates.push({ pin, sx, sy, facing, edgeFade, scale, priority });
+      }
+
+      // Highest-priority pins claim screen space first; nearby pins cluster cleanly under them
+      candidates.sort((a, b) => b.priority - a.priority);
+      const kept: Array<{ cand: ProjectedCandidate; hiddenCount: number }> = [];
+      const nextClustered = new Set<string>();
+
+      for (const cand of candidates) {
+        let mergedInto: { cand: ProjectedCandidate; hiddenCount: number } | null = null;
+        if (cand.priority !== Number.MAX_SAFE_INTEGER) {
+          for (const existing of kept) {
+            const dx = cand.sx - existing.cand.sx;
+            const dy = cand.sy - existing.cand.sy;
+            if (dx * dx + dy * dy < minSpacingPx * minSpacingPx) {
+              mergedInto = existing;
+              break;
+            }
+          }
+        }
+
+        if (mergedInto) {
+          mergedInto.hiddenCount += 1;
+          nextClustered.add(mergedInto.cand.pin.id);
+          const el = pinElementsRef.current.get(cand.pin.id);
+          if (el) {
+            el.style.opacity = "0";
+            el.style.pointerEvents = "none";
+          }
+        } else {
+          kept.push({ cand, hiddenCount: 0 });
+        }
+      }
+
+      clusteredPinIdsRef.current = nextClustered;
+
+      const snapshotPins: GlobeProjectedSnapshotPin[] = [];
+      for (const { cand, hiddenCount } of kept) {
+        const el = pinElementsRef.current.get(cand.pin.id);
+        if (el) {
+          el.style.transform = `translate3d(${cand.sx.toFixed(1)}px, ${cand.sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${cand.scale.toFixed(3)})`;
+          el.style.opacity = cand.edgeFade.toFixed(3);
+          el.style.pointerEvents = cand.edgeFade > 0.35 ? "auto" : "none";
+        }
+        const badge = clusterBadgeElementsRef.current.get(cand.pin.id);
+        if (badge) {
+          if (hiddenCount > 0) {
+            badge.textContent = `+${hiddenCount}`;
+            badge.style.display = "inline-flex";
+          } else {
+            badge.style.display = "none";
+          }
+        }
+        if (cand.edgeFade > 0.4) {
+          snapshotPins.push({
+            x: cand.sx,
+            y: cand.sy,
+            label: cand.pin.label,
+            flag: cand.pin.flag,
+            valueLabel: `${count(cand.pin.visitors)} ${cand.pin.metricUnit ?? "visitors"}`,
+            isBot: Boolean(cand.pin.botHubReason),
+            isLive: (cand.pin.liveUsers ?? 0) > 0,
+            share: cand.pin.share,
+          });
+        }
+      }
+
+      return snapshotPins;
+    };
 
     const renderFrame = () => {
       if (disposed || motionRef.current.pausedByVisibility) {
@@ -547,7 +866,6 @@ export function EarthGlobeCanvas({
         }
       }
 
-      // Smooth camera zoom interpolation
       const zoomEase = m.reducedMotion ? 1 : 1 - Math.exp(-7 * dt);
       m.cameraZ += (m.targetCameraZ - m.cameraZ) * zoomEase;
       camera.position.z = m.cameraZ;
@@ -559,7 +877,6 @@ export function EarthGlobeCanvas({
         cloudMesh.rotation.y += 0.014 * dt;
       }
 
-      // Animate 3D flow beacons
       if (flowPulses.length > 0) {
         for (const p of flowPulses) {
           if (!m.reducedMotion) {
@@ -571,36 +888,7 @@ export function EarthGlobeCanvas({
 
       globeGroup.updateMatrixWorld(true);
       renderer.render(scene, camera);
-
-      // Update projected pin positions directly on DOM nodes (zero React re-renders per frame)
-      const activePins = pinsRef.current;
-      for (const pin of activePins) {
-        const el = pinElementsRef.current.get(pin.id);
-        if (!el) continue;
-
-        tempWorld.copy(latLngToVector3(pin.lat, pin.lng, GLOBE_RADIUS * 1.015));
-        tempWorld.applyMatrix4(globeGroup.matrixWorld);
-
-        tempNormal.copy(tempWorld).normalize();
-        tempToCam.copy(camera.position).sub(tempWorld).normalize();
-        const facing = tempNormal.dot(tempToCam);
-
-        if (facing <= 0.14) {
-          el.style.opacity = "0";
-          el.style.pointerEvents = "none";
-          continue;
-        }
-
-        tempProjected.copy(tempWorld).project(camera);
-        const sx = (tempProjected.x * 0.5 + 0.5) * width;
-        const sy = (-tempProjected.y * 0.5 + 0.5) * height;
-        const edgeFade = Math.min(1, (facing - 0.14) / 0.24);
-        const scale = 0.85 + Math.min(0.28, facing * 0.22);
-
-        el.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scale.toFixed(3)})`;
-        el.style.opacity = edgeFade.toFixed(3);
-        el.style.pointerEvents = edgeFade > 0.35 ? "auto" : "none";
-      }
+      projectVisiblePins();
 
       rafId = window.requestAnimationFrame(renderFrame);
     };
@@ -618,13 +906,27 @@ export function EarthGlobeCanvas({
       }
     };
 
+    // Synchronous on-demand snapshot capture (renders one fresh frame before toDataURL)
+    onRegisterCapture?.(() => {
+      if (disposed) return null;
+      globeGroup.updateMatrixWorld(true);
+      renderer.render(scene, camera);
+      const visiblePins = projectVisiblePins();
+      return {
+        dataUrl: renderer.domElement.toDataURL("image/png"),
+        width,
+        height,
+        visiblePins,
+      };
+    });
+
     sceneHooksRef.current = {
       applyTheme,
       rebuildArcs,
+      updateBorders,
       resumeLoop: startLoop,
     };
 
-    // Pause WebGL loop when off-screen via contentvisibilityautostatechange (with IntersectionObserver fallback)
     const stageContainer = stage.closest(".globe-stage") as HTMLElement | null;
     const visibilityTarget = stageContainer ?? stage;
     const supportsContentVisibility = "contentVisibility" in document.documentElement.style;
@@ -632,11 +934,8 @@ export function EarthGlobeCanvas({
     const onContentVisibilityChange = (event: Event) => {
       const skipped = Boolean((event as Event & { skipped?: boolean }).skipped);
       motionRef.current.pausedByVisibility = skipped || document.hidden;
-      if (motionRef.current.pausedByVisibility) {
-        stopLoop();
-      } else {
-        startLoop();
-      }
+      if (motionRef.current.pausedByVisibility) stopLoop();
+      else startLoop();
     };
 
     let ioFallback: IntersectionObserver | null = null;
@@ -667,6 +966,7 @@ export function EarthGlobeCanvas({
     return () => {
       disposed = true;
       stopLoop();
+      onRegisterCapture?.(null);
       sceneHooksRef.current = null;
       motionQuery.removeEventListener("change", onMotionChange);
       document.removeEventListener("visibilitychange", onDocVisibility);
@@ -679,10 +979,15 @@ export function EarthGlobeCanvas({
       host.removeEventListener("pointermove", onPointerMove);
       host.removeEventListener("pointerup", onPointerUp);
       host.removeEventListener("pointercancel", onPointerUp);
+      host.removeEventListener("dblclick", onDoubleClick);
       host.removeEventListener("wheel", onWheel);
       clearFlows();
       earthGeo.dispose();
       earthMat.dispose();
+      bordersGeo.dispose();
+      bordersMat.dispose();
+      highlightGeo.dispose();
+      highlightMat.dispose();
       cloudGeo.dispose();
       cloudMat.dispose();
       innerAtmosGeo.dispose();
@@ -699,7 +1004,7 @@ export function EarthGlobeCanvas({
         host.removeChild(renderer.domElement);
       }
     };
-  }, []);
+  }, [onRegisterCapture]);
 
   if (webglError) {
     return (
@@ -715,17 +1020,19 @@ export function EarthGlobeCanvas({
         ref={canvasHostRef}
         className="h-full w-full cursor-grab active:cursor-grabbing touch-none"
         role="img"
-        aria-label="Interactive 3D Earth showing global visitor distribution. Drag to rotate and click markers to inspect regions."
+        aria-label="Interactive 3D Earth showing global visitor distribution. Drag to rotate, double-click to zoom, and click markers to inspect regions."
       />
 
-      {/* Projected crisp HTML/CSS glowing pins */}
+      {/* Projected crisp HTML/CSS glowing pins with zoom-aware cluster badges */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {pins.map((pin) => {
           const isSelected = selectedPinId === pin.id;
           const isHovered = hoveredPinId === pin.id;
           const isLive = (pin.liveUsers ?? 0) > 0;
+          const isBot = Boolean(pin.botHubReason);
           const active = isSelected || isHovered;
           const ringSize = pin.share > 0.35 ? "h-9 w-9" : pin.share > 0.08 ? "h-7 w-7" : "h-6 w-6";
+          const unit = pin.metricUnit ?? "visitors";
 
           return (
             <button
@@ -736,19 +1043,24 @@ export function EarthGlobeCanvas({
               }}
               type="button"
               style={{ opacity: 0, willChange: "transform, opacity" }}
-              onClick={() => onSelectPin(pin)}
+              onClick={() => {
+                if (clusteredPinIdsRef.current.has(pin.id)) {
+                  const m = motionRef.current;
+                  m.targetCameraZ = Math.max(MIN_CAMERA_Z, m.targetCameraZ - 0.38);
+                }
+                onSelectPin(pin);
+              }}
               onMouseEnter={() => onHoverPin(pin.id)}
               onMouseLeave={() => onHoverPin(null)}
               onFocus={() => onHoverPin(pin.id)}
               onBlur={() => onHoverPin(null)}
-              aria-label={`${pin.label}: ${count(pin.visitors)} visitors (${percent(pin.share)})`}
+              aria-label={`${pin.label}: ${count(pin.visitors)} ${unit} (${percent(pin.share)})${isBot ? " — cloud/bot hub" : ""}`}
               className={cn(
                 "group absolute left-0 top-0 z-10 flex items-center justify-center rounded-full focus-visible:z-30 cursor-pointer",
                 active ? "z-20 globe-pin-active" : "",
-                isLive ? "globe-pin-live" : "",
+                isLive ? "globe-pin-live" : isBot ? "globe-pin-bot" : "",
               )}
             >
-              {/* Soft outer pulse ring for selected or realtime pins */}
               {(active || isLive) && (
                 <span
                   aria-hidden="true"
@@ -759,7 +1071,6 @@ export function EarthGlobeCanvas({
                 />
               )}
 
-              {/* Frosted circular halo */}
               <span
                 className={cn(
                   "globe-pin-halo flex items-center justify-center rounded-full transition-transform duration-200",
@@ -770,7 +1081,16 @@ export function EarthGlobeCanvas({
                 <span className="globe-pin-core h-2.5 w-2.5 rounded-full" />
               </span>
 
-              {/* Floating frosted callout on hover or selection */}
+              {/* Dynamic zoom-cluster count badge (+N nearby pins hidden at current zoom) */}
+              <span
+                ref={(node) => {
+                  if (node) clusterBadgeElementsRef.current.set(pin.id, node);
+                  else clusterBadgeElementsRef.current.delete(pin.id);
+                }}
+                style={{ display: "none" }}
+                className="globe-cluster-badge pointer-events-none absolute -top-1.5 -right-2 h-4 min-w-[16px] items-center justify-center rounded-full px-1 font-mono text-[9px] font-bold leading-none"
+              />
+
               {active && (
                 <span className="globe-glass-pill pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-left text-[11px] text-brand-950">
                   <span className="flex items-center gap-1.5 font-semibold">
@@ -782,10 +1102,20 @@ export function EarthGlobeCanvas({
                         {pin.liveUsers} live
                       </span>
                     )}
+                    {isBot && (
+                      <span className="inline-flex items-center rounded-full bg-warning-50 px-1.5 py-0.5 text-[9.5px] font-bold text-warning-700">
+                        Cloud/Bot
+                      </span>
+                    )}
                   </span>
                   <span className="mt-0.5 block font-mono text-[10px] text-brand-500">
-                    {count(pin.visitors)} visitors · {percent(pin.share)}
+                    {count(pin.visitors)} {unit} · {percent(pin.share)}
                   </span>
+                  {pin.botHubReason && (
+                    <span className="mt-0.5 block text-[9.5px] text-warning-700">
+                      {pin.botHubReason}
+                    </span>
+                  )}
                 </span>
               )}
             </button>

@@ -170,6 +170,10 @@ const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "THE DALLES": { lat: 45.59, lng: -121.18 },
   "MOUNTAIN VIEW": { lat: 37.39, lng: -122.08 },
   "SANTA CLARA": { lat: 37.35, lng: -121.95 },
+  "LENOIR": { lat: 35.91, lng: -81.54 },
+  "FOREST CITY": { lat: 35.33, lng: -81.87 },
+  "PRYOR": { lat: 36.31, lng: -95.32 },
+  "COFFEYVILLE": { lat: 37.04, lng: -95.62 },
   "WASHINGTON": { lat: 38.91, lng: -77.04 },
   "ORLANDO": { lat: 28.54, lng: -81.38 },
   "TAMPA": { lat: 27.95, lng: -82.46 },
@@ -335,4 +339,31 @@ export function resolveCityGeo(city: string, country: string): ResolvedLocation 
     countryName: countryGeo.name,
     exactCity: false,
   };
+}
+
+/**
+ * Known cloud datacenter & automated monitoring hubs, aligned with the backend
+ * traffic diagnostics engine (`KNOWN_DATACENTER_CITIES` in google-report.ts).
+ */
+const KNOWN_DATACENTER_HUBS: Record<string, string> = {
+  "council bluffs": "Google US cloud datacenter & crawler hub",
+  ashburn: "AWS US-East cloud datacenter hub",
+  boardman: "AWS US-West cloud datacenter hub",
+  "the dalles": "Google cloud datacenter hub",
+  "des moines": "Cloud datacenter / automated monitoring hub",
+  lenoir: "Google US datacenter hub",
+  boydton: "Microsoft Azure datacenter hub",
+  quincy: "Cloud datacenter / crawler hub",
+  "forest city": "Cloud datacenter hub",
+  pryor: "Google US datacenter hub",
+  coffeyville: "Automated crawler / datacenter hub",
+  "santa clara": "Cloud infrastructure / monitoring hub",
+  cheyenne: "Microsoft Azure / cloud datacenter hub",
+  "flint hill": "Northern Virginia cloud / crawler hub",
+};
+
+export function detectDatacenterCity(city: string | null | undefined): string | null {
+  if (!city) return null;
+  const key = city.trim().toLowerCase();
+  return KNOWN_DATACENTER_HUBS[key] ?? null;
 }
