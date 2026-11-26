@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -83,7 +84,9 @@ export function BatchFixModal({
     retry: false,
   });
 
-  const githubConnected = Boolean(repoQuery.data?.owner && repoQuery.data?.name);
+  const repository = repoQuery.data;
+  const githubConnected = repository?.tokenConfigured === true && repository.reconnectRequired !== true;
+  const githubReconnectRequired = Boolean(repository) && !githubConnected;
   const wpConnected = Boolean(cmsQuery.data?.wordpress?.connected);
   const shopifyConnected = Boolean(cmsQuery.data?.shopify?.connected);
   const webflowConnected = Boolean(cmsQuery.data?.webflow?.connected);
@@ -210,13 +213,24 @@ export function BatchFixModal({
                     </div>
                     <span className="text-xs font-bold text-brand-950">{opt.label}</span>
                     <span className="text-[10px] font-mono text-brand-500">
-                      {opt.connected ? "Connected" : "Not connected"}
+                      {opt.id === "GITHUB" && githubReconnectRequired
+                        ? "Reconnect required"
+                        : opt.connected ? "Connected" : "Not connected"}
                     </span>
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {target === "GITHUB" && githubReconnectRequired && (
+            <p className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-xs text-brand-800">
+              Reconnect this repository with a fresh GitHub token to create pull requests.{" "}
+              <Link href="/fix-engine?tab=github-fixes" onClick={onClose} className="font-semibold underline">
+                Open GitHub setup
+              </Link>
+            </p>
+          )}
 
           {/* CMS Draft / Publish selector */}
           {target !== "GITHUB" && (

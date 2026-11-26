@@ -1,6 +1,68 @@
 import { expect, test } from '@playwright/test';
 import { API_BASE } from './api-base';
 
+test('manual findings stay out of batches and legacy GitHub connections require reconnect', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('growthx.session', '1');
+    localStorage.setItem('growthx.org', 'org_batch');
+    localStorage.setItem('growthx.project', 'project_batch');
+    localStorage.setItem('growthx_subscription_claim_org_batch', JSON.stringify({
+      tierId: 'agency',
+      tierName: 'Agency',
+      status: 'active',
+      billingCycle: 'monthly',
+      currency: 'INR',
+    }));
+  });
+  const base = {
+    source: 'WEBSITE',
+    category: 'SEO',
+    summary: 'Saved recommendation',
+    recommendedAction: 'Review the recommendation and publish the change.',
+    evidence: [],
+    affectedPages: ['https://example.com/'],
+    lifecycle: 'DETECTED',
+    potential: 'HIGH',
+    effort: 'LOW',
+    confidence: 90,
+  };
+  const manual = { ...base, id: 'manual', source: 'BACKLINKS', title: 'Submit directory citations', fixClass: 'MANUAL' };
+  const automatic = { ...base, id: 'auto', title: 'Update the homepage meta title', fixClass: 'AUTO' };
+  await page.route(`${API_BASE}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+    if (path === '/auth/me') return json({ id: 'batch-user', role: 'OWNER' });
+    if (path === '/organizations') return json([{ id: 'org_batch', name: 'Batch workspace' }]);
+    if (path === '/projects/org/org_batch') return json([{ id: 'project_batch', name: 'example.com' }]);
+    if (path.endsWith('/automation/repository')) {
+      return json({ owner: 'example', name: 'site', tokenConfigured: false, reconnectRequired: true });
+    }
+    if (path.endsWith('/findings')) {
+      return json({ items: [manual, automatic], nextCursor: null, counts: { total: 2, bySource: {}, byFixClass: {} } });
+    }
+    if (path.endsWith('/findings/sync')) return json({ created: 0, updated: 0, resolved: 0, warnings: [] });
+    return json(null);
+  });
+
+  await page.goto('/fix-engine');
+  await page.getByRole('checkbox', { name: `Select ${manual.title}` }).check();
+  await expect(page.getByText(/1 issue requires manual work/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Batch Auto-Apply/ })).toHaveCount(0);
+  await page.getByRole('checkbox', { name: `Select ${automatic.title}` }).check();
+  await page.getByRole('button', { name: /Batch Auto-Apply \(1\)/ }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Batch apply selected SEO fixes' });
+  await expect(dialog.getByText(automatic.title, { exact: true })).toBeVisible();
+  await expect(dialog.getByText(manual.title, { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText('Reconnect required', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Create 1 Unified PR/ })).toBeDisabled();
+  await expect(dialog.getByRole('link', { name: 'Open GitHub setup' })).toHaveAttribute('href', '/fix-engine?tab=github-fixes');
+});
+
 test('four-module plan and PDF report include the final findings page and evidence', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('growthx.token', 'test-token');

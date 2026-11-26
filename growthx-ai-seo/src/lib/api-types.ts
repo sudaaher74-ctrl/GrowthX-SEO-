@@ -1619,7 +1619,8 @@ export interface SiteRepository {
   framework: string;
   contentDir: string | null;
   autoMerge: boolean;
-  tokenConfigured: true;
+  tokenConfigured: boolean;
+  reconnectRequired?: boolean;
   updatedAt: string;
 }
 
