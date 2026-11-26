@@ -5,6 +5,11 @@ import type { Currency, BillingCycle } from "./pricing";
 
 export type SubscriptionTierId = "founder_free" | "starter" | "growth" | "agency";
 
+/** Automated Fix Engine (GitHub PRs, direct CMS auto-apply, batch pushes) is exclusive to Agency. */
+export function hasAutomatedFixEngine(tierId: SubscriptionTierId | null | undefined): boolean {
+  return tierId === "agency";
+}
+
 export interface SubscriptionPlanDef {
   id: SubscriptionTierId;
   name: string;
@@ -64,7 +69,7 @@ export const SUBSCRIPTION_PLANS: readonly SubscriptionPlanDef[] = [
       "1 Monitored Website",
       "5,000 Crawl Pages per audit cycle",
       "2 Monthly AI Visibility Audits (ChatGPT, Perplexity, Claude, Gemini)",
-      "Ranked Fix Engine pull request patches",
+      "Plain-English Action Plan & step-by-step platform fix guides",
       "5 Tracked Competitors & Rival Radar",
       "500,000 monthly credits allowance",
       "Zero card required · Zero auto-renew",
@@ -88,7 +93,8 @@ export const SUBSCRIPTION_PLANS: readonly SubscriptionPlanDef[] = [
       "2 Monthly AI Visibility Audits",
       "Up to 5 competitors tracked",
       "Google Search Console & GA4 reports",
-      "Fix Engine pull requests for low-risk fixes",
+      "Plain-English Action Plan, 5-platform fix guides & developer handoff",
+      "Live URL fix verification",
       "Email support",
     ],
   },
@@ -131,6 +137,7 @@ export const SUBSCRIPTION_PLANS: readonly SubscriptionPlanDef[] = [
       "Up to 20 Monitored Websites",
       "100,000 Crawl Pages capacity",
       "50 Monthly AI Visibility Audits",
+      "Automated Fix Engine (GitHub PRs, CMS auto-apply & batch fixes)",
       "White-Label Client Portal & Branding Suite",
       "Multiple Google Business Profile locations",
       "Client-ready PDF executive reports",
@@ -301,6 +308,7 @@ export function useSubscription(orgId: string | null | undefined) {
     subscription,
     isClaimed,
     plan,
+    canUseFixEngine: hasAutomatedFixEngine(subscription?.tierId),
     allPlans: SUBSCRIPTION_PLANS,
     claim: (tierId: SubscriptionTierId, options?: { cycle?: BillingCycle; currency?: Currency }) =>
       subscriptionEngine.claimSubscription(orgId, tierId, options),

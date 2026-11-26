@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { usePortfolio, useWorkspace, useIssueCounts } from "@/hooks/use-growthx";
+import { useSubscription } from "@/lib/subscription-engine";
 
 /**
  * The workflow tabs, shared by the sidebar and the Dashboard's top bar so the
@@ -45,6 +46,7 @@ export interface NavItem {
 
 export function useMainNav(): { mainNav: NavItem[] } {
   const { orgId, projects, projectId } = useWorkspace();
+  const { canUseFixEngine } = useSubscription(orgId);
   const portfolio = usePortfolio(orgId);
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
@@ -151,7 +153,7 @@ export function useMainNav(): { mainNav: NavItem[] } {
       step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "Run AI visibility monitoring" },
     },
     {
-      label: "Fix Engine",
+      label: canUseFixEngine ? "Fix Engine" : "Action Plan",
       href: "/fix-engine",
       icon: Wrench,
       group: "execution",

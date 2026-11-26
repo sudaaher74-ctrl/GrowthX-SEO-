@@ -1,30 +1,24 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
-import { PLAN_SOURCES } from "@/lib/plan-sources";
+
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  Check,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Copy,
+  Clock,
   Download,
-  FileCode2,
-  FileText,
-  GitPullRequest,
   Globe,
   Layers,
-  Loader2,
   RefreshCw,
-  ShieldCheck,
-  Zap,
+  UserCheck,
+  Wrench,
 } from "lucide-react";
-import { ActionButton, Panel, Pill, StatusNote } from "@/components/ui/console";
+import { PLAN_SOURCES } from "@/lib/plan-sources";
+import { ActionButton, Pill, StatusNote } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
 import { BatchFixModal } from "@/components/fix-engine/batch-fix-modal";
+import { IssueSolutionGuide } from "@/components/fix-engine/issue-solution-guide";
 import {
   useFindings,
   useTransitionFinding,
@@ -33,62 +27,61 @@ import {
 } from "@/hooks/use-growthx";
 import { api, type GrowthOpportunity, type ManualVerificationResult } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-import { formatFindingAsBrief, formatSprintPackMarkdown } from "@/lib/implementation-specs";
+import { formatSprintPackMarkdown } from "@/lib/implementation-specs";
+import { getIssueFixGuide } from "@/lib/issue-fix-guides";
 import { cn } from "@/lib/utils";
 
-/** The workflow's tabs, and which finding sources belong to each. */
 const GROUPS = PLAN_SOURCES;
 
-const BAND = { HIGH: "good", MEDIUM: "warn", LOW: "default" } as const;
-const EFFORT = { HIGH: "bad", MEDIUM: "warn", LOW: "good" } as const;
-
-/** What happens to a fix after approval, in words that do not promise more than is built. */
-const FIX_CLASS: Record<string, { label: string; hint: string }> = {
-  AUTO: { label: "Low-risk fix", hint: "A safe change (like a title or description) that can be prepared for your approval." },
-  APPROVAL: { label: "Needs your approval", hint: "A change that must be reviewed by you before anything is applied." },
-  MANUAL: { label: "Do it yourself", hint: "Needs a person, such as writing content or contacting a developer." },
-};
-
 const LIFECYCLE_LABEL: Record<string, string> = {
-  DETECTED: "New",
-  QUEUED: "In your plan",
+  DETECTED: "Open",
+  QUEUED: "In plan",
   APPROVED: "Approved",
-  APPLYING: "Being applied",
-  VERIFYING: "Being checked",
-  VERIFIED: "Confirmed fixed",
-  MEASURED: "Result measured",
-  FAILED: "Failed",
+  APPLYING: "Applying",
+  VERIFYING: "Checking live",
+  VERIFIED: "Fixed ✓",
+  MEASURED: "Verified lift",
+  FAILED: "Needs retry",
   SNOOZED: "Snoozed",
   DISMISSED: "Dismissed",
   RESOLVED: "Resolved",
 };
 
+type DifficultyFilter = "ALL" | "NO_CODE" | "DEVELOPER" | "HIGH_IMPACT";
+
 function groupOf(source: string) {
-  const norm = (source || '').toUpperCase().trim();
+  const norm = (source || "").toUpperCase().trim();
   return GROUPS.find((g) => g.sources.some((s) => s.toUpperCase() === norm)) ?? null;
 }
 
+function impactDotClass(potential: string): string {
+  if (potential === "HIGH") return "bg-error-500";
+  if (potential === "MEDIUM") return "bg-warning-500";
+  return "bg-brand-300";
+}
+
 /**
- * The improvement plan: everything the platform found across the workflow, in
- * one ranked list, each with the evidence it stands on and what to do.
- *
- * Fix Engine prepares and you approve. This view only records your decisions
- * (add to plan, dismiss); it does not change your website, and nothing here is
- * shown as fixed unless a later check confirmed it.
+ * Plain-English Action Plan: every website finding explained without jargon,
+ * showing who can fix it, how long it takes, platform-specific step-by-step
+ * instructions, 1-click developer handoff, and optional CMS/GitHub auto-apply.
  */
 export function PlanView({
+  canAutoApply = false,
   onOpenGitHubFixes,
   onOpenContentStudio,
 }: {
+  canAutoApply?: boolean;
   onOpenGitHubFixes?: (findingId?: string) => void;
   onOpenContentStudio?: (finding: GrowthOpportunity) => void;
 } = {}) {
   const { projectId, projects } = useWorkspace();
   const domain = projects.find((p) => p.id === projectId)?.name ?? null;
   const [group, setGroup] = useState<string>("ALL");
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>("ALL");
   const [cmsFinding, setCmsFinding] = useState<GrowthOpportunity | null | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
+
   const findings = useFindings(projectId, { limit: 200 });
   const transition = useTransitionFinding(projectId);
   const verifyManual = useVerifyManualFinding(projectId);
@@ -96,38 +89,95 @@ export function PlanView({
 
   const refresh = useMutation({
     mutationFn: async () => {
-      // Collect from audit, competitor, AI visibility, backlinks, and traffic adapters, then run detectors.
-      const results = await Promise.allSettled([api.syncFindings(projectId!), api.detectOpportunities(projectId!)]);
+      const results = await Promise.allSettled([
+        api.syncFindings(projectId!),
+        api.detectOpportunities(projectId!),
+      ]);
       const failed = results.flatMap((r) => (r.status === "rejected" ? [errorMessage(r.reason)] : []));
-      if (failed.length) throw new Error(`Some sources could not refresh: ${failed.join(" ")} Available findings are retained.`);
+      if (failed.length) {
+        throw new Error(
+          `Some sources could not refresh: ${failed.join(" ")} Available findings are retained.`,
+        );
+      }
       const detection = results[1];
-      if (detection.status === 'fulfilled' && 'failedDetectors' in detection.value && (detection.value.failedDetectors as string[]).length) throw new Error('Some detectors could not finish. Available findings are retained; review the source modules for missing data.');
+      if (
+        detection.status === "fulfilled" &&
+        "failedDetectors" in detection.value &&
+        (detection.value.failedDetectors as string[]).length
+      ) {
+        throw new Error(
+          "Some checks could not finish. Available findings are kept — check your connected sources.",
+        );
+      }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["findings", projectId] }),
   });
 
-  if (!projectId || findings.isLoading) return <LoadingState compact title="Loading your improvement plan…" message="Reading the findings from every tab." />;
-  if (findings.error || !findings.data) return <FailedState title="Could not load the plan" error={errorMessage(findings.error)} onRetry={() => findings.refetch()} />;
+  const enrichedItems = useMemo(() => {
+    const raw = findings.data?.items ?? [];
+    return raw.map((f) => ({
+      finding: f,
+      guide: getIssueFixGuide({
+        title: f.title,
+        summary: f.summary,
+        recommendedAction: f.recommendedAction,
+        domain,
+        affectedPages: f.affectedPages,
+        fixClass: f.fixClass,
+        source: f.source,
+      }),
+    }));
+  }, [findings.data?.items, domain]);
 
-  const items = findings.data.items;
+  if (!projectId || findings.isLoading) {
+    return (
+      <LoadingState
+        compact
+        title="Loading your action plan…"
+        message="Gathering issues and preparing plain-English fix guides."
+      />
+    );
+  }
+  if (findings.error || !findings.data) {
+    return (
+      <FailedState
+        title="Could not load your action plan"
+        error={errorMessage(findings.error)}
+        onRetry={() => findings.refetch()}
+      />
+    );
+  }
+
   const counts = new Map<string, number>();
   for (const g of GROUPS) {
     counts.set(
       g.id,
-      items.filter((i) => {
-        const norm = (i.source || '').toUpperCase().trim();
+      enrichedItems.filter(({ finding: i }) => {
+        const norm = (i.source || "").toUpperCase().trim();
         return g.sources.some((s) => s.toUpperCase() === norm);
       }).length,
     );
   }
-  const shown = group === "ALL" ? items : items.filter((i) => groupOf(i.source)?.id === group);
-  const active = shown.filter((i) => !["DISMISSED", "RESOLVED"].includes(i.lifecycle ?? "DETECTED"));
 
-  const highImpactCount = active.filter((i) => i.potential === "HIGH").length;
-  const autoFixableItems = active.filter((i) => i.fixClass === "AUTO");
-  const autoFixableCount = autoFixableItems.length;
-  const queuedCount = active.filter((i) => i.lifecycle === "QUEUED" || i.lifecycle === "APPROVED").length;
-  const selectedFindings = active.filter((i) => selectedIds.includes(i.id));
+  const byGroup =
+    group === "ALL"
+      ? enrichedItems
+      : enrichedItems.filter(({ finding: i }) => groupOf(i.source)?.id === group);
+
+  const activeAll = byGroup.filter(
+    ({ finding: i }) => !["DISMISSED", "RESOLVED"].includes(i.lifecycle ?? "DETECTED"),
+  );
+
+  const visibleItems = activeAll.filter(({ finding: f, guide }) => {
+    if (difficultyFilter === "NO_CODE") return guide.difficulty === "no_code";
+    if (difficultyFilter === "DEVELOPER") return guide.difficulty !== "no_code";
+    if (difficultyFilter === "HIGH_IMPACT") return f.potential === "HIGH";
+    return true;
+  });
+
+  const selectedFindings = activeAll
+    .map((x) => x.finding)
+    .filter((f) => selectedIds.includes(f.id));
 
   const toggleSelectFinding = (id: string) => {
     setSelectedIds((prev) =>
@@ -139,213 +189,210 @@ export function PlanView({
     );
   };
 
-  const selectSafeAutoBatch = () => {
-    const safeIds = autoFixableItems.slice(0, 10).map((f) => f.id);
-    setSelectedIds(safeIds);
-  };
-
-  const handleExportSprintPack = () => {
-    const targetList = selectedFindings.length > 0 ? selectedFindings : active.slice(0, 15);
+  const handleDownloadDeveloperPack = () => {
+    const targetList =
+      selectedFindings.length > 0
+        ? selectedFindings
+        : visibleItems.slice(0, 15).map((x) => x.finding);
     if (targetList.length === 0) return;
     const md = formatSprintPackMarkdown(targetList, domain);
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${domain || "website"}-sprint-handoff-${targetList.length}-fixes.md`;
+    a.download = `${domain || "website"}-fix-instructions-${targetList.length}-items.md`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
     <div className="space-y-4">
-      {findings.data.warnings?.map((warning) => <StatusNote key={warning} tone="bad">{warning}</StatusNote>)}
+      {findings.data.warnings?.map((warning) => (
+        <StatusNote key={warning} tone="bad">
+          {warning}
+        </StatusNote>
+      ))}
 
-      {/* ── PLAN READINESS SUMMARY STRIP ── */}
-      {active.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-500/15 text-success-700">
-                <Zap size={16} />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-brand-400">High Impact Opportunities</p>
-                <p className="font-mono text-lg font-bold text-brand-950">
-                  {highImpactCount} <span className="text-xs font-normal text-brand-500 font-sans">fixes</span>
-                </p>
-              </div>
-            </div>
-            <span className="rounded-md border border-success-500/20 bg-success-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-success-700">
-              Top Priority
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
-                <ShieldCheck size={16} />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-brand-400">Safe Auto-Fixable</p>
-                <p className="font-mono text-lg font-bold text-brand-950">
-                  {autoFixableCount} <span className="text-xs font-normal text-brand-500 font-sans">low-risk</span>
-                </p>
-              </div>
-            </div>
-            <span className="rounded-md border border-brand-200/70 bg-surface-2 px-2 py-0.5 text-[10.5px] font-medium text-brand-500">
-              Autonomous
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl border border-brand-200 bg-surface-1 p-3.5 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-brand-700 border border-brand-200 font-bold">
-                <GitPullRequest size={16} />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-brand-400">Ready for Pull Request</p>
-                <p className="font-mono text-lg font-bold text-brand-950">
-                  {queuedCount} <span className="text-xs font-normal text-brand-500 font-sans">staged</span>
-                </p>
-              </div>
-            </div>
-            {onOpenGitHubFixes && (
-              <button
-                type="button"
-                onClick={() => onOpenGitHubFixes()}
-                className="inline-flex items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
-              >
-                <span>Stage PR</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Clean Filter & Action Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div
           role="group"
-          aria-label="Show findings from"
-          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Filter by source module"
+          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-brand-200/70 bg-surface-1 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <Chip active={group === "ALL"} onClick={() => setGroup("ALL")}>All <span className="ml-1 font-mono text-[10px] opacity-70">{items.length}</span></Chip>
+          <Chip active={group === "ALL"} onClick={() => setGroup("ALL")}>
+            All <span className="ml-0.5 font-mono text-[10px] opacity-75">{enrichedItems.length}</span>
+          </Chip>
           {GROUPS.map((g) => (
             <Chip key={g.id} active={group === g.id} onClick={() => setGroup(g.id)}>
-              {g.label} <span className="ml-1 font-mono text-[10px] opacity-70">{counts.get(g.id) ?? 0}</span>
+              {g.label} <span className="ml-0.5 font-mono text-[10px] opacity-75">{counts.get(g.id) ?? 0}</span>
             </Chip>
           ))}
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          {onOpenGitHubFixes && (
+          {visibleItems.length > 0 && (
             <ActionButton
-              variant="primary"
-              icon={<GitPullRequest size={12} />}
-              onClick={() => onOpenGitHubFixes()}
+              variant="secondary"
+              icon={<Download size={12} />}
+              onClick={handleDownloadDeveloperPack}
             >
-              Improvements &amp; Log →
+              Download Fix Guide (.md)
+            </ActionButton>
+          )}
+          {canAutoApply && (
+            <ActionButton
+              variant="secondary"
+              icon={<Globe size={12} />}
+              onClick={() => setCmsFinding(null)}
+            >
+              Auto-Apply (CMS)
             </ActionButton>
           )}
           <ActionButton
-            variant="secondary"
-            icon={<Globe size={12} />}
-            onClick={() => setCmsFinding(null)}
+            disabled={refresh.isPending}
+            icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />}
+            onClick={() => refresh.mutate()}
           >
-            Apply via CMS / Platform
-          </ActionButton>
-          <ActionButton disabled={refresh.isPending} icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />} onClick={() => refresh.mutate()}>
-            {refresh.isPending ? "Analysing…" : "Refresh plan"}
+            {refresh.isPending ? "Refreshing…" : "Refresh plan"}
           </ActionButton>
         </div>
       </div>
+
       {refresh.error && <StatusNote tone="bad">{errorMessage(refresh.error)}</StatusNote>}
 
-      {/* ── BATCH SAFE FIX EXECUTION BAR ── */}
-      {active.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand-200/80 bg-surface-1 px-4 py-2.5 shadow-2xs text-xs">
-          <div className="flex flex-wrap items-center gap-2">
+      {/* Contextual Batch Bar — ONLY appears when the user selects 1+ items */}
+      {selectedFindings.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-signal-400/50 bg-surface-1 px-4 py-2.5 shadow-xs text-xs">
+          <div className="flex items-center gap-2">
             <Layers size={14} className="text-signal-500 shrink-0" />
             <span className="font-semibold text-brand-950">
-              {selectedFindings.length > 0
-                ? `${selectedFindings.length} finding${selectedFindings.length === 1 ? "" : "s"} selected for batch execution`
-                : "Batch Safe Fixes: select up to 15 findings to ship in 1 unified PR or CMS batch"}
+              {selectedFindings.length} {selectedFindings.length === 1 ? "issue" : "issues"} selected
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {autoFixableCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="text-[11.5px] font-semibold text-brand-500 hover:text-brand-950 cursor-pointer"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadDeveloperPack}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
+            >
+              <Download size={12} />
+              <span>Export for Developer</span>
+            </button>
+            {canAutoApply && (
               <button
                 type="button"
-                onClick={selectSafeAutoBatch}
-                className="rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-surface-3 cursor-pointer"
+                onClick={() => setBatchOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-[11.5px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
               >
-                Select Safe AUTO ({Math.min(10, autoFixableCount)})
+                <Layers size={12} />
+                <span>Batch Auto-Apply ({selectedFindings.length}) →</span>
               </button>
-            )}
-            {selectedFindings.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds([])}
-                  className="text-[11px] font-semibold text-brand-500 hover:text-brand-900 cursor-pointer"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportSprintPack}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-surface-3 transition cursor-pointer"
-                >
-                  <Download size={12} />
-                  <span>Export Sprint Pack (.md)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBatchOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
-                >
-                  <Layers size={12} />
-                  <span>Batch Apply ({selectedFindings.length}) →</span>
-                </button>
-              </>
             )}
           </div>
         </div>
       )}
 
-      <Panel title="Improvement plan" subtitle="Highest impact first. Open a finding for its evidence, the pages it affects and what to do.">
-        {active.length === 0 ? (
-          <div className="p-4">
+      {/* Main Action Plan Container */}
+      <section className="overflow-hidden rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-brand-950">
+              Step-by-step action plan ({visibleItems.length})
+            </h2>
+            <p className="mt-0.5 text-xs text-brand-500">
+              Click any issue to read what’s wrong in plain English and see exact fix steps for your website platform.
+            </p>
+          </div>
+
+          <div
+            role="tablist"
+            aria-label="Filter by fix type"
+            className="inline-flex flex-wrap items-center gap-1 text-[11.5px]"
+          >
+            {(
+              [
+                { id: "ALL", label: "All" },
+                { id: "NO_CODE", label: "No coding needed" },
+                { id: "DEVELOPER", label: "For developer" },
+                { id: "HIGH_IMPACT", label: "High impact" },
+              ] as const
+            ).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={difficultyFilter === f.id}
+                onClick={() => setDifficultyFilter(f.id)}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer",
+                  difficultyFilter === f.id
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {visibleItems.length === 0 ? (
+          <div className="p-6">
             <NoDataState
               compact
-              title={items.length === 0 ? "No findings yet" : "Nothing open here"}
-              missing={items.length === 0 ? "The plan is built from your website audit, Google data, competitors and AI Visibility." : "Every finding in this group is dismissed or resolved."}
-              whyItMatters="Each tab feeds this plan once it has data."
-              actionRequired={items.length === 0 ? "Complete the earlier steps, then press Refresh plan." : "Choose another group, or press Refresh plan."}
+              title={enrichedItems.length === 0 ? "No issues detected yet" : "No issues match this filter"}
+              missing={
+                enrichedItems.length === 0
+                  ? "Run a Website Audit or connect Google Search Console to populate your action plan."
+                  : "Every issue in this category has been resolved or filtered out."
+              }
+              whyItMatters="Issues from Audit, Traffic, Competitors, and AI Visibility automatically appear here with plain-English guides."
+              actionRequired={
+                enrichedItems.length === 0
+                  ? "Run an audit on the Dashboard, then click Refresh plan."
+                  : "Switch to 'All' above to view your remaining issues."
+              }
             />
           </div>
         ) : (
-          <ul className="divide-y">
-            {active.map((f) => (
+          <ul className="divide-y divide-brand-100">
+            {visibleItems.map(({ finding: f, guide }) => (
               <FindingRow
                 key={f.id}
                 finding={f}
+                guideDifficulty={guide.difficulty}
+                guideDifficultyLabel={guide.difficultyLabel}
+                guideTime={guide.estimatedTime}
                 domain={domain}
                 selected={selectedIds.includes(f.id)}
                 onToggleSelect={() => toggleSelectFinding(f.id)}
                 busy={transition.isPending}
                 onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
-                onVerifyManual={(url, note) =>
-                  verifyManual.mutateAsync({ id: f.id, url, note })
+                onVerifyManual={(url, note) => verifyManual.mutateAsync({ id: f.id, url, note })}
+                onOpenGitHubFixes={
+                  canAutoApply && onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined
                 }
-                onOpenGitHubFixes={onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined}
-                onOpenCmsApply={() => setCmsFinding(f)}
+                onOpenCmsApply={canAutoApply ? () => setCmsFinding(f) : undefined}
                 onOpenContentStudio={onOpenContentStudio ? () => onOpenContentStudio(f) : undefined}
               />
             ))}
           </ul>
         )}
-        {transition.error && <p className="border-t px-4 py-2.5 text-[11.5px] text-error-700">{errorMessage(transition.error)}</p>}
-      </Panel>
+
+        {transition.error && (
+          <p className="border-t border-brand-100 px-5 py-2.5 text-xs text-error-700">
+            {errorMessage(transition.error)}
+          </p>
+        )}
+      </section>
 
       {cmsFinding !== undefined && (
         <CmsApplyModal
@@ -374,6 +421,9 @@ export function PlanView({
 
 function FindingRow({
   finding: f,
+  guideDifficulty,
+  guideDifficultyLabel,
+  guideTime,
   domain,
   selected,
   onToggleSelect,
@@ -385,6 +435,9 @@ function FindingRow({
   onOpenContentStudio,
 }: {
   finding: GrowthOpportunity;
+  guideDifficulty: "no_code" | "cms_or_dev" | "developer";
+  guideDifficultyLabel: string;
+  guideTime: string;
   domain: string | null;
   selected: boolean;
   onToggleSelect: () => void;
@@ -396,289 +449,127 @@ function FindingRow({
   onOpenContentStudio?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [dismissing, setDismissing] = useState(false);
-  const [reason, setReason] = useState("");
-  const [copiedBrief, setCopiedBrief] = useState(false);
-  const [verifyingOpen, setVerifyingOpen] = useState(false);
-  const [verifyUrl, setVerifyUrl] = useState(
-    f.affectedPages?.[0] || (domain ? `https://${domain.replace(/^https?:\/\//i, "")}/` : ""),
-  );
-  const [verifyNote, setVerifyNote] = useState("");
-  const [verifyingBusy, setVerifyingBusy] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
-  const [verifyResult, setVerifyResult] = useState<ManualVerificationResult | null>(null);
   const group = groupOf(f.source);
-  const cls = f.fixClass ? FIX_CLASS[f.fixClass] : null;
   const lifecycle = f.lifecycle ?? "DETECTED";
-  const pages = f.affectedPages ?? [];
-  const regressionEvidence = f.evidence.find((e) => e.label === "Regression detected");
-  const roiEvidence = f.evidence.find((e) => e.label === "Site historical ROI");
-
-  const handleCopyBrief = async () => {
-    try {
-      await navigator.clipboard.writeText(formatFindingAsBrief(f, domain));
-      setCopiedBrief(true);
-      setTimeout(() => setCopiedBrief(false), 2000);
-    } catch {}
-  };
-
-  const handleRunManualVerify = async () => {
-    setVerifyingBusy(true);
-    setVerifyError(null);
-    try {
-      const res = await onVerifyManual(verifyUrl.trim() || undefined, verifyNote.trim() || undefined);
-      setVerifyResult(res);
-    } catch (err) {
-      setVerifyError(errorMessage(err));
-    } finally {
-      setVerifyingBusy(false);
-    }
-  };
+  const pageCount = f.affectedCount ?? f.affectedPages?.length ?? 0;
 
   return (
-    <li className="px-4 py-3">
-      <div className="flex items-start gap-2.5">
+    <li className="px-5 py-3.5 transition hover:bg-surface-2/40">
+      <div className="flex items-start gap-3">
         <input
           type="checkbox"
           checked={selected}
           onChange={onToggleSelect}
-          aria-label={`Select ${f.title} for batch execution`}
-          className="mt-1 h-3.5 w-3.5 rounded border-brand-300 cursor-pointer shrink-0"
+          aria-label={`Select ${f.title}`}
+          className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-brand-300 cursor-pointer"
         />
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex flex-1 min-w-0 items-start gap-2 text-left cursor-pointer">
-        <span className="mt-0.5 text-brand-400">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-semibold text-brand-950">{f.title}</span>
-            {regressionEvidence && (
-              <span title={regressionEvidence.value}>
-                <Pill tone="bad">Regression</Pill>
+
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-start justify-between gap-4 text-left cursor-pointer"
+        >
+          <div className="flex min-w-0 items-start gap-2.5">
+            <span
+              className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", impactDotClass(f.potential))}
+              title={`${f.potential.toLowerCase()} impact`}
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13.5px] font-semibold text-brand-950">{f.title}</span>
+                {f.potential === "HIGH" && <Pill tone="warn">High impact</Pill>}
+                {lifecycle !== "DETECTED" && (
+                  <Pill tone={lifecycle === "VERIFIED" || lifecycle === "MEASURED" ? "good" : "default"}>
+                    {LIFECYCLE_LABEL[lifecycle] ?? lifecycle}
+                  </Pill>
+                )}
+              </div>
+              <p className="mt-0.5 line-clamp-1 text-xs text-brand-500">{f.summary}</p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2.5 text-[11.5px]">
+            <span
+              className={cn(
+                "hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium",
+                guideDifficulty === "no_code"
+                  ? "bg-success-50 text-success-700"
+                  : "bg-brand-100 text-brand-600",
+              )}
+            >
+              {guideDifficulty === "no_code" ? <UserCheck size={11} /> : <Wrench size={11} />}
+              <span>{guideDifficulty === "no_code" ? "No coding" : guideDifficultyLabel === "Best sent to developer" ? "Developer" : "CMS / Dev"}</span>
+            </span>
+
+            <span className="hidden md:inline-flex items-center gap-1 font-mono text-[11px] text-brand-400 tabular-nums">
+              <Clock size={11} />
+              {guideTime}
+            </span>
+
+            {pageCount > 0 && (
+              <span className="hidden lg:inline font-mono text-[11px] text-brand-400 tabular-nums">
+                {pageCount} {pageCount === 1 ? "page" : "pages"}
               </span>
             )}
-            {roiEvidence && (
-              <span title={roiEvidence.value}>
-                <Pill tone="good">Proven ROI</Pill>
-              </span>
-            )}
-            {group && <Pill tone="info">{group.label}</Pill>}
-            <Pill tone={BAND[f.potential]}>{f.potential.toLowerCase()} impact</Pill>
-            {f.potential === "HIGH" && (
-              <span className="inline-flex items-center gap-1 rounded border border-success-500/25 bg-success-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-success-700">
-                High CTR Lift
-              </span>
-            )}
-            <Pill tone={EFFORT[f.effort]}>{f.effort.toLowerCase()} effort</Pill>
-            {cls && <span title={cls.hint}><Pill>{cls.label}</Pill></span>}
-            <Pill tone={lifecycle === "QUEUED" || lifecycle === "APPROVED" ? "good" : "default"}>{LIFECYCLE_LABEL[lifecycle] ?? lifecycle}</Pill>
-          </span>
-          <span className="mt-1 block text-[12px] text-brand-600">{f.summary}</span>
-        </span>
-      </button>
+
+            <span className="inline-flex items-center gap-1 font-semibold text-brand-700">
+              <span className="hidden sm:inline">{open ? "Hide" : "Solution"}</span>
+              {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
+          </div>
+        </button>
       </div>
 
       {open && (
-        <div className="mt-3 space-y-3 pl-6">
-          {f.evidence.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">Evidence</p>
-              <ul className="mt-1 space-y-1">
-                {f.evidence.map((e) => (
-                  <li key={`${e.label}-${e.value}`} className="text-[12px] text-brand-600">
-                    <span className="text-brand-400">{e.label}: </span>
-                    <span className="text-brand-950">{e.value}</span>
-                    <span className="ml-1.5 text-[10.5px] text-brand-400">({e.source})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <div className="rounded-xl border border-brand-200/80 bg-surface-1 p-3.5 space-y-2 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-brand-950 flex items-center gap-1.5">
-                <FileCode2 size={13} className="text-primary-700" /> Actionable Fix
-              </p>
-              {cls && <span className="text-[10px] text-brand-400">{cls.label}</span>}
-            </div>
-            <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-brand-950 font-sans">{f.recommendedAction}</p>
-          </div>
-          {pages.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">
-                Pages affected ({f.affectedCount ?? pages.length})
-              </p>
-              <ul className="mt-1 space-y-0.5">
-                {pages.slice(0, 5).map((p) => (
-                  <li key={p} className="truncate font-mono text-[11px] text-brand-600" title={p}>{p}</li>
-                ))}
-                {pages.length > 5 && <li className="text-[11px] text-brand-400">and {pages.length - 5} more</li>}
-              </ul>
-            </div>
-          )}
-          <p className="text-[11px] text-brand-400">{f.detailType === 'REPORT_PLAN' ? 'Saved recommendation · review before applying' : `Confidence ${f.confidence}%`} · found {new Date(f.detectedAt).toLocaleDateString()}</p>
-          {group && <Link href={f.detailType === 'REPORT_PLAN' ? group.report : group.href} className="inline-block text-[12px] font-semibold text-accent-700 hover:underline">Open source {f.detailType === 'REPORT_PLAN' ? 'report' : 'module'} →</Link>}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {lifecycle === "DETECTED" && (
-              <ActionButton disabled={busy} onClick={() => onMove("QUEUED")}>Add to plan</ActionButton>
-            )}
-            <ActionButton
-              variant="secondary"
-              icon={copiedBrief ? <Check size={12} className="text-success-600" /> : <Copy size={12} />}
-              onClick={handleCopyBrief}
-            >
-              {copiedBrief ? "Brief copied!" : "Copy Handoff Brief"}
-            </ActionButton>
-            {!["VERIFIED", "MEASURED"].includes(lifecycle) && (
-              <ActionButton
-                variant="secondary"
-                icon={<CheckCircle2 size={12} className="text-success-600" />}
-                onClick={() => {
-                  setVerifyingOpen((v) => !v);
-                  setVerifyError(null);
-                }}
-              >
-                {verifyingOpen ? "Hide Live Check" : "Mark Applied & Verify Live"}
-              </ActionButton>
-            )}
-            {onOpenCmsApply && (
-              <ActionButton
-                variant="primary"
-                icon={<Globe size={12} />}
-                onClick={onOpenCmsApply}
-              >
-                Apply via CMS / Platform →
-              </ActionButton>
-            )}
-            {onOpenContentStudio && (
-              <ActionButton
-                variant={f.fixClass === "MANUAL" ? "primary" : "secondary"}
-                icon={<FileText size={12} />}
-                onClick={onOpenContentStudio}
-              >
-                Draft in Content Studio →
-              </ActionButton>
-            )}
-            {onOpenGitHubFixes && (
-              <ActionButton
-                variant="secondary"
-                icon={<GitPullRequest size={12} />}
-                onClick={onOpenGitHubFixes}
-              >
-                Open in Improvements &amp; PRs →
-              </ActionButton>
-            )}
-            {["DETECTED", "QUEUED"].includes(lifecycle) && !dismissing && (
-              <button type="button" onClick={() => setDismissing(true)} className={cn("text-[12px] font-semibold text-brand-500 hover:text-error-600 cursor-pointer")}>
-                Dismiss
-              </button>
-            )}
-            {dismissing && (
-              <span className="flex flex-wrap items-center gap-2">
-                <input
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Why? (required)"
-                  aria-label="Reason for dismissing"
-                  className="h-8 w-56 rounded-lg border border-brand-200 bg-surface-1 px-3 text-[12px] text-brand-950 outline-none focus:border-primary-500"
-                />
-                <ActionButton disabled={busy || reason.trim() === ""} onClick={() => onMove("DISMISSED", reason.trim())}>Confirm dismiss</ActionButton>
-                <button type="button" onClick={() => setDismissing(false)} className="text-[12px] text-brand-500 hover:underline cursor-pointer">Cancel</button>
-              </span>
-            )}
-          </div>
-
-          {/* Closed-Loop Manual Fix Live Verification Drawer */}
-          {verifyingOpen && (
-            <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-3.5 space-y-2.5">
-              <div>
-                <p className="text-xs font-bold text-brand-950">
-                  Verify Manual Fix on Live URL
-                </p>
-                <p className="text-[11px] text-brand-500">
-                  Shipped this fix yourself or via a developer? We&apos;ll inspect the live HTML right now, confirm the change, and record verified proof in your Results Ledger.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <input
-                  type="url"
-                  value={verifyUrl}
-                  onChange={(e) => setVerifyUrl(e.target.value)}
-                  placeholder="https://yourdomain.com/page"
-                  aria-label="Live URL to verify"
-                  className="h-9 rounded-lg border border-brand-200 bg-surface-1 px-3 font-mono text-[11.5px] text-brand-950 outline-none focus:border-primary-500"
-                />
-                <input
-                  type="text"
-                  value={verifyNote}
-                  onChange={(e) => setVerifyNote(e.target.value)}
-                  placeholder="Optional note (e.g. Updated in Shopify / Dev PR)"
-                  aria-label="Implementation note"
-                  className="h-9 rounded-lg border border-brand-200 bg-surface-1 px-3 text-[11.5px] text-brand-950 outline-none focus:border-primary-500"
-                />
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <ActionButton
-                  variant="primary"
-                  disabled={verifyingBusy || !verifyUrl.trim()}
-                  icon={verifyingBusy ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                  onClick={handleRunManualVerify}
-                >
-                  {verifyingBusy ? "Inspecting live URL…" : "Verify Live URL now"}
-                </ActionButton>
-              </div>
-
-              {verifyError && (
-                <p role="alert" className="text-[11.5px] font-medium text-error-600">
-                  {verifyError}
-                </p>
-              )}
-
-              {verifyResult && (
-                <div
-                  role="status"
-                  className={cn(
-                    "rounded-lg border p-3 text-[11.5px] space-y-1.5",
-                    verifyResult.verified
-                      ? "border-success-500/40 bg-success-50 text-success-700"
-                      : "border-warning-500/40 bg-warning-50 text-warning-700",
-                  )}
-                >
-                  <p className="font-bold flex items-center gap-1.5">
-                    {verifyResult.verified ? (
-                      <CheckCircle2 size={13} className="shrink-0" />
-                    ) : (
-                      <AlertTriangle size={13} className="shrink-0" />
-                    )}
-                    <span>{verifyResult.summary}</span>
-                  </p>
-                  <ul className="space-y-0.5 pl-4 list-disc text-[11px]">
-                    {verifyResult.checks.map((c) => (
-                      <li key={c.name}>
-                        <strong>{c.name}:</strong> {c.passed ? "Pass" : "Needs attention"} ({c.observed})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="pl-6">
+          <IssueSolutionGuide
+            finding={f}
+            domain={domain}
+            sourceLink={
+              group
+                ? {
+                    href: f.detailType === "REPORT_PLAN" ? group.report : group.href,
+                    label:
+                      f.detailType === "REPORT_PLAN"
+                        ? "Open source report →"
+                        : `Open ${group.label} →`,
+                  }
+                : null
+            }
+            busy={busy}
+            onMove={onMove}
+            onVerifyManual={onVerifyManual}
+            onOpenCmsApply={onOpenCmsApply}
+            onOpenContentStudio={onOpenContentStudio}
+            onOpenGitHubFixes={onOpenGitHubFixes}
+          />
         </div>
       )}
     </li>
   );
 }
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors cursor-pointer",
         active
           ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
-          : "text-brand-400 hover:text-brand-950"
+          : "text-brand-500 hover:text-brand-950",
       )}
     >
       {children}

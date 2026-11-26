@@ -1,32 +1,40 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowRight, FileText, GitPullRequest, History, ShieldCheck, TrendingUp, Wrench, Zap } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardList,
+  Code2,
+  FileText,
+  History,
+  Lock,
+  Sparkles,
+  TrendingUp,
+  UserCheck,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useFindings, useWorkspace } from "@/hooks/use-growthx";
-import { PageHeader, Tabs, StatusNote } from "@/components/ui/console";
+import { Tabs } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
 import { GitHubFixesLogView } from "@/components/fix-engine/github-fixes-log-view";
 import { SavedTasksPanel } from "@/components/fix-engine/saved-tasks-panel";
 import { AdaptiveResultsHub } from "@/components/fix-engine/adaptive-results-hub";
 import { ContentStudioView } from "@/components/fix-engine/content-studio-view";
-import { FixEngineCharts } from "@/components/fix-engine/fix-engine-charts";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
+import { getIssueFixGuide } from "@/lib/issue-fix-guides";
 import { stagingEngine } from "@/lib/staging-engine";
+import { useSubscription } from "@/lib/subscription-engine";
 
-const TABS = [
-  { id: "improvement", label: "Improvement Plan", icon: Wrench },
-  { id: "github-fixes", label: "Fixes & Log", icon: History },
-  { id: "content", label: "Content Studio", icon: FileText },
-  { id: "results", label: "Results", icon: TrendingUp },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
+type TabId = "improvement" | "content" | "github-fixes" | "results";
 
 export default function FixEnginePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-[13px] text-brand-400">Loading Fix Engine…</div>}>
+    <Suspense fallback={<div className="p-8 text-[13px] text-brand-400">Loading Action Plan…</div>}>
       <FixEngineClient />
     </Suspense>
   );
@@ -59,12 +67,31 @@ function FixEngineClient() {
     | "SCHEMA_MARKUP"
     | "GBP_POST"
     | null;
-  const [statusMessage] = useState<string | null>(null);
-  const [preparedTask, setPreparedTask] = useState<{ projectId: string; instruction: string; revision: number } | null>(null);
+  const [preparedTask, setPreparedTask] = useState<{
+    projectId: string;
+    instruction: string;
+    revision: number;
+  } | null>(null);
   const [contentSeedFinding, setContentSeedFinding] = useState<GrowthOpportunity | null>(null);
 
-  const { projectId } = useWorkspace();
+  const { orgId, projectId, projects } = useWorkspace();
+  const { canUseFixEngine, plan } = useSubscription(orgId);
   const activeProjectId = projectId ?? "";
+  const domain = projects.find((p) => p.id === activeProjectId)?.name ?? null;
+
+  const visibleTabs = useMemo(
+    () => [
+      { id: "improvement" as TabId, label: "Action Plan & Guides", icon: ClipboardList },
+      { id: "content" as TabId, label: "AI Content Writer", icon: FileText },
+      {
+        id: "github-fixes" as TabId,
+        label: canUseFixEngine ? "Auto-Apply & Log" : "Auto-Apply (Agency)",
+        icon: canUseFixEngine ? History : Lock,
+      },
+      { id: "results" as TabId, label: "Verified Results", icon: TrendingUp },
+    ],
+    [canUseFixEngine],
+  );
 
   useEffect(() => {
     if (activeProjectId) {
@@ -72,7 +99,7 @@ function FixEngineClient() {
     }
   }, [activeProjectId]);
 
-  const findings = useFindings(activeProjectId, { limit: 100 });
+  const findings = useFindings(activeProjectId, { limit: 150 });
   const savedPlans = useQuery({
     queryKey: ["saved-plans", activeProjectId],
     queryFn: () => api.savedPlans.list(activeProjectId),
@@ -82,11 +109,39 @@ function FixEngineClient() {
     refetchOnMount: "always",
   });
 
+  const stats = useMemo(() => {
+    const items = (findings.data?.items ?? []).filter(
+      (i) => !["DISMISSED"].includes(i.lifecycle ?? "DETECTED"),
+    );
+    const active = items.filter((i) => !["RESOLVED", "VERIFIED", "MEASURED"].includes(i.lifecycle ?? "DETECTED"));
+    let noCodeCount = 0;
+    let devCount = 0;
+    for (const item of active) {
+      const g = getIssueFixGuide({
+        title: item.title,
+        summary: item.summary,
+        recommendedAction: item.recommendedAction,
+        domain,
+        fixClass: item.fixClass,
+        source: item.source,
+      });
+      if (g.difficulty === "no_code") noCodeCount += 1;
+      else if (g.difficulty === "developer") devCount += 1;
+    }
+    const highImpactCount = active.filter((i) => i.potential === "HIGH").length;
+    const confirmedCount = items.filter((i) =>
+      ["RESOLVED", "VERIFIED", "MEASURED"].includes(i.lifecycle ?? "DETECTED"),
+    ).length;
+    return {
+      openCount: active.length,
+      noCodeCount,
+      devCount,
+      highImpactCount,
+      confirmedCount,
+    };
+  }, [findings.data?.items, domain]);
+
   const stagedTasksCount = (savedPlans.data ?? []).filter((t) => t.status === "STAGED").length;
-  const highImpactCount = findings.data?.items.filter((i) => i.potential === "HIGH").length ?? 0;
-  const autoFixableCount = findings.data?.items.filter((i) => i.fixClass === "AUTO").length ?? 0;
-  const queuedCount = findings.data?.items.filter((i) => i.lifecycle === "QUEUED" || i.lifecycle === "APPROVED").length ?? 0;
-  const totalFindingsCount = findings.data?.items.length ?? 0;
 
   const setTab = (newTab: TabId, targetFindingId?: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -100,139 +155,125 @@ function FixEngineClient() {
   };
 
   return (
-    <div className="space-y-6 pb-16">
-      <PageHeader
-        title="Fix Engine"
-        subtitle="Automated SEO remediations, staged code pull requests, and live CMS updates."
-        actions={
-          <div className="flex items-center gap-2">
-            <a href="/reports/plan" className="text-[12px] font-semibold text-accent-700 hover:underline">Complete plan report →</a>
+    <div className="space-y-5 pb-16">
+      {/* Clean Universal Header — Written for Everyone (Owners, Marketers & Developers) */}
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
+            <Wrench size={18} />
+          </span>
+          <div>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">
+              {canUseFixEngine ? "Fix Engine & Action Plan" : "Action Plan & Fix Guides"}
+            </h1>
+            <p className="mt-0.5 text-[12.5px] text-brand-500">
+              {canUseFixEngine
+                ? "Every website issue explained clearly — fix it yourself step-by-step, share with your developer, or apply automatically."
+                : "Every website issue explained in plain English — follow step-by-step platform guides, send ready instructions to your developer, and verify fixes live."}
+            </p>
           </div>
-        }
-      />
+        </div>
 
-      {/* ── EXECUTIVE AUTONOMOUS EXECUTION TELEMETRY RIBBON ── */}
-      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
-                <Wrench size={18} />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-[14.5px] font-bold text-brand-950">
-                    Remediation Pipeline
-                  </h2>
-                  {stagedTasksCount > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-signal-400/40 bg-signal-400/15 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-brand-950">
-                      <Zap size={11} className="text-signal-500" />
-                      {stagedTasksCount} Staged
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-surface-2 border border-brand-200/70 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
-                      Pipeline Active
-                    </span>
-                  )}
-                  {highImpactCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-success-200/60 bg-success-50 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
-                      <ShieldCheck size={12} className="text-success-600" />
-                      {highImpactCount} High Impact
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-[11.5px] text-brand-400">
-                  Consolidated action plan from technical audit, search, and AI visibility findings.
-                </p>
-              </div>
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/reports/plan"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition"
+          >
+            <span>Complete plan report →</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setTab("results")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 cursor-pointer"
+          >
+            <span>Verified Results</span>
+            <ArrowUpRight size={13} />
+          </button>
+        </div>
+      </header>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setTab("github-fixes")}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
-              >
-                <GitPullRequest size={12} className="text-signal-ink" />
-                <span>GitHub Fixes &amp; Log</span>
-                <ArrowRight size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("results")}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
-              >
-                <span>Proof &amp; Results</span>
-                <ArrowRight size={12} />
-              </button>
-            </div>
-          </div>
+      {/* 4-Card Universal Clarity Strip (Works Whether or Not GitHub/CMS is Connected) */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            <Zap size={12} className="text-warning-500" />
+            <span>High Impact</span>
+          </p>
+          <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+            {stats.highImpactCount}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-brand-500">
+            Of {stats.openCount} open {stats.openCount === 1 ? "issue" : "issues"}
+          </p>
+        </div>
 
-          {/* Execution Metric Telemetry Beacons */}
-          <div className="flex flex-wrap items-center gap-3 border-t border-brand-200/60 pt-3 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-signal-400" />
-              <span className="text-brand-500 font-medium">Auto-Fixable:</span>
-              <span className="font-mono font-bold text-brand-950">{autoFixableCount}</span>
-            </div>
-            <span className="text-brand-300">·</span>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-success-500" />
-              <span className="text-brand-500 font-medium">In Plan / Approved:</span>
-              <span className="font-mono font-bold text-brand-950">{queuedCount}</span>
-            </div>
-            <span className="text-brand-300">·</span>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-brand-400" />
-              <span className="text-brand-500 font-medium">Total Opportunities:</span>
-              <span className="font-mono font-bold text-brand-950">{totalFindingsCount}</span>
-            </div>
-            <span className="text-brand-300">·</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-brand-500 font-medium">Deployment Targets:</span>
-              <span className="font-mono text-brand-800">GitHub · WordPress · Shopify · Webflow · CMS</span>
-            </div>
-          </div>
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            <UserCheck size={12} className="text-success-500" />
+            <span>No Coding Needed</span>
+          </p>
+          <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+            {stats.noCodeCount}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-brand-500">
+            Quick DIY steps in your CMS
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            <Code2 size={12} className="text-accent-500" />
+            <span>Developer Tasks</span>
+          </p>
+          <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+            {stats.devCount}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-brand-500">
+            1-click copy or WhatsApp handoff
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            <CheckCircle2 size={12} className="text-success-500" />
+            <span>Confirmed Fixed</span>
+          </p>
+          <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
+            {stats.confirmedCount}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-brand-500">
+            {stagedTasksCount > 0 ? `${stagedTasksCount} staged in queue` : "Verified on live site"}
+          </p>
         </div>
       </div>
 
-      {/* ── VISUAL FIX MIX & REMEDIATION FUNNEL ── */}
-      <FixEngineCharts
-        findings={findings.data?.items ?? []}
-        stagedTasksCount={stagedTasksCount}
-        onOpenFixes={() => setTab("github-fixes")}
-        onOpenResults={() => setTab("results")}
-      />
-
-      {statusMessage && (
-        <StatusNote tone={statusMessage.includes("verified") ? "good" : "bad"}>
-          {statusMessage}
-        </StatusNote>
-      )}
-
+      {/* Clear 4-Tab Bar */}
       <Tabs
-        tabs={TABS as unknown as { id: TabId; label: string; icon?: React.ElementType }[]}
+        tabs={visibleTabs}
         active={tab}
         onChange={(nextTab) => setTab(nextTab)}
       />
 
       {tab === "improvement" ? (
-        <div className="space-y-6">
-          <SavedTasksPanel
-            key={activeProjectId}
-            projectId={projectId}
-            onPrepare={(instruction) => {
-              setPreparedTask((previous) => ({
-                projectId: activeProjectId,
-                instruction,
-                revision: (previous?.revision ?? 0) + 1,
-              }));
-              setTab("github-fixes");
-            }}
-          />
+        <div className="space-y-5">
+          {canUseFixEngine && (
+            <SavedTasksPanel
+              key={activeProjectId}
+              projectId={projectId}
+              onPrepare={(instruction) => {
+                setPreparedTask((previous) => ({
+                  projectId: activeProjectId,
+                  instruction,
+                  revision: (previous?.revision ?? 0) + 1,
+                }));
+                setTab("github-fixes");
+              }}
+            />
+          )}
           <PlanView
             key={activeProjectId}
-            onOpenGitHubFixes={(fId) => setTab("github-fixes", fId)}
+            canAutoApply={canUseFixEngine}
+            onOpenGitHubFixes={canUseFixEngine ? (fId) => setTab("github-fixes", fId) : undefined}
             onOpenContentStudio={(finding) => {
               setContentSeedFinding(finding);
               setTab("content");
@@ -240,12 +281,49 @@ function FixEngineClient() {
           />
         </div>
       ) : tab === "github-fixes" ? (
-        <GitHubFixesLogView
-          key={`${activeProjectId}-${legacyJourney}-${findingId ?? "all"}-${preparedTask?.projectId === activeProjectId ? preparedTask.revision : 0}`}
-          initialSection={legacyJourney ? "IMPROVEMENT_LOG" : "ALL"}
-          initialFindingId={findingId}
-          initialInstruction={preparedTask?.projectId === activeProjectId ? preparedTask.instruction : undefined}
-        />
+        canUseFixEngine ? (
+          <GitHubFixesLogView
+            key={`${activeProjectId}-${legacyJourney}-${findingId ?? "all"}-${preparedTask?.projectId === activeProjectId ? preparedTask.revision : 0}`}
+            initialSection={legacyJourney ? "IMPROVEMENT_LOG" : "ALL"}
+            initialFindingId={findingId}
+            initialInstruction={
+              preparedTask?.projectId === activeProjectId ? preparedTask.instruction : undefined
+            }
+          />
+        ) : (
+          <div className="rounded-2xl border border-brand-200 bg-surface-1 p-8 text-center shadow-2xs space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-signal-400/20 text-brand-950">
+              <Sparkles size={22} />
+            </div>
+            <div className="mx-auto max-w-lg space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                Included in Agency Plan
+              </p>
+              <h2 className="text-lg font-bold tracking-tight text-brand-950">
+                Automated Fix Engine (GitHub PRs &amp; Direct CMS Publishing)
+              </h2>
+              <p className="text-[13px] leading-relaxed text-brand-500">
+                Your current <strong className="text-brand-900">{plan?.name || "Starter / Growth"}</strong> plan includes every plain-English issue explanation, 5-platform step-by-step fix guide, 1-click Developer WhatsApp handoff, and Live URL Verification. Upgrade to <strong className="text-brand-900">Agency</strong> to unlock automated GitHub pull requests, direct WordPress/Shopify/Webflow publishing, and batch auto-fixes.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setTab("improvement")}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-4 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition cursor-pointer"
+              >
+                <span>Back to Step-by-Step Guides</span>
+              </button>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2 text-xs font-bold text-signal-ink shadow-xs hover:bg-signal-500 transition"
+              >
+                <span>Compare Agency Plan</span>
+                <ArrowUpRight size={13} />
+              </Link>
+            </div>
+          </div>
+        )
       ) : tab === "content" ? (
         <ContentStudioView
           key={activeProjectId}

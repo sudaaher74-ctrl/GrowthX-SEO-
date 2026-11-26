@@ -1,34 +1,34 @@
 "use client";
 
-import React, { useEffect, useId, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, ExternalLink, Sparkles, X } from "lucide-react";
-import { type FixClass, type IssueGroup, type IssueSeverity } from "@/lib/api-client";
-import { SEVERITY_PLAIN, asSentence } from "@/lib/plain-language";
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Copy,
+  ExternalLink,
+  HelpCircle,
+  Lightbulb,
+  MessageSquare,
+  Sparkles,
+  UserCheck,
+  Wrench,
+  X,
+} from "lucide-react";
+import { type IssueGroup, type IssueSeverity } from "@/lib/api-client";
+import {
+  GUIDE_PLATFORMS,
+  getIssueFixGuide,
+  type GuidePlatform,
+} from "@/lib/issue-fix-guides";
+import { SEVERITY_PLAIN } from "@/lib/plain-language";
 import { cn } from "@/lib/utils";
 
 const SEVERITY = SEVERITY_PLAIN;
-
-const FIX_CLASS_COPY: Record<FixClass, { label: string; cta: string; href: string; note: string }> = {
-  AUTO: {
-    label: "1-Click AI Fix",
-    cta: "Stage in Fix Engine",
-    href: "/fix-engine",
-    note: "Generates an isolated pull request — nothing goes live until you approve and merge.",
-  },
-  APPROVAL: {
-    label: "AI Assisted",
-    cta: "Review in Fix Engine",
-    href: "/fix-engine",
-    note: "Shown as a before-and-after diff before applying.",
-  },
-  MANUAL: {
-    label: "Manual Fix",
-    cta: "Inspect in Website Audit",
-    href: "/website?tab=issues",
-    note: "Includes technical diagnostics and affected routes for your team.",
-  },
-};
+const PLATFORM_STORAGE_KEY = "reigel.guide_platform";
 
 function severityDotClass(sev: IssueSeverity): string {
   return {
@@ -39,9 +39,20 @@ function severityDotClass(sev: IssueSeverity): string {
   }[sev];
 }
 
+function readSavedPlatform(): GuidePlatform {
+  if (typeof window === "undefined") return "wordpress";
+  try {
+    const saved = localStorage.getItem(PLATFORM_STORAGE_KEY) as GuidePlatform | null;
+    if (saved && GUIDE_PLATFORMS.some((p) => p.id === saved)) return saved;
+  } catch {
+    // Ignore storage errors
+  }
+  return "wordpress";
+}
+
 /**
  * Linear-style single-row priority issue item: severity dot, clear title,
- * affected page count, quiet AI-ready hint, and click-to-inspect drawer trigger.
+ * affected page count, plain fix difficulty hint, and click-to-inspect guide trigger.
  */
 export function TodoRow({
   group,
@@ -54,7 +65,14 @@ export function TodoRow({
   onPick: () => void;
 }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
-  const isAiReady = group.aiFixAvailable || group.fixClass === "AUTO";
+  const guide = getIssueFixGuide({
+    title: group.title,
+    issueType: group.issueType,
+    summary: group.summary,
+    recommendedAction: group.action,
+    affectedPages: group.sampleUrls,
+    fixClass: group.fixClass,
+  });
   const pageText = `${group.affectedCount} ${group.affectedCount === 1 ? "affected page" : "affected pages"}`;
 
   return (
@@ -64,7 +82,7 @@ export function TodoRow({
         onClick={onPick}
         aria-pressed={selected}
         className={cn(
-          "group flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition cursor-pointer",
+          "group flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition cursor-pointer",
           selected ? "bg-brand-100/70" : "hover:bg-brand-50/90",
         )}
       >
@@ -74,18 +92,23 @@ export function TodoRow({
             title={sev.label}
             aria-hidden="true"
           />
-          <span className="truncate text-[13px] font-medium text-brand-950 group-hover:text-brand-950">
+          <span className="truncate text-[13px] font-medium text-brand-950">
             {group.title}
           </span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-4 text-[11.5px]">
-          {isAiReady && (
-            <span className="hidden sm:inline-flex items-center gap-1 font-medium text-success-700">
-              <Sparkles size={11} />
-              AI fix
-            </span>
-          )}
+        <div className="flex shrink-0 items-center gap-3.5 text-[11.5px]">
+          <span
+            className={cn(
+              "hidden sm:inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+              guide.difficulty === "no_code"
+                ? "bg-success-50 text-success-700"
+                : "bg-brand-100 text-brand-600",
+            )}
+          >
+            {guide.difficulty === "no_code" ? <UserCheck size={11} /> : <Wrench size={11} />}
+            <span>{guide.difficulty === "no_code" ? "No coding" : "Guide & dev brief"}</span>
+          </span>
           <span className="font-mono text-brand-500 tabular-nums">{pageText}</span>
           <span className="hidden md:inline-block w-16 text-right text-[11px] font-medium text-brand-400">
             {sev.label}
@@ -101,8 +124,9 @@ export function TodoRow({
 }
 
 /**
- * Calm slide-over native <dialog> Issue Inspector — replaces the nested 6-card
- * master-detail panel with clean typography, hairline dividers, and 1-click Fix Engine action.
+ * Plain-English Slide-Over Solution Guide Drawer — explains what's wrong,
+ * why it matters, exact step-by-step instructions by platform (WordPress,
+ * Shopify, Webflow, Wix, Developer), and 1-click Copy / WhatsApp developer handoff.
  */
 export function ProblemDetailDrawer({
   group,
@@ -113,6 +137,8 @@ export function ProblemDetailDrawer({
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const titleId = useId();
+  const [platform, setPlatform] = useState<GuidePlatform>(() => readSavedPlatform());
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -163,7 +189,36 @@ export function ProblemDetailDrawer({
   }, [onClose]);
 
   const sev = group ? (SEVERITY[group.severity] ?? SEVERITY.LOW) : null;
-  const fix = group ? (FIX_CLASS_COPY[group.fixClass] ?? FIX_CLASS_COPY.MANUAL) : null;
+  const guide = group
+    ? getIssueFixGuide({
+        title: group.title,
+        issueType: group.issueType,
+        summary: group.summary,
+        recommendedAction: group.action,
+        affectedPages: group.sampleUrls,
+        fixClass: group.fixClass,
+      })
+    : null;
+
+  const handleSelectPlatform = (next: GuidePlatform) => {
+    setPlatform(next);
+    try {
+      localStorage.setItem(PLATFORM_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const handleCopyHandoff = async () => {
+    if (!guide) return;
+    try {
+      await navigator.clipboard.writeText(guide.developerHandoff);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable
+    }
+  };
 
   return (
     <dialog
@@ -172,15 +227,27 @@ export function ProblemDetailDrawer({
       {...({ closedby: "any" } as Record<string, string>)}
       className="traffic-inspector-dialog border-l border-brand-200"
     >
-      {group && sev && fix && (
+      {group && sev && guide && (
         <>
           <div className="flex items-start justify-between gap-4 border-b border-brand-100 px-6 py-5">
             <div className="min-w-0 space-y-1.5">
-              <div className="flex items-center gap-2 text-[11px] font-medium text-brand-500">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-brand-500">
                 <span className={cn("h-2 w-2 rounded-full", severityDotClass(group.severity))} />
                 <span>{sev.label}</span>
                 <span className="text-brand-300">·</span>
-                <span>{fix.label}</span>
+                <span
+                  className={cn(
+                    "font-semibold",
+                    guide.difficulty === "no_code" ? "text-success-700" : "text-brand-700",
+                  )}
+                >
+                  {guide.difficultyLabel}
+                </span>
+                <span className="text-brand-300">·</span>
+                <span className="inline-flex items-center gap-1 font-mono">
+                  <Clock size={11} />
+                  ~{guide.estimatedTime}
+                </span>
               </div>
               <h1 id={titleId} className="text-[16px] font-bold leading-snug tracking-tight text-brand-950">
                 {group.title}
@@ -190,7 +257,7 @@ export function ProblemDetailDrawer({
               <button
                 type="submit"
                 autoFocus
-                aria-label="Close issue details"
+                aria-label="Close issue guide"
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-400 hover:bg-brand-100 hover:text-brand-950 transition cursor-pointer"
               >
                 <X size={16} />
@@ -198,55 +265,103 @@ export function ProblemDetailDrawer({
             </form>
           </div>
 
-          <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-            {group.summary && (
-              <p className="text-[13px] leading-relaxed text-brand-600">{asSentence(group.summary)}</p>
-            )}
-
-            {/* Single quiet 3-column metadata strip with hairlines */}
-            <div className="grid grid-cols-3 divide-x divide-brand-100 border-y border-brand-100 py-3.5">
-              <div className="pr-3">
-                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Pages</p>
-                <p className="mt-0.5 font-mono text-[16px] font-bold text-brand-950 tabular-nums">
-                  {group.affectedCount}
-                </p>
-              </div>
-              <div className="px-3">
-                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Path</p>
-                <p className="mt-0.5 text-[13px] font-semibold text-brand-950">{fix.label}</p>
-              </div>
-              <div className="pl-3">
-                <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Confidence</p>
-                <p className="mt-0.5 text-[13px] font-semibold text-brand-950">
-                  {group.confidence === "CONFIRMED" ? "Confirmed" : "Verified"}
-                </p>
-              </div>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            {/* Plain-English What's Happening */}
+            <div className="space-y-1.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                <HelpCircle size={12} className="text-accent-500" />
+                <span>What’s happening</span>
+              </p>
+              <p className="text-[13px] leading-relaxed text-brand-800">
+                {guide.whatIsWrong}
+              </p>
             </div>
 
-            {group.action && (
-              <div className="space-y-1.5">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-                  How to fix
-                </h2>
-                <p className="text-[13px] leading-relaxed text-brand-700">{asSentence(group.action)}</p>
-              </div>
-            )}
+            {/* Why It Matters */}
+            <div className="rounded-xl border border-brand-200/70 bg-surface-2 p-4 space-y-1.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-500">
+                <Lightbulb size={12} className="text-warning-500" />
+                <span>Why it matters</span>
+              </p>
+              <p className="text-[12.5px] leading-relaxed text-brand-800">
+                {guide.whyItMatters}
+              </p>
+            </div>
 
+            {/* Step-by-Step Solution by Platform */}
+            <div className="space-y-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                  <Sparkles size={12} className="text-signal-500" />
+                  <span>Step-by-step solution</span>
+                </p>
+                <div
+                  role="tablist"
+                  aria-label="Choose your website platform"
+                  className="mt-2 inline-flex flex-wrap items-center gap-1 rounded-xl border border-brand-200/70 bg-surface-2 p-1 text-[11px]"
+                >
+                  {GUIDE_PLATFORMS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={platform === p.id}
+                      onClick={() => handleSelectPlatform(p.id)}
+                      className={cn(
+                        "rounded-lg px-2 py-1 font-semibold transition cursor-pointer",
+                        platform === p.id
+                          ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                          : "text-brand-600 hover:text-brand-950",
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <ol className="space-y-2">
+                {guide.platformSteps[platform].map((step, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-brand-800">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-400/20 font-mono text-[10.5px] font-bold text-brand-950">
+                      {idx + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+
+              {guide.verifySteps.length > 0 && (
+                <div className="space-y-1 border-t border-brand-100 pt-2.5">
+                  {guide.verifySteps.map((v, idx) => (
+                    <p key={idx} className="flex items-start gap-1.5 text-[11.5px] text-brand-500">
+                      <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-success-600" />
+                      <span>{v}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Affected Pages */}
             {group.sampleUrls.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-                    Affected pages ({group.sampleUrls.length})
-                  </h2>
-                  <Link href="/website?tab=issues" className="text-[11.5px] font-medium text-brand-500 hover:text-brand-950">
-                    Full audit →
+              <div className="space-y-2 border-t border-brand-100 pt-4">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold uppercase tracking-wider text-brand-400">
+                    Affected pages ({group.affectedCount})
+                  </span>
+                  <Link
+                    href="/website?tab=issues"
+                    className="font-semibold text-brand-600 hover:text-brand-950 transition"
+                  >
+                    View all →
                   </Link>
                 </div>
-                <ul className="divide-y divide-brand-100 border-t border-brand-100">
-                  {group.sampleUrls.slice(0, 8).map((u) => (
-                    <li key={u} className="flex items-center justify-between gap-2 py-2 text-[12px]">
+                <ul className="divide-y divide-brand-100 rounded-xl border border-brand-200/70 bg-surface-1">
+                  {group.sampleUrls.slice(0, 5).map((u) => (
+                    <li key={u} className="flex items-center justify-between gap-2 px-3 py-2 text-[12px]">
                       <span className="truncate font-mono text-brand-700" title={u}>
-                        {u}
+                        {u.replace(/^https?:\/\//, "")}
                       </span>
                       <a
                         href={u}
@@ -264,13 +379,32 @@ export function ProblemDetailDrawer({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-brand-100 px-6 py-4">
-            <p className="text-[11px] text-brand-400 max-w-[260px]">{fix.note}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-brand-100 px-6 py-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyHandoff}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-[12px] font-semibold text-brand-800 hover:bg-brand-100 transition cursor-pointer"
+              >
+                {copied ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+                <span>{copied ? "Copied!" : "Copy for Developer"}</span>
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(guide.developerHandoff)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Send instructions on WhatsApp"
+                aria-label="Send fix instructions on WhatsApp"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-brand-200 bg-surface-1 text-brand-700 hover:bg-brand-100 hover:text-brand-950 transition"
+              >
+                <MessageSquare size={14} />
+              </a>
+            </div>
             <Link
-              href={fix.href}
+              href="/fix-engine"
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink hover:bg-signal-500 transition shadow-xs"
             >
-              <span>{fix.cta}</span>
+              <span>Open Action Plan</span>
               <ArrowRight size={13} />
             </Link>
           </div>
