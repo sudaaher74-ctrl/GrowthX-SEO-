@@ -178,6 +178,8 @@ export function PlanView({
   const selectedFindings = activeAll
     .map((x) => x.finding)
     .filter((f) => selectedIds.includes(f.id));
+  const batchFindings = selectedFindings.filter((finding) => finding.fixClass !== "MANUAL");
+  const manualCount = selectedFindings.length - batchFindings.length;
 
   const toggleSelectFinding = (id: string) => {
     setSelectedIds((prev) =>
@@ -269,6 +271,11 @@ export function PlanView({
             <span className="font-semibold text-brand-950">
               {selectedFindings.length} {selectedFindings.length === 1 ? "issue" : "issues"} selected
             </span>
+            {manualCount > 0 && (
+              <span className="text-brand-600">
+                {manualCount === 1 ? "1 issue requires" : `${manualCount} issues require`} manual work. Open each issue for instructions.
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -286,14 +293,14 @@ export function PlanView({
               <Download size={12} />
               <span>Export for Developer</span>
             </button>
-            {canAutoApply && (
+            {canAutoApply && batchFindings.length > 0 && (
               <button
                 type="button"
                 onClick={() => setBatchOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1 text-[11.5px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer"
               >
                 <Layers size={12} />
-                <span>Batch Auto-Apply ({selectedFindings.length}) →</span>
+                <span>Batch Auto-Apply ({batchFindings.length}) →</span>
               </button>
             )}
           </div>
@@ -378,9 +385,11 @@ export function PlanView({
                 onMove={(to, reason) => transition.mutate({ id: f.id, to, reason })}
                 onVerifyManual={(url, note) => verifyManual.mutateAsync({ id: f.id, url, note })}
                 onOpenGitHubFixes={
-                  canAutoApply && onOpenGitHubFixes ? () => onOpenGitHubFixes(f.id) : undefined
+                  canAutoApply && f.fixClass !== "MANUAL" && onOpenGitHubFixes
+                    ? () => onOpenGitHubFixes(f.id)
+                    : undefined
                 }
-                onOpenCmsApply={canAutoApply ? () => setCmsFinding(f) : undefined}
+                onOpenCmsApply={canAutoApply && f.fixClass !== "MANUAL" ? () => setCmsFinding(f) : undefined}
                 onOpenContentStudio={onOpenContentStudio ? () => onOpenContentStudio(f) : undefined}
               />
             ))}
@@ -403,11 +412,11 @@ export function PlanView({
         />
       )}
 
-      {batchOpen && selectedFindings.length > 0 && (
+      {batchOpen && canAutoApply && batchFindings.length > 0 && (
         <BatchFixModal
           projectId={projectId}
           domain={domain}
-          findings={selectedFindings}
+          findings={batchFindings}
           onClose={() => setBatchOpen(false)}
           onSuccessGitHub={() => {
             setSelectedIds([]);
