@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
     "The terms under which Reigel AI SEO is provided: what you may connect, what the product does on your behalf, and the limits of what it guarantees.",
+  alternates: { canonical: `${SITE_URL}/legal/terms` },
 };
 
 const LAST_UPDATED = "9 September 2026";

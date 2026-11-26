@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Security Architecture",
   description:
     "How Reigel AI SEO protects customer data, scopes multi-tenant access, encrypts integration credentials, and defends against server-side request forgery.",
+  alternates: { canonical: `${SITE_URL}/legal/security` },
 };
 
 const LAST_UPDATED = "6 October 2026";

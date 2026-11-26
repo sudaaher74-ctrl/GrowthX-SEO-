@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "What Reigel AI SEO collects, how connected Google data is used and stored, who it is shared with, and how to revoke access or delete it.",
+  alternates: { canonical: `${SITE_URL}/legal/privacy` },
 };
 
 /**

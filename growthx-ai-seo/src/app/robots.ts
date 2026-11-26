@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
         "/ai-visibility",
         "/google",
         "/google-business-profile",
+        "/local-seo",
         "/fix-engine",
         "/monthly-report",
         "/reports",
