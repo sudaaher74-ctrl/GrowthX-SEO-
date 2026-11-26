@@ -153,7 +153,7 @@ export function DailyCandles({
         )}
       </div>
 
-      <div className="h-[180px] w-full min-w-0">
+      <div className="h-[210px] w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
