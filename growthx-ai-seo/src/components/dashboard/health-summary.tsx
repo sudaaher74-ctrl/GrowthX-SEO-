@@ -204,7 +204,7 @@ export function HealthSummary({
               href="/fix-engine"
               className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-950 hover:text-primary-700 transition"
             >
-              <span>Fix {counts.openGroups} issues in Fix Engine</span>
+              <span>View {counts.openGroups} fix guides in Action Plan</span>
               <ArrowRight size={13} />
             </Link>
           </div>

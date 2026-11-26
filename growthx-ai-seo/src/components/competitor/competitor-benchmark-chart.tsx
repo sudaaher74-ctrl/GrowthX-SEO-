@@ -184,7 +184,7 @@ export function CompetitorBenchmarkChart({
                 className={cn(
                   "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap",
                   active
-                    ? "bg-surface-1 text-brand-950 shadow-2xs"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
                     : "text-brand-500 hover:text-brand-900",
                 )}
               >

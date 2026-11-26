@@ -278,7 +278,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
                 isActive
-                  ? "bg-brand-950 text-brand-50 shadow-xs"
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
               )}
             >

@@ -315,7 +315,7 @@ function PageInspectorDialog({
           className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-xs"
         >
           <Wrench className="h-3.5 w-3.5" />
-          <span>Optimize in Fix Engine</span>
+          <span>Open in Action Plan</span>
         </Link>
       </div>
     </dialog>

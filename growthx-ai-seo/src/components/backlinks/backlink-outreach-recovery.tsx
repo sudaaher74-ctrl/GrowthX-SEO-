@@ -293,7 +293,7 @@ export function BacklinkOutreachRecovery({ projectId }: { projectId: string }) {
                       targetUrl: cand.targetUrl,
                     })
                   }
-                  className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3 py-1.5 text-[11px] font-bold text-brand-50 hover:bg-brand-800 cursor-pointer disabled:opacity-50 shrink-0"
+                  className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1.5 text-[11px] font-bold text-signal-ink hover:bg-signal-500 cursor-pointer disabled:opacity-50 shrink-0 shadow-2xs"
                 >
                   <Sparkles size={11} />
                   <span>

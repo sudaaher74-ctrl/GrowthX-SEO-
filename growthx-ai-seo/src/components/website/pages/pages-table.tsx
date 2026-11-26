@@ -425,7 +425,7 @@ export function PagesTable({
             className={cn(
               "rounded-lg px-2.5 py-1 text-xs font-bold transition active:scale-[0.98] cursor-pointer",
               selectedIndexability === "INDEXABLE"
-                ? "bg-brand-950 text-white shadow-xs"
+                ? "bg-signal-400 text-signal-ink shadow-xs"
                 : "border border-brand-200 bg-surface-1 text-brand-700 hover:bg-surface-3 hover:text-brand-950"
             )}
           >
@@ -988,7 +988,7 @@ export function PagesTable({
               {/* Drawer Header */}
               <div className="flex items-center justify-between p-4 border-b border-brand-200 bg-surface-2/80">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-950 text-brand-50 font-mono text-xs font-bold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal-400 text-signal-ink font-mono text-xs font-bold">
                     100
                   </div>
                   <div>
@@ -1115,7 +1115,7 @@ export function PagesTable({
                   {isStaged ? (
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-success-700">
                       <CheckCircle2 size={13} className="text-success-600" />
-                      <span>Staged in Fix Engine</span>
+                      <span>Saved to Action Plan</span>
                     </span>
                   ) : (
                     <button
@@ -1124,7 +1124,7 @@ export function PagesTable({
                       className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 hover:bg-signal-500 px-3 py-1.5 text-xs font-bold text-signal-ink transition shadow-xs"
                     >
                       <Zap size={12} className="fill-signal-ink" />
-                      <span>Stage Fix in Fix Engine</span>
+                      <span>Save to Action Plan</span>
                     </button>
                   )}
                 </div>

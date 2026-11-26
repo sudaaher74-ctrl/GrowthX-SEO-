@@ -171,7 +171,7 @@ export function BattlegroundTab({
             <span
               key={c.id}
               className={`inline-flex items-center rounded-lg border text-[12px] font-medium transition-colors ${
-                on ? "bg-white text-brand-950" : "bg-brand-50 text-brand-400"
+                on ? "bg-surface-1 text-brand-950" : "bg-brand-50 text-brand-400"
               }`}
             >
               <button

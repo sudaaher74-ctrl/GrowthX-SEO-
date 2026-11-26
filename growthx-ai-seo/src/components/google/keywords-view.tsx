@@ -409,7 +409,7 @@ export function KeywordsView() {
                   )}
                   {stagedKeywords.size > 0 && (
                     <span className="rounded-full bg-success-500/15 border border-success-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
-                      {stagedKeywords.size} staged in Fix Engine
+                      {stagedKeywords.size} saved to Action Plan
                     </span>
                   )}
                 </div>
@@ -425,7 +425,7 @@ export function KeywordsView() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
               >
                 <Zap size={12} className="text-signal-ink" />
-                <span>Fix Engine</span>
+                <span>Action Plan</span>
                 <ArrowUpRight size={12} />
               </Link>
               <Link
@@ -784,7 +784,7 @@ export function KeywordsView() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 active:scale-[0.98] cursor-pointer shrink-0"
             >
               <Zap size={12} className="text-signal-ink" />
-              <span>Stage Top Striking in Fix Engine</span>
+              <span>Add Top Striking to Action Plan</span>
             </button>
           </div>
         </div>
@@ -1000,7 +1000,7 @@ export function KeywordsView() {
                       className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 active:scale-[0.98] cursor-pointer"
                     >
                       <Zap size={11} className="text-signal-ink" />
-                      <span>Stage All in Fix Engine</span>
+                      <span>Add All to Action Plan</span>
                     </button>
                   </div>
                   <SearchRowsTable

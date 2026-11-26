@@ -724,7 +724,7 @@ export function BacklinkOverview({
                 />
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-2.5 py-1 text-xs font-bold text-brand-50 hover:bg-brand-800 transition-colors shadow-2xs"
+                  className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-2.5 py-1 text-xs font-bold text-signal-ink hover:bg-signal-500 transition-colors shadow-2xs"
                 >
                   <Plus size={12} />
                   <span>Add</span>

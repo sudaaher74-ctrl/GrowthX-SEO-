@@ -539,7 +539,7 @@ export function CityAreaMap({
                   className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-signal-400 px-3 py-1.5 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition shadow-xs"
                 >
                   <Sparkles className="h-3 w-3" />
-                  <span>Target {selectedLocality.locality.name} in Fix Engine</span>
+                  <span>Target {selectedLocality.locality.name} in Action Plan</span>
                   <ArrowUpRight className="h-3 w-3" />
                 </Link>
               </div>

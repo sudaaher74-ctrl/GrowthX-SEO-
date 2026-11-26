@@ -643,7 +643,7 @@ export function ContentStudioView({
                       (cmsPlatform === "WEBFLOW" && !webflowConnected)
                     }
                     onClick={() => publishCmsMutation.mutate(activePiece.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11px] font-bold text-brand-50 hover:bg-brand-800 transition cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition cursor-pointer disabled:opacity-50 shadow-2xs"
                   >
                     {publishCmsMutation.isPending ? (
                       <Loader2 size={12} className="animate-spin" />

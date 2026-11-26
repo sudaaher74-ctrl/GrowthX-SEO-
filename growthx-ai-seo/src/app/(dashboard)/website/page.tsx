@@ -41,7 +41,7 @@ function WebsiteAuditClient() {
 
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const { subscription, plan } = useSubscription(orgId);
+  const { subscription, plan, canUseFixEngine } = useSubscription(orgId);
   const crawlCap = subscription ? subscription.limits.crawlPages : DEFAULT_SUBSCRIPTION_LIMITS.crawlPages;
 
   const clients = portfolio.data?.clients ?? [];
@@ -226,7 +226,7 @@ function WebsiteAuditClient() {
     },
     issues: {
       title: "Problems to Fix",
-      subtitle: "Prioritized issues with automated and guided remediations.",
+      subtitle: "Every issue explained in plain English with step-by-step solutions for your website platform.",
     },
     report: {
       title: "Audit Report",
@@ -322,7 +322,7 @@ function WebsiteAuditClient() {
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:border-brand-300 hover:bg-brand-100 active:scale-95 transition-all"
             >
               <Zap size={13} className="text-warning-500 fill-warning-500" />
-              <span>Open Fix Engine</span>
+              <span>{canUseFixEngine ? "Open Fix Engine" : "Open Action Plan"}</span>
               <ArrowRight size={12} className="text-brand-400" />
             </Link>
           </div>
@@ -439,7 +439,7 @@ function WebsiteAuditClient() {
         emptyAction={
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-xs hover:bg-signal-500 transition-colors"
           >
             Go to Dashboard to Add Website
           </Link>
@@ -573,8 +573,8 @@ export default function WebsitePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-48 items-center justify-center text-xs text-slate-400">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-600" />
+        <div className="flex h-48 items-center justify-center text-xs text-brand-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin text-signal-400" />
           <span>Loading Website Audit…</span>
         </div>
       }

@@ -232,7 +232,7 @@ export function BatchFixModal({
                   type="button"
                   onClick={() => setPublishMode("draft")}
                   className={`rounded-md px-2.5 py-1 cursor-pointer ${
-                    publishMode === "draft" ? "bg-brand-950 text-brand-50" : "text-brand-600"
+                    publishMode === "draft" ? "bg-signal-400 text-signal-ink font-bold" : "text-brand-600"
                   }`}
                 >
                   Save Draft
@@ -342,7 +342,7 @@ export function BatchFixModal({
                     onClose();
                     onSuccessGitHub();
                   }}
-                  className="rounded-lg bg-brand-950 px-2.5 py-1 text-[11px] font-bold text-brand-50 cursor-pointer"
+                  className="rounded-lg bg-signal-400 px-2.5 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 cursor-pointer"
                 >
                   Open Fixes &amp; Log →
                 </button>

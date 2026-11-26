@@ -1821,9 +1821,9 @@ function AutomationWebhooksView() {
           <button
             type="button"
             onClick={handleSaveWebhooks}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-950 hover:bg-brand-900 px-3.5 py-1.5 text-xs font-bold text-surface-1 shadow-2xs transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 hover:bg-signal-500 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs transition cursor-pointer"
           >
-            <Check size={13} className="text-success-400" />
+            <Check size={13} className="text-signal-ink" />
             <span>Save Webhook Endpoints</span>
           </button>
         </div>

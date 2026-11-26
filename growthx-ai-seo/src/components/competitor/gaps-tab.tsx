@@ -20,12 +20,15 @@ import {
   SlidersHorizontal,
   Globe,
   ArrowUpRight,
+  Check,
   CheckCircle2,
+  Copy,
 } from "lucide-react";
-import { useProgrammaticMatrix } from "@/hooks/use-growthx";
+import { useProgrammaticMatrix, useWorkspace } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { buildGapItems, buildGapPlan, type GapItem, type GapKind } from "@/lib/gaps-plain";
 import { stagingEngine } from "@/lib/staging-engine";
+import { useSubscription } from "@/lib/subscription-engine";
 import { cn } from "@/lib/utils";
 
 interface SectionTheme {
@@ -172,11 +175,24 @@ export function GapsTab({
   competitors: TrackedCompetitor[];
   onOpenCounterMoves: () => void;
 }) {
+  const { orgId } = useWorkspace();
+  const { canUseFixEngine } = useSubscription(orgId);
   const searchParams = useSearchParams();
   const initialRival = searchParams.get("rival") || "all";
   const [rivalFilter, setRivalFilter] = useState<string>(initialRival);
   const [expanded, setExpanded] = useState<Set<GapKind>>(new Set());
   const [planFor, setPlanFor] = useState<GapItem | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyGapPlan = async (item: GapItem) => {
+    try {
+      await navigator.clipboard.writeText(buildGapPlan(item, { domain }));
+      setCopiedId(item.id);
+      window.setTimeout(() => setCopiedId((curr) => (curr === item.id ? null : curr)), 2000);
+    } catch {
+      // Clipboard unavailable
+    }
+  };
 
   const [stagedGapIds, setStagedGapIds] = useState<Set<string>>(() => {
     const staged = stagingEngine.getStaged(projectId);
@@ -316,29 +332,29 @@ export function GapsTab({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[14.5px] font-bold text-brand-950">
-                      Competitor Opportunity Radar
+                      How to Beat Your Competitors
                     </h2>
-                    <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
-                      {shown.length} opportunities detected
+                    <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-brand-950">
+                      {shown.length} opportunities found
                     </span>
-                    {stagedGapIds.size > 0 && (
+                    {canUseFixEngine && stagedGapIds.size > 0 && (
                       <span className="rounded-full bg-success-500/15 border border-success-500/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-success-700">
                         {stagedGapIds.size} staged in Fix Engine
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 text-[11.5px] text-brand-400">
-                    Turn competitor structural advantages into direct fixes staged for autonomous implementation.
+                    Pages, customer questions, and Google details rivals cover that you don’t yet — click Get a plan for step-by-step instructions.
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {topicsMissing > 0 && (
+                {canUseFixEngine && topicsMissing > 0 && (
                   <button
                     type="button"
                     onClick={handleStageAllTopics}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer"
                   >
                     <Zap size={12} className="text-signal-400" />
                     <span>Stage All Missing Topics ({topicsMissing})</span>
@@ -348,7 +364,7 @@ export function GapsTab({
                   href="/fix-engine"
                   className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
                 >
-                  <span>Fix Engine</span>
+                  <span>{canUseFixEngine ? "Fix Engine" : "Action Plan"}</span>
                   <ArrowUpRight size={12} />
                 </Link>
               </div>
@@ -461,8 +477,11 @@ export function GapsTab({
                         item={item}
                         showRival={rivalFilter === "all"}
                         accentBarClass={theme.accentBar}
+                        canAutoApply={canUseFixEngine}
                         isStaged={stagedGapIds.has(item.headline)}
+                        isCopied={copiedId === item.id}
                         onQuickStage={() => handleQuickStage(item)}
+                        onCopyPlan={() => void handleCopyGapPlan(item)}
                         onPlan={() => setPlanFor(item)}
                       />
                     ))}
@@ -523,15 +542,21 @@ function GapRow({
   item,
   showRival,
   accentBarClass,
+  canAutoApply,
   isStaged,
+  isCopied,
   onQuickStage,
+  onCopyPlan,
   onPlan,
 }: {
   item: GapItem;
   showRival: boolean;
   accentBarClass: string;
+  canAutoApply: boolean;
   isStaged: boolean;
+  isCopied: boolean;
   onQuickStage: () => void;
+  onCopyPlan: () => void;
   onPlan: () => void;
 }) {
   const href = item.example ? safeUrl(item.example.url) : undefined;
@@ -568,25 +593,36 @@ function GapRow({
             <ExternalLink size={10} />
           </a>
         )}
-        {isStaged ? (
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/60 bg-success-50/60 px-3 py-1.5 text-[11.5px] font-bold text-success-700 shadow-2xs">
-            <CheckCircle2 size={12} className="text-success-600" />
-            <span>Staged ✓</span>
-          </span>
+        {canAutoApply ? (
+          isStaged ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/60 bg-success-50/60 px-3 py-1.5 text-[11.5px] font-bold text-success-700 shadow-2xs">
+              <CheckCircle2 size={12} className="text-success-600" />
+              <span>Staged ✓</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onQuickStage}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs active:scale-[0.98] cursor-pointer"
+            >
+              <CheckCircle2 size={12} className="text-signal-400" />
+              <span>Stage Fix</span>
+            </button>
+          )
         ) : (
           <button
             type="button"
-            onClick={onQuickStage}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-bold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs active:scale-[0.98]"
+            onClick={onCopyPlan}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs cursor-pointer"
           >
-            <CheckCircle2 size={12} className="text-signal-400" />
-            <span>Stage Fix</span>
+            {isCopied ? <Check size={12} className="text-success-600" /> : <Copy size={12} />}
+            <span>{isCopied ? "Copied!" : "Copy Brief"}</span>
           </button>
         )}
         <button
           type="button"
           onClick={onPlan}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98] cursor-pointer"
         >
           <Zap size={12} className="text-signal-ink" />
           <span>Get a plan</span>

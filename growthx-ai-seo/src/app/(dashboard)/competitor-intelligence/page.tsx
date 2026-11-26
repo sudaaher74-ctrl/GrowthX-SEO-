@@ -191,7 +191,7 @@ function CrawlStatusStrip({
                   <button
                     type="button"
                     onClick={() => onRecrawl(c)}
-                    className="inline-flex items-center gap-1 rounded-md bg-white border border-error-200 px-2 py-1 text-[10.5px] font-semibold text-error-700 hover:bg-error-50 shadow-2xs transition-colors"
+                    className="inline-flex items-center gap-1 rounded-md bg-surface-1 border border-error-200 px-2 py-1 text-[10.5px] font-semibold text-error-700 hover:bg-error-50 shadow-2xs transition-colors"
                   >
                     <RotateCw size={10} />
                     <span>Retry</span>
@@ -321,7 +321,7 @@ function CompetitorIntelligenceClient() {
   });
 
   const competitorsList = competitorsQuery.data ?? [];
-  const { subscription, plan } = useSubscription(orgId);
+  const { subscription, plan, canUseFixEngine } = useSubscription(orgId);
   const competitorsCap = subscription ? subscription.limits.competitors : DEFAULT_SUBSCRIPTION_LIMITS.competitors;
   const isAtCompetitorsLimit = competitorsList.length >= competitorsCap;
   const crawlRevision = competitorsList.map((c) => `${c.id}:${c.crawlStatus}:${c.lastAnalyzedAt}`).join("|");
@@ -413,74 +413,82 @@ function CompetitorIntelligenceClient() {
   return (
     <div className="space-y-6 pb-12">
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-brand-400">
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
-              <Home className="h-3.5 w-3.5" />
-              <span>Dashboard</span>
-            </Link>
-            <span>/</span>
-            <Link href="/competitor-intelligence" className="hover:text-brand-950 transition">
-              Competitor Intelligence
-            </Link>
-            <span>/</span>
-            <span className="text-brand-950 font-bold">{currentTabObj.label}</span>
+        {/* Clean Branded Header */}
+        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
+              <Swords size={18} />
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">
+                  Competitor Intelligence
+                </h1>
+                {competitorsList.some(isReading) ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-950">
+                    <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
+                    Reading sites…
+                  </span>
+                ) : competitorsList.length > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-success-200/60 bg-success-50/60 px-2.5 py-0.5 text-[11px] font-semibold text-success-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                    {competitorsList.length} monitored
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 text-[12.5px] text-brand-500">
+                Compare your site head-to-head against rivals and get plain-English plans to close every gap.
+              </p>
+            </div>
           </div>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {competitorsList.some(isReading) ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/40 bg-signal-400/10 px-3 py-1 text-[11px] font-semibold text-brand-950">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-400" />
-                </span>
-                <span>Reading sites…</span>
-              </div>
-            ) : competitorsList.length > 0 ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-success-200/60 bg-success-50/60 px-2.5 py-1 text-[11px] font-semibold text-success-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                <span>{competitorsList.length} monitored</span>
-              </div>
-            ) : null}
-
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/fix-engine"
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition"
             >
-              <Zap size={12} className="text-signal-400" />
-              <span>Fix Engine</span>
+              <Zap size={12} className="text-signal-500" />
+              <span>{canUseFixEngine ? "Fix Engine" : "Action Plan"}</span>
             </Link>
+
+            {activeTab !== "report" && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("report")}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition cursor-pointer"
+              >
+                <span>Full report</span>
+              </button>
+            )}
 
             {isAtCompetitorsLimit ? (
               <Link
                 href="/settings?tab=subscription"
-                className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/50 bg-signal-400/10 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-signal-400/20 transition shadow-2xs"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-signal-400/50 bg-signal-400/15 px-3.5 py-2 text-xs font-bold text-brand-950 hover:bg-signal-400/25 transition"
               >
-                <Crown size={12} className="text-signal-400" />
-                <span>{competitorsList.length}/{competitorsCap} Competitors</span>
-                <ArrowRight size={11} className="text-brand-400" />
+                <Crown size={12} className="text-signal-500" />
+                <span>{competitorsList.length}/{competitorsCap} Rivals</span>
+                <ArrowRight size={11} />
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={openAddModal}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
               >
                 <Plus size={13} />
                 <span>Add competitor</span>
               </button>
             )}
-            {activeTab !== "report" && (
-              <button
-                type="button"
-                onClick={() => setActiveTab("report")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
-              >
-                <span>Full report</span>
-                <span className="text-brand-400">↓</span>
-              </button>
-            )}
           </div>
+        </header>
+
+        <div className="sr-only">
+          <Link href="/dashboard">
+            <Home className="h-3.5 w-3.5" />
+            <span>Dashboard</span>
+          </Link>
+          <span>{currentTabObj.label}</span>
         </div>
 
         <div

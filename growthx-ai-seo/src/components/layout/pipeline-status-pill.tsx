@@ -287,9 +287,9 @@ export function PipelineStatusPill({
                 if (isDone) setDismissedId(run.id);
                 setOpen(false);
               }}
-              className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-2.5 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 transition"
+              className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-2.5 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs"
             >
-              <span>Open Fix Engine</span>
+              <span>Open Action Plan</span>
               <ArrowRight size={11} />
             </Link>
           </div>
