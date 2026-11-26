@@ -907,6 +907,82 @@ details.faq-details:not([open])::details-content {
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.9);
 }
 
+/* Hollow dashed ring for zero/low-traffic Website Audit target cities */
+.globe-pin-target .globe-pin-halo {
+  background: rgba(99, 102, 241, 0.14);
+  border: 2px dashed rgba(79, 70, 229, 0.9);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.3);
+}
+
+.globe-pin-target .globe-pin-core {
+  background: transparent;
+  border: 2px solid #4f46e5;
+  box-shadow: none;
+}
+
+.dash-dark .globe-pin-target .globe-pin-halo,
+.dark .globe-pin-target .globe-pin-halo {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.92);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.dash-dark .globe-pin-target .globe-pin-core,
+.dark .globe-pin-target .globe-pin-core {
+  border-color: #38bdf8;
+}
+
+/* Responsive scroll region with sticky headers for Growth Console tables */
+.traffic-table-wrap {
+  overflow: auto;
+  max-inline-size: 100%;
+  max-block-size: min(500px, 70vh);
+  container-type: inline-size;
+}
+
+.traffic-table-wrap table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.traffic-table-wrap thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--color-surface-1);
+}
+
+/* Native <dialog> Page Inspector Drawer with modal scroll containment */
+dialog.traffic-inspector-dialog {
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  inline-size: min(560px, 94vw);
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  max-inline-size: 100vw;
+  background: var(--color-surface-1);
+  color: var(--color-brand-950);
+  box-shadow: -16px 0 48px -12px rgba(15, 23, 42, 0.22);
+}
+
+dialog.traffic-inspector-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+dialog.traffic-inspector-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog.traffic-inspector-dialog::backdrop {
+  background: rgba(9, 9, 11, 0.44);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 .globe-cluster-badge {
   background: rgba(9, 9, 11, 0.88);
   color: #ffffff;

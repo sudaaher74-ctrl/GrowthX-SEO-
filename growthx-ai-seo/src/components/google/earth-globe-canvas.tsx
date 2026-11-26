@@ -21,6 +21,7 @@ export interface GlobePin {
   metricUnit?: string;
   liveUsers?: number;
   botHubReason?: string | null;
+  isTargetGap?: boolean;
 }
 
 export interface GlobeFlowArc {
@@ -1030,8 +1031,9 @@ export function EarthGlobeCanvas({
           const isHovered = hoveredPinId === pin.id;
           const isLive = (pin.liveUsers ?? 0) > 0;
           const isBot = Boolean(pin.botHubReason);
+          const isTarget = Boolean(pin.isTargetGap);
           const active = isSelected || isHovered;
-          const ringSize = pin.share > 0.35 ? "h-9 w-9" : pin.share > 0.08 ? "h-7 w-7" : "h-6 w-6";
+          const ringSize = isTarget ? "h-8 w-8" : pin.share > 0.35 ? "h-9 w-9" : pin.share > 0.08 ? "h-7 w-7" : "h-6 w-6";
           const unit = pin.metricUnit ?? "visitors";
 
           return (
@@ -1054,11 +1056,15 @@ export function EarthGlobeCanvas({
               onMouseLeave={() => onHoverPin(null)}
               onFocus={() => onHoverPin(pin.id)}
               onBlur={() => onHoverPin(null)}
-              aria-label={`${pin.label}: ${count(pin.visitors)} ${unit} (${percent(pin.share)})${isBot ? " — cloud/bot hub" : ""}`}
+              aria-label={
+                isTarget
+                  ? `${pin.label}: target market gap (${count(pin.visitors)} visits)`
+                  : `${pin.label}: ${count(pin.visitors)} ${unit} (${percent(pin.share)})${isBot ? " — cloud/bot hub" : ""}`
+              }
               className={cn(
                 "group absolute left-0 top-0 z-10 flex items-center justify-center rounded-full focus-visible:z-30 cursor-pointer",
                 active ? "z-20 globe-pin-active" : "",
-                isLive ? "globe-pin-live" : isBot ? "globe-pin-bot" : "",
+                isLive ? "globe-pin-live" : isTarget ? "globe-pin-target" : isBot ? "globe-pin-bot" : "",
               )}
             >
               {(active || isLive) && (
@@ -1102,6 +1108,11 @@ export function EarthGlobeCanvas({
                         {pin.liveUsers} live
                       </span>
                     )}
+                    {isTarget && (
+                      <span className="inline-flex items-center rounded-full bg-primary-50 px-1.5 py-0.5 text-[9.5px] font-bold text-primary-700">
+                        Target Gap
+                      </span>
+                    )}
                     {isBot && (
                       <span className="inline-flex items-center rounded-full bg-warning-50 px-1.5 py-0.5 text-[9.5px] font-bold text-warning-700">
                         Cloud/Bot
@@ -1109,7 +1120,9 @@ export function EarthGlobeCanvas({
                     )}
                   </span>
                   <span className="mt-0.5 block font-mono text-[10px] text-brand-500">
-                    {count(pin.visitors)} {unit} · {percent(pin.share)}
+                    {isTarget
+                      ? `${count(pin.visitors)} visits · Target service market`
+                      : `${count(pin.visitors)} ${unit} · ${percent(pin.share)}`}
                   </span>
                   {pin.botHubReason && (
                     <span className="mt-0.5 block text-[9.5px] text-warning-700">

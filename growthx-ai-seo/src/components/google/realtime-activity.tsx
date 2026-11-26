@@ -7,7 +7,15 @@ import { ActionButton, Panel } from "@/components/ui/console";
 import { api } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
 
-export function RealtimeActivity({ projectId, compact = false }: { projectId: string | null | undefined; compact?: boolean }) {
+export function RealtimeActivity({
+  projectId,
+  compact = false,
+  onInspectLive,
+}: {
+  projectId: string | null | undefined;
+  compact?: boolean;
+  onInspectLive?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const report = useQuery({
     queryKey: ["ga4-realtime", projectId],
@@ -51,10 +59,10 @@ export function RealtimeActivity({ projectId, compact = false }: { projectId: st
             </span>
             <button
               type="button"
-              className="shrink-0 font-semibold text-primary-700 hover:underline"
-              onClick={() => setExpanded(true)}
+              className="shrink-0 font-semibold text-primary-700 hover:underline cursor-pointer"
+              onClick={() => (onInspectLive ? onInspectLive() : setExpanded(true))}
             >
-              Details →
+              {onInspectLive ? "Live globe →" : "Details →"}
             </button>
           </div>
         </div>

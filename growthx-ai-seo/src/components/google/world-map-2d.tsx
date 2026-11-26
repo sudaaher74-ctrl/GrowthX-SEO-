@@ -104,6 +104,7 @@ export function WorldMap2D({
             const active = selectedPinId === pin.id || hoveredPinId === pin.id;
             const isLive = (pin.liveUsers ?? 0) > 0;
             const isBot = Boolean(pin.botHubReason);
+            const isTarget = Boolean(pin.isTargetGap);
             const outerR = active ? 15 : pin.share > 0.3 ? 12 : 9.5;
             const fillColor = isLive
               ? "var(--color-success-500)"
@@ -123,13 +124,22 @@ export function WorldMap2D({
                   r={outerR}
                   fill="var(--color-surface-1)"
                   fillOpacity={active ? 0.58 : 0.36}
-                  stroke={isLive ? "var(--color-success-500)" : isBot ? "var(--color-warning-500)" : "var(--color-surface-1)"}
-                  strokeWidth={active ? 2 : 1.4}
+                  stroke={
+                    isLive
+                      ? "var(--color-success-500)"
+                      : isTarget
+                        ? "var(--color-primary-600)"
+                        : isBot
+                          ? "var(--color-warning-500)"
+                          : "var(--color-surface-1)"
+                  }
+                  strokeDasharray={isTarget ? "3 2" : undefined}
+                  strokeWidth={active || isTarget ? 2 : 1.4}
                 />
                 <circle
                   r={active ? 5 : 4}
-                  fill={fillColor}
-                  stroke="var(--color-surface-1)"
+                  fill={isTarget ? "transparent" : fillColor}
+                  stroke={isTarget ? "var(--color-primary-600)" : "var(--color-surface-1)"}
                   strokeWidth={1.5}
                 />
               </g>

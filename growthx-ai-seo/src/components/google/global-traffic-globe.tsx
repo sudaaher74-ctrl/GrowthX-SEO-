@@ -28,12 +28,13 @@ import {
   Search,
   Share2,
   ShieldCheck,
+  Target,
   Users,
   X,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { api } from "@/lib/api-client";
-import { resolveCountryGeo } from "@/lib/geo-coordinates";
+import { resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 import type { GlobeCapturePayload, GlobeFlowArc, GlobePin } from "./earth-globe-canvas";
@@ -95,6 +96,12 @@ export interface DailyTrafficPoint {
   searchClicks: number | null;
 }
 
+export interface TargetMarketGapCity {
+  city: string;
+  country: string;
+  sessions: number;
+}
+
 interface GlobalTrafficGlobeProps {
   projectId: string | null | undefined;
   periodDays: number;
@@ -107,6 +114,8 @@ interface GlobalTrafficGlobeProps {
   channels: TrafficChannelRow[];
   countries: TrafficCountryRow[];
   cities: TrafficCityRow[];
+  targetGapCities?: TargetMarketGapCity[];
+  tabFocusSignal?: { tab: RightPanelTab; nonce: number } | null;
   onOpenReport: () => void;
 }
 
@@ -332,6 +341,8 @@ export function GlobalTrafficGlobe({
   channels,
   countries,
   cities,
+  targetGapCities = [],
+  tabFocusSignal,
   onOpenReport,
 }: GlobalTrafficGlobeProps) {
   const { isDark } = useTheme();
@@ -343,6 +354,7 @@ export function GlobalTrafficGlobe({
   const [rightTab, setRightTab] = useState<RightPanelTab>("countries");
   const [pinLayer, setPinLayer] = useState<"countries" | "cities">("countries");
   const [showBorders, setShowBorders] = useState<boolean>(true);
+  const [showTargetGaps, setShowTargetGaps] = useState<boolean>(true);
   const [hideBotHubs, setHideBotHubs] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
@@ -394,6 +406,13 @@ export function GlobalTrafficGlobe({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isFullscreen]);
+
+  const lastTabSignalRef = useRef<number>(0);
+  useEffect(() => {
+    if (!tabFocusSignal || tabFocusSignal.nonce === lastTabSignalRef.current) return;
+    lastTabSignalRef.current = tabFocusSignal.nonce;
+    queueMicrotask(() => setRightTab(tabFocusSignal.tab));
+  }, [tabFocusSignal]);
 
   // Check if GSC country metrics exist so metric switcher highlights real availability
   const hasGscCountryMetrics = useMemo(
@@ -510,14 +529,44 @@ export function GlobalTrafficGlobe({
       }));
   }, [selectedCountryCities]);
 
+  const targetGapPins = useMemo<GlobePin[]>(() => {
+    if (!showTargetGaps || targetGapCities.length === 0) return [];
+    const seen = new Set<string>();
+    const out: GlobePin[] = [];
+    for (const tc of targetGapCities) {
+      const key = tc.city.trim().toUpperCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const resolved = resolveCityGeo(tc.city, tc.country);
+      if (!resolved) continue;
+      if (selectedCountryCode && resolved.code !== selectedCountryCode) continue;
+      out.push({
+        id: `target:${resolved.code}:${tc.city}`,
+        label: tc.city,
+        sublabel: resolved.countryName,
+        flag: resolved.flag,
+        code: resolved.code,
+        lat: resolved.lat,
+        lng: resolved.lng,
+        visitors: tc.sessions,
+        share: 0,
+        metricUnit: "visits",
+        isTargetGap: true,
+      });
+    }
+    return out;
+  }, [showTargetGaps, targetGapCities, selectedCountryCode]);
+
   const visiblePins = useMemo(() => {
-    if (pinLayer === "cities" && cityPins.length > 0) return cityPins;
+    if (pinLayer === "cities" && cityPins.length > 0) {
+      return [...cityPins, ...targetGapPins];
+    }
     if (selectedCountryCode) {
       const filtered = countryPins.filter((p) => p.code === selectedCountryCode);
-      if (filtered.length > 0) return filtered;
+      if (filtered.length > 0) return [...filtered, ...targetGapPins];
     }
-    return countryPins;
-  }, [pinLayer, cityPins, countryPins, selectedCountryCode]);
+    return [...countryPins, ...targetGapPins];
+  }, [pinLayer, cityPins, countryPins, selectedCountryCode, targetGapPins]);
 
   // Highlighted country code on 3D borders (hovered pin or selected country)
   const highlightedCountryCode = useMemo(() => {
@@ -895,6 +944,22 @@ export function GlobalTrafficGlobe({
                 >
                   <Grid className="h-3.5 w-3.5" />
                 </button>
+                {targetGapCities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTargetGaps((prev) => !prev)}
+                    title={showTargetGaps ? "Hide target market gap rings" : "Show target market gap rings"}
+                    aria-label={showTargetGaps ? "Hide target market gap rings" : "Show target market gap rings"}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer",
+                      showTargetGaps
+                        ? "bg-primary-50 text-primary-700"
+                        : "text-brand-500 hover:bg-brand-100/70 hover:text-brand-950",
+                    )}
+                  >
+                    <Target className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 <span className="mx-0.5 h-4 w-px bg-brand-200/70" aria-hidden="true" />
                 <button
                   type="button"
