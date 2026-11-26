@@ -1157,8 +1157,8 @@ dialog.traffic-inspector-dialog::backdrop {
 }
 
 .city-map-pill-primary {
-  background: #09090b;
-  color: #ffffff;
+  background: var(--color-signal-400);
+  color: var(--color-signal-ink);
 }
 
 .city-map-pill-city {

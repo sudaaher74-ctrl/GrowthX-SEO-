@@ -117,7 +117,7 @@ export function TrafficTimelineCard({ data, changes, periodDays }: TrafficTimeli
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
                   active
-                    ? "bg-brand-950 text-brand-50 shadow-xs"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "text-brand-500 hover:text-brand-950",
                 )}
               >

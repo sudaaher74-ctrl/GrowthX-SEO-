@@ -458,7 +458,7 @@ export function CityAreaMap({
                 onClick={() => setShowAreas((p) => !p)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 transition cursor-pointer",
-                  showAreas ? "bg-brand-950 text-brand-50" : "text-brand-600 hover:text-brand-950",
+                  showAreas ? "bg-signal-400 text-signal-ink font-bold" : "text-brand-600 hover:text-brand-950",
                 )}
               >
                 <MapPin className="h-3 w-3" />
@@ -470,7 +470,7 @@ export function CityAreaMap({
                   onClick={() => setShowGeoGrid((p) => !p)}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 transition cursor-pointer",
-                    showGeoGrid ? "bg-brand-950 text-brand-50" : "text-brand-600 hover:text-brand-950",
+                    showGeoGrid ? "bg-signal-400 text-signal-ink font-bold" : "text-brand-600 hover:text-brand-950",
                   )}
                 >
                   <Radar className="h-3 w-3" />
@@ -536,7 +536,7 @@ export function CityAreaMap({
 
                 <Link
                   href={`/fix-engine?tab=content&query=${encodeURIComponent(selectedLocality.locality.name)}&topic=${encodeURIComponent(`${selectedLocality.locality.name} local SEO page`)}&kind=ARTICLE`}
-                  className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-950 px-3 py-1.5 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 transition"
+                  className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-signal-400 px-3 py-1.5 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition shadow-xs"
                 >
                   <Sparkles className="h-3 w-3" />
                   <span>Target {selectedLocality.locality.name} in Fix Engine</span>

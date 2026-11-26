@@ -635,7 +635,7 @@ export default function UnifiedDashboardPage() {
                     onClick={() => setSeverityTab(sev)}
                     className={cn(
                       "rounded-lg px-2.5 py-1 font-medium transition cursor-pointer",
-                      on ? "bg-brand-950 text-brand-50 font-semibold" : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
+                      on ? "bg-signal-400 text-signal-ink font-bold shadow-2xs" : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
                     )}
                   >
                     {sev === "ALL" ? "All" : SEVERITY[sev].label}

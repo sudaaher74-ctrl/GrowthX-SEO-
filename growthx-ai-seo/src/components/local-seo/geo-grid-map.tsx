@@ -357,7 +357,7 @@ export function GeoGridMap({
               <button
                 type="button"
                 onClick={onOpenFullMap}
-                className="pointer-events-auto inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-3 py-1.5 text-[11.5px] font-semibold text-brand-50 shadow-sm transition hover:bg-brand-800 cursor-pointer"
+                className="pointer-events-auto inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-sm transition hover:bg-signal-500 cursor-pointer"
               >
                 <span>{run ? "Open Rank Map" : "Scan Nearby Ranks"}</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />

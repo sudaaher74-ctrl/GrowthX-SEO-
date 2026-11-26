@@ -272,7 +272,7 @@ export function LocalSeoWorkspace() {
             href={manageProfileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-brand-50 transition hover:bg-brand-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink transition hover:bg-signal-500 shadow-xs"
           >
             <span>Open on Google</span>
             <ExternalLink size={12} />
@@ -374,7 +374,7 @@ export function LocalSeoWorkspace() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
                 active
-                  ? "bg-brand-950 text-brand-50 shadow-2xs"
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
                   : "text-brand-600 hover:bg-brand-100/70 hover:text-brand-950",
               )}
             >
@@ -384,7 +384,7 @@ export function LocalSeoWorkspace() {
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 font-mono text-[10px] leading-none tabular-nums",
-                    active ? "bg-surface-1/20 text-brand-50" : "bg-brand-100 text-brand-700",
+                    active ? "bg-signal-ink/15 text-signal-ink" : "bg-brand-100 text-brand-700",
                   )}
                 >
                   {t.badge}
@@ -767,7 +767,7 @@ export function LocalSeoWorkspace() {
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-semibold transition cursor-pointer",
                   growthSection === "directories"
-                    ? "bg-brand-950 text-brand-50"
+                    ? "bg-signal-400 text-signal-ink font-bold"
                     : "text-brand-600 hover:text-brand-950",
                 )}
               >
@@ -780,7 +780,7 @@ export function LocalSeoWorkspace() {
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-semibold transition cursor-pointer",
                   growthSection === "posts"
-                    ? "bg-brand-950 text-brand-50"
+                    ? "bg-signal-400 text-signal-ink font-bold"
                     : "text-brand-600 hover:text-brand-950",
                 )}
               >
@@ -896,7 +896,7 @@ export function LocalSeoWorkspace() {
                               "inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition",
                               isListed
                                 ? "border border-brand-200 text-brand-700 hover:bg-brand-100/70"
-                                : "bg-brand-950 text-brand-50 hover:bg-brand-800",
+                                : "bg-signal-400 text-signal-ink font-bold hover:bg-signal-500 shadow-2xs",
                             )}
                           >
                             <span>{isListed ? "Manage" : "List Now"}</span>
@@ -1009,7 +1009,7 @@ export function LocalSeoWorkspace() {
                             href={copilotPack.manageProfileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800"
+                            className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 shadow-2xs"
                           >
                             <span>Post on Google</span>
                             <ExternalLink size={11} />
@@ -1042,7 +1042,7 @@ export function LocalSeoWorkspace() {
                             href={copilotPack.manageProfileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-brand-50 hover:bg-brand-800"
+                            className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 shadow-2xs"
                           >
                             <span>Edit on Google</span>
                             <ExternalLink size={11} />

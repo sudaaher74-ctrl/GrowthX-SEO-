@@ -302,7 +302,7 @@ export function GeoGridPanel({
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium transition cursor-pointer",
                   isCurrent
-                    ? "border-brand-950 bg-brand-950 text-brand-50"
+                    ? "border-signal-400 bg-signal-400 text-signal-ink font-bold shadow-2xs"
                     : "border-brand-200 bg-surface-1 text-brand-700 hover:bg-brand-100/70",
                 )}
               >

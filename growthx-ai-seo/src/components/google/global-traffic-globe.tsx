@@ -996,7 +996,7 @@ export function GlobalTrafficGlobe({
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer",
                     pinLayer === "countries"
-                      ? "bg-brand-950 text-brand-50 shadow-xs"
+                      ? "bg-signal-400 text-signal-ink shadow-xs"
                       : "text-brand-500 hover:bg-brand-100/70 hover:text-brand-950",
                   )}
                 >
@@ -1013,7 +1013,7 @@ export function GlobalTrafficGlobe({
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer",
                     pinLayer === "cities"
-                      ? "bg-brand-950 text-brand-50 shadow-xs"
+                      ? "bg-signal-400 text-signal-ink shadow-xs"
                       : "text-brand-500 hover:bg-brand-100/70 hover:text-brand-950",
                   )}
                 >
@@ -1186,7 +1186,7 @@ export function GlobalTrafficGlobe({
                                   className={cn(
                                     "block w-full rounded-t-sm transition-all duration-150",
                                     isHot
-                                      ? "bg-brand-950"
+                                      ? "bg-signal-400"
                                       : isAccent
                                         ? "bg-brand-600/75"
                                         : "bg-brand-300/75",
@@ -1253,7 +1253,7 @@ export function GlobalTrafficGlobe({
                     </div>
                   )}
                   <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
-                    <span className="rounded-lg bg-brand-950 px-2.5 py-0.5 font-mono text-[11px] font-bold text-brand-50 shadow-sm">
+                    <span className="rounded-lg bg-signal-400 px-2.5 py-0.5 font-mono text-[11px] font-bold text-signal-ink shadow-sm">
                       {botHubStats.botCityCount > 0 && hideBotHubs
                         ? count(botHubStats.humanSessions)
                         : sessionsCount !== null
@@ -1357,7 +1357,7 @@ export function GlobalTrafficGlobe({
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11.5px] font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
                       active
-                        ? "bg-brand-950 text-brand-50 shadow-xs"
+                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                         : "text-brand-600 hover:text-brand-950",
                     )}
                   >
@@ -1395,7 +1395,7 @@ export function GlobalTrafficGlobe({
                 <button
                   type="button"
                   onClick={onOpenReport}
-                  className="inline-flex items-center gap-1.5 rounded-2xl bg-brand-950 px-3.5 py-2 text-xs font-semibold text-brand-50 shadow-sm transition hover:bg-brand-800 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-2xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-sm transition hover:bg-signal-500 cursor-pointer"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Report</span>
@@ -1435,7 +1435,7 @@ export function GlobalTrafficGlobe({
                         className={cn(
                           "inline-flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 transition cursor-pointer",
                           active
-                            ? "bg-brand-950 text-brand-50 shadow-xs"
+                            ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                             : "text-brand-500 hover:text-brand-950",
                         )}
                       >
@@ -1553,7 +1553,7 @@ export function GlobalTrafficGlobe({
                                   style={{ width: `${Math.max(4, Math.min(100, row.share * 100))}%` }}
                                 />
                                 <span
-                                  className="absolute h-2 w-2 -translate-x-1/2 rounded-full border border-surface-1 bg-brand-950"
+                                  className="absolute h-2 w-2 -translate-x-1/2 rounded-full border border-surface-1 bg-signal-400"
                                   style={{ left: `${Math.max(4, Math.min(96, row.share * 100))}%` }}
                                 />
                               </div>
@@ -1618,7 +1618,7 @@ export function GlobalTrafficGlobe({
                                     type="button"
                                     onClick={() => openCityAreaMap(row)}
                                     title={`Zoom into ${row.city} street & area map`}
-                                    className="rounded-md bg-brand-200/75 px-1.5 py-0.5 text-[9.5px] font-bold text-brand-800 hover:bg-brand-950 hover:text-brand-50 transition cursor-pointer"
+                                    className="rounded-md bg-brand-200/75 px-1.5 py-0.5 text-[9.5px] font-bold text-brand-800 hover:bg-signal-400 hover:text-signal-ink transition cursor-pointer"
                                   >
                                     Areas
                                   </button>
@@ -1646,7 +1646,7 @@ export function GlobalTrafficGlobe({
                                   style={{ width: `${Math.max(4, Math.min(100, row.share * 100))}%` }}
                                 />
                                 <span
-                                  className="absolute h-2 w-2 -translate-x-1/2 rounded-full border border-surface-1 bg-brand-950"
+                                  className="absolute h-2 w-2 -translate-x-1/2 rounded-full border border-surface-1 bg-signal-400"
                                   style={{ left: `${Math.max(4, Math.min(96, row.share * 100))}%` }}
                                 />
                               </div>
@@ -1671,7 +1671,7 @@ export function GlobalTrafficGlobe({
                           <button
                             type="button"
                             onClick={() => setHideBotHubs(false)}
-                            className="mt-2.5 rounded-full bg-brand-950 px-3 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 cursor-pointer"
+                            className="mt-2.5 rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 cursor-pointer"
                           >
                             Show All Cities
                           </button>
@@ -1679,7 +1679,7 @@ export function GlobalTrafficGlobe({
                           <button
                             type="button"
                             onClick={onOpenReport}
-                            className="mt-2.5 rounded-full bg-brand-950 px-3 py-1 text-[11px] font-semibold text-brand-50 hover:bg-brand-800 cursor-pointer"
+                            className="mt-2.5 rounded-full bg-signal-400 px-3 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 cursor-pointer"
                           >
                             Plan Target Cities →
                           </button>
@@ -1760,7 +1760,7 @@ export function GlobalTrafficGlobe({
             {/* Bottom-Left Workspace / Live Telemetry Badge */}
             <div className="pointer-events-auto flex items-center justify-start gap-2 min-w-0">
               <div className="globe-glass-pill flex items-center gap-2 rounded-2xl px-3 py-1.5 min-w-0">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-950 text-brand-50">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-signal-400 text-signal-ink">
                   <Activity className="h-3.5 w-3.5" />
                 </span>
                 <div className="leading-tight min-w-0">
@@ -1786,7 +1786,7 @@ export function GlobalTrafficGlobe({
                 <button
                   type="button"
                   onClick={() => openCityAreaMap(selectedCityTarget)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-50 shadow-md transition hover:bg-brand-800 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-md transition hover:bg-signal-500 cursor-pointer"
                 >
                   <MapPin className="h-3.5 w-3.5" />
                   <span>Explore {selectedCityTarget.city} areas →</span>
@@ -1816,7 +1816,7 @@ export function GlobalTrafficGlobe({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
                         active
-                          ? "bg-brand-950 text-brand-50 shadow-xs"
+                          ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                           : "text-brand-600 hover:text-brand-950",
                       )}
                     >
@@ -1838,7 +1838,7 @@ export function GlobalTrafficGlobe({
                     className={cn(
                       "whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer",
                       selectedCountryCode === null
-                        ? "bg-brand-950 text-brand-50 shadow-xs"
+                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                         : "globe-glass-pill text-brand-700 hover:text-brand-950",
                     )}
                   >
@@ -1854,7 +1854,7 @@ export function GlobalTrafficGlobe({
                         className={cn(
                           "inline-flex whitespace-nowrap items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer",
                           active
-                            ? "bg-brand-950 text-brand-50 shadow-xs"
+                            ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                             : "globe-glass-pill text-brand-700 hover:text-brand-950",
                         )}
                       >
@@ -1886,7 +1886,7 @@ export function GlobalTrafficGlobe({
                             "flex h-4.5 w-4.5 items-center justify-center rounded-full",
                             city.botHubReason
                               ? "bg-warning-500 text-surface-1"
-                              : "bg-brand-950 text-brand-50",
+                              : "bg-signal-400 text-signal-ink",
                           )}
                         >
                           {city.botHubReason ? <Bot className="h-2.5 w-2.5" /> : <MapPin className="h-2.5 w-2.5" />}
@@ -2017,7 +2017,7 @@ export function GlobalTrafficGlobe({
                         <button
                           type="button"
                           onClick={() => openCityAreaMap(row)}
-                          className="rounded-lg bg-brand-100/80 px-2 py-0.5 text-[10px] font-semibold text-brand-700 transition hover:bg-brand-950 hover:text-brand-50 cursor-pointer"
+                          className="rounded-lg bg-brand-100/80 px-2 py-0.5 text-[10px] font-semibold text-brand-700 transition hover:bg-signal-400 hover:text-signal-ink cursor-pointer"
                         >
                           Areas
                         </button>

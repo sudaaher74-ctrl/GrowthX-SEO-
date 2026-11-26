@@ -465,7 +465,7 @@ function TrafficViewClient() {
       <div className="flex flex-col gap-3 rounded-2xl border border-brand-200/80 bg-surface-1 px-4 py-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-950 text-brand-50">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
               <Activity className="h-4 w-4" />
             </span>
             <div>
@@ -492,7 +492,7 @@ function TrafficViewClient() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1 transition cursor-pointer",
                 activeTab === "overview"
-                  ? "bg-brand-950 text-brand-50 shadow-xs"
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
@@ -507,7 +507,7 @@ function TrafficViewClient() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1 transition cursor-pointer",
                 activeTab === "report"
-                  ? "bg-brand-950 text-brand-50 shadow-xs"
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
@@ -577,7 +577,7 @@ function TrafficViewClient() {
               </p>
               <Link
                 href="/integrations"
-                className="rounded-full bg-brand-950 px-3 py-1 font-semibold text-brand-50 hover:bg-brand-800 transition"
+                className="rounded-full bg-signal-400 px-3 py-1 font-bold text-signal-ink hover:bg-signal-500 transition"
               >
                 Connect
               </Link>

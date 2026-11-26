@@ -268,7 +268,7 @@ export function ProblemDetailDrawer({
             <p className="text-[11px] text-brand-400 max-w-[260px]">{fix.note}</p>
             <Link
               href={fix.href}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-[12px] font-semibold text-brand-50 hover:bg-brand-800 transition"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink hover:bg-signal-500 transition shadow-xs"
             >
               <span>{fix.cta}</span>
               <ArrowRight size={13} />

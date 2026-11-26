@@ -207,7 +207,7 @@ export function ReviewQrKit({
               href={`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-brand-50 transition hover:bg-brand-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink transition hover:bg-signal-500 shadow-xs"
             >
               <MessageSquare size={12} />
               <span>Send on WhatsApp</span>

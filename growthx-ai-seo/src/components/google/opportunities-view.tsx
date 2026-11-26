@@ -137,7 +137,7 @@ export function OpportunitiesView() {
             className={cn(
               "rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
               filter === "all"
-                ? "bg-brand-950 text-brand-50 shadow-xs"
+                ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                 : "bg-brand-100/70 text-brand-600 hover:bg-brand-200/60 hover:text-brand-950",
             )}
           >
@@ -178,7 +178,7 @@ export function OpportunitiesView() {
             className={cn(
               "rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
               filter === "search-console"
-                ? "bg-brand-950 text-brand-50 shadow-xs"
+                ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                 : "bg-brand-100/70 text-brand-600 hover:bg-brand-200/60 hover:text-brand-950",
             )}
           >
@@ -191,7 +191,7 @@ export function OpportunitiesView() {
             className={cn(
               "rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
               filter === "analytics"
-                ? "bg-brand-950 text-brand-50 shadow-xs"
+                ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                 : "bg-brand-100/70 text-brand-600 hover:bg-brand-200/60 hover:text-brand-950",
             )}
           >
@@ -204,7 +204,7 @@ export function OpportunitiesView() {
             className={cn(
               "rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-all",
               filter === "ctr"
-                ? "bg-brand-950 text-brand-50 shadow-xs"
+                ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                 : "bg-brand-100/70 text-brand-600 hover:bg-brand-200/60 hover:text-brand-950",
             )}
           >

@@ -96,7 +96,7 @@ export function TrafficAcquisitionBento({
                 className={cn(
                   "rounded-lg px-2.5 py-1 transition cursor-pointer",
                   originMode === "channels"
-                    ? "bg-brand-950 text-brand-50 shadow-xs"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "text-brand-500 hover:text-brand-950",
                 )}
               >
@@ -108,7 +108,7 @@ export function TrafficAcquisitionBento({
                 className={cn(
                   "rounded-lg px-2.5 py-1 transition cursor-pointer",
                   originMode === "sites"
-                    ? "bg-brand-950 text-brand-50 shadow-xs"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "text-brand-500 hover:text-brand-950",
                 )}
               >
