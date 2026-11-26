@@ -22,6 +22,7 @@ export interface GlobePin {
   liveUsers?: number;
   botHubReason?: string | null;
   isTargetGap?: boolean;
+  exactCity?: boolean;
 }
 
 export interface GlobeFlowArc {
@@ -69,7 +70,7 @@ interface EarthGlobeCanvasProps {
 }
 
 const GLOBE_RADIUS = 1;
-const MIN_CAMERA_Z = 1.92;
+const MIN_CAMERA_Z = 1.32;
 const MAX_CAMERA_Z = 3.7;
 const DEFAULT_CAMERA_Z = 2.62;
 const INITIAL_LAT = 28;
@@ -242,6 +243,7 @@ export function EarthGlobeCanvas({
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const pinElementsRef = useRef<Map<string, HTMLButtonElement>>(new Map());
   const clusterBadgeElementsRef = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const clusterHintElementsRef = useRef<Map<string, HTMLSpanElement>>(new Map());
   const clusteredPinIdsRef = useRef<Set<string>>(new Set());
   const [webglError, setWebglError] = useState(false);
 
@@ -771,11 +773,11 @@ export function EarthGlobeCanvas({
 
       // Highest-priority pins claim screen space first; nearby pins cluster cleanly under them
       candidates.sort((a, b) => b.priority - a.priority);
-      const kept: Array<{ cand: ProjectedCandidate; hiddenCount: number }> = [];
+      const kept: Array<{ cand: ProjectedCandidate; hiddenNames: string[] }> = [];
       const nextClustered = new Set<string>();
 
       for (const cand of candidates) {
-        let mergedInto: { cand: ProjectedCandidate; hiddenCount: number } | null = null;
+        let mergedInto: { cand: ProjectedCandidate; hiddenNames: string[] } | null = null;
         if (cand.priority !== Number.MAX_SAFE_INTEGER) {
           for (const existing of kept) {
             const dx = cand.sx - existing.cand.sx;
@@ -788,7 +790,7 @@ export function EarthGlobeCanvas({
         }
 
         if (mergedInto) {
-          mergedInto.hiddenCount += 1;
+          mergedInto.hiddenNames.push(cand.pin.label);
           nextClustered.add(mergedInto.cand.pin.id);
           const el = pinElementsRef.current.get(cand.pin.id);
           if (el) {
@@ -796,14 +798,14 @@ export function EarthGlobeCanvas({
             el.style.pointerEvents = "none";
           }
         } else {
-          kept.push({ cand, hiddenCount: 0 });
+          kept.push({ cand, hiddenNames: [] });
         }
       }
 
       clusteredPinIdsRef.current = nextClustered;
 
       const snapshotPins: GlobeProjectedSnapshotPin[] = [];
-      for (const { cand, hiddenCount } of kept) {
+      for (const { cand, hiddenNames } of kept) {
         const el = pinElementsRef.current.get(cand.pin.id);
         if (el) {
           el.style.transform = `translate3d(${cand.sx.toFixed(1)}px, ${cand.sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${cand.scale.toFixed(3)})`;
@@ -812,11 +814,22 @@ export function EarthGlobeCanvas({
         }
         const badge = clusterBadgeElementsRef.current.get(cand.pin.id);
         if (badge) {
-          if (hiddenCount > 0) {
-            badge.textContent = `+${hiddenCount}`;
+          if (hiddenNames.length > 0) {
+            badge.textContent = `+${hiddenNames.length}`;
             badge.style.display = "inline-flex";
           } else {
             badge.style.display = "none";
+          }
+        }
+        const hint = clusterHintElementsRef.current.get(cand.pin.id);
+        if (hint) {
+          if (hiddenNames.length > 0) {
+            const preview = hiddenNames.slice(0, 2).join(", ");
+            const more = hiddenNames.length > 2 ? ` +${hiddenNames.length - 2}` : "";
+            hint.textContent = `Nearby (click to zoom): ${preview}${more}`;
+            hint.style.display = "block";
+          } else {
+            hint.style.display = "none";
           }
         }
         if (cand.edgeFade > 0.4) {
@@ -1048,7 +1061,7 @@ export function EarthGlobeCanvas({
               onClick={() => {
                 if (clusteredPinIdsRef.current.has(pin.id)) {
                   const m = motionRef.current;
-                  m.targetCameraZ = Math.max(MIN_CAMERA_Z, m.targetCameraZ - 0.38);
+                  m.targetCameraZ = Math.max(MIN_CAMERA_Z, m.targetCameraZ - 0.52);
                 }
                 onSelectPin(pin);
               }}
@@ -1062,8 +1075,8 @@ export function EarthGlobeCanvas({
                   : `${pin.label}: ${count(pin.visitors)} ${unit} (${percent(pin.share)})${isBot ? " — cloud/bot hub" : ""}`
               }
               className={cn(
-                "group absolute left-0 top-0 z-10 flex items-center justify-center rounded-full focus-visible:z-30 cursor-pointer",
-                active ? "z-20 globe-pin-active" : "",
+                "group absolute left-0 top-0 z-10 flex items-center justify-center rounded-full focus-visible:z-40 cursor-pointer",
+                isHovered ? "z-40 globe-pin-active" : isSelected ? "z-20 globe-pin-active" : "",
                 isLive ? "globe-pin-live" : isTarget ? "globe-pin-target" : isBot ? "globe-pin-bot" : "",
               )}
             >
@@ -1122,8 +1135,16 @@ export function EarthGlobeCanvas({
                   <span className="mt-0.5 block font-mono text-[10px] text-brand-500">
                     {isTarget
                       ? `${count(pin.visitors)} visits · Target service market`
-                      : `${count(pin.visitors)} ${unit} · ${percent(pin.share)}`}
+                      : `${count(pin.visitors)} ${unit} · ${percent(pin.share)}${pin.exactCity === false ? " · approx. region" : ""}`}
                   </span>
+                  <span
+                    ref={(node) => {
+                      if (node) clusterHintElementsRef.current.set(pin.id, node);
+                      else clusterHintElementsRef.current.delete(pin.id);
+                    }}
+                    style={{ display: "none" }}
+                    className="mt-0.5 text-[9.5px] font-medium text-primary-700"
+                  />
                   {pin.botHubReason && (
                     <span className="mt-0.5 block text-[9.5px] text-warning-700">
                       {pin.botHubReason}

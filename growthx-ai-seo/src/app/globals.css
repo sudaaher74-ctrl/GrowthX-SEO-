@@ -807,8 +807,9 @@ details.faq-details:not([open])::details-content {
    opt-in via prefers-reduced-motion: no-preference.
    ═══════════════════════════════════════════════════════════════════ */
 .globe-stage {
+  container-type: inline-size;
   content-visibility: auto;
-  contain-intrinsic-size: auto none auto 660px;
+  contain-intrinsic-size: auto none auto 620px;
   background: radial-gradient(
     ellipse 80% 72% at 50% 48%,
     #f2f6fa 0%,
@@ -816,6 +817,54 @@ details.faq-details:not([open])::details-content {
     #d4e0eb 100%
   );
   border-color: rgba(148, 163, 184, 0.28);
+}
+
+.globe-stage-fullscreen {
+  content-visibility: visible;
+}
+
+/* Size-aware HUD slots driven by the globe's OWN container width (adapts seamlessly when sidebar toggles) */
+.globe-hud-side {
+  display: none;
+}
+.globe-hud-metric {
+  display: none;
+}
+.globe-hud-chips {
+  display: none;
+}
+.globe-hud-spotlights {
+  display: none;
+}
+.globe-hud-mobile-strip {
+  display: grid;
+}
+
+@container (min-width: 920px) {
+  .globe-hud-side {
+    display: flex;
+  }
+  .globe-hud-mobile-strip {
+    display: none;
+  }
+}
+
+@container (min-width: 1020px) {
+  .globe-hud-chips {
+    display: flex;
+  }
+}
+
+@container (min-width: 1120px) {
+  .globe-hud-metric {
+    display: inline-flex;
+  }
+}
+
+@container (min-width: 1280px) {
+  .globe-hud-spotlights {
+    display: flex;
+  }
 }
 
 .dash-dark .globe-stage,

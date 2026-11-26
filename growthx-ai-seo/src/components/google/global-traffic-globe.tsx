@@ -526,6 +526,7 @@ export function GlobalTrafficGlobe({
         metricUnit: "visitors",
         liveUsers: 0,
         botHubReason: c.botHubReason,
+        exactCity: c.exactCity,
       }));
   }, [selectedCountryCities]);
 
@@ -597,13 +598,13 @@ export function GlobalTrafficGlobe({
   );
 
   const filterCountries = useMemo(
-    () => metricCountries.filter((c) => c.lat !== null && c.lng !== null).slice(0, 5),
+    () => metricCountries.filter((c) => c.lat !== null && c.lng !== null).slice(0, 3),
     [metricCountries],
   );
 
   const spotlightCities = useMemo(() => {
     const base = selectedCountryCode ? selectedCountryCities : filteredCities;
-    return (base.length > 0 ? base : filteredCities).slice(0, 3);
+    return (base.length > 0 ? base : filteredCities).slice(0, 2);
   }, [selectedCountryCode, selectedCountryCities, filteredCities]);
 
   // Search-filtered lists for Right Panel
@@ -844,7 +845,7 @@ export function GlobalTrafficGlobe({
       className={cn(
         "globe-stage relative overflow-hidden border transition-all duration-300",
         isFullscreen
-          ? "fixed inset-0 z-50 h-screen w-screen rounded-none border-0"
+          ? "globe-stage-fullscreen fixed inset-0 z-[100] h-dvh w-screen rounded-none border-0"
           : "rounded-3xl shadow-card",
       )}
     >
@@ -852,7 +853,9 @@ export function GlobalTrafficGlobe({
       <div
         className={cn(
           "relative w-full",
-          isFullscreen ? "h-full" : "h-[460px] sm:h-[520px] lg:h-[710px]",
+          isFullscreen
+            ? "h-full"
+            : "h-[440px] sm:h-[500px] lg:h-[clamp(560px,calc(100dvh-136px),660px)]",
         )}
       >
         {viewMode === "map" ? (
@@ -885,11 +888,11 @@ export function GlobalTrafficGlobe({
         )}
 
         {/* ── FLOATING OVERLAY HUD ── */}
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3.5 sm:p-5">
+        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3 sm:p-4">
           {/* TOP ROW: LEFT STACK + CENTER METRIC PILL + RIGHT STACK */}
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 min-h-0">
             {/* LEFT FLOATING STACK */}
-            <div className="pointer-events-auto flex w-auto flex-col gap-3 lg:w-[276px] xl:w-[294px]">
+            <div className="pointer-events-auto flex w-auto flex-col gap-2.5 lg:w-[258px] xl:w-[274px]">
               {/* Top-left floating icon toolbar pill */}
               <div
                 role="toolbar"
@@ -1000,7 +1003,7 @@ export function GlobalTrafficGlobe({
               </div>
 
               {/* Left Card 1: Hero Visitors / Metric + Country Drilldown or Histogram */}
-              <div className="globe-glass hidden rounded-2xl p-4 lg:block">
+              <div className="globe-glass globe-hud-side flex-col rounded-2xl p-3">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-brand-400">
@@ -1076,11 +1079,11 @@ export function GlobalTrafficGlobe({
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-3.5">
+                  <div className="mt-2.5">
                     {histogramBars.length > 0 ? (
                       <>
                         <div
-                          className="flex h-[56px] items-end gap-[3px]"
+                          className="flex h-[44px] items-end gap-[3px]"
                           onMouseLeave={() => setHoveredBarIdx(null)}
                         >
                           {histogramBars.map((bar, idx) => {
@@ -1128,14 +1131,14 @@ export function GlobalTrafficGlobe({
               </div>
 
               {/* Left Card 2: Total Sessions Sparkline + Cloud/Bot Hygiene */}
-              <div className="globe-glass hidden rounded-2xl px-4 py-3.5 lg:block">
+              <div className="globe-glass globe-hud-side flex-col rounded-2xl px-3.5 py-2.5">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-semibold text-brand-950">
                     {botHubStats.botCityCount > 0 && hideBotHubs ? "Est. Human City Traffic" : "Total Sessions"}
                   </span>
                   <span className="text-[10px] text-brand-400">last {periodDays} days</span>
                 </div>
-                <div className="relative mt-2 h-[44px] w-full">
+                <div className="relative mt-1.5 h-[36px] w-full">
                   {sparkline ? (
                     <svg
                       viewBox={`0 0 ${sparkline.w} ${sparkline.h}`}
@@ -1191,7 +1194,7 @@ export function GlobalTrafficGlobe({
               </div>
 
               {/* Left Card 3: Segmented Traffic Mix / Country City Split Card */}
-              <div className="globe-glass hidden rounded-2xl px-4 py-3.5 lg:block">
+              <div className="globe-glass globe-hud-side flex-col rounded-2xl px-3.5 py-2.5">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-semibold text-brand-950">{segmentedMix.title}</span>
                   <span className="text-[10px] text-brand-400">last {periodDays} days</span>
@@ -1241,7 +1244,7 @@ export function GlobalTrafficGlobe({
             <div
               role="tablist"
               aria-label="Globe traffic metric"
-              className="globe-glass-pill pointer-events-auto hidden items-center gap-1 rounded-2xl p-1 xl:inline-flex"
+              className="globe-glass-pill globe-hud-metric pointer-events-auto items-center gap-1 rounded-2xl p-1"
             >
               {(
                 [
@@ -1280,7 +1283,7 @@ export function GlobalTrafficGlobe({
             </div>
 
             {/* RIGHT FLOATING STACK */}
-            <div className="pointer-events-auto flex flex-col items-end gap-3 lg:w-[314px] xl:w-[334px]">
+            <div className="pointer-events-auto flex flex-col items-end gap-2.5 lg:w-[292px] xl:w-[310px]">
               {/* Top-right action buttons (PNG Snapshot + CSV Export + Report + Fullscreen) */}
               <div className="flex items-center gap-1.5">
                 {viewMode !== "map" && (
@@ -1323,7 +1326,7 @@ export function GlobalTrafficGlobe({
               </div>
 
               {/* Right Main Tabbed Panel (Countries / Cities / Live 30m) + Instant Search */}
-              <div className="globe-glass hidden w-full flex-col rounded-2xl p-3.5 lg:flex">
+              <div className="globe-glass globe-hud-side w-full flex-col rounded-2xl p-3">
                 {/* Segmented Pill Tabs */}
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-brand-100/75 p-1 text-[11px] font-semibold">
                   {(
@@ -1409,7 +1412,12 @@ export function GlobalTrafficGlobe({
                 </div>
 
                 {/* Tab Content Feed */}
-                <div className="mt-2 max-h-[305px] divide-y divide-brand-200/50 overflow-y-auto pr-0.5">
+                <div
+                  className={cn(
+                    "mt-2 divide-y divide-brand-200/50 overflow-y-auto pr-0.5",
+                    isFullscreen ? "max-h-[440px]" : "max-h-[245px]",
+                  )}
+                >
                   {rightTab === "countries" && (
                     displayedCountries.length > 0 ? (
                       displayedCountries.map((row) => {
@@ -1491,7 +1499,10 @@ export function GlobalTrafficGlobe({
                             onClick={() => {
                               setPinLayer("cities");
                               setSelectedPinId(pinId);
-                              if (row.lat !== null && row.lng !== null) flyTo(row.lat, row.lng);
+                              if (row.lat !== null && row.lng !== null) {
+                                flyTo(row.lat, row.lng);
+                                bumpZoom(-0.35);
+                              }
                             }}
                             onMouseEnter={() => setHoveredPinId(pinId)}
                             onMouseLeave={() => setHoveredPinId(null)}
@@ -1640,24 +1651,24 @@ export function GlobalTrafficGlobe({
             </div>
           </div>
 
-          {/* BOTTOM ROW: LEFT STATUS PILL + CENTER MODE SWITCHER + RIGHT COUNTRY PILLS & CITY SPOTLIGHT */}
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          {/* BOTTOM ROW: NON-WRAPPING 3-COLUMN GRID (LEFT STATUS | CENTER SWITCHER | RIGHT PILLS) */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
             {/* Bottom-Left Workspace / Live Telemetry Badge */}
-            <div className="pointer-events-auto flex items-center gap-2">
-              <div className="globe-glass-pill flex items-center gap-2.5 rounded-2xl px-3 py-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-brand-950 text-brand-50">
+            <div className="pointer-events-auto flex items-center justify-start gap-2 min-w-0">
+              <div className="globe-glass-pill flex items-center gap-2 rounded-2xl px-3 py-1.5 min-w-0">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-950 text-brand-50">
                   <Activity className="h-3.5 w-3.5" />
                 </span>
-                <div className="leading-tight">
-                  <p className="text-[11.5px] font-bold text-brand-950">
+                <div className="leading-tight min-w-0">
+                  <p className="truncate text-[11px] font-bold text-brand-950">
                     {selectedCountry ? `${selectedCountry.flag} ${selectedCountry.country}` : "Global Traffic"}
                   </p>
-                  <p className="text-[10px] text-brand-500">
+                  <p className="truncate text-[9.5px] text-brand-500">
                     {metricCountries.length} {metricCountries.length === 1 ? "country" : "countries"} · {filteredCities.length} {filteredCities.length === 1 ? "city" : "cities"}
                   </p>
                 </div>
                 {realtimeData && (
-                  <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 font-mono text-[10px] font-bold text-success-700">
+                  <span className="ml-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 font-mono text-[10px] font-bold text-success-700">
                     <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
                     {count(realtimeData.activeUsers)} live
                   </span>
@@ -1669,7 +1680,7 @@ export function GlobalTrafficGlobe({
             <div
               role="tablist"
               aria-label="Map projection mode"
-              className="globe-glass-pill pointer-events-auto inline-flex items-center gap-1 rounded-2xl p-1"
+              className="globe-glass-pill pointer-events-auto inline-flex items-center gap-1 justify-self-center rounded-2xl p-1"
             >
               {(
                 [
@@ -1688,7 +1699,7 @@ export function GlobalTrafficGlobe({
                     aria-selected={active}
                     onClick={() => setViewMode(mode.id)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer",
+                      "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
                       active
                         ? "bg-brand-950 text-brand-50 shadow-xs"
                         : "text-brand-600 hover:text-brand-950",
@@ -1701,15 +1712,15 @@ export function GlobalTrafficGlobe({
               })}
             </div>
 
-            {/* Bottom-Right Country Quick-Fly Pills & City Spotlight Mini-Cards */}
-            <div className="pointer-events-auto hidden flex-col items-end gap-2 xl:flex">
+            {/* Bottom-Right Country Quick-Fly Pills & Optional Wide-Screen City Spotlights */}
+            <div className="pointer-events-auto flex flex-col items-end justify-self-end gap-2">
               {filterCountries.length > 0 && (
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <div className="globe-hud-chips items-center justify-end gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleCountryChipClick(null)}
                     className={cn(
-                      "rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer",
+                      "whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer",
                       selectedCountryCode === null
                         ? "bg-brand-950 text-brand-50 shadow-xs"
                         : "globe-glass-pill text-brand-700 hover:text-brand-950",
@@ -1725,7 +1736,7 @@ export function GlobalTrafficGlobe({
                         type="button"
                         onClick={() => handleCountryChipClick(active ? null : c.code)}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer",
+                          "inline-flex whitespace-nowrap items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer",
                           active
                             ? "bg-brand-950 text-brand-50 shadow-xs"
                             : "globe-glass-pill text-brand-700 hover:text-brand-950",
@@ -1740,7 +1751,7 @@ export function GlobalTrafficGlobe({
               )}
 
               {spotlightCities.length > 0 && (
-                <div className="flex items-stretch gap-2">
+                <div className={cn("items-stretch gap-2", isFullscreen ? "flex" : "globe-hud-spotlights")}>
                   {spotlightCities.map((city, idx) => (
                     <button
                       key={`${city.city}-${city.country}-${idx}`}
@@ -1749,14 +1760,17 @@ export function GlobalTrafficGlobe({
                         setPinLayer("cities");
                         setRightTab("cities");
                         setSelectedPinId(`city:${city.code}:${city.city}:${idx}`);
-                        if (city.lat !== null && city.lng !== null) flyTo(city.lat, city.lng);
+                        if (city.lat !== null && city.lng !== null) {
+                          flyTo(city.lat, city.lng);
+                          bumpZoom(-0.35);
+                        }
                       }}
-                      className="globe-city-thumb group relative flex h-[76px] w-[156px] flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/70 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                      className="globe-city-thumb group relative flex h-[68px] w-[144px] flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/70 p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                     >
                       <div className="flex items-center justify-between">
                         <span
                           className={cn(
-                            "flex h-5 w-5 items-center justify-center rounded-full",
+                            "flex h-4.5 w-4.5 items-center justify-center rounded-full",
                             city.botHubReason
                               ? "bg-warning-500 text-surface-1"
                               : "bg-brand-950 text-brand-50",
@@ -1764,16 +1778,16 @@ export function GlobalTrafficGlobe({
                         >
                           {city.botHubReason ? <Bot className="h-2.5 w-2.5" /> : <MapPin className="h-2.5 w-2.5" />}
                         </span>
-                        <span className="globe-glass-pill rounded-md px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-brand-800">
+                        <span className="globe-glass-pill rounded-md px-1.5 py-0.5 font-mono text-[9px] font-bold text-brand-800">
                           {percent(city.share)}
                         </span>
                       </div>
-                      <div className="globe-glass-pill rounded-xl px-2 py-1">
-                        <p className="truncate text-[10.5px] font-bold text-brand-950">
+                      <div className="globe-glass-pill rounded-xl px-2 py-0.5">
+                        <p className="truncate text-[10px] font-bold text-brand-950">
                           #{idx + 1} {city.city}
                         </p>
-                        <p className="truncate font-mono text-[9.5px] text-brand-500">
-                          {city.flag} {count(city.count)} {city.botHubReason ? "· bot hub" : "visitors"}
+                        <p className="truncate font-mono text-[9px] text-brand-500">
+                          {city.flag} {count(city.count)} {city.botHubReason ? "· bot" : "visits"}
                         </p>
                       </div>
                     </button>
@@ -1784,13 +1798,13 @@ export function GlobalTrafficGlobe({
           </div>
         </div>
 
-        {/* Fullscreen close helper on small screens */}
+        {/* Fullscreen close helper */}
         {isFullscreen && (
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
             aria-label="Close fullscreen"
-            className="globe-glass-pill fixed top-4 left-1/2 z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-brand-800 shadow-md lg:hidden"
+            className="globe-glass-pill fixed top-4 left-1/2 z-[110] inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-brand-800 shadow-md lg:hidden cursor-pointer"
           >
             <X className="h-3.5 w-3.5" />
             <span>Exit Fullscreen</span>
@@ -1798,9 +1812,9 @@ export function GlobalTrafficGlobe({
         )}
       </div>
 
-      {/* ── COMPACT MOBILE / TABLET BREAKDOWN STRIP (< lg) ── */}
+      {/* ── COMPACT MOBILE / NARROW CONTAINER BREAKDOWN STRIP (< 920px container width) ── */}
       {!isFullscreen && (
-        <div className="grid grid-cols-1 gap-3 border-t border-brand-200/50 p-4 sm:grid-cols-2 lg:hidden">
+        <div className="globe-hud-mobile-strip grid-cols-1 gap-3 border-t border-brand-200/50 p-4 sm:grid-cols-2">
           <div className="globe-glass rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-bold text-brand-950">

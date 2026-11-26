@@ -20,6 +20,39 @@ export interface ResolvedLocation {
   exactCity: boolean;
 }
 
+/** Lazy-loaded 40,000-city GeoNames gazetteer keyed by `CITY_UPPER|ISO2`. */
+type CityGazetteerMap = Record<string, [number, number]>;
+let cityGazetteer: CityGazetteerMap | null = null;
+let cityGazetteerPromise: Promise<CityGazetteerMap | null> | null = null;
+const gazetteerListeners = new Set<() => void>();
+
+export function loadCityGazetteer(): Promise<CityGazetteerMap | null> {
+  if (cityGazetteer) return Promise.resolve(cityGazetteer);
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!cityGazetteerPromise) {
+    cityGazetteerPromise = fetch("/data/cities-geo.json")
+      .then((res) => (res.ok ? (res.json() as Promise<CityGazetteerMap>) : null))
+      .then((data) => {
+        if (data) {
+          cityGazetteer = data;
+          gazetteerListeners.forEach((fn) => fn());
+        }
+        return data;
+      })
+      .catch(() => null);
+  }
+  return cityGazetteerPromise;
+}
+
+export function subscribeCityGazetteer(listener: () => void): () => void {
+  gazetteerListeners.add(listener);
+  return () => gazetteerListeners.delete(listener);
+}
+
+export function isCityGazetteerLoaded(): boolean {
+  return cityGazetteer !== null;
+}
+
 const COUNTRY_LIST: Array<CountryGeo & { alpha3: string; numeric: string; aliases?: string[] }> = [
   { code: "US", alpha3: "USA", numeric: "840", name: "United States", flag: "🇺🇸", lat: 39.8, lng: -98.5, aliases: ["UNITED STATES OF AMERICA", "USA"] },
   { code: "IN", alpha3: "IND", numeric: "356", name: "India", flag: "🇮🇳", lat: 21.1, lng: 78.9 },
@@ -318,22 +351,42 @@ export function resolveCountryGeo(rawCountry: string | null | undefined): Countr
 export function resolveCityGeo(city: string, country: string): ResolvedLocation | null {
   const cleanCity = city.trim().toUpperCase();
   const countryGeo = resolveCountryGeo(country);
+  const code = countryGeo?.code ?? country.trim().slice(0, 2).toUpperCase();
+
+  // 1. Check the 40k GeoNames gazetteer first for exact sub-kilometer accuracy (including suburbs & neighboring metros)
+  if (cityGazetteer && code) {
+    const exact = cityGazetteer[`${cleanCity}|${code}`];
+    if (exact) {
+      return {
+        lat: exact[0],
+        lng: exact[1],
+        code,
+        flag: countryGeo?.flag ?? "📍",
+        countryName: countryGeo?.name ?? country,
+        exactCity: true,
+      };
+    }
+  }
+
+  // 2. Synchronous curated city lookup (used immediately on first paint before gazetteer resolves)
   const directCity = CITY_COORDINATES[cleanCity];
   if (directCity) {
     return {
       lat: directCity.lat,
       lng: directCity.lng,
-      code: countryGeo?.code ?? country.slice(0, 2).toUpperCase(),
+      code,
       flag: countryGeo?.flag ?? "📍",
       countryName: countryGeo?.name ?? country,
       exactCity: true,
     };
   }
+
+  // 3. Country centroid fallback with minimal jitter when a small town is unlisted
   if (!countryGeo) return null;
   const [dLat, dLng] = stableHashOffset(`${cleanCity}:${countryGeo.code}`);
   return {
-    lat: Math.max(-75, Math.min(75, countryGeo.lat + dLat * 1.4)),
-    lng: countryGeo.lng + dLng * 1.8,
+    lat: Math.max(-75, Math.min(75, countryGeo.lat + dLat * 0.28)),
+    lng: countryGeo.lng + dLng * 0.35,
     code: countryGeo.code,
     flag: countryGeo.flag,
     countryName: countryGeo.name,

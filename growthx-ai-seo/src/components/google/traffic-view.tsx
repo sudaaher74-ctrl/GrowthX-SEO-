@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -55,7 +55,14 @@ import {
 } from "@/hooks/use-google";
 import { usePeriodDays, useWorkspace } from "@/hooks/use-growthx";
 import { api, type Ga4RangeKey, type Ga4ReportData } from "@/lib/api-client";
-import { detectDatacenterCity, resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
+import {
+  detectDatacenterCity,
+  isCityGazetteerLoaded,
+  loadCityGazetteer,
+  resolveCityGeo,
+  resolveCountryGeo,
+  subscribeCityGazetteer,
+} from "@/lib/geo-coordinates";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +122,16 @@ function TrafficViewClient() {
   const { projectId } = useWorkspace();
   const periodDays = usePeriodDays();
   const rangeKey = `${periodDays}d` as Ga4RangeKey;
+
+  // Load 40k worldwide GeoNames city coordinates once so suburbs & neighboring metros map accurately
+  const gazetteerReady = useSyncExternalStore(
+    subscribeCityGazetteer,
+    isCityGazetteerLoaded,
+    () => false,
+  );
+  useEffect(() => {
+    void loadCityGazetteer();
+  }, []);
 
   const [presentationMode, setPresentationMode] = useState(false);
   const [globeTabSignal, setGlobeTabSignal] = useState<{ tab: "countries" | "cities" | "live"; nonce: number } | null>(null);
@@ -360,10 +377,12 @@ function TrafficViewClient() {
       .sort((a, b) => b.count - a.count || (b.impressions ?? 0) - (a.impressions ?? 0));
   }, [reportData?.countries, countryBreakdown.query.data?.rows]);
 
-  // Cities Breakdown with real coordinates & cloud/bot hub classification
+  // Cities Breakdown with exact GeoNames coordinates & cloud/bot hub classification
   const citiesBreakdown = useMemo<TrafficCityRow[]>(() => {
     if (!reportData?.cities || reportData.cities.length === 0) return [];
     const totalSessions = reportData.cities.reduce((sum, c) => sum + (c.sessions ?? c.users ?? 0), 0) || 1;
+    // Reference gazetteerReady so city pins snap immediately to exact sub-km coordinates when loaded
+    void gazetteerReady;
     return reportData.cities
       .filter((c) => c.city && c.city !== "(not set)")
       .map((c) => {
@@ -384,7 +403,7 @@ function TrafficViewClient() {
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 25);
-  }, [reportData]);
+  }, [reportData, gazetteerReady]);
 
   // Target Market Gap Cities (zero/low-traffic Website Audit target markets)
   const targetGapCities = useMemo<TargetMarketGapCity[]>(() => {
