@@ -1679,8 +1679,10 @@ export interface QueueStat {
   name: string;
   active: number;
   waiting: number;
+  delayed?: number;
   completed: number;
   failed: number;
+  paused?: boolean;
   avgTime: string;
   status: string;
 }
@@ -2239,21 +2241,118 @@ export interface GbpCategories extends GbpEnvelope {
 export interface ApiCostStat {
   service: string;
   tokens: string;
+  totalTokens?: number;
   cost: number;
-  limit: number;
-  color: string;
+  calls?: number;
+  errors?: number;
+  avgLatencyMs?: number | null;
+  limit?: number;
+  color?: string;
 }
+
+export type AdminSubscriptionTier = 'founder_free' | 'starter' | 'growth' | 'agency';
 
 export interface TenantStat {
   id: string;
   name: string;
-  owner: string;
+  slug?: string | null;
+  owner: string | null;
   /** Null until the organization first uses a metered feature: its wallet is opened then. */
   tokens: { available: number; monthly: number } | null;
   sites: number;
-  health: number;
-  quota: number;
+  projectCount?: number;
+  memberCount?: number;
+  subscriptionTier?: AdminSubscriptionTier;
+  aiMonthlyBudgetUsd?: number | null;
+  whiteLabelEnabled?: boolean;
+  mtdAiSpendUsd?: number;
+  mtdAiCalls?: number;
+  createdAt?: string | null;
+  health?: number;
+  quota?: number;
   status: string;
+}
+
+export interface AdminTenantDetail {
+  id: string;
+  name: string;
+  slug: string;
+  subscriptionTier: AdminSubscriptionTier;
+  aiMonthlyBudgetUsd: number | null;
+  whiteLabelEnabled: boolean;
+  createdAt: string;
+  mtdAiSpendUsd: number;
+  mtdAiTokens: number;
+  mtdAiCalls: number;
+  mtdAiErrors: number;
+  members: Array<{
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    emailVerified: boolean;
+    isPlatformAdmin: boolean;
+    isLoggedIn: boolean;
+    activeSessionsCount: number;
+    joinedAt: string;
+  }>;
+  projects: Array<{
+    id: string;
+    name: string;
+    createdAt: string;
+    websites: Array<{
+      id: string;
+      domain: string;
+      isVerified: boolean;
+      crawlFrequency: string;
+      latestCrawl: {
+        id: string;
+        status: string;
+        pagesCrawled: number;
+        issuesFound: number;
+        healthScore: number | null;
+        finishedAt: string | null;
+        createdAt: string;
+      } | null;
+    }>;
+  }>;
+  recentAuditLogs: Array<{
+    id: string;
+    action: string;
+    resource: string | null;
+    details: unknown;
+    actorEmail: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface UpdateAdminTenantInput {
+  subscriptionTier?: AdminSubscriptionTier;
+  aiMonthlyBudgetUsd?: number | null;
+  whiteLabelEnabled?: boolean;
+}
+
+export interface AdminTenantTokensOverview {
+  allowance: {
+    remaining: number;
+    monthly: number;
+    override: number | null;
+    periodStart: string;
+    periodEnd: string;
+  };
+  bonus: number;
+  available: number;
+  items: Array<{
+    id: string;
+    kind: string;
+    action: string;
+    delta: number;
+    shortfall: number;
+    balanceAfter: number;
+    createdAt: string;
+    detail?: Record<string, unknown> | null;
+  }>;
+  nextCursor: string | null;
 }
 
 export interface AdminSystemHealth {
@@ -2265,18 +2364,64 @@ export interface AdminSystemHealth {
   redis: {
     status: string;
     queuesActive: boolean;
+    connectedQueues?: number;
+    pausedQueues?: number;
+    totalQueues?: number;
   };
   crawlerCluster: {
     status: string;
     activeWorkers: number;
+    runningCrawls?: number;
+    waitingJobs?: number;
+    failedJobs?: number;
     headlessEngine: string;
   };
   aiRouter: {
     status: string;
+    configuredProviders?: string[];
     primaryModel: string;
     fallbackProvider: string;
+    calls24h?: number;
+    errors24h?: number;
+    errorRatePct?: number;
+    avgLatencyMs?: number | null;
   };
   timestamp: string;
+}
+
+export interface AdminAccessCheck {
+  authorized: boolean;
+  userId: string | null;
+  email: string | null;
+}
+
+export interface AdminOpsAlert {
+  id: string;
+  severity: 'critical' | 'warn' | 'info';
+  category: 'crawl' | 'ai' | 'budget' | 'webhook' | 'sync';
+  title: string;
+  detail: string;
+  timestamp: string | null;
+}
+
+export interface AdminOpsSummary {
+  crawls24h: {
+    completed: number;
+    failed: number;
+    running: number;
+    pending: number;
+  };
+  aiMtd: {
+    spendUsd: number;
+    calls: number;
+    tokens: number;
+    avgLatencyMs: number | null;
+    errors24h: number;
+  };
+  tierBreakdown: Record<string, number>;
+  webhookFailures24h: number;
+  syncFailures24h: number;
+  alerts: AdminOpsAlert[];
 }
 
 export interface AdminUserItem {
@@ -2286,7 +2431,12 @@ export interface AdminUserItem {
   role: string;
   organizationName: string;
   organizationId: string | null;
+  membershipsCount?: number;
   createdAt: string;
+  emailVerified?: boolean;
+  isPlatformAdmin?: boolean;
+  platformAdminRevoked?: boolean;
+  authProvider?: 'google' | 'password' | 'both';
   status: string;
   isLoggedIn?: boolean;
   activeSessionsCount?: number;
@@ -2309,6 +2459,134 @@ export interface AdminUserModelUsage {
   totalTokens: number;
   cost: number;
   lastUsedAt: string;
+}
+
+export interface AdminFailedJob {
+  id: string;
+  queue: string;
+  name: string;
+  domain: string | null;
+  targetUrl: string | null;
+  crawlJobId: string | null;
+  failedReason: string;
+  attemptsMade: number;
+  timestamp: string | null;
+}
+
+export interface AdminCrawlRun {
+  id: string;
+  domain: string;
+  scope: string;
+  projectName: string | null;
+  organizationName: string | null;
+  status: string;
+  pagesCrawled: number;
+  pagesDiscovered: number;
+  issuesFound: number;
+  healthScore: number | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  durationSec: number | null;
+}
+
+export interface AdminDataSyncRun {
+  id: string;
+  projectId: string;
+  projectName: string | null;
+  organizationName: string | null;
+  provider: string;
+  status: string;
+  rowsWritten: number;
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface AdminRecentCrawlsResponse {
+  crawls: AdminCrawlRun[];
+  syncJobs: AdminDataSyncRun[];
+}
+
+export interface AdminAiAnalytics {
+  windowDays: number;
+  dailyTrend: Array<{
+    date: string;
+    calls: number;
+    errors: number;
+    tokens: number;
+    costUsd: number;
+  }>;
+  byTask: Array<{
+    taskType: string;
+    calls: number;
+    errors: number;
+    errorRatePct: number;
+    avgLatencyMs: number;
+    tokens: number;
+    costUsd: number;
+  }>;
+  byOrganization: Array<{
+    organizationId: string;
+    organizationName: string;
+    calls: number;
+    errors: number;
+    tokens: number;
+    costUsd: number;
+    budgetUsd: number | null;
+    lastUsedAt: string;
+  }>;
+  recentErrors: Array<{
+    id: string;
+    createdAt: string;
+    provider: string;
+    model: string;
+    taskType: string;
+    status: string;
+    latencyMs: number;
+    error: string | null;
+    organizationName: string;
+  }>;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  action: string;
+  resource: string | null;
+  details: Record<string, unknown> | null;
+  organizationId: string;
+  organizationName: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface AdminWebhooksResponse {
+  incoming: Array<{
+    id: string;
+    provider: string;
+    eventId: string;
+    eventType: string;
+    processedAt: string | null;
+    error: string | null;
+    createdAt: string;
+  }>;
+  deliveries: Array<{
+    id: string;
+    channel: string;
+    event: string;
+    targetHost: string;
+    status: string;
+    statusCode: number | null;
+    latencyMs: number;
+    summary: string;
+    error: string | null;
+    projectName: string | null;
+    organizationName: string | null;
+    createdAt: string;
+  }>;
 }
 
 // ─────────────────────────────────────────────────── market research

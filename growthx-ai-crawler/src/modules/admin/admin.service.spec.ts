@@ -8,10 +8,34 @@ describe('AdminService.getTenants', () => {
           {
             id: 'org-1',
             name: 'Acme Dental',
+            slug: 'acme-dental',
+            subscriptionTier: 'growth',
+            aiMonthlyBudgetUsd: 50,
+            whiteLabelEnabled: false,
+            createdAt: new Date('2026-01-10T00:00:00Z'),
             projects: [{ websites: [{}, {}] }, { websites: [{}] }],
-            members: [{ user: { email: 'owner@acme.test' } }],
+            members: [{ role: 'OWNER', user: { email: 'owner@acme.test' } }],
           },
-          { id: 'org-2', name: 'Brand New Co', projects: [], members: [] },
+          {
+            id: 'org-2',
+            name: 'Brand New Co',
+            slug: 'brand-new-co',
+            subscriptionTier: 'founder_free',
+            aiMonthlyBudgetUsd: null,
+            whiteLabelEnabled: false,
+            createdAt: new Date('2026-02-01T00:00:00Z'),
+            projects: [],
+            members: [],
+          },
+        ]),
+      },
+      aiUsageRecord: {
+        groupBy: jest.fn().mockResolvedValue([
+          {
+            organizationId: 'org-1',
+            _sum: { estimatedCostUsd: 12.45, inputTokens: 10000, outputTokens: 2000 },
+            _count: { _all: 14 },
+          },
         ]),
       },
     };
@@ -19,7 +43,7 @@ describe('AdminService.getTenants', () => {
     return { service: new AdminService({} as any, prisma as any, tokens as any), tokens };
   }
 
-  it('reports what each organization holds, from its real wallet', async () => {
+  it('reports what each organization holds, from its real wallet and AI spend', async () => {
     const { service, tokens } = build({ 'org-1': { available: 4_995_208, monthly: 5_000_000 } });
 
     const tenants = await service.getTenants();
@@ -29,6 +53,11 @@ describe('AdminService.getTenants', () => {
       id: 'org-1',
       owner: 'owner@acme.test',
       sites: 3,
+      projectCount: 2,
+      memberCount: 1,
+      subscriptionTier: 'growth',
+      aiMonthlyBudgetUsd: 50,
+      mtdAiSpendUsd: 12.45,
       tokens: { available: 4_995_208, monthly: 5_000_000 },
     });
   });
@@ -58,7 +87,7 @@ describe('AdminService.getStats and getUsers', () => {
       refreshSession: {
         findMany: jest.fn().mockResolvedValue([
           { userId: 'user-1' },
-          { userId: 'user-1' }, // multiple sessions for same user
+          { userId: 'user-1' },
           { userId: 'user-2' },
         ]),
       },
@@ -71,12 +100,12 @@ describe('AdminService.getStats and getUsers', () => {
       tenants: 5,
       users: 12,
       projects: 8,
-      loggedInUsers: 2, // distinct user-1 and user-2
+      loggedInUsers: 2,
       activeSessions: 3,
     });
   });
 
-  it('reports online status and attributed models for users', async () => {
+  it('reports online status, verification, operator badge, and attributed models for users', async () => {
     const future = new Date(Date.now() + 100_000);
     const prisma = {
       user: {
@@ -86,6 +115,11 @@ describe('AdminService.getStats and getUsers', () => {
             email: 'alice@test.com',
             firstName: 'Alice',
             lastName: 'Smith',
+            emailVerifiedAt: new Date('2026-01-01'),
+            isPlatformAdmin: true,
+            platformAdminRevokedAt: null,
+            googleSub: 'google-sub-1',
+            passwordAuthEnabled: true,
             createdAt: new Date('2026-01-01'),
             memberships: [{ role: 'OWNER', organizationId: 'org-1', organization: { name: 'Acme Inc' } }],
             sessions: [
@@ -97,6 +131,11 @@ describe('AdminService.getStats and getUsers', () => {
             email: 'bob@test.com',
             firstName: 'Bob',
             lastName: null,
+            emailVerifiedAt: null,
+            isPlatformAdmin: false,
+            platformAdminRevokedAt: null,
+            googleSub: null,
+            passwordAuthEnabled: true,
             createdAt: new Date('2026-01-02'),
             memberships: [{ role: 'MEMBER', organizationId: 'org-2', organization: { name: 'Beta LLC' } }],
             sessions: [],
@@ -125,6 +164,9 @@ describe('AdminService.getStats and getUsers', () => {
     expect(users[0]).toMatchObject({
       id: 'user-1',
       name: 'Alice Smith',
+      emailVerified: true,
+      isPlatformAdmin: true,
+      authProvider: 'both',
       isLoggedIn: true,
       status: 'ONLINE',
       activeSessionsCount: 1,
@@ -134,6 +176,9 @@ describe('AdminService.getStats and getUsers', () => {
     expect(users[1]).toMatchObject({
       id: 'user-2',
       name: 'Bob',
+      emailVerified: false,
+      isPlatformAdmin: false,
+      authProvider: 'password',
       isLoggedIn: false,
       status: 'OFFLINE',
       activeSessionsCount: 0,
@@ -142,7 +187,7 @@ describe('AdminService.getStats and getUsers', () => {
     });
   });
 
-  it('breaks down AI model usage by user and organization', async () => {
+  it('breaks down AI model usage without double-counting multi-member organizations', async () => {
     const prisma = {
       aiUsageRecord: {
         findMany: jest.fn().mockResolvedValue([
@@ -155,6 +200,15 @@ describe('AdminService.getStats and getUsers', () => {
             estimatedCostUsd: 0.015,
             createdAt: new Date('2026-10-29T12:00:00Z'),
           },
+          {
+            organizationId: 'org-multi',
+            provider: 'openai',
+            model: 'gpt-4o',
+            inputTokens: 2000,
+            outputTokens: 1000,
+            estimatedCostUsd: 0.05,
+            createdAt: new Date('2026-10-29T13:00:00Z'),
+          },
         ]),
       },
       user: {
@@ -164,7 +218,21 @@ describe('AdminService.getStats and getUsers', () => {
             email: 'claire@test.com',
             firstName: 'Claire',
             lastName: null,
-            memberships: [{ organizationId: 'org-1', organization: { name: 'Acme Corp' } }],
+            memberships: [{ organizationId: 'org-1', role: 'OWNER', organization: { name: 'Acme Corp' } }],
+          },
+          {
+            id: 'u-2',
+            email: 'dan@team.test',
+            firstName: 'Dan',
+            lastName: null,
+            memberships: [{ organizationId: 'org-multi', role: 'OWNER', organization: { name: 'Team Org' } }],
+          },
+          {
+            id: 'u-3',
+            email: 'eva@team.test',
+            firstName: 'Eva',
+            lastName: null,
+            memberships: [{ organizationId: 'org-multi', role: 'MEMBER', organization: { name: 'Team Org' } }],
           },
         ]),
       },
@@ -176,8 +244,15 @@ describe('AdminService.getStats and getUsers', () => {
 
     const breakdown = await service.getUserModelBreakdown();
 
-    expect(breakdown).toHaveLength(1);
+    expect(breakdown).toHaveLength(2);
     expect(breakdown[0]).toMatchObject({
+      userId: 'org:org-multi',
+      organizationName: 'Team Org',
+      totalTokens: 3000,
+      cost: 0.05,
+      calls: 1,
+    });
+    expect(breakdown[1]).toMatchObject({
       userId: 'u-1',
       userName: 'Claire',
       userEmail: 'claire@test.com',
@@ -188,5 +263,108 @@ describe('AdminService.getStats and getUsers', () => {
       cost: 0.015,
       calls: 1,
     });
+  });
+});
+
+describe('AdminService queues, operator updates, and session revocation', () => {
+  it('inspects all three BullMQ queues including page-render and real paused state', async () => {
+    const mkQueue = (active: number, failed: number, paused: boolean) => ({
+      getActiveCount: jest.fn().mockResolvedValue(active),
+      getWaitingCount: jest.fn().mockResolvedValue(2),
+      getDelayedCount: jest.fn().mockResolvedValue(1),
+      getCompletedCount: jest.fn().mockResolvedValue(50),
+      getFailedCount: jest.fn().mockResolvedValue(failed),
+      isPaused: jest.fn().mockResolvedValue(paused),
+    });
+
+    const queueService = {
+      crawlJobsQueue: mkQueue(1, 0, false),
+      pageFetchQueue: mkQueue(3, 2, true),
+      pageRenderQueue: mkQueue(2, 1, false),
+    };
+    const service = new AdminService(queueService as any, {} as any, {} as any);
+
+    const stats = await service.getQueueStats();
+
+    expect(stats.map((q) => q.name)).toEqual(['crawl-jobs', 'page-fetch', 'page-render']);
+    expect(stats[1]).toMatchObject({ name: 'page-fetch', paused: true, status: 'paused', failed: 2, delayed: 1 });
+    expect(stats[2]).toMatchObject({ name: 'page-render', paused: false, status: 'active', active: 2 });
+  });
+
+  it('updates tenant tier and monthly AI budget and records an audit log', async () => {
+    const prisma = {
+      organization: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'org-1',
+          name: 'Acme',
+          subscriptionTier: 'founder_free',
+          aiMonthlyBudgetUsd: null,
+          whiteLabelEnabled: false,
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'org-1',
+          name: 'Acme',
+          subscriptionTier: 'agency',
+          aiMonthlyBudgetUsd: 250,
+          whiteLabelEnabled: true,
+          updatedAt: new Date('2026-11-26T00:00:00Z'),
+        }),
+      },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: 'log-1' }),
+      },
+    };
+    const service = new AdminService({} as any, prisma as any, {} as any);
+
+    const updated = await service.updateTenant(
+      'org-1',
+      { subscriptionTier: 'agency', aiMonthlyBudgetUsd: 250, whiteLabelEnabled: true },
+      'admin-1',
+    );
+
+    expect(updated.subscriptionTier).toBe('agency');
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 'org-1',
+          userId: 'admin-1',
+          action: 'ADMIN_TENANT_UPDATED',
+        }),
+      }),
+    );
+  });
+
+  it('revokes all active sessions for a user and logs the operator action', async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-9',
+          email: 'target@example.com',
+          memberships: [{ organizationId: 'org-9' }],
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'user-9' }),
+      },
+      refreshSession: {
+        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+      },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: 'log-2' }),
+      },
+    };
+    const service = new AdminService({} as any, prisma as any, {} as any);
+
+    const res = await service.revokeUserSessions('user-9', 'admin-1');
+
+    expect(res).toMatchObject({ success: true, userId: 'user-9', revokedSessions: 3 });
+    expect(prisma.user.update).toHaveBeenCalled();
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 'org-9',
+          action: 'ADMIN_USER_SESSIONS_REVOKED',
+        }),
+      }),
+    );
   });
 });

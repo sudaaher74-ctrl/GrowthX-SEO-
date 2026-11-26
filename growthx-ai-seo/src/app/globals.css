@@ -1300,3 +1300,15 @@ dialog.traffic-inspector-dialog::backdrop {
   }
 }
 
+/* Native modal <dialog> scroll containment so backdrop/dialog wheel & touch
+   gestures never chain to the underlying page (without mutating root overflow). */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+

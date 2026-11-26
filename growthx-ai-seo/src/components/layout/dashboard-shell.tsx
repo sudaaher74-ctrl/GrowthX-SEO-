@@ -127,7 +127,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* The sidebar navigation */}
         <Suspense fallback={null}>
           {isAdmin ? (
-            <AdminSidebar collapsed={!collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+            <AdminSidebar collapsed={collapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
           ) : (
             <Sidebar
               collapsed={collapsed}
@@ -140,7 +140,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           {isAdmin ? (
             <AdminTopNav
-              collapsed={!collapsed}
+              collapsed={collapsed}
               onToggleCollapse={() => toggleCollapsed()}
               setMobileOpen={setMobileOpen}
             />
@@ -156,7 +156,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <main
           className={cn(
             "min-h-screen transition-all duration-300 ease-in-out pt-[52px]",
-            isAdmin ? (collapsed ? "md:ml-0" : "md:ml-[232px]") : collapsed ? "md:ml-0" : "md:ml-[232px]",
+            collapsed ? "md:ml-0" : "md:ml-[232px]",
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
@@ -165,7 +165,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-      <AivaPanel />
+      {!isAdmin && <AivaPanel />}
       {!isAdmin && <ProductTour />}
       {!isAdmin && mounted && !isClaimed && <SubscriptionGateModal orgId={orgId} />}
     </AivaProvider>

@@ -1083,6 +1083,12 @@ export const api = {
   /** Operators only: gives (positive) or takes back (negative) bonus tokens. */
   adjustTokens: (orgId: string, amount: number, note?: string) =>
     post<unknown>(`/api/admin/organizations/${orgId}/tokens/adjust`, { amount, note }),
+  getAdminOrgTokens: (orgId: string, limit = 50) =>
+    get<import("./api-types").AdminTenantTokensOverview>(
+      `/api/admin/organizations/${orgId}/tokens?limit=${limit}`,
+    ),
+  setAdminOrgTokenAllowance: (orgId: string, monthlyAllowance: number | null) =>
+    put<unknown>(`/api/admin/organizations/${orgId}/tokens/allowance`, { monthlyAllowance }),
   getTokens: (orgId: string) => get<TokensOverview>(`/api/organizations/${orgId}/tokens`),
   getTokenTransactions: (orgId: string, options: { cursor?: string; limit?: number } = {}) => {
     const query = new URLSearchParams();
@@ -1895,19 +1901,45 @@ export const api = {
   },
 
   // ── Admin
+  checkAdminAccess: () => get<import("./api-types").AdminAccessCheck>("/api/admin/access"),
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
+  getAdminFailedJobs: (limit = 40) =>
+    get<import("./api-types").AdminFailedJob[]>(`/api/admin/queues/failed?limit=${limit}`),
   getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
+  getAdminAiAnalytics: (days = 14) =>
+    get<import("./api-types").AdminAiAnalytics>(`/api/admin/ai-analytics?days=${days}`),
   getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
+  getAdminTenantDetail: (orgId: string) =>
+    get<import("./api-types").AdminTenantDetail>(`/api/admin/tenants/${orgId}`),
+  updateAdminTenant: (orgId: string, body: import("./api-types").UpdateAdminTenantInput) =>
+    patch<unknown>(`/api/admin/tenants/${orgId}`, body),
   getAdminSystemHealth: () => get<AdminSystemHealth>("/api/admin/system-health"),
   getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
+  revokeAdminUserSessions: (userId: string) =>
+    post<{ success: boolean; userId: string; revokedSessions: number; invalidatedAt: string }>(
+      `/api/admin/users/${userId}/revoke-sessions`,
+      {},
+    ),
   getAdminStats: () =>
     get<{ tenants: number; users: number; projects: number; loggedInUsers: number; activeSessions: number }>(
       "/api/admin/stats",
     ),
+  getAdminOpsSummary: () => get<import("./api-types").AdminOpsSummary>("/api/admin/ops-summary"),
   getAdminUserModels: () => get<AdminUserModelUsage[]>("/api/admin/user-models"),
-  pauseAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/pause", {}),
-  resumeAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/resume", {}),
-  retryAdminFailedJobs: () => post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", {}),
+  getAdminCrawls: (limit = 40) =>
+    get<import("./api-types").AdminRecentCrawlsResponse>(`/api/admin/crawls?limit=${limit}`),
+  getAdminAuditLogs: (limit = 100) =>
+    get<import("./api-types").AdminAuditLogItem[]>(`/api/admin/audit-logs?limit=${limit}`),
+  getAdminWebhooks: (limit = 40) =>
+    get<import("./api-types").AdminWebhooksResponse>(`/api/admin/webhooks?limit=${limit}`),
+  pauseAdminQueues: (queue?: string) =>
+    post<{ success: boolean; status: string; queues?: string[] }>("/api/admin/queues/pause", queue ? { queue } : {}),
+  resumeAdminQueues: (queue?: string) =>
+    post<{ success: boolean; status: string; queues?: string[] }>("/api/admin/queues/resume", queue ? { queue } : {}),
+  retryAdminFailedJobs: (opts?: { queue?: string; jobId?: string }) =>
+    post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", opts ?? {}),
+  cleanAdminFailedJobs: (queue?: string) =>
+    post<{ success: boolean; cleanedCount: number }>("/api/admin/queues/clean-failed", queue ? { queue } : {}),
 
   // ── Persisted Automation Settings & Scheduler ──────────────────────────
   automationSettings: {
