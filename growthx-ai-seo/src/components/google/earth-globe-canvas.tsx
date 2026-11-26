@@ -64,7 +64,7 @@ interface EarthGlobeCanvasProps {
   hoveredPinId: string | null;
   focusTarget: { lat: number; lng: number; nonce: number } | null;
   zoomSignal: { delta?: number; reset?: boolean; nonce: number } | null;
-  onSelectPin: (pin: GlobePin) => void;
+  onSelectPin: (pin: GlobePin, isClustered?: boolean) => void;
   onHoverPin: (id: string | null) => void;
   onRegisterCapture?: (captureFn: (() => GlobeCapturePayload | null) | null) => void;
 }
@@ -1059,11 +1059,12 @@ export function EarthGlobeCanvas({
               type="button"
               style={{ opacity: 0, willChange: "transform, opacity" }}
               onClick={() => {
-                if (clusteredPinIdsRef.current.has(pin.id)) {
+                const isClustered = clusteredPinIdsRef.current.has(pin.id);
+                if (isClustered) {
                   const m = motionRef.current;
                   m.targetCameraZ = Math.max(MIN_CAMERA_Z, m.targetCameraZ - 0.52);
                 }
-                onSelectPin(pin);
+                onSelectPin(pin, isClustered);
               }}
               onMouseEnter={() => onHoverPin(pin.id)}
               onMouseLeave={() => onHoverPin(null)}
@@ -1145,6 +1146,11 @@ export function EarthGlobeCanvas({
                     style={{ display: "none" }}
                     className="mt-0.5 text-[9.5px] font-medium text-primary-700"
                   />
+                  {pin.id.startsWith("city:") && (
+                    <span className="mt-0.5 block text-[9.5px] font-semibold text-primary-700">
+                      Click to inspect streets &amp; areas →
+                    </span>
+                  )}
                   {pin.botHubReason && (
                     <span className="mt-0.5 block text-[9.5px] text-warning-700">
                       {pin.botHubReason}

@@ -811,6 +811,8 @@ function TrafficViewClient() {
               channels={channelBreakdown}
               countries={countriesBreakdown}
               cities={citiesBreakdown}
+              queries={queries}
+              landingPages={landingPages}
               targetGapCities={targetGapCities}
               tabFocusSignal={globeTabSignal}
               onOpenReport={() => selectTab("report")}

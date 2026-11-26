@@ -34,11 +34,28 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { api } from "@/lib/api-client";
+import type { GscRow } from "@/lib/api-types";
 import { resolveCityGeo, resolveCountryGeo } from "@/lib/geo-coordinates";
 import { count, percent, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 import type { GlobeCapturePayload, GlobeFlowArc, GlobePin } from "./earth-globe-canvas";
+import type { CityDrillTarget, CityLandingPageSignal } from "./city-area-map";
 import { WorldMap2D } from "./world-map-2d";
+
+const CityAreaMap = dynamic(
+  () => import("./city-area-map").then((mod) => mod.CityAreaMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="globe-glass-pill flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium text-brand-600">
+          <MapPin className="h-3.5 w-3.5 text-primary-600" />
+          <span>Loading street &amp; locality map…</span>
+        </div>
+      </div>
+    ),
+  },
+);
 
 const EarthGlobeCanvas = dynamic(
   () => import("./earth-globe-canvas").then((mod) => mod.EarthGlobeCanvas),
@@ -114,6 +131,8 @@ interface GlobalTrafficGlobeProps {
   channels: TrafficChannelRow[];
   countries: TrafficCountryRow[];
   cities: TrafficCityRow[];
+  queries?: GscRow[];
+  landingPages?: CityLandingPageSignal[];
   targetGapCities?: TargetMarketGapCity[];
   tabFocusSignal?: { tab: RightPanelTab; nonce: number } | null;
   onOpenReport: () => void;
@@ -341,6 +360,8 @@ export function GlobalTrafficGlobe({
   channels,
   countries,
   cities,
+  queries = [],
+  landingPages = [],
   targetGapCities = [],
   tabFocusSignal,
   onOpenReport,
@@ -353,6 +374,7 @@ export function GlobalTrafficGlobe({
   const [metricMode, setMetricMode] = useState<GlobeMetricMode>("visitors");
   const [rightTab, setRightTab] = useState<RightPanelTab>("countries");
   const [pinLayer, setPinLayer] = useState<"countries" | "cities">("countries");
+  const [drilledCity, setDrilledCity] = useState<CityDrillTarget | null>(null);
   const [showBorders, setShowBorders] = useState<boolean>(true);
   const [showTargetGaps, setShowTargetGaps] = useState<boolean>(true);
   const [hideBotHubs, setHideBotHubs] = useState<boolean>(false);
@@ -747,15 +769,63 @@ export function GlobalTrafficGlobe({
     return `Last ${periodDays} days`;
   }, [dailyChartData, periodDays]);
 
+  const allCityDrillTargets = useMemo<CityDrillTarget[]>(() => {
+    return cities
+      .filter((c) => c.lat !== null && c.lng !== null)
+      .map((c) => ({
+        city: c.city,
+        country: c.country,
+        code: c.code,
+        flag: c.flag,
+        count: c.count,
+        share: c.share,
+        lat: c.lat!,
+        lng: c.lng!,
+        botHubReason: c.botHubReason,
+      }));
+  }, [cities]);
+
+  const openCityAreaMap = useCallback((row: TrafficCityRow) => {
+    if (row.lat === null || row.lng === null) return;
+    setDrilledCity({
+      city: row.city,
+      country: row.country,
+      code: row.code,
+      flag: row.flag,
+      count: row.count,
+      share: row.share,
+      lat: row.lat,
+      lng: row.lng,
+      botHubReason: row.botHubReason,
+    });
+  }, []);
+
+  const selectedCityTarget = useMemo<TrafficCityRow | null>(() => {
+    if (!selectedPinId || !selectedPinId.startsWith("city:")) return null;
+    const parts = selectedPinId.split(":");
+    const cityName = parts[2];
+    if (!cityName) return null;
+    return cities.find((c) => c.city === cityName && c.lat !== null && c.lng !== null) ?? null;
+  }, [selectedPinId, cities]);
+
   const handleSelectPin = useCallback(
-    (pin: GlobePin) => {
+    (pin: GlobePin, isClustered?: boolean) => {
+      // Clicking an unclustered city pin (or clicking an already-selected city pin) drills into its street & locality map
+      if (pin.id.startsWith("city:") && (!isClustered || selectedPinId === pin.id)) {
+        const match = cities.find((c) => c.city === pin.label && c.lat !== null && c.lng !== null);
+        if (match) {
+          setSelectedPinId(pin.id);
+          openCityAreaMap(match);
+          return;
+        }
+      }
       setSelectedPinId(pin.id);
       if (pin.id.startsWith("country:") && pin.code) {
         setSelectedCountryCode(pin.code);
       }
       flyTo(pin.lat, pin.lng);
     },
-    [flyTo],
+    [flyTo, selectedPinId, cities, openCityAreaMap],
   );
 
   const handleCountryChipClick = useCallback(
@@ -849,7 +919,7 @@ export function GlobalTrafficGlobe({
           : "rounded-3xl shadow-card",
       )}
     >
-      {/* ── MAIN INTERACTIVE CANVAS STAGE (3D EARTH / 2D MAP / 3D FLOWS) ── */}
+      {/* ── MAIN INTERACTIVE CANVAS STAGE (CITY STREET DRILLDOWN OR 3D EARTH / 2D MAP / 3D FLOWS) ── */}
       <div
         className={cn(
           "relative w-full",
@@ -858,34 +928,50 @@ export function GlobalTrafficGlobe({
             : "h-[440px] sm:h-[500px] lg:h-[clamp(560px,calc(100dvh-136px),660px)]",
         )}
       >
-        {viewMode === "map" ? (
-          <WorldMap2D
-            pins={visiblePins}
-            activeCountryCodes={activeCountryCodes}
-            highlightedCountryCode={highlightedCountryCode}
-            selectedPinId={selectedPinId}
-            hoveredPinId={hoveredPinId}
-            onSelectPin={handleSelectPin}
-            onHoverPin={setHoveredPinId}
+        {drilledCity ? (
+          <CityAreaMap
+            key={`${drilledCity.code}:${drilledCity.city}`}
+            projectId={projectId}
+            target={drilledCity}
+            allCities={allCityDrillTargets}
+            queries={queries}
+            landingPages={landingPages}
+            isDark={isDark}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+            onBackToGlobe={() => setDrilledCity(null)}
+            onSelectOtherCity={(nextCity) => setDrilledCity(nextCity)}
           />
         ) : (
-          <EarthGlobeCanvas
-            pins={visiblePins}
-            arcs={flowArcs}
-            showFlows={viewMode === "flows"}
-            showBorders={showBorders}
-            highlightedCountryCode={highlightedCountryCode}
-            isDark={isDark}
-            autoRotate={autoRotate}
-            selectedPinId={selectedPinId}
-            hoveredPinId={hoveredPinId}
-            focusTarget={activeFocusTarget}
-            zoomSignal={zoomSignal}
-            onSelectPin={handleSelectPin}
-            onHoverPin={setHoveredPinId}
-            onRegisterCapture={registerCapture}
-          />
-        )}
+          <>
+            {viewMode === "map" ? (
+              <WorldMap2D
+                pins={visiblePins}
+                activeCountryCodes={activeCountryCodes}
+                highlightedCountryCode={highlightedCountryCode}
+                selectedPinId={selectedPinId}
+                hoveredPinId={hoveredPinId}
+                onSelectPin={handleSelectPin}
+                onHoverPin={setHoveredPinId}
+              />
+            ) : (
+              <EarthGlobeCanvas
+                pins={visiblePins}
+                arcs={flowArcs}
+                showFlows={viewMode === "flows"}
+                showBorders={showBorders}
+                highlightedCountryCode={highlightedCountryCode}
+                isDark={isDark}
+                autoRotate={autoRotate}
+                selectedPinId={selectedPinId}
+                hoveredPinId={hoveredPinId}
+                focusTarget={activeFocusTarget}
+                zoomSignal={zoomSignal}
+                onSelectPin={handleSelectPin}
+                onHoverPin={setHoveredPinId}
+                onRegisterCapture={registerCapture}
+              />
+            )}
 
         {/* ── FLOATING OVERLAY HUD ── */}
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3 sm:p-4">
@@ -1493,26 +1579,28 @@ export function GlobalTrafficGlobe({
                         const pinId = `city:${row.code}:${row.city}:${idx}`;
                         const active = selectedPinId === pinId || hoveredPinId === pinId;
                         return (
-                          <button
+                          <div
                             key={`${row.city}-${row.country}-${idx}`}
-                            type="button"
-                            onClick={() => {
-                              setPinLayer("cities");
-                              setSelectedPinId(pinId);
-                              if (row.lat !== null && row.lng !== null) {
-                                flyTo(row.lat, row.lng);
-                                bumpZoom(-0.35);
-                              }
-                            }}
                             onMouseEnter={() => setHoveredPinId(pinId)}
                             onMouseLeave={() => setHoveredPinId(null)}
                             className={cn(
-                              "w-full px-2 py-2.5 text-left transition rounded-xl cursor-pointer",
+                              "w-full px-2 py-2 text-left transition rounded-xl",
                               active ? "bg-brand-100/75" : "hover:bg-brand-100/45",
                             )}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-1.5 text-xs font-bold text-brand-950 truncate">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPinLayer("cities");
+                                  setSelectedPinId(pinId);
+                                  if (row.lat !== null && row.lng !== null) {
+                                    flyTo(row.lat, row.lng);
+                                    bumpZoom(-0.35);
+                                  }
+                                }}
+                                className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs font-bold text-brand-950 cursor-pointer"
+                              >
                                 <span className="font-mono text-[10px] text-brand-400">#{idx + 1}</span>
                                 <span className="truncate">{row.city}</span>
                                 {row.botHubReason && (
@@ -1523,12 +1611,28 @@ export function GlobalTrafficGlobe({
                                     Bot
                                   </span>
                                 )}
-                              </span>
-                              <span className="font-mono text-xs font-bold text-brand-950">
-                                {count(row.count)}
-                              </span>
+                              </button>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                {row.lat !== null && row.lng !== null && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openCityAreaMap(row)}
+                                    title={`Zoom into ${row.city} street & area map`}
+                                    className="rounded-md bg-brand-200/75 px-1.5 py-0.5 text-[9.5px] font-bold text-brand-800 hover:bg-brand-950 hover:text-brand-50 transition cursor-pointer"
+                                  >
+                                    Areas
+                                  </button>
+                                )}
+                                <span className="font-mono text-xs font-bold text-brand-950">
+                                  {count(row.count)}
+                                </span>
+                              </div>
                             </div>
-                            <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-brand-500">
+                            <button
+                              type="button"
+                              onClick={() => openCityAreaMap(row)}
+                              className="mt-1.5 flex w-full items-center gap-2 text-[10.5px] text-brand-500 cursor-pointer"
+                            >
                               <span className="truncate max-w-[92px]">
                                 {row.flag} {row.country}
                               </span>
@@ -1549,8 +1653,8 @@ export function GlobalTrafficGlobe({
                               <span className="w-10 text-right font-mono text-[10.5px] font-semibold text-brand-700">
                                 {percent(row.share)}
                               </span>
-                            </div>
-                          </button>
+                            </button>
+                          </div>
                         );
                       })
                     ) : (
@@ -1676,40 +1780,52 @@ export function GlobalTrafficGlobe({
               </div>
             </div>
 
-            {/* Bottom-Center Segmented View Switcher: Globe | Map | Flows */}
-            <div
-              role="tablist"
-              aria-label="Map projection mode"
-              className="globe-glass-pill pointer-events-auto inline-flex items-center gap-1 justify-self-center rounded-2xl p-1"
-            >
-              {(
-                [
-                  { id: "globe", label: "Globe", icon: Globe },
-                  { id: "map", label: "Map", icon: MapIcon },
-                  { id: "flows", label: "Flows", icon: Share2 },
-                ] as const
-              ).map((mode) => {
-                const Icon = mode.icon;
-                const active = viewMode === mode.id;
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setViewMode(mode.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
-                      active
-                        ? "bg-brand-950 text-brand-50 shadow-xs"
-                        : "text-brand-600 hover:text-brand-950",
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{mode.label}</span>
-                  </button>
-                );
-              })}
+            {/* Bottom-Center Segmented View Switcher: Globe | Map | Flows + City Area Drilldown Pill */}
+            <div className="pointer-events-auto flex flex-col items-center gap-2 justify-self-center">
+              {selectedCityTarget && (
+                <button
+                  type="button"
+                  onClick={() => openCityAreaMap(selectedCityTarget)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-50 shadow-md transition hover:bg-brand-800 cursor-pointer"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span>Explore {selectedCityTarget.city} areas →</span>
+                </button>
+              )}
+              <div
+                role="tablist"
+                aria-label="Map projection mode"
+                className="globe-glass-pill inline-flex items-center gap-1 rounded-2xl p-1"
+              >
+                {(
+                  [
+                    { id: "globe", label: "Globe", icon: Globe },
+                    { id: "map", label: "Map", icon: MapIcon },
+                    { id: "flows", label: "Flows", icon: Share2 },
+                  ] as const
+                ).map((mode) => {
+                  const Icon = mode.icon;
+                  const active = viewMode === mode.id;
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setViewMode(mode.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                        active
+                          ? "bg-brand-950 text-brand-50 shadow-xs"
+                          : "text-brand-600 hover:text-brand-950",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{mode.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Bottom-Right Country Quick-Fly Pills & Optional Wide-Screen City Spotlights */}
@@ -1760,10 +1876,7 @@ export function GlobalTrafficGlobe({
                         setPinLayer("cities");
                         setRightTab("cities");
                         setSelectedPinId(`city:${city.code}:${city.city}:${idx}`);
-                        if (city.lat !== null && city.lng !== null) {
-                          flyTo(city.lat, city.lng);
-                          bumpZoom(-0.35);
-                        }
+                        openCityAreaMap(city);
                       }}
                       className="globe-city-thumb group relative flex h-[68px] w-[144px] flex-col justify-between overflow-hidden rounded-2xl border border-brand-200/70 p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                     >
@@ -1809,6 +1922,8 @@ export function GlobalTrafficGlobe({
             <X className="h-3.5 w-3.5" />
             <span>Exit Fullscreen</span>
           </button>
+        )}
+          </>
         )}
       </div>
 
@@ -1872,28 +1987,43 @@ export function GlobalTrafficGlobe({
             <div className="mt-3 space-y-2">
               {filteredCities.length > 0 ? (
                 filteredCities.slice(0, 5).map((row, idx) => (
-                  <button
+                  <div
                     key={`${row.city}-${idx}`}
-                    type="button"
-                    onClick={() => {
-                      setPinLayer("cities");
-                      setSelectedPinId(`city:${row.code}:${row.city}:${idx}`);
-                      if (row.lat !== null && row.lng !== null) flyTo(row.lat, row.lng);
-                    }}
-                    className="flex w-full items-center justify-between text-xs"
+                    className="flex w-full items-center justify-between gap-2 text-xs"
                   >
-                    <span className="flex items-center gap-1.5 font-semibold text-brand-950">
-                      <span>#{idx + 1} {row.city}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPinLayer("cities");
+                        setSelectedPinId(`city:${row.code}:${row.city}:${idx}`);
+                        if (row.lat !== null && row.lng !== null) {
+                          flyTo(row.lat, row.lng);
+                        }
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left font-semibold text-brand-950 cursor-pointer"
+                    >
+                      <span className="truncate">#{idx + 1} {row.city}</span>
                       {row.botHubReason && (
-                        <span className="rounded bg-warning-50 px-1 py-0.5 text-[9px] font-bold text-warning-700">
+                        <span className="shrink-0 rounded bg-warning-50 px-1 py-0.5 text-[9px] font-bold text-warning-700">
                           Bot
                         </span>
                       )}
-                    </span>
-                    <span className="font-mono text-brand-600">
-                      {count(row.count)} ({percent(row.share)})
-                    </span>
-                  </button>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-mono text-brand-600">
+                        {count(row.count)} ({percent(row.share)})
+                      </span>
+                      {row.lat !== null && row.lng !== null && (
+                        <button
+                          type="button"
+                          onClick={() => openCityAreaMap(row)}
+                          className="rounded-lg bg-brand-100/80 px-2 py-0.5 text-[10px] font-semibold text-brand-700 transition hover:bg-brand-950 hover:text-brand-50 cursor-pointer"
+                        >
+                          Areas
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))
               ) : (
                 <p className="text-xs text-brand-400">No city data recorded yet.</p>

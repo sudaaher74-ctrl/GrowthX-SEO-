@@ -53,6 +53,45 @@ export function isCityGazetteerLoaded(): boolean {
   return cityGazetteer !== null;
 }
 
+export interface LocalityGeo {
+  name: string;
+  metro: string;
+  cc: string;
+  lat: number;
+  lng: number;
+  aliases?: string[];
+}
+
+let localitiesCache: LocalityGeo[] | null = null;
+let localitiesPromise: Promise<LocalityGeo[]> | null = null;
+
+export function loadLocalitiesGeo(): Promise<LocalityGeo[]> {
+  if (localitiesCache) return Promise.resolve(localitiesCache);
+  if (typeof window === "undefined") return Promise.resolve([]);
+  if (!localitiesPromise) {
+    localitiesPromise = fetch("/data/localities-geo.json")
+      .then((res) => (res.ok ? (res.json() as Promise<LocalityGeo[]>) : []))
+      .then((list) => {
+        localitiesCache = Array.isArray(list) ? list : [];
+        return localitiesCache;
+      })
+      .catch(() => []);
+  }
+  return localitiesPromise;
+}
+
+/** Haversine distance in kilometers between two lat/lng points. */
+export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 const COUNTRY_LIST: Array<CountryGeo & { alpha3: string; numeric: string; aliases?: string[] }> = [
   { code: "US", alpha3: "USA", numeric: "840", name: "United States", flag: "🇺🇸", lat: 39.8, lng: -98.5, aliases: ["UNITED STATES OF AMERICA", "USA"] },
   { code: "IN", alpha3: "IND", numeric: "356", name: "India", flag: "🇮🇳", lat: 21.1, lng: 78.9 },
