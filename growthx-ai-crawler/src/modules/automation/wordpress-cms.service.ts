@@ -1167,6 +1167,7 @@ export class WordPressCmsService {
     }
 
     const targetUrl = (input.targetUrl || shopOrigin).trim();
+    const publishMode = input.publishMode || 'draft';
     let handle = '';
     let resourceType: 'products' | 'pages' = 'pages';
 
@@ -1229,24 +1230,29 @@ export class WordPressCmsService {
       updatePayload.metafields_global_description_tag = input.afterValue;
     }
 
-    const updateRes = await this.safeFetch(
-      `${shopOrigin}/admin/api/2024-10/${resourceType}/${targetItem.id}.json`,
-      {
-        method: 'PUT',
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'User-Agent': 'Reigel-SEO-Agent/1.0',
+    // Draft mode NEVER modifies the live Shopify store. Pending edits are staged
+    // locally in the database and require explicit publish approval before PUT.
+    if (publishMode === 'publish') {
+      const updateRes = await this.safeFetch(
+        `${shopOrigin}/admin/api/2024-10/${resourceType}/${targetItem.id}.json`,
+        {
+          method: 'PUT',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'User-Agent': 'Reigel-SEO-Agent/1.0',
+          },
+          body: JSON.stringify({ [singularKey]: updatePayload }),
         },
-        body: JSON.stringify({ [singularKey]: updatePayload }),
-      },
-      15000,
-    );
+        15000,
+        { requireHttps: true, rejectCrossOriginRedirects: true },
+      );
 
-    if (!updateRes.ok) {
-      const errText = await updateRes.text().catch(() => '');
-      throw new BadRequestException(`Shopify Admin API update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+      if (!updateRes.ok) {
+        const errText = await updateRes.text().catch(() => '');
+        throw new BadRequestException(`Shopify Admin API update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+      }
     }
 
     const shopAdminUrl = `${shopOrigin}/admin/${resourceType}/${targetItem.id}`;
@@ -1258,7 +1264,7 @@ export class WordPressCmsService {
         repositoryId: repo.id,
         projectId,
         kind: AutomationRunKind.FIXES,
-        status: AutomationRunStatus.MERGED,
+        status: publishMode === 'publish' ? AutomationRunStatus.MERGED : AutomationRunStatus.AWAITING_REVIEW,
         branch: `shopify/${resourceType}-${targetItem.id}`,
         pullRequestUrl: shopAdminUrl,
         filesChanged: [`shopify:${resourceType}/${targetItem.handle || targetItem.id}`],
@@ -1267,9 +1273,26 @@ export class WordPressCmsService {
         steps: [
           {
             at: now.toISOString(),
-            step: 'shopify-update',
-            detail: `Applied ${input.field} update via Shopify Admin API (${singularKey} #${targetItem.id})`,
+            step: publishMode === 'publish' ? 'shopify-update' : 'shopify-draft-staged',
+            detail:
+              publishMode === 'publish'
+                ? `Applied ${input.field} update via Shopify Admin API (${singularKey} #${targetItem.id})`
+                : `Staged ${input.field} locally for review without modifying the live Shopify ${singularKey} #${targetItem.id}`,
             ok: true,
+            stagedPayload:
+              publishMode === 'draft'
+                ? {
+                    platform: 'SHOPIFY',
+                    findingId: input.findingId,
+                    targetUrl,
+                    field: input.field,
+                    beforeValue,
+                    afterValue: input.afterValue,
+                    findingTitle: input.findingTitle,
+                    shopifyResourceId: targetItem.id,
+                    resourceType,
+                  }
+                : undefined,
             change: {
               issueId: input.findingId || `shopify-${targetItem.id}`,
               url: targetUrl,
@@ -1301,7 +1324,7 @@ export class WordPressCmsService {
           projectId,
           automationRunId: run.id,
           url: targetUrl,
-          snapshotType: 'VERIFIED_LIVE',
+          snapshotType: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'PROPOSED',
           title: input.field === 'META_TITLE' ? input.afterValue : targetItem.title || null,
           metaDescription: input.field === 'META_DESCRIPTION' ? input.afterValue : null,
           contentSnippet: input.afterValue,
@@ -1313,16 +1336,24 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: 'DEPLOYMENT_VERIFIED',
-        title: `Shopify Fix Published: ${input.findingTitle || input.field}`,
-        description: `Updated ${input.field} on ${targetUrl} via Shopify Admin API (${singularKey} #${targetItem.id}).`,
+        eventType: publishMode === 'publish' ? 'DEPLOYMENT_VERIFIED' : 'PR_CREATED',
+        title:
+          publishMode === 'publish'
+            ? `Shopify Fix Published: ${input.findingTitle || input.field}`
+            : `Shopify Draft Staged Locally: ${input.findingTitle || input.field}`,
+        description:
+          publishMode === 'publish'
+            ? `Updated ${input.field} on ${targetUrl} via Shopify Admin API (${singularKey} #${targetItem.id}).`
+            : `Staged ${input.field} update locally for ${targetUrl} (${singularKey} #${targetItem.id}); live Shopify store was not modified.`,
         actor: 'SHOPIFY_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: shopAdminUrl,
-        verificationStatus: 'VERIFIED_LIVE',
+        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
         evidenceData: {
           shopifyResourceId: targetItem.id,
           resourceType,
+          publishMode,
+          liveModified: publishMode === 'publish',
           field: input.field,
           before: beforeValue,
           after: input.afterValue,
@@ -1330,15 +1361,62 @@ export class WordPressCmsService {
       },
     });
 
-    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode);
 
     return {
       success: true,
       runId: run.id,
       shopifyResourceId: targetItem.id,
       adminEditUrl: shopAdminUrl,
-      status: verifiedState === 'VERIFIED' ? 'VERIFIED_LIVE' : 'VERIFYING_LIVE',
+      publishMode,
+      liveModified: publishMode === 'publish',
+      status:
+        publishMode === 'publish'
+          ? verifiedState === 'VERIFIED'
+            ? 'VERIFIED_LIVE'
+            : 'VERIFYING_LIVE'
+          : 'STAGED_LOCALLY',
     };
+  }
+
+  /**
+   * Explicitly publishes a previously staged local Shopify draft run to the
+   * live Shopify store.
+   */
+  async publishStagedShopifyFix(projectId: string, runId: string) {
+    const run = await this.prisma.automationRun.findFirst({
+      where: { id: runId, projectId },
+    });
+    if (!run) {
+      throw new NotFoundException(`Staged Shopify run ${runId} not found.`);
+    }
+    if (run.status !== AutomationRunStatus.AWAITING_REVIEW) {
+      throw new BadRequestException('Only locally staged Shopify drafts awaiting review can be published.');
+    }
+    const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
+    const staged = steps.find((s) => s?.stagedPayload)?.stagedPayload;
+    if (!staged?.targetUrl || !staged?.field || typeof staged?.afterValue !== 'string') {
+      throw new BadRequestException('Staged Shopify draft payload is missing or invalid.');
+    }
+
+    const published = await this.stageShopifyFix(projectId, {
+      findingId: staged.findingId,
+      targetUrl: staged.targetUrl,
+      field: staged.field,
+      beforeValue: staged.beforeValue,
+      afterValue: staged.afterValue,
+      findingTitle: staged.findingTitle,
+      publishMode: 'publish',
+    });
+
+    await this.prisma.automationRun
+      .update({
+        where: { id: runId },
+        data: { status: AutomationRunStatus.MERGED, finishedAt: new Date() },
+      })
+      .catch(() => null);
+
+    return published;
   }
 
   // ── Webflow Data API v2 Connector ──────────────────────────────────────────
@@ -1517,6 +1595,7 @@ export class WordPressCmsService {
     }
 
     const targetUrl = (input.targetUrl || siteUrl).trim();
+    const publishMode = input.publishMode || 'draft';
     let slug = '';
     try {
       const parsed = new URL(targetUrl);
@@ -1547,12 +1626,14 @@ export class WordPressCmsService {
       pages?: Array<{ id: string; slug?: string | null; title?: string; seo?: { title?: string; description?: string } }>;
     };
     const pages = Array.isArray(pagesData?.pages) ? pagesData.pages : [];
-    const targetPage =
-      pages.find((p) => (slug ? p.slug === slug : !p.slug || p.slug === 'index' || p.slug === 'home')) ||
-      pages[0];
+    const targetPage = pages.find((p) =>
+      slug ? p.slug === slug : !p.slug || p.slug === 'index' || p.slug === 'home',
+    );
 
     if (!targetPage?.id) {
-      throw new NotFoundException(`Could not find a matching Webflow page for slug "${slug || '/'}".`);
+      throw new NotFoundException(
+        `Could not find an exact matching Webflow page for slug "${slug || '/'}". Refusing to overwrite another page.`,
+      );
     }
 
     const beforeValue =
@@ -1573,27 +1654,32 @@ export class WordPressCmsService {
       seoPayload.description = input.afterValue;
     }
 
-    const updateRes = await this.safeFetch(
-      `https://api.webflow.com/v2/pages/${encodeURIComponent(targetPage.id)}`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'User-Agent': 'Reigel-SEO-Agent/1.0',
+    // Draft mode NEVER modifies Webflow pages via API. Pending edits are staged
+    // locally in the database and require explicit publish approval before PUT.
+    if (publishMode === 'publish') {
+      const updateRes = await this.safeFetch(
+        `https://api.webflow.com/v2/pages/${encodeURIComponent(targetPage.id)}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'User-Agent': 'Reigel-SEO-Agent/1.0',
+          },
+          body: JSON.stringify({
+            title: input.field === 'META_TITLE' ? input.afterValue : targetPage.title,
+            seo: seoPayload,
+          }),
         },
-        body: JSON.stringify({
-          title: input.field === 'META_TITLE' ? input.afterValue : targetPage.title,
-          seo: seoPayload,
-        }),
-      },
-      15000,
-    );
+        15000,
+        { requireHttps: true, rejectCrossOriginRedirects: true },
+      );
 
-    if (!updateRes.ok) {
-      const errText = await updateRes.text().catch(() => '');
-      throw new BadRequestException(`Webflow API page metadata update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+      if (!updateRes.ok) {
+        const errText = await updateRes.text().catch(() => '');
+        throw new BadRequestException(`Webflow API page metadata update failed (HTTP ${updateRes.status}): ${errText.slice(0, 200)}`);
+      }
     }
 
     const webflowAdminUrl = `https://webflow.com/design/${siteId}`;
@@ -1605,7 +1691,7 @@ export class WordPressCmsService {
         repositoryId: repo.id,
         projectId,
         kind: AutomationRunKind.FIXES,
-        status: AutomationRunStatus.MERGED,
+        status: publishMode === 'publish' ? AutomationRunStatus.MERGED : AutomationRunStatus.AWAITING_REVIEW,
         branch: `webflow/page-${targetPage.id}`,
         pullRequestUrl: webflowAdminUrl,
         filesChanged: [`webflow:pages/${targetPage.slug || targetPage.id}`],
@@ -1614,9 +1700,26 @@ export class WordPressCmsService {
         steps: [
           {
             at: now.toISOString(),
-            step: 'webflow-update',
-            detail: `Applied ${input.field} update via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id})`,
+            step: publishMode === 'publish' ? 'webflow-update' : 'webflow-draft-staged',
+            detail:
+              publishMode === 'publish'
+                ? `Applied ${input.field} update via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id})`
+                : `Staged ${input.field} locally for review without modifying Webflow page ${targetPage.slug || targetPage.id}`,
             ok: true,
+            stagedPayload:
+              publishMode === 'draft'
+                ? {
+                    platform: 'WEBFLOW',
+                    findingId: input.findingId,
+                    targetUrl,
+                    field: input.field,
+                    beforeValue,
+                    afterValue: input.afterValue,
+                    findingTitle: input.findingTitle,
+                    webflowPageId: targetPage.id,
+                    slug: targetPage.slug,
+                  }
+                : undefined,
             change: {
               issueId: input.findingId || `webflow-${targetPage.id}`,
               url: targetUrl,
@@ -1648,7 +1751,7 @@ export class WordPressCmsService {
           projectId,
           automationRunId: run.id,
           url: targetUrl,
-          snapshotType: 'VERIFIED_LIVE',
+          snapshotType: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'PROPOSED',
           title: seoPayload.title || null,
           metaDescription: seoPayload.description || null,
           contentSnippet: input.afterValue,
@@ -1660,16 +1763,24 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: 'DEPLOYMENT_VERIFIED',
-        title: `Webflow Fix Staged: ${input.findingTitle || input.field}`,
-        description: `Updated ${input.field} on ${targetUrl} via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id}).`,
+        eventType: publishMode === 'publish' ? 'DEPLOYMENT_VERIFIED' : 'PR_CREATED',
+        title:
+          publishMode === 'publish'
+            ? `Webflow Fix Published: ${input.findingTitle || input.field}`
+            : `Webflow Draft Staged Locally: ${input.findingTitle || input.field}`,
+        description:
+          publishMode === 'publish'
+            ? `Updated ${input.field} on ${targetUrl} via Webflow Data API v2 (Page ${targetPage.slug || targetPage.id}).`
+            : `Staged ${input.field} update locally for ${targetUrl} (Page ${targetPage.slug || targetPage.id}); Webflow was not modified.`,
         actor: 'WEBFLOW_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: webflowAdminUrl,
-        verificationStatus: 'VERIFIED_LIVE',
+        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
         evidenceData: {
           webflowPageId: targetPage.id,
           slug: targetPage.slug,
+          publishMode,
+          liveModified: publishMode === 'publish',
           field: input.field,
           before: beforeValue,
           after: input.afterValue,
@@ -1677,15 +1788,62 @@ export class WordPressCmsService {
       },
     });
 
-    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode);
 
     return {
       success: true,
       runId: run.id,
       webflowPageId: targetPage.id,
       adminEditUrl: webflowAdminUrl,
-      status: verifiedState === 'VERIFIED' ? 'VERIFIED_LIVE' : 'VERIFYING_LIVE',
+      publishMode,
+      liveModified: publishMode === 'publish',
+      status:
+        publishMode === 'publish'
+          ? verifiedState === 'VERIFIED'
+            ? 'VERIFIED_LIVE'
+            : 'VERIFYING_LIVE'
+          : 'STAGED_LOCALLY',
     };
+  }
+
+  /**
+   * Explicitly publishes a previously staged local Webflow draft run via
+   * Webflow Data API v2.
+   */
+  async publishStagedWebflowFix(projectId: string, runId: string) {
+    const run = await this.prisma.automationRun.findFirst({
+      where: { id: runId, projectId },
+    });
+    if (!run) {
+      throw new NotFoundException(`Staged Webflow run ${runId} not found.`);
+    }
+    if (run.status !== AutomationRunStatus.AWAITING_REVIEW) {
+      throw new BadRequestException('Only locally staged Webflow drafts awaiting review can be published.');
+    }
+    const steps = Array.isArray(run.steps) ? (run.steps as any[]) : [];
+    const staged = steps.find((s) => s?.stagedPayload)?.stagedPayload;
+    if (!staged?.targetUrl || !staged?.field || typeof staged?.afterValue !== 'string') {
+      throw new BadRequestException('Staged Webflow draft payload is missing or invalid.');
+    }
+
+    const published = await this.stageWebflowFix(projectId, {
+      findingId: staged.findingId,
+      targetUrl: staged.targetUrl,
+      field: staged.field,
+      beforeValue: staged.beforeValue,
+      afterValue: staged.afterValue,
+      findingTitle: staged.findingTitle,
+      publishMode: 'publish',
+    });
+
+    await this.prisma.automationRun
+      .update({
+        where: { id: runId },
+        data: { status: AutomationRunStatus.MERGED, finishedAt: new Date() },
+      })
+      .catch(() => null);
+
+    return published;
   }
 
   /**

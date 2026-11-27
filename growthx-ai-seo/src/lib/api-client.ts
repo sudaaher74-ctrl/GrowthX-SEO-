@@ -1821,6 +1821,7 @@ export const api = {
       beforeValue?: string;
       afterValue: string;
       findingTitle?: string;
+      publishMode?: "draft" | "publish";
     },
   ) => {
     return post<{
@@ -1828,8 +1829,21 @@ export const api = {
       runId: string;
       shopifyResourceId: number;
       adminEditUrl: string;
+      publishMode?: "draft" | "publish";
+      liveModified?: boolean;
       status: string;
     }>(`/api/projects/${projectId}/automation/shopify/apply`, body);
+  },
+  publishStagedShopifyFix: async (projectId: string, runId: string) => {
+    return post<{
+      success: boolean;
+      runId: string;
+      shopifyResourceId: number;
+      adminEditUrl: string;
+      publishMode?: "draft" | "publish";
+      liveModified?: boolean;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/shopify/runs/${runId}/publish`, {});
   },
   getWebflowConnection: async (projectId: string) => {
     clearLegacyCmsBrowserRecords();
@@ -1869,6 +1883,7 @@ export const api = {
       beforeValue?: string;
       afterValue: string;
       findingTitle?: string;
+      publishMode?: "draft" | "publish";
     },
   ) => {
     return post<{
@@ -1876,8 +1891,21 @@ export const api = {
       runId: string;
       webflowPageId: string;
       adminEditUrl: string;
+      publishMode?: "draft" | "publish";
+      liveModified?: boolean;
       status: string;
     }>(`/api/projects/${projectId}/automation/webflow/apply`, body);
+  },
+  publishStagedWebflowFix: async (projectId: string, runId: string) => {
+    return post<{
+      success: boolean;
+      runId: string;
+      webflowPageId: string;
+      adminEditUrl: string;
+      publishMode?: "draft" | "publish";
+      liveModified?: boolean;
+      status: string;
+    }>(`/api/projects/${projectId}/automation/webflow/runs/${runId}/publish`, {});
   },
   verifyManualCmsFix: async (
     projectId: string,

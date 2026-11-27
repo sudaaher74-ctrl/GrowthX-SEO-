@@ -155,6 +155,7 @@ export function CmsApplyModal({
         beforeValue: beforeValue || undefined,
         afterValue,
         findingTitle: finding?.title,
+        publishMode,
       }),
     onSuccess: invalidateAll,
   });
@@ -168,6 +169,7 @@ export function CmsApplyModal({
         beforeValue: beforeValue || undefined,
         afterValue,
         findingTitle: finding?.title,
+        publishMode,
       }),
     onSuccess: invalidateAll,
   });
@@ -417,55 +419,24 @@ export function CmsApplyModal({
               /* When connected */
               <div className="space-y-2.5">
                 {apiPlatform === "wordpress" && (
-                  <>
-                    <div className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 px-3 py-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 size={13} className="text-success-600" />
-                        <span className="font-semibold text-brand-950">
-                          Connected to {wpConnection.data?.siteUrl}
-                        </span>
-                        <span className="rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-mono font-bold text-success-800">
-                          {(wpConnection.data?.seoPlugin || "core").toUpperCase()}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowConnectModal(true)}
-                        className="text-[11px] font-semibold text-brand-400 hover:text-brand-950 underline"
-                      >
-                        Change
-                      </button>
+                  <div className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={13} className="text-success-600" />
+                      <span className="font-semibold text-brand-950">
+                        Connected to {wpConnection.data?.siteUrl}
+                      </span>
+                      <span className="rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-mono font-bold text-success-800">
+                        {(wpConnection.data?.seoPlugin || "core").toUpperCase()}
+                      </span>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setPublishMode("draft")}
-                        className={cn(
-                          "rounded-xl border p-2.5 text-left transition",
-                          publishMode === "draft"
-                            ? "border-signal-400 bg-signal-400/10"
-                            : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
-                        )}
-                      >
-                        <span className="font-bold text-brand-950 block text-[11.5px]">Stage Revision</span>
-                        <span className="text-[10.5px] text-brand-400">Review in WP Admin before live</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPublishMode("publish")}
-                        className={cn(
-                          "rounded-xl border p-2.5 text-left transition",
-                          publishMode === "publish"
-                            ? "border-signal-400 bg-signal-400/10"
-                            : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
-                        )}
-                      >
-                        <span className="font-bold text-brand-950 block text-[11.5px]">Publish Live</span>
-                        <span className="text-[10.5px] text-brand-400">Direct update & immediate verification</span>
-                      </button>
-                    </div>
-                  </>
+                    <button
+                      type="button"
+                      onClick={() => setShowConnectModal(true)}
+                      className="text-[11px] font-semibold text-brand-400 hover:text-brand-950 underline"
+                    >
+                      Change
+                    </button>
+                  </div>
                 )}
 
                 {apiPlatform === "shopify" && (
@@ -503,6 +474,35 @@ export function CmsApplyModal({
                     </button>
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPublishMode("draft")}
+                    className={cn(
+                      "rounded-xl border p-2.5 text-left transition",
+                      publishMode === "draft"
+                        ? "border-signal-400 bg-signal-400/10"
+                        : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
+                    )}
+                  >
+                    <span className="font-bold text-brand-950 block text-[11.5px]">Stage Locally (Draft)</span>
+                    <span className="text-[10.5px] text-brand-400">Does not modify your live {currentPlatformName} site</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishMode("publish")}
+                    className={cn(
+                      "rounded-xl border p-2.5 text-left transition",
+                      publishMode === "publish"
+                        ? "border-signal-400 bg-signal-400/10"
+                        : "border-brand-200/60 bg-surface-2 hover:border-brand-300"
+                    )}
+                  >
+                    <span className="font-bold text-brand-950 block text-[11.5px]">Publish Live</span>
+                    <span className="text-[10.5px] text-brand-400">Writes immediately to {currentPlatformName}</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -572,11 +572,11 @@ export function CmsApplyModal({
                           : "Publish to WordPress"
                       : apiPlatform === "shopify"
                         ? stageShopifyMutation.isPending
-                          ? "Updating Shopify…"
-                          : "Apply in Shopify"
+                          ? publishMode === "draft" ? "Staging Draft…" : "Publishing to Shopify…"
+                          : publishMode === "draft" ? "Stage Draft for Shopify" : "Publish to Shopify"
                         : stageWebflowMutation.isPending
-                          ? "Updating Webflow…"
-                          : "Apply in Webflow"}
+                          ? publishMode === "draft" ? "Staging Draft…" : "Publishing to Webflow…"
+                          : publishMode === "draft" ? "Stage Draft for Webflow" : "Publish to Webflow"}
                   </span>
                   <ArrowRight size={12} />
                 </button>

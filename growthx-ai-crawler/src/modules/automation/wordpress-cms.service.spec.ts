@@ -449,9 +449,11 @@ describe('WordPressCmsService', () => {
         targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
         field: 'META_TITLE',
         afterValue: 'Fresh A2 Gir Cow Milk Online',
+        publishMode: 'publish',
       });
       expect(applied.success).toBe(true);
       expect(applied.shopifyResourceId).toBe(777);
+      expect(applied.liveModified).toBe(true);
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ actor: 'SHOPIFY_AGENT' }),
@@ -459,7 +461,7 @@ describe('WordPressCmsService', () => {
       );
     });
 
-    it('verifies Webflow Data API v2 credentials and applies page SEO metadata update', async () => {
+    it('verifies Webflow Data API v2 credentials and applies page SEO metadata update when publishMode is publish', async () => {
       jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
         if (opts.method === 'PUT') {
           return hopRes(200, { id: 'page_wf_1' });
@@ -497,14 +499,108 @@ describe('WordPressCmsService', () => {
         targetUrl: 'https://milquu.webflow.io/pricing',
         field: 'META_TITLE',
         afterValue: 'A2 Milk Subscription Plans & Pricing',
+        publishMode: 'publish',
       });
       expect(applied.success).toBe(true);
       expect(applied.webflowPageId).toBe('page_wf_1');
+      expect(applied.liveModified).toBe(true);
       expect(prisma.fixImpactLedgerEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ actor: 'WEBFLOW_AGENT' }),
         }),
       );
+    });
+
+    it('stages Shopify and Webflow fixes locally without sending PUT when publishMode is omitted or draft (D-01)', async () => {
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
+        if (opts.method === 'PUT') {
+          throw new Error('Unexpected live PUT during draft staging');
+        }
+        if (String(url).includes('/products.json')) {
+          return hopRes(200, { products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] });
+        }
+        return hopRes(200, {
+          pages: [
+            { id: 'page_home', slug: 'home', title: 'Home', seo: { title: 'Home' } },
+            { id: 'page_wf_1', slug: 'pricing', title: 'Pricing', seo: { title: 'Pricing' } },
+          ],
+        });
+      });
+
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_cms_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_draft_1' });
+
+      prisma.integration.findUnique.mockResolvedValueOnce({
+        id: 'int_shopify_1',
+        projectId: 'proj_1',
+        provider: 'shopify',
+        accessToken: 'enc_shpat_secret_123',
+        selectedResourceId: 'https://milquu-store.myshopify.com',
+        selectedResourceName: 'MilQuu Store',
+        status: 'CONNECTED',
+      });
+
+      const shopifyDraft = await service.stageShopifyFix('proj_1', {
+        targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
+        field: 'META_TITLE',
+        afterValue: 'Draft Shopify Title',
+      });
+      expect(shopifyDraft.liveModified).toBe(false);
+      expect(shopifyDraft.status).toBe('STAGED_LOCALLY');
+
+      prisma.integration.findUnique.mockResolvedValueOnce({
+        id: 'int_wf_1',
+        projectId: 'proj_1',
+        provider: 'webflow',
+        accessToken: 'enc_wf_token_123',
+        selectedResourceId: 'site_wf_1',
+        selectedResourceName: 'MilQuu Webflow',
+        googleAccountEmail: 'https://milquu.webflow.io',
+        status: 'CONNECTED',
+      });
+
+      const webflowDraft = await service.stageWebflowFix('proj_1', {
+        targetUrl: 'https://milquu.webflow.io/pricing',
+        field: 'META_TITLE',
+        afterValue: 'Draft Webflow Title',
+        publishMode: 'draft',
+      });
+      expect(webflowDraft.liveModified).toBe(false);
+      expect(webflowDraft.status).toBe('STAGED_LOCALLY');
+      expect(hopSpy.mock.calls.some(([, opts]) => opts.method === 'PUT')).toBe(false);
+    });
+
+    it('refuses to overwrite pages[0] in Webflow when target slug does not match any page (D-01)', async () => {
+      const hopSpy = jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(200, {
+          pages: [
+            { id: 'page_home', slug: '', title: 'Homepage', seo: { title: 'Homepage' } },
+            { id: 'page_about', slug: 'about', title: 'About', seo: { title: 'About' } },
+          ],
+        }),
+      );
+
+      prisma.integration.findUnique.mockResolvedValue({
+        id: 'int_wf_1',
+        projectId: 'proj_1',
+        provider: 'webflow',
+        accessToken: 'enc_wf_token_123',
+        selectedResourceId: 'site_wf_1',
+        selectedResourceName: 'MilQuu Webflow',
+        googleAccountEmail: 'https://milquu.webflow.io',
+        status: 'CONNECTED',
+      });
+
+      await expect(
+        service.stageWebflowFix('proj_1', {
+          targetUrl: 'https://milquu.webflow.io/non-existent-slug',
+          field: 'META_TITLE',
+          afterValue: 'Should Not Overwrite Homepage',
+          publishMode: 'publish',
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(hopSpy.mock.calls.some(([, opts]) => opts.method === 'PUT')).toBe(false);
     });
 
     it('rejects non-myshopify domains and blocks cross-origin redirects so Shopify tokens and write bodies are never disclosed', async () => {
@@ -553,6 +649,7 @@ describe('WordPressCmsService', () => {
           targetUrl: 'https://victim-shop.myshopify.com/products/a2-milk',
           field: 'META_TITLE',
           afterValue: 'Sensitive Updated SEO Title',
+          publishMode: 'publish',
         }),
       ).rejects.toThrow(/cross-origin redirect/i);
 

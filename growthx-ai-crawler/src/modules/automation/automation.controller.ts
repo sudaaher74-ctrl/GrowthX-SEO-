@@ -518,13 +518,24 @@ export class AutomationController {
   }
 
   @Post('shopify/apply')
-  @ApiOperation({ summary: 'Apply an SEO fix via Shopify Admin API and record 30d/90d proof' })
+  @ApiOperation({ summary: 'Stage locally or explicitly publish an SEO fix via Shopify Admin API' })
   @ApiParam({ name: 'projectId' })
   stageShopifyFix(
     @Param('projectId') projectId: string,
     @Body() body: StageWordPressFixDto,
   ) {
     return this.wordpress!.stageShopifyFix(projectId, body);
+  }
+
+  @Post('shopify/runs/:runId/publish')
+  @ApiOperation({ summary: 'Explicitly publish a previously locally staged Shopify draft fix to the live store' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  publishStagedShopifyFix(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.wordpress!.publishStagedShopifyFix(projectId, runId);
   }
 
   // ── Webflow Data API v2 Integration
@@ -554,13 +565,24 @@ export class AutomationController {
   }
 
   @Post('webflow/apply')
-  @ApiOperation({ summary: 'Apply an SEO fix via Webflow Data API v2 and record 30d/90d proof' })
+  @ApiOperation({ summary: 'Stage locally or explicitly publish an SEO fix via Webflow Data API v2' })
   @ApiParam({ name: 'projectId' })
   stageWebflowFix(
     @Param('projectId') projectId: string,
     @Body() body: StageWordPressFixDto,
   ) {
     return this.wordpress!.stageWebflowFix(projectId, body);
+  }
+
+  @Post('webflow/runs/:runId/publish')
+  @ApiOperation({ summary: 'Explicitly publish a previously locally staged Webflow draft fix via Webflow Data API v2' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'runId' })
+  publishStagedWebflowFix(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.wordpress!.publishStagedWebflowFix(projectId, runId);
   }
 
   @Post('cms/batch-apply')
