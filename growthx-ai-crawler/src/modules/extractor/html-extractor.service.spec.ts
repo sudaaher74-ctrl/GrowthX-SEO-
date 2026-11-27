@@ -75,7 +75,7 @@ describe('HtmlExtractorService', () => {
     expect(dedupRes.robotsMeta).toBe('index, follow');
   });
 
-  it('extracts all title and meta description tags so duplicate head tags are detected', () => {
+  it('extracts all title and meta description tags, preferring hydrated page-specific tags in DOM order', () => {
     const html = `
       <!DOCTYPE html>
       <html>
@@ -89,12 +89,22 @@ describe('HtmlExtractorService', () => {
       </html>
     `;
     const res = service.extract(cheerio.load(html), 'https://example.com/page');
-    expect(res.title).toBe('Fallback Brand Title');
+    expect(res.title).toBe('Page Specific SEO Title');
     expect(res.titles).toEqual(['Fallback Brand Title', 'Page Specific SEO Title']);
-    expect(res.metaDescription).toBe('Static fallback description');
+    expect(res.metaDescription).toBe('Hydrated page specific meta description');
     expect(res.metaDescriptions).toEqual([
       'Static fallback description',
       'Hydrated page specific meta description',
     ]);
+  });
+
+  it('correctly splits space-separated robots directives like "noindex follow"', () => {
+    const html = `
+      <html><head>
+        <meta name="robots" content="noindex follow">
+      </head><body></body></html>
+    `;
+    const res = service.extract(cheerio.load(html), 'https://example.com/noindex');
+    expect(res.robotsMeta).toBe('noindex, follow');
   });
 });

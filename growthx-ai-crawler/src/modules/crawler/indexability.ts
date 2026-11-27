@@ -45,13 +45,28 @@ export interface IndexabilityResult {
   reasons: IndexabilityReason[];
 }
 
+const SEARCH_BOTS = new Set(['*', 'googlebot', 'googlebot-news', 'googlebot-image', 'bingbot', 'growthxbot']);
+
 /** `noindex` is not a substring match: `index` must not match inside it. */
 function hasNoindexDirective(value: string): boolean {
-  return value
-    .toLowerCase()
-    .split(/[,;]/)
-    .map((part) => part.trim())
-    .some((part) => part === 'noindex' || part === 'none' || /^[a-z0-9_-]+\s*:\s*(noindex|none)$/.test(part));
+  if (!value) return false;
+  const clauses = value.toLowerCase().split(/[,;]+/).map((c) => c.trim()).filter(Boolean);
+  for (const clause of clauses) {
+    const botMatch = clause.match(/^([a-z0-9_*-]+)\s*:\s*(.+)$/);
+    if (botMatch) {
+      const bot = botMatch[1].trim();
+      const tokens = botMatch[2].trim().split(/\s+/);
+      if (SEARCH_BOTS.has(bot) && tokens.some((t) => t === 'noindex' || t === 'none')) {
+        return true;
+      }
+      continue;
+    }
+    const tokens = clause.split(/\s+/);
+    if (tokens.some((t) => t === 'noindex' || t === 'none')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

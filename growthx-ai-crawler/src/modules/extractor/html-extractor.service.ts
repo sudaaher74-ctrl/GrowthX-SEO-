@@ -43,12 +43,17 @@ export class HtmlExtractorService {
     // 2. Title & Meta
     const titles = $('title')
       .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
-      .get();
-    const title = titles.find(Boolean) || $('meta[property="og:title"]').attr('content')?.trim();
+      .get()
+      .filter(Boolean);
+    // In SPAs and hydrated frameworks (Next.js, React Helmet), the inner page title
+    // is rendered into the DOM after the root shell layout's title.
+    // If multiple titles exist, the last non-empty title represents the page-specific title.
+    const title = (titles.length > 0 ? titles[titles.length - 1] : undefined) || $('meta[property="og:title"]').attr('content')?.trim();
     const metaDescriptions = $('meta[name="description" i]')
       .map((_, el) => ($(el).attr('content') ?? '').trim())
-      .get();
-    const metaDescription = metaDescriptions.find(Boolean);
+      .get()
+      .filter(Boolean);
+    const metaDescription = metaDescriptions.length > 0 ? metaDescriptions[metaDescriptions.length - 1] : undefined;
     const metaKeywords = $('meta[name="keywords" i]').attr('content')?.trim();
     const viewport = $('meta[name="viewport" i]').attr('content')?.trim();
     // Combine all <meta name="robots"> (and <meta name="googlebot">) tags in document order.
@@ -61,7 +66,7 @@ export class HtmlExtractorService {
     $('meta[name="robots" i], meta[name="googlebot" i]').each((_, el) => {
       const content = $(el).attr('content')?.trim();
       if (!content) return;
-      for (const part of content.split(/[,;]/)) {
+      for (const part of content.split(/[,;\s]+/)) {
         const cleaned = part.trim();
         if (!cleaned) continue;
         const key = cleaned.toLowerCase();
@@ -74,11 +79,15 @@ export class HtmlExtractorService {
     const robotsMeta = robotsDirectives.length > 0 ? robotsDirectives.join(', ') : undefined;
 
     // 3. Canonical
-    const canonicalUrls = [...new Set($('link[rel="canonical" i]').map((_, el) => {
-      const href = $(el).attr('href')?.trim();
-      return href ? resolveUrl(pageUrl, href) : null;
-    }).get())];
-    const canonicalUrl = canonicalUrls[0];
+    const allCanonicalHrefs = $('link[rel="canonical" i]')
+      .map((_, el) => $(el).attr('href')?.trim())
+      .get()
+      .filter(Boolean);
+    const canonicalUrls = [...new Set(allCanonicalHrefs.map((href) => resolveUrl(pageUrl, href)))];
+    // In hydrated SPAs, route-specific canonicals append after the root layout.
+    // When multiple distinct canonicals exist, canonicalUrls retains all of them so
+    // CONFLICTING_CANONICALS fires, while canonicalUrl tracks the latest declared target.
+    const canonicalUrl = canonicalUrls.length > 0 ? canonicalUrls[canonicalUrls.length - 1] : undefined;
 
     // 4. Headings
     const h1 = $('h1').map((_, el) => $(el).text().replace(/\s+/g, ' ').trim()).get().filter(Boolean);

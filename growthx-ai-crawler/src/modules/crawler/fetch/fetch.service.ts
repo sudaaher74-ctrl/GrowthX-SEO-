@@ -701,5 +701,7 @@ function stripTags(html: string): string {
   return (html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<head[\s\S]*?<\/head>/gi, ' ')
     .replace(/<[^>]+>/g, ' ');
 }

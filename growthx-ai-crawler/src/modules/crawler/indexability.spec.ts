@@ -127,4 +127,25 @@ describe('computeIndexability', () => {
       'CANONICAL_POINTS_ELSEWHERE',
     ]);
   });
+
+  it('detects space-delimited "noindex follow" without requiring a comma', () => {
+    const result = computeIndexability({
+      pageUrl: page,
+      statusCode: 200,
+      robotsTxtAllows: true,
+      metaRobots: 'noindex follow',
+    });
+    expect(result.indexability).toBe('NOT_INDEXABLE');
+    expect(result.reasons[0].code).toBe('META_ROBOTS_NOINDEX');
+  });
+
+  it('does not treat AI-only bot tags like gptbot: noindex as search non-indexable', () => {
+    const result = computeIndexability({
+      pageUrl: page,
+      statusCode: 200,
+      robotsTxtAllows: true,
+      xRobotsTag: 'gptbot: noindex',
+    });
+    expect(result.indexability).toBe('INDEXABLE');
+  });
 });

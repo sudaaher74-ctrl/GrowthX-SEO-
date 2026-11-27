@@ -389,7 +389,13 @@ export function summariseInventory(rows: InventoryRow[]): InventoryMetrics {
       // A canonical that points to another page is recorded against the URL
       // that declared it. The URL itself is never removed. One that points at
       // another spelling of the same page is not a canonicalization.
-      if (crawled.canonicalUrl && canonicalUrl(crawled.canonicalUrl) !== canonicalUrl(crawled.normalizedUrl)) {
+      // Pages with UNKNOWN indexability (e.g. conflicting canonicals or unrendered)
+      // are excluded from confirmed canonicalization.
+      if (
+        crawled.canonicalUrl &&
+        crawled.indexability !== 'UNKNOWN' &&
+        canonicalUrl(crawled.canonicalUrl) !== canonicalUrl(crawled.normalizedUrl)
+      ) {
         canonicalized++;
       }
       continue;

@@ -221,7 +221,9 @@ export function computeCrawlSummary(params: {
     indexable,
     nonIndexable,
     indexabilityUnknown,
-    indexablePercent: pages.length ? Math.round((indexable / pages.length) * 100) : 0,
+    indexablePercent: (pages.length - indexabilityUnknown > 0)
+      ? Math.round((indexable / (pages.length - indexabilityUnknown)) * 100)
+      : (pages.length ? Math.round((indexable / pages.length) * 100) : 0),
     crawlablePercent: pages.length ? Math.round(((pages.length - errored - blocked - unreachable) / pages.length) * 100) : 0,
     jsRequiredPages: pages.filter((p) => p.jsRequired === true).length,
     bySource,

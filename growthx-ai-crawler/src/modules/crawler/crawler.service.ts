@@ -1005,7 +1005,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       // Incremental delta hit (HTTP 304 Not Modified): reuse prior crawl's verified
       // analysis, issues, and internal links without downloading HTML or rendering.
-      if (outcome.notModified && priorPage) {
+      // Bypass reuse if the prior crawl recorded broken extraction (UNKNOWN indexability, null title, or < 30 words shell).
+      if (
+        outcome.notModified &&
+        priorPage &&
+        priorPage.indexability !== 'UNKNOWN' &&
+        priorPage.title !== null &&
+        (priorPage.wordCount ?? 0) >= 30
+      ) {
         if (!(await this.crawlStillWants(payload.jobId))) return;
         const robotsDecision = this.discovery.isAllowed(crawlState.robots, normUrl);
         this.logger.debug(`[JOB ${payload.jobId}] 304 Not Modified delta hit for ${normUrl}; reusing prior analysis.`);
@@ -1158,14 +1165,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           htmlSnapshotUrl: snapshotUrl,
           ...v2Columns,
           title: outcome.renderUnavailable ? null : htmlData.title,
-          metaDescription: htmlData.metaDescription,
-          canonicalUrl: htmlData.canonicalUrl,
+          metaDescription: outcome.renderUnavailable ? null : htmlData.metaDescription,
+          canonicalUrl: outcome.renderUnavailable ? null : htmlData.canonicalUrl,
           robotsMeta: htmlData.robotsMeta,
-          h1: htmlData.h1,
-          h2: htmlData.h2,
-          h3: htmlData.h3,
-          wordCount: content.wordCount,
-          readingTimeMin: content.readingTimeMin,
+          h1: outcome.renderUnavailable ? [] : htmlData.h1,
+          h2: outcome.renderUnavailable ? [] : htmlData.h2,
+          h3: outcome.renderUnavailable ? [] : htmlData.h3,
+          wordCount: outcome.renderUnavailable ? 0 : content.wordCount,
+          readingTimeMin: outcome.renderUnavailable ? 0 : content.readingTimeMin,
           contentHash: outcome.renderUnavailable ? null : content.contentHash,
           simHash: content.simHash || undefined,
           httpEtag: outcome.etag ?? null,
