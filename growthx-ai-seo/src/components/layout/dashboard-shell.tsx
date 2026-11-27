@@ -120,9 +120,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           "min-h-screen transition-colors duration-200",
-          isDark ? "dash-dark dark" : "dash-light",
+          isAdmin ? "admin-noc dark" : isDark ? "dash-dark dark" : "dash-light",
         )}
-        style={{ background: "var(--color-canvas)" }}
+        style={isAdmin ? undefined : { background: "var(--color-canvas)" }}
       >
         {/* The sidebar navigation */}
         <Suspense fallback={null}>
@@ -152,14 +152,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             />
           )}
         </Suspense>
-        {/* Full-width workspace when collapsed, 232px sidebar offset when expanded */}
+        {/* Full-width workspace when collapsed, sidebar offset when expanded */}
         <main
           className={cn(
-            "min-h-screen transition-all duration-300 ease-in-out pt-[52px]",
-            collapsed ? "md:ml-0" : "md:ml-[232px]",
+            "min-h-screen transition-all duration-300 ease-in-out",
+            isAdmin ? "pt-[48px]" : "pt-[52px]",
+            collapsed ? "md:ml-0" : isAdmin ? "md:ml-[244px]" : "md:ml-[232px]",
           )}
         >
-          <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
+          <div className={cn("mx-auto pb-20", isAdmin ? "max-w-[1760px] px-4 py-4 md:px-5" : "max-w-[1600px] p-5 md:p-6 pb-24")}>
             {!isAdmin && <TokenBanner />}
             {children}
           </div>

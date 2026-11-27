@@ -367,4 +367,87 @@ describe('AdminService queues, operator updates, and session revocation', () => 
       }),
     );
   });
+
+  it('updates website crawl settings and force-fails stuck crawl jobs', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'web-1',
+          domain: 'example.test',
+          isVerified: false,
+          verifiedAt: null,
+          project: { organizationId: 'org-1' },
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'web-1',
+          domain: 'example.test',
+          isVerified: true,
+          maxConcurrency: 8,
+          maxDepth: 6,
+          rateLimitDelayMs: 250,
+        }),
+      },
+      crawlJob: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'crawl-stuck-1',
+          finishedAt: null,
+          website: { domain: 'example.test', project: { organizationId: 'org-1' } },
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'crawl-stuck-1',
+          status: 'FAILED',
+          errorMessage: 'Stuck in queue',
+          finishedAt: new Date(),
+        }),
+      },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: 'log-3' }),
+      },
+    };
+    const queueService = { forgetJobTasks: jest.fn().mockResolvedValue(undefined) };
+    const service = new AdminService(queueService as any, prisma as any, {} as any);
+
+    const updated = await service.updateWebsite(
+      'web-1',
+      { isVerified: true, maxConcurrency: 8, maxDepth: 6, rateLimitDelayMs: 250 },
+      'admin-1',
+    );
+    expect(updated.isVerified).toBe(true);
+    expect(prisma.website.update).toHaveBeenCalled();
+
+    const closed = await service.forceFailCrawl('crawl-stuck-1', 'Stuck in queue', 'admin-1');
+    expect(closed).toMatchObject({ success: true, crawl: { id: 'crawl-stuck-1', status: 'FAILED' } });
+    expect(queueService.forgetJobTasks).toHaveBeenCalledWith('crawl-stuck-1');
+  });
+
+  it('controls MultiAiRouterService runtime circuit breakers and caches', () => {
+    const aiRouter = {
+      getAdminDiagnostics: jest.fn().mockReturnValue({
+        providers: [],
+        taskMatrix: [],
+        allowlist: null,
+        fastRouteTiers: ['founder_free'],
+        serverSideFallbackEnabled: true,
+        caches: { responseCacheEntries: 3, responseCacheMaxEntries: 500, responseCacheTtlMs: 600000, orgTierCacheEntries: 2 },
+      }),
+      setProviderRuntimeEnabled: jest.fn(),
+      setProviderModelOverride: jest.fn(),
+      setServerSideFallbackEnabled: jest.fn(),
+      clearRuntimeCaches: jest.fn().mockReturnValue({ clearedResponses: 3, clearedOrgTiers: 2 }),
+    };
+    const service = new AdminService({} as any, {} as any, {} as any, undefined, undefined, aiRouter as any);
+
+    service.updateAiRouterConfig({
+      provider: 'GROQ' as any,
+      enabled: false,
+      modelOverride: 'llama-3.3-70b-versatile',
+      serverSideFallbackEnabled: false,
+    });
+    expect(aiRouter.setProviderRuntimeEnabled).toHaveBeenCalledWith('GROQ', false);
+    expect(aiRouter.setProviderModelOverride).toHaveBeenCalledWith('GROQ', 'llama-3.3-70b-versatile');
+    expect(aiRouter.setServerSideFallbackEnabled).toHaveBeenCalledWith(false);
+
+    const cleared = service.clearAiRouterCaches();
+    expect(cleared).toEqual({ success: true, clearedResponses: 3, clearedOrgTiers: 2 });
+  });
 });

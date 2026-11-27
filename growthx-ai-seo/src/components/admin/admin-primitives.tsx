@@ -6,6 +6,130 @@ import { Pill } from "@/components/ui/console";
 import type { AdminSubscriptionTier } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
 
+/** Sharp, industrial NOC instrument panel. */
+export function NocPanel({
+  code,
+  title,
+  subtitle,
+  actions,
+  padded = false,
+  className,
+  children,
+}: {
+  code?: string;
+  title?: string;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  padded?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "overflow-hidden rounded-md border border-brand-200 bg-surface-1 shadow-2xs",
+        className,
+      )}
+    >
+      {(title || actions) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-surface-2/70 px-3.5 py-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {code && (
+                <span className="rounded-xs border border-signal-400/40 bg-signal-400/10 px-1.5 py-0.5 font-mono text-[9.5px] font-bold tracking-[0.08em] text-signal-400">
+                  {code}
+                </span>
+              )}
+              {title && (
+                <h2 className="truncate font-mono text-[12px] font-bold tracking-[0.04em] text-brand-950 uppercase">
+                  {title}
+                </h2>
+              )}
+            </div>
+            {subtitle && <p className="mt-0.5 text-[11px] text-brand-400">{subtitle}</p>}
+          </div>
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        </div>
+      )}
+      <div className={padded ? "p-3.5" : undefined}>{children}</div>
+    </section>
+  );
+}
+
+/** High-density monospace metric tile for NOC telemetry grids. */
+export function NocStat({
+  label,
+  value,
+  sub,
+  tone = "default",
+  aside,
+}: {
+  label: string;
+  value: string;
+  sub?: React.ReactNode;
+  tone?: "default" | "good" | "warn" | "bad" | "cyan";
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-brand-200 bg-surface-1 px-3.5 py-3 flex flex-col justify-between gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-400">
+          {label}
+        </span>
+        {aside}
+      </div>
+      <div
+        className={cn(
+          "font-mono text-[22px] font-bold leading-none tracking-tight tabular-nums",
+          tone === "good"
+            ? "text-success-700"
+            : tone === "warn"
+              ? "text-warning-700"
+              : tone === "bad"
+                ? "text-error-700"
+                : tone === "cyan"
+                  ? "text-signal-400"
+                  : "text-brand-950",
+        )}
+      >
+        {value}
+      </div>
+      {sub && <div className="font-mono text-[10.5px] text-brand-400 truncate">{sub}</div>}
+    </div>
+  );
+}
+
+export function NocButton({
+  children,
+  variant = "secondary",
+  icon,
+  ...props
+}: {
+  children: React.ReactNode;
+  variant?: "primary" | "secondary" | "danger" | "warn";
+  icon?: React.ReactNode;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={cn(
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-2.5 font-mono text-[11px] font-bold tracking-[0.03em] transition-colors disabled:opacity-45 cursor-pointer",
+        variant === "primary"
+          ? "bg-signal-400 text-signal-ink hover:bg-signal-500"
+          : variant === "danger"
+            ? "border border-error-200 bg-error-50 text-error-700 hover:bg-error-600 hover:text-white"
+            : variant === "warn"
+              ? "border border-warning-200 bg-warning-50 text-warning-700 hover:bg-warning-600 hover:text-signal-ink"
+              : "border border-brand-200 bg-surface-2 text-brand-700 hover:border-brand-300 hover:bg-surface-3 hover:text-brand-950",
+        props.className,
+      )}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
 /**
  * Keyboard-accessible scrollable data-table wrapper with sticky column header
  * styling and landmark semantics (`role="region"` + `tabIndex={0}`).
@@ -27,7 +151,7 @@ export function AdminTableWrap({
       role="region"
       aria-label={label}
       className={cn(
-        "overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400/60",
+        "overflow-auto focus:outline-none focus-visible:ring-1 focus-visible:ring-signal-400",
         maxHeightClass,
       )}
     >
@@ -40,7 +164,7 @@ export function AdminTableWrap({
 
 /** Sticky table head row that stays legible over scrolling rows. */
 export function AdminThead({ children }: { children: React.ReactNode }) {
-  return <thead className="sticky top-0 z-10 bg-surface-1">{children}</thead>;
+  return <thead className="sticky top-0 z-10 bg-surface-2">{children}</thead>;
 }
 
 export function AdminSearchInput({
@@ -58,14 +182,14 @@ export function AdminSearchInput({
 }) {
   return (
     <div className={cn("relative", className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" size={14} />
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" size={13} />
       <input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={ariaLabel ?? placeholder}
-        className="h-9 w-64 max-w-full rounded-xl border border-brand-200 bg-surface-2 pl-9 pr-3 text-[12.5px] text-brand-950 placeholder:text-brand-400 transition focus:border-signal-400 focus:outline-none focus:ring-2 focus:ring-signal-400/20"
+        className="h-8 w-64 max-w-full rounded-sm border border-brand-200 bg-surface-1 pl-8 pr-3 font-mono text-[11.5px] text-brand-950 placeholder:text-brand-400 transition focus:border-signal-400 focus:outline-none"
       />
     </div>
   );
@@ -81,7 +205,7 @@ export function FilterChipGroup<T extends string>({
   options: Array<{ id: T; label: string; count?: number; dot?: "good" | "bad" | "warn" }>;
 }) {
   return (
-    <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-brand-200 bg-surface-2 p-1">
+    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-sm border border-brand-200 bg-surface-1 p-0.5">
       {options.map((opt) => {
         const active = value === opt.id;
         return (
@@ -91,10 +215,10 @@ export function FilterChipGroup<T extends string>({
             onClick={() => onChange(opt.id)}
             aria-pressed={active}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[11.5px] font-medium transition-colors cursor-pointer",
+              "inline-flex h-7 items-center gap-1.5 rounded-xs px-2 font-mono text-[11px] font-semibold transition-colors cursor-pointer",
               active
-                ? "bg-signal-400 font-bold text-signal-ink shadow-2xs"
-                : "text-brand-600 hover:bg-surface-1 hover:text-brand-950",
+                ? "bg-signal-400 text-signal-ink font-bold"
+                : "text-brand-500 hover:bg-surface-2 hover:text-brand-950",
             )}
           >
             {opt.dot && (
@@ -109,11 +233,11 @@ export function FilterChipGroup<T extends string>({
             {opt.count !== undefined && (
               <span
                 className={cn(
-                  "font-mono text-[10px]",
+                  "font-mono text-[10px] tabular-nums",
                   active ? "text-signal-ink/75" : "text-brand-400",
                 )}
               >
-                {opt.count}
+                [{opt.count}]
               </span>
             )}
           </button>
@@ -125,10 +249,10 @@ export function FilterChipGroup<T extends string>({
 
 export function TierBadge({ tier }: { tier?: AdminSubscriptionTier | string | null }) {
   const normalized = (tier || "founder_free").toLowerCase();
-  if (normalized === "agency") return <Pill tone="good">Agency</Pill>;
-  if (normalized === "growth") return <Pill tone="info">Growth</Pill>;
-  if (normalized === "starter") return <Pill tone="warn">Starter</Pill>;
-  return <Pill tone="default">Founder Free</Pill>;
+  if (normalized === "agency") return <Pill tone="good">AGENCY</Pill>;
+  if (normalized === "growth") return <Pill tone="info">GROWTH</Pill>;
+  if (normalized === "starter") return <Pill tone="warn">STARTER</Pill>;
+  return <Pill tone="default">FREE</Pill>;
 }
 
 export function AdminSkeletonCard({ className }: { className?: string }) {
@@ -136,24 +260,28 @@ export function AdminSkeletonCard({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "rounded-2xl border border-brand-200 bg-surface-1 p-5 space-y-3 animate-pulse",
+        "rounded-md border border-brand-200 bg-surface-1 p-4 space-y-2.5 animate-pulse",
         className,
       )}
     >
-      <div className="h-3 w-24 rounded bg-surface-3" />
-      <div className="h-7 w-20 rounded bg-surface-3" />
-      <div className="h-2.5 w-36 rounded bg-surface-2" />
+      <div className="h-2.5 w-24 rounded-xs bg-surface-3" />
+      <div className="h-6 w-20 rounded-xs bg-surface-3" />
+      <div className="h-2 w-36 rounded-xs bg-surface-2" />
     </div>
   );
 }
 
 export function AdminSkeletonRows({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div aria-hidden="true" className="divide-y divide-brand-200/60 p-4 space-y-3 animate-pulse">
+    <div aria-hidden="true" className="divide-y divide-brand-200/60 p-3.5 space-y-2.5 animate-pulse">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="grid gap-4 pt-3 first:pt-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        <div
+          key={i}
+          className="grid gap-3 pt-2.5 first:pt-0"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
           {Array.from({ length: cols }).map((__, j) => (
-            <div key={j} className="h-4 rounded bg-surface-2" />
+            <div key={j} className="h-3.5 rounded-xs bg-surface-2" />
           ))}
         </div>
       ))}
@@ -161,11 +289,6 @@ export function AdminSkeletonRows({ rows = 5, cols = 5 }: { rows?: number; cols?
   );
 }
 
-/**
- * Attaches light-dismiss outside-click handling for browsers without native
- * `<dialog closedby="any">` support. Checks pointer coordinates on both
- * pointerdown and pointerup so text-selection drags never dismiss accidentally.
- */
 function useDialogBackdropFallback(
   ref: React.RefObject<HTMLDialogElement | null>,
   open: boolean,
@@ -200,11 +323,6 @@ function useDialogBackdropFallback(
   }, [ref, open]);
 }
 
-/**
- * Native modal `<dialog>` confirmation prompt for high-impact operator actions.
- * Puts `autoFocus` on the safe Cancel button, uses `showModal()`, and resets
- * `returnValue` on close.
- */
 export function ConfirmModal({
   open,
   title,
@@ -230,11 +348,8 @@ export function ConfirmModal({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
   }, [open]);
 
   useDialogBackdropFallback(ref, open);
@@ -248,46 +363,41 @@ export function ConfirmModal({
         if (ref.current) ref.current.returnValue = "";
         onClose();
       }}
-      className="m-auto w-[min(440px,calc(100vw-2rem))] rounded-2xl border border-brand-200 bg-surface-1 p-0 text-brand-950 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-xs"
+      className="m-auto w-[min(460px,calc(100vw-2rem))] rounded-md border border-brand-300 bg-surface-1 p-0 text-brand-950 shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-xs"
     >
-      <div className="p-6 space-y-4">
-        <div className="flex items-start gap-3">
-          <span
-            className={cn(
-              "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
-              tone === "danger"
-                ? "border-error-200 bg-error-50 text-error-600"
-                : tone === "warn"
-                  ? "border-warning-200 bg-warning-50 text-warning-600"
-                  : "border-brand-200 bg-surface-2 text-brand-700",
-            )}
-          >
-            <AlertTriangle size={16} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h1 id={titleId} className="text-[15px] font-bold text-brand-950">
-              {title}
-            </h1>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-brand-500">{description}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-200/80">
+      <div className="border-b border-brand-200 bg-surface-2 px-5 py-3 flex items-center gap-2.5">
+        <AlertTriangle
+          size={15}
+          className={
+            tone === "danger"
+              ? "text-error-500"
+              : tone === "warn"
+                ? "text-warning-500"
+                : "text-signal-400"
+          }
+        />
+        <h1 id={titleId} className="font-mono text-[13px] font-bold uppercase tracking-[0.05em] text-brand-950">
+          {title}
+        </h1>
+      </div>
+      <div className="p-5 space-y-4">
+        <p className="text-[12.5px] leading-relaxed text-brand-500">{description}</p>
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-brand-200">
           <button
             type="button"
             autoFocus
             disabled={busy}
             onClick={() => ref.current?.close("cancel")}
-            className="inline-flex h-9 items-center justify-center rounded-xl border border-brand-200 bg-surface-2 px-4 text-[12.5px] font-semibold text-brand-700 transition hover:bg-surface-3 hover:text-brand-950 disabled:opacity-50 cursor-pointer"
+            className="inline-flex h-8 items-center justify-center rounded-sm border border-brand-200 bg-surface-2 px-3.5 font-mono text-[11.5px] font-semibold text-brand-600 transition hover:bg-surface-3 hover:text-brand-950 disabled:opacity-50 cursor-pointer"
           >
-            Cancel
+            ABORT
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => void onConfirm()}
             className={cn(
-              "inline-flex h-9 items-center justify-center rounded-xl px-4 text-[12.5px] font-bold transition disabled:opacity-50 cursor-pointer",
+              "inline-flex h-8 items-center justify-center rounded-sm px-3.5 font-mono text-[11.5px] font-bold transition disabled:opacity-50 cursor-pointer",
               tone === "danger"
                 ? "bg-error-600 text-white hover:bg-error-500"
                 : tone === "warn"
@@ -295,7 +405,7 @@ export function ConfirmModal({
                   : "bg-signal-400 text-signal-ink hover:bg-signal-500",
             )}
           >
-            {busy ? "Working…" : confirmLabel}
+            {busy ? "EXECUTING…" : confirmLabel}
           </button>
         </div>
       </div>
@@ -303,16 +413,13 @@ export function ConfirmModal({
   );
 }
 
-/**
- * Native modal `<dialog>` styled as a right-anchored slide-over inspector drawer.
- * Layout `flex` is strictly scoped to `open:flex` so the closed dialog stays hidden.
- */
 export function SlideOverDialog({
   open,
   title,
   subtitle,
   onClose,
   headerAside,
+  widthClass = "w-[min(740px,100vw)]",
   children,
 }: {
   open: boolean;
@@ -320,6 +427,7 @@ export function SlideOverDialog({
   subtitle?: React.ReactNode;
   onClose: () => void;
   headerAside?: React.ReactNode;
+  widthClass?: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement | null>(null);
@@ -328,11 +436,8 @@ export function SlideOverDialog({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
   }, [open]);
 
   useDialogBackdropFallback(ref, open);
@@ -346,28 +451,31 @@ export function SlideOverDialog({
         if (ref.current) ref.current.returnValue = "";
         onClose();
       }}
-      className="m-0 ml-auto h-dvh max-h-dvh w-[min(680px,100vw)] max-w-none flex-col border-l border-brand-200 bg-surface-1 p-0 text-brand-950 shadow-2xl open:flex backdrop:bg-black/55 backdrop:backdrop-blur-xs"
+      className={cn(
+        "m-0 ml-auto h-dvh max-h-dvh max-w-none flex-col border-l border-brand-300 bg-surface-1 p-0 text-brand-950 shadow-2xl open:flex backdrop:bg-black/70 backdrop:backdrop-blur-xs",
+        widthClass,
+      )}
     >
-      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-brand-200 px-6 py-4">
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-brand-200 bg-surface-2 px-5 py-3.5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 id={titleId} className="truncate text-[16px] font-bold tracking-tight text-brand-950">
+            <h1 id={titleId} className="truncate font-mono text-[14px] font-bold tracking-[0.03em] text-brand-950">
               {title}
             </h1>
             {headerAside}
           </div>
-          {subtitle && <p className="mt-0.5 text-[12px] text-brand-500">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 font-mono text-[11px] text-brand-400">{subtitle}</p>}
         </div>
         <button
           type="button"
           onClick={() => ref.current?.close("close")}
-          aria-label="Close panel"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-surface-2 text-brand-500 transition hover:bg-surface-3 hover:text-brand-950 cursor-pointer"
+          aria-label="Close inspector"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-brand-200 bg-surface-1 text-brand-400 transition hover:border-brand-300 hover:text-brand-950 cursor-pointer"
         >
-          <X size={15} />
+          <X size={14} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+      <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
     </dialog>
   );
 }
@@ -388,7 +496,9 @@ export function formatCompactNumber(value: number | null | undefined): string {
 export function formatDurationSec(sec: number | null | undefined): string {
   if (sec == null || !Number.isFinite(sec)) return "—";
   if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec / 60);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
+  if (h > 0) return `${h}h ${m}m`;
   return `${m}m ${s}s`;
 }

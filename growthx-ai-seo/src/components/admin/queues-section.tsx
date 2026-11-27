@@ -1,21 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
   Database,
-  Globe,
+  Loader2,
   Pause,
   Play,
   RefreshCw,
   Server,
   Trash2,
+  X,
 } from "lucide-react";
-import { ActionButton, Panel, Pill, StatusNote, Tabs, Td, Th, Tr, relativeTime } from "@/components/ui/console";
+import { Pill, StatusNote, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { api } from "@/lib/api-client";
 import type {
-  AdminFailedJob,
-  AdminRecentCrawlsResponse,
+  AdminDataSyncRun,
+  AdminQueueJobDetail,
   QueueStat,
 } from "@/lib/api-types";
 import { errorMessage } from "@/lib/error-message";
@@ -24,54 +26,68 @@ import {
   AdminTableWrap,
   AdminThead,
   ConfirmModal,
-  formatDurationSec,
+  FilterChipGroup,
+  NocButton,
+  NocPanel,
 } from "./admin-primitives";
 
 interface QueuesSectionProps {
   queues: QueueStat[];
-  failedJobs: AdminFailedJob[];
-  recentCrawls: AdminRecentCrawlsResponse | null;
+  syncJobs: AdminDataSyncRun[];
   loading: boolean;
   onRefresh: () => Promise<void> | void;
 }
 
-type OpsSubTab = "failed" | "crawls" | "syncs";
+type QueueJobState = "failed" | "active" | "waiting" | "delayed" | "completed";
 
 export function QueuesSection({
   queues,
-  failedJobs,
-  recentCrawls,
+  syncJobs,
   loading,
   onRefresh,
 }: QueuesSectionProps) {
-  const [subTab, setSubTab] = useState<OpsSubTab>("crawls");
+  const [selectedQueue, setSelectedQueue] = useState<string>("page-fetch");
+  const [selectedState, setSelectedState] = useState<QueueJobState>("failed");
+  const [jobs, setJobs] = useState<AdminQueueJobDetail[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "good" | "bad" | "warn"; text: string } | null>(null);
   const [confirmState, setConfirmState] = useState<{
-    kind: "pause-all" | "clean-failed";
+    kind: "pause-all" | "clean-failed" | "drain";
     queue?: string;
   } | null>(null);
 
   const allPaused = queues.length > 0 && queues.every((q) => q.paused);
   const totalFailed = queues.reduce((sum, q) => sum + q.failed, 0);
 
+  const fetchJobs = useCallback(async (q: string, s: QueueJobState) => {
+    setJobsLoading(true);
+    try {
+      const list = await api.getAdminQueueJobs(q, s, 30);
+      setJobs(list);
+    } catch {
+      setJobs([]);
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void fetchJobs(selectedQueue, selectedState), 0);
+    return () => clearTimeout(timer);
+  }, [selectedQueue, selectedState, fetchJobs]);
+
   async function toggleQueue(queueName?: string, shouldResume?: boolean) {
-    const key = `toggle-${queueName ?? "all"}`;
-    setBusyKey(key);
+    setBusyKey(`toggle-${queueName ?? "all"}`);
     setFeedback(null);
     try {
       if (shouldResume) {
         await api.resumeAdminQueues(queueName);
-        setFeedback({
-          tone: "good",
-          text: queueName ? `Resumed queue ${queueName}.` : "Resumed all crawler worker queues.",
-        });
+        setFeedback({ tone: "good", text: queueName ? `Resumed ${queueName}.` : "Resumed all BullMQ queues." });
       } else {
         await api.pauseAdminQueues(queueName);
-        setFeedback({
-          tone: "warn",
-          text: queueName ? `Paused queue ${queueName}.` : "Paused all crawler worker queues.",
-        });
+        setFeedback({ tone: "warn", text: queueName ? `Paused ${queueName}.` : "Paused all BullMQ queues." });
       }
       setConfirmState(null);
       await onRefresh();
@@ -83,16 +99,26 @@ export function QueuesSection({
   }
 
   async function retryJobs(opts?: { queue?: string; jobId?: string }) {
-    const key = `retry-${opts?.jobId ?? opts?.queue ?? "all"}`;
-    setBusyKey(key);
+    setBusyKey(`retry-${opts?.jobId ?? opts?.queue ?? "all"}`);
     setFeedback(null);
     try {
       const res = await api.retryAdminFailedJobs(opts);
-      setFeedback({
-        tone: "good",
-        text: `Re-queued ${res.retriedCount} failed job${res.retriedCount === 1 ? "" : "s"}.`,
-      });
-      await onRefresh();
+      setFeedback({ tone: "good", text: `Re-queued ${res.retriedCount} failed job(s).` });
+      await Promise.all([onRefresh(), fetchJobs(selectedQueue, selectedState)]);
+    } catch (err) {
+      setFeedback({ tone: "bad", text: errorMessage(err) });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function removeJob(queueName: string, jobId: string) {
+    setBusyKey(`remove-${jobId}`);
+    setFeedback(null);
+    try {
+      await api.removeAdminQueueJob(queueName, jobId);
+      setFeedback({ tone: "warn", text: `Removed job #${jobId} from ${queueName}.` });
+      await Promise.all([onRefresh(), fetchJobs(selectedQueue, selectedState)]);
     } catch (err) {
       setFeedback({ tone: "bad", text: errorMessage(err) });
     } finally {
@@ -101,17 +127,28 @@ export function QueuesSection({
   }
 
   async function cleanFailed(queueName?: string) {
-    const key = `clean-${queueName ?? "all"}`;
-    setBusyKey(key);
+    setBusyKey(`clean-${queueName ?? "all"}`);
     setFeedback(null);
     try {
       const res = await api.cleanAdminFailedJobs(queueName);
-      setFeedback({
-        tone: "good",
-        text: `Cleared ${res.cleanedCount} failed job${res.cleanedCount === 1 ? "" : "s"}${queueName ? ` from ${queueName}` : ""}.`,
-      });
+      setFeedback({ tone: "good", text: `Cleared ${res.cleanedCount} failed job(s).` });
       setConfirmState(null);
-      await onRefresh();
+      await Promise.all([onRefresh(), fetchJobs(selectedQueue, selectedState)]);
+    } catch (err) {
+      setFeedback({ tone: "bad", text: errorMessage(err) });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function drainQueue(queueName: string) {
+    setBusyKey(`drain-${queueName}`);
+    setFeedback(null);
+    try {
+      await api.drainAdminQueue(queueName, true);
+      setFeedback({ tone: "warn", text: `Drained waiting and delayed jobs from ${queueName}.` });
+      setConfirmState(null);
+      await Promise.all([onRefresh(), fetchJobs(selectedQueue, selectedState)]);
     } catch (err) {
       setFeedback({ tone: "bad", text: errorMessage(err) });
     } finally {
@@ -120,51 +157,51 @@ export function QueuesSection({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {feedback && <StatusNote tone={feedback.tone}>{feedback.text}</StatusNote>}
 
-      {/* BullMQ Worker Queues */}
-      <Panel
-        title="BullMQ Worker Queues"
-        subtitle="Real-time queue telemetry and per-queue controls across crawl-jobs, page-fetch, and page-render."
+      {/* BullMQ Queue Control Matrix */}
+      <NocPanel
+        code="MQ"
+        title="BULLMQ_QUEUE_CONTROL_MATRIX"
+        subtitle="Real-time Redis queue state with pause/resume, retry, clean, and drain switches."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <ActionButton
-              variant={allPaused ? "primary" : "secondary"}
+          <>
+            <NocButton
+              variant={allPaused ? "primary" : "warn"}
               disabled={busyKey !== null}
-              icon={allPaused ? <Play size={12} /> : <Pause size={12} />}
+              icon={allPaused ? <Play size={11} /> : <Pause size={11} />}
               onClick={() => {
                 if (allPaused) void toggleQueue(undefined, true);
                 else setConfirmState({ kind: "pause-all" });
               }}
             >
-              {allPaused ? "Resume All" : "Pause All"}
-            </ActionButton>
-            <ActionButton
-              variant="secondary"
+              {allPaused ? "RESUME_ALL" : "PAUSE_ALL"}
+            </NocButton>
+            <NocButton
               disabled={busyKey !== null || totalFailed === 0}
-              icon={<RefreshCw size={12} className={busyKey === "retry-all" ? "animate-spin" : ""} />}
+              icon={<RefreshCw size={11} className={busyKey === "retry-all" ? "animate-spin" : ""} />}
               onClick={() => void retryJobs()}
             >
-              Retry Failed ({totalFailed})
-            </ActionButton>
+              RETRY_FAILED ({totalFailed})
+            </NocButton>
             {totalFailed > 0 && (
-              <ActionButton
-                variant="secondary"
+              <NocButton
+                variant="danger"
                 disabled={busyKey !== null}
-                icon={<Trash2 size={12} />}
+                icon={<Trash2 size={11} />}
                 onClick={() => setConfirmState({ kind: "clean-failed" })}
               >
-                Clear Failed
-              </ActionButton>
+                CLEAR_FAILED
+              </NocButton>
             )}
-          </div>
+          </>
         }
       >
         {loading && queues.length === 0 ? (
-          <AdminSkeletonRows rows={3} cols={7} />
+          <AdminSkeletonRows rows={3} cols={8} />
         ) : (
-          <AdminTableWrap label="BullMQ queues" minWidth={760}>
+          <AdminTableWrap label="BullMQ queues" minWidth={820}>
             <AdminThead>
               <tr>
                 <Th>Queue</Th>
@@ -173,7 +210,7 @@ export function QueuesSection({
                 <Th align="right">Delayed</Th>
                 <Th align="right">Completed</Th>
                 <Th align="right">Failed</Th>
-                <Th align="right">Status</Th>
+                <Th align="right">State</Th>
                 <Th align="right">Controls</Th>
               </tr>
             </AdminThead>
@@ -181,32 +218,32 @@ export function QueuesSection({
               {queues.map((q) => (
                 <Tr key={q.name}>
                   <Td>
-                    <div className="flex items-center gap-2 font-mono text-[12.5px] font-semibold text-brand-950">
-                      <Server size={13} className="text-brand-400" />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedQueue(q.name)}
+                      className="flex items-center gap-2 font-mono text-[12px] font-bold text-brand-950 hover:text-signal-400 cursor-pointer"
+                    >
+                      <Server size={12} className="text-signal-400" />
                       {q.name}
-                    </div>
+                    </button>
                   </Td>
                   <Td align="right">
-                    <span className="font-mono text-[12.5px] font-semibold text-brand-950 tabular-nums">
-                      {q.active}
-                    </span>
+                    <span className="font-mono text-[12px] font-bold text-signal-400 tabular-nums">{q.active}</span>
                   </Td>
                   <Td align="right">
-                    <span className="font-mono text-[12.5px] text-brand-600 tabular-nums">{q.waiting}</span>
+                    <span className="font-mono text-[12px] text-brand-600 tabular-nums">{q.waiting}</span>
                   </Td>
                   <Td align="right">
-                    <span className="font-mono text-[12.5px] text-brand-500 tabular-nums">
-                      {q.delayed ?? 0}
-                    </span>
+                    <span className="font-mono text-[12px] text-brand-400 tabular-nums">{q.delayed ?? 0}</span>
                   </Td>
                   <Td align="right">
-                    <span className="font-mono text-[12.5px] font-semibold text-success-600 tabular-nums">
+                    <span className="font-mono text-[12px] font-semibold text-success-700 tabular-nums">
                       {q.completed.toLocaleString()}
                     </span>
                   </Td>
                   <Td align="right">
                     <span
-                      className={`font-mono text-[12.5px] font-semibold tabular-nums ${q.failed > 0 ? "text-error-600" : "text-brand-400"}`}
+                      className={`font-mono text-[12px] font-bold tabular-nums ${q.failed > 0 ? "text-error-700" : "text-brand-400"}`}
                     >
                       {q.failed}
                     </span>
@@ -218,23 +255,21 @@ export function QueuesSection({
                   </Td>
                   <Td align="right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <ActionButton
-                        variant="secondary"
+                      <NocButton
                         disabled={busyKey !== null || q.status === "idle"}
-                        icon={q.paused ? <Play size={11} /> : <Pause size={11} />}
+                        icon={q.paused ? <Play size={10} /> : <Pause size={10} />}
                         onClick={() => void toggleQueue(q.name, Boolean(q.paused))}
                       >
-                        {q.paused ? "Resume" : "Pause"}
-                      </ActionButton>
-                      {q.failed > 0 && (
-                        <ActionButton
-                          variant="secondary"
+                        {q.paused ? "RESUME" : "PAUSE"}
+                      </NocButton>
+                      {q.waiting + (q.delayed ?? 0) > 0 && (
+                        <NocButton
+                          variant="danger"
                           disabled={busyKey !== null}
-                          icon={<RefreshCw size={11} />}
-                          onClick={() => void retryJobs({ queue: q.name })}
+                          onClick={() => setConfirmState({ kind: "drain", queue: q.name })}
                         >
-                          Retry
-                        </ActionButton>
+                          DRAIN
+                        </NocButton>
                       )}
                     </div>
                   </Td>
@@ -243,298 +278,245 @@ export function QueuesSection({
             </tbody>
           </AdminTableWrap>
         )}
-      </Panel>
+      </NocPanel>
 
-      {/* Deep Ops Sub-tabs */}
-      <Tabs<OpsSubTab>
-        active={subTab}
-        onChange={setSubTab}
-        tabs={[
-          {
-            id: "crawls",
-            label: "Recent Crawl Runs",
-            tag: String(recentCrawls?.crawls.length ?? 0),
-            icon: Globe,
-          },
-          {
-            id: "failed",
-            label: "Failed Queue Jobs",
-            tag: String(failedJobs.length),
-            icon: AlertTriangle,
-          },
-          {
-            id: "syncs",
-            label: "Google Data Syncs",
-            tag: String(recentCrawls?.syncJobs.length ?? 0),
-            icon: Database,
-          },
-        ]}
-      />
-
-      {subTab === "crawls" && (
-        <Panel
-          title="Cross-Tenant Crawl History"
-          subtitle="Most recent site audits across all organizations with status, coverage, duration, and errors."
-        >
-          {loading && !recentCrawls ? (
-            <AdminSkeletonRows rows={6} cols={6} />
-          ) : (
-            <AdminTableWrap label="Recent crawl runs" minWidth={880}>
-              <AdminThead>
-                <tr>
-                  <Th>Domain & Tenant</Th>
-                  <Th>Status</Th>
-                  <Th align="right">Pages</Th>
-                  <Th align="right">Issues</Th>
-                  <Th align="right">Score</Th>
-                  <Th align="right">Duration</Th>
-                  <Th align="right">Started</Th>
-                </tr>
-              </AdminThead>
-              <tbody>
-                {recentCrawls && recentCrawls.crawls.length > 0 ? (
-                  recentCrawls.crawls.map((c) => (
-                    <Tr key={c.id}>
-                      <Td>
-                        <div className="min-w-0 max-w-[300px]">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-mono text-[12.5px] font-semibold text-brand-950">
-                              {c.domain}
-                            </span>
-                            {c.scope.startsWith("competitor:") && <Pill tone="default">Competitor</Pill>}
-                          </div>
-                          <span className="block truncate text-[11px] text-brand-400">
-                            {c.organizationName ?? "Unscoped"}
-                            {c.projectName ? ` · ${c.projectName}` : ""}
-                          </span>
-                          {c.errorMessage && (
-                            <p className="mt-1 truncate text-[11px] text-error-600" title={c.errorMessage}>
-                              {c.errorMessage}
-                            </p>
-                          )}
-                        </div>
-                      </Td>
-                      <Td>
-                        <Pill
-                          tone={
-                            c.status === "COMPLETED"
-                              ? "good"
-                              : c.status === "FAILED"
-                                ? "bad"
-                                : c.status === "RUNNING"
-                                  ? "info"
-                                  : "warn"
-                          }
-                          dot={c.status === "RUNNING"}
-                        >
-                          {c.status}
-                        </Pill>
-                      </Td>
-                      <Td align="right">
-                        <span className="font-mono text-[12px] text-brand-950 tabular-nums">
-                          {c.pagesCrawled}
-                          {c.pagesDiscovered > 0 ? (
-                            <span className="text-brand-400">/{c.pagesDiscovered}</span>
-                          ) : null}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span className="font-mono text-[12px] text-brand-700 tabular-nums">
-                          {c.issuesFound}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span className="font-mono text-[12px] font-semibold text-brand-950 tabular-nums">
-                          {c.healthScore != null ? `${c.healthScore}/100` : "—"}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span className="font-mono text-[12px] text-brand-500 tabular-nums">
-                          {formatDurationSec(c.durationSec)}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span className="font-mono text-[11.5px] text-brand-500">
-                          {relativeTime(c.startedAt ?? c.createdAt)}
-                        </span>
-                      </Td>
-                    </Tr>
-                  ))
-                ) : (
-                  <Tr>
-                    <Td colSpan={7} className="py-10 text-center text-[12.5px] text-brand-500">
-                      No crawl runs recorded yet.
-                    </Td>
-                  </Tr>
-                )}
-              </tbody>
-            </AdminTableWrap>
-          )}
-        </Panel>
-      )}
-
-      {subTab === "failed" && (
-        <Panel
-          title="Failed BullMQ Jobs Inspector"
-          subtitle="Inspect failed queue tasks, see the underlying error reason, and retry individual jobs."
-        >
-          <AdminTableWrap label="Failed queue jobs" minWidth={840}>
+      {/* Deep BullMQ Job Payload & Stacktrace Inspector */}
+      <NocPanel
+        code="INSPECT"
+        title="RAW_BULLMQ_JOB_EXPLORER"
+        subtitle="Inspect raw JSON job payloads, attempt counters, and exception stacktraces across any queue state."
+        actions={
+          <>
+            <FilterChipGroup<string>
+              value={selectedQueue}
+              onChange={setSelectedQueue}
+              options={[
+                { id: "crawl-jobs", label: "crawl-jobs" },
+                { id: "page-fetch", label: "page-fetch" },
+                { id: "page-render", label: "page-render" },
+              ]}
+            />
+            <FilterChipGroup<QueueJobState>
+              value={selectedState}
+              onChange={setSelectedState}
+              options={[
+                { id: "failed", label: "FAILED" },
+                { id: "active", label: "ACTIVE" },
+                { id: "waiting", label: "WAITING" },
+                { id: "delayed", label: "DELAYED" },
+                { id: "completed", label: "COMPLETED" },
+              ]}
+            />
+            <NocButton
+              icon={<RefreshCw size={11} className={jobsLoading ? "animate-spin" : ""} />}
+              onClick={() => void fetchJobs(selectedQueue, selectedState)}
+            >
+              FETCH
+            </NocButton>
+          </>
+        }
+      >
+        {jobsLoading ? (
+          <div className="flex items-center justify-center gap-2 py-12 font-mono text-[12px] text-brand-400">
+            <Loader2 size={14} className="animate-spin text-signal-400" />
+            READING_REDIS_JOBS…
+          </div>
+        ) : (
+          <AdminTableWrap label="BullMQ job inspector" minWidth={880} maxHeightClass="max-h-[440px]">
             <AdminThead>
               <tr>
-                <Th>Queue / Job ID</Th>
-                <Th>Target URL</Th>
-                <Th>Failure Reason</Th>
+                <Th>Job ID</Th>
+                <Th>Target / Domain</Th>
+                <Th>Failure / State</Th>
                 <Th align="right">Attempts</Th>
-                <Th align="right">Failed</Th>
-                <Th align="right">Action</Th>
+                <Th align="right">Timestamp</Th>
+                <Th align="right">Actions</Th>
               </tr>
             </AdminThead>
             <tbody>
-              {failedJobs.length > 0 ? (
-                failedJobs.map((job) => (
-                  <Tr key={`${job.queue}:${job.id}`}>
-                    <Td>
-                      <Pill tone="bad">{job.queue}</Pill>
-                      <span className="mt-1 block font-mono text-[10.5px] text-brand-400">
-                        #{job.id}
-                      </span>
-                    </Td>
-                    <Td>
-                      <div className="max-w-[240px]">
-                        <span className="block truncate font-mono text-[12px] text-brand-950" title={job.targetUrl ?? undefined}>
-                          {job.targetUrl ?? job.domain ?? "—"}
-                        </span>
-                        {job.domain && job.targetUrl && (
-                          <span className="block truncate text-[10.5px] text-brand-400">{job.domain}</span>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>
-                      <p className="max-w-[320px] truncate font-mono text-[11.5px] text-error-600" title={job.failedReason}>
-                        {job.failedReason}
-                      </p>
-                    </Td>
-                    <Td align="right">
-                      <span className="font-mono text-[12px] text-brand-700 tabular-nums">
-                        {job.attemptsMade}
-                      </span>
-                    </Td>
-                    <Td align="right">
-                      <span className="font-mono text-[11.5px] text-brand-500">
-                        {relativeTime(job.timestamp)}
-                      </span>
-                    </Td>
-                    <Td align="right">
-                      <ActionButton
-                        variant="secondary"
-                        disabled={busyKey !== null}
-                        icon={<RefreshCw size={11} />}
-                        onClick={() => void retryJobs({ queue: job.queue, jobId: job.id })}
-                        className="ml-auto"
-                      >
-                        Retry
-                      </ActionButton>
-                    </Td>
-                  </Tr>
-                ))
-              ) : (
-                <Tr>
-                  <Td colSpan={6} className="py-10 text-center text-[12.5px] text-brand-500">
-                    No failed jobs currently sitting in BullMQ queues.
-                  </Td>
-                </Tr>
-              )}
-            </tbody>
-          </AdminTableWrap>
-        </Panel>
-      )}
-
-      {subTab === "syncs" && (
-        <Panel
-          title="Google Data Sync Jobs"
-          subtitle="Recent Search Console, GA4, and Business Profile sync runs across tenant projects."
-        >
-          <AdminTableWrap label="Google data sync jobs" minWidth={820}>
-            <AdminThead>
-              <tr>
-                <Th>Provider</Th>
-                <Th>Organization / Project</Th>
-                <Th>Status</Th>
-                <Th align="right">Rows Written</Th>
-                <Th>Error</Th>
-                <Th align="right">Started</Th>
-              </tr>
-            </AdminThead>
-            <tbody>
-              {recentCrawls && recentCrawls.syncJobs.length > 0 ? (
-                recentCrawls.syncJobs.map((s) => (
-                  <Tr key={s.id}>
-                    <Td>
-                      <span className="font-mono text-[12px] font-semibold text-brand-950">
-                        {s.provider}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="block text-[12.5px] font-medium text-brand-950">
-                        {s.projectName ?? s.projectId.slice(0, 8)}
-                      </span>
-                      <span className="block text-[11px] text-brand-400">
-                        {s.organizationName ?? "—"}
-                      </span>
-                    </Td>
-                    <Td>
-                      <Pill
-                        tone={
-                          s.status === "SUCCEEDED"
-                            ? "good"
-                            : s.status === "FAILED"
-                              ? "bad"
-                              : s.status === "PARTIAL"
-                                ? "warn"
-                                : "info"
-                        }
-                      >
-                        {s.status}
-                      </Pill>
-                    </Td>
-                    <Td align="right">
-                      <span className="font-mono text-[12px] text-brand-700 tabular-nums">
-                        {s.rowsWritten.toLocaleString()}
-                      </span>
-                    </Td>
-                    <Td>
-                      {s.errorMessage ? (
-                        <span className="block max-w-[280px] truncate text-[11.5px] text-error-600" title={s.errorMessage}>
-                          {s.errorMessage}
-                        </span>
-                      ) : (
-                        <span className="text-[11.5px] text-brand-400">—</span>
+              {jobs.length > 0 ? (
+                jobs.map((job) => {
+                  const open = expandedJobId === `${job.queue}:${job.id}`;
+                  return (
+                    <React.Fragment key={`${job.queue}:${job.id}`}>
+                      <Tr>
+                        <Td>
+                          <div className="flex items-center gap-1.5 font-mono text-[11.5px]">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedJobId(open ? null : `${job.queue}:${job.id}`)}
+                              aria-expanded={open}
+                              aria-label="Toggle job JSON payload"
+                              className="flex h-5 w-5 items-center justify-center rounded-xs text-brand-400 hover:bg-surface-2 hover:text-signal-400 cursor-pointer"
+                            >
+                              {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            </button>
+                            <span className="font-bold text-brand-950">#{job.id}</span>
+                          </div>
+                        </Td>
+                        <Td>
+                          <div className="max-w-[280px] font-mono">
+                            <span className="block truncate text-[11.5px] text-brand-900" title={job.targetUrl ?? undefined}>
+                              {job.targetUrl ?? job.domain ?? job.name}
+                            </span>
+                            {job.crawlJobId && (
+                              <span className="block text-[10px] text-brand-400">crawl:{job.crawlJobId.slice(0, 8)}</span>
+                            )}
+                          </div>
+                        </Td>
+                        <Td>
+                          {job.failedReason ? (
+                            <p className="max-w-[300px] truncate font-mono text-[11px] text-error-700" title={job.failedReason}>
+                              {job.failedReason}
+                            </p>
+                          ) : (
+                            <Pill tone={job.state === "completed" ? "good" : job.state === "active" ? "info" : "default"}>
+                              {job.state.toUpperCase()}
+                            </Pill>
+                          )}
+                        </Td>
+                        <Td align="right">
+                          <span className="font-mono text-[11.5px] text-brand-600 tabular-nums">
+                            {job.attemptsMade}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          <span className="font-mono text-[11px] text-brand-400">
+                            {relativeTime(job.finishedOn ?? job.processedOn ?? job.timestamp)}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {job.state === "failed" && (
+                              <NocButton
+                                disabled={busyKey !== null}
+                                icon={<RefreshCw size={10} />}
+                                onClick={() => void retryJobs({ queue: job.queue, jobId: job.id })}
+                              >
+                                RETRY
+                              </NocButton>
+                            )}
+                            <NocButton
+                              variant="danger"
+                              disabled={busyKey !== null}
+                              icon={<X size={10} />}
+                              onClick={() => void removeJob(job.queue, job.id)}
+                            >
+                              RM
+                            </NocButton>
+                          </div>
+                        </Td>
+                      </Tr>
+                      {open && (
+                        <tr className="border-b border-brand-200 bg-surface-2/60">
+                          <td colSpan={6} className="px-5 py-3 space-y-2">
+                            <div>
+                              <span className="block font-mono text-[9.5px] font-bold uppercase tracking-wider text-signal-400 mb-1">
+                                JOB_PAYLOAD_JSON
+                              </span>
+                              <pre className="overflow-x-auto rounded-sm border border-brand-200 bg-surface-1 p-2.5 font-mono text-[11px] text-brand-700">
+                                {JSON.stringify(job.data, null, 2)}
+                              </pre>
+                            </div>
+                            {job.stacktrace.length > 0 && (
+                              <div>
+                                <span className="block font-mono text-[9.5px] font-bold uppercase tracking-wider text-error-700 mb-1">
+                                  STACKTRACE
+                                </span>
+                                <pre className="overflow-x-auto rounded-sm border border-error-200 bg-error-50/40 p-2.5 font-mono text-[10.5px] text-error-700">
+                                  {job.stacktrace.join("\n")}
+                                </pre>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       )}
-                    </Td>
-                    <Td align="right">
-                      <span className="font-mono text-[11.5px] text-brand-500">
-                        {relativeTime(s.startedAt)}
-                      </span>
-                    </Td>
-                  </Tr>
-                ))
+                    </React.Fragment>
+                  );
+                })
               ) : (
                 <Tr>
-                  <Td colSpan={6} className="py-10 text-center text-[12.5px] text-brand-500">
-                    No Google data sync runs recorded yet.
+                  <Td colSpan={6} className="py-10 text-center font-mono text-[11.5px] text-brand-400">
+                    0_{selectedState.toUpperCase()}_JOBS_IN_{selectedQueue.toUpperCase()}
                   </Td>
                 </Tr>
               )}
             </tbody>
           </AdminTableWrap>
-        </Panel>
-      )}
+        )}
+      </NocPanel>
+
+      {/* Google Data Sync Runs */}
+      <NocPanel
+        code="SYNC"
+        title="GOOGLE_DATA_SYNC_JOBS"
+        subtitle="Cross-tenant Search Console, GA4, and GBP ingestion runs."
+      >
+        <AdminTableWrap label="Google data sync jobs" minWidth={800} maxHeightClass="max-h-[340px]">
+          <AdminThead>
+            <tr>
+              <Th>Provider</Th>
+              <Th>Organization / Project</Th>
+              <Th>Status</Th>
+              <Th align="right">Rows</Th>
+              <Th>Error</Th>
+              <Th align="right">Started</Th>
+            </tr>
+          </AdminThead>
+          <tbody>
+            {syncJobs.length > 0 ? (
+              syncJobs.map((s) => (
+                <Tr key={s.id}>
+                  <Td>
+                    <span className="flex items-center gap-1.5 font-mono text-[11.5px] font-bold text-brand-950">
+                      <Database size={11} className="text-signal-400" />
+                      {s.provider}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="block text-[12px] font-semibold text-brand-900">
+                      {s.projectName ?? s.projectId.slice(0, 8)}
+                    </span>
+                    <span className="block font-mono text-[10.5px] text-brand-400">
+                      {s.organizationName ?? "—"}
+                    </span>
+                  </Td>
+                  <Td>
+                    <Pill tone={s.status === "SUCCEEDED" ? "good" : s.status === "FAILED" ? "bad" : "warn"}>
+                      {s.status}
+                    </Pill>
+                  </Td>
+                  <Td align="right">
+                    <span className="font-mono text-[11.5px] text-brand-600 tabular-nums">
+                      {s.rowsWritten.toLocaleString()}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="block max-w-[260px] truncate font-mono text-[11px] text-error-700" title={s.errorMessage ?? undefined}>
+                      {s.errorMessage ?? "—"}
+                    </span>
+                  </Td>
+                  <Td align="right">
+                    <span className="font-mono text-[11px] text-brand-400">{relativeTime(s.startedAt)}</span>
+                  </Td>
+                </Tr>
+              ))
+            ) : (
+              <Tr>
+                <Td colSpan={6} className="py-8 text-center font-mono text-[11.5px] text-brand-400">
+                  NO_SYNC_RUNS_RECORDED
+                </Td>
+              </Tr>
+            )}
+          </tbody>
+        </AdminTableWrap>
+      </NocPanel>
 
       <ConfirmModal
         open={confirmState?.kind === "pause-all"}
-        title="Pause All Worker Queues?"
-        description="Pausing crawl-jobs, page-fetch, and page-render stops new background crawls from executing until resumed. Active jobs finish their current step."
-        confirmLabel="Pause All Queues"
+        title="PAUSE_ALL_WORKER_QUEUES"
+        description="Pausing crawl-jobs, page-fetch, and page-render halts all new crawler processing across tenants until resumed."
+        confirmLabel="PAUSE_QUEUES"
         tone="warn"
         busy={busyKey !== null}
         onConfirm={() => void toggleQueue(undefined, false)}
@@ -543,12 +525,23 @@ export function QueuesSection({
 
       <ConfirmModal
         open={confirmState?.kind === "clean-failed"}
-        title="Clear Failed Queue Jobs?"
-        description="This permanently removes failed job entries from Redis BullMQ history. CrawlJob rows in PostgreSQL remain untouched."
-        confirmLabel="Clear Failed Jobs"
+        title="CLEAR_FAILED_BULLMQ_JOBS"
+        description="Removes failed job entries from Redis BullMQ history. PostgreSQL CrawlJob history is preserved."
+        confirmLabel="CLEAR_FAILED"
         tone="danger"
         busy={busyKey !== null}
         onConfirm={() => void cleanFailed(confirmState?.queue)}
+        onClose={() => setConfirmState(null)}
+      />
+
+      <ConfirmModal
+        open={confirmState?.kind === "drain"}
+        title={`DRAIN_QUEUE // ${confirmState?.queue ?? ""}`}
+        description={`This permanently removes ALL waiting and delayed jobs currently queued in "${confirmState?.queue}". Active jobs keep running.`}
+        confirmLabel="DRAIN_QUEUE"
+        tone="danger"
+        busy={busyKey !== null}
+        onConfirm={() => (confirmState?.queue ? void drainQueue(confirmState.queue) : undefined)}
         onClose={() => setConfirmState(null)}
       />
     </div>

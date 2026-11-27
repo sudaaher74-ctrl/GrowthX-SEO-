@@ -2475,6 +2475,7 @@ export interface AdminFailedJob {
 
 export interface AdminCrawlRun {
   id: string;
+  websiteId?: string;
   domain: string;
   scope: string;
   projectName: string | null;
@@ -2489,6 +2490,247 @@ export interface AdminCrawlRun {
   finishedAt: string | null;
   createdAt: string;
   durationSec: number | null;
+}
+
+export interface AdminSystemRuntime {
+  process: {
+    nodeVersion: string;
+    platform: string;
+    pid: number;
+    uptimeSec: number;
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+    cpuUserMs: number;
+    cpuSystemMs: number;
+  };
+  database: {
+    sizePretty: string | null;
+    activeConnections: number | null;
+    tableCounts: {
+      organizations: number;
+      users: number;
+      projects: number;
+      websites: number;
+      crawlJobs: number;
+      pages: number;
+      issues: number;
+      aiUsageRecords: number;
+      tokenTransactions: number;
+      auditLogs: number;
+    };
+  };
+  redis: {
+    connected: boolean;
+    status: string;
+    usedMemoryHuman: string | null;
+    connectedClients: number | null;
+    uptimeSec: number | null;
+    opsPerSec: number | null;
+    hitRatePct: number | null;
+    maxmemoryPolicy: string | null;
+  };
+  workers: {
+    crawlJobs?: boolean;
+    pageFetch?: boolean;
+    pageRender?: boolean;
+    splitRenderQueue?: boolean;
+    disabledByEnv?: boolean;
+  };
+  envFlags: Array<{ key: string; value: string }>;
+  timestamp: string;
+}
+
+export interface AdminWebsiteItem {
+  id: string;
+  domain: string;
+  url: string;
+  scope: string;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  crawlFrequency: 'OFF' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  maxConcurrency: number;
+  maxDepth: number;
+  rateLimitDelayMs: number;
+  projectId: string | null;
+  projectName: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  subscriptionTier: string | null;
+  totalCrawls: number;
+  latestCrawl: {
+    id: string;
+    status: string;
+    pagesCrawled: number;
+    pagesDiscovered: number;
+    issuesFound: number;
+    healthScore: number | null;
+    errorMessage: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    createdAt: string;
+  } | null;
+  updatedAt: string;
+}
+
+export interface AdminCrawlDetail {
+  id: string;
+  websiteId: string;
+  domain: string;
+  url: string;
+  scope: string;
+  projectName: string | null;
+  organizationName: string | null;
+  status: string;
+  pagesCrawled: number;
+  pagesDiscovered: number;
+  issuesFound: number;
+  uniqueIssuesCount: number;
+  healthScore: number | null;
+  concurrency: number;
+  depthLimit: number;
+  pageLimit: number | null;
+  errorMessage: string | null;
+  qualityDiagnostics: Record<string, unknown> | null;
+  redisPendingTasks: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  frontierByStatus: Record<string, number>;
+  issuesBySeverity: Record<string, number>;
+  pagesByStatusCode: Array<{ statusCode: number; count: number }>;
+  sampleIssues: Array<{
+    id: string;
+    severity: string;
+    category: string;
+    issueType: string;
+    title: string;
+    url: string | null;
+  }>;
+  problemPages: Array<{
+    id: string;
+    url: string;
+    statusCode: number;
+    loadTimeMs: number | null;
+    wordCount: number | null;
+  }>;
+}
+
+export interface AdminQueueJobDetail {
+  id: string;
+  queue: string;
+  state: string;
+  name: string;
+  domain: string | null;
+  targetUrl: string | null;
+  crawlJobId: string | null;
+  attemptsMade: number;
+  failedReason: string | null;
+  stacktrace: string[];
+  timestamp: string | null;
+  processedOn: string | null;
+  finishedOn: string | null;
+  data: Record<string, unknown>;
+}
+
+export interface AdminAiRouterConfig {
+  available: boolean;
+  providers: Array<{
+    provider: string;
+    keyConfigured: boolean;
+    allowlisted: boolean;
+    runtimeDisabled: boolean;
+    active: boolean;
+    defaultModel: string;
+    overrideModel: string | null;
+    effectiveModel: string;
+  }>;
+  taskMatrix: Array<{
+    task: string;
+    profile: string;
+    chain: string[];
+  }>;
+  allowlist: string[] | null;
+  fastRouteTiers: string[];
+  serverSideFallbackEnabled: boolean;
+  caches: {
+    responseCacheEntries: number;
+    responseCacheMaxEntries: number;
+    responseCacheTtlMs: number;
+    orgTierCacheEntries: number;
+  };
+}
+
+export interface AdminAiProbeResult {
+  ok: boolean;
+  provider: string | null;
+  model: string | null;
+  latencyMs: number;
+  refused: boolean;
+  text: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number | null;
+  } | null;
+  error: string | null;
+}
+
+export interface AdminPipelinesResponse {
+  autopilotRuns: Array<{
+    id: string;
+    domain: string;
+    status: string;
+    step: string;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }>;
+  visibilityScans: Array<{
+    id: string;
+    cycleId: string;
+    projectName: string | null;
+    organizationName: string | null;
+    status: string;
+    providerRuns: number;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }>;
+  backlinkRuns: Array<{
+    id: string;
+    projectName: string | null;
+    organizationName: string | null;
+    status: string;
+    stage: string;
+    candidates: number;
+    added: number;
+    verified: number;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }>;
+  automationRuns: Array<{
+    id: string;
+    kind: string;
+    status: string;
+    repository: string | null;
+    branch: string | null;
+    pullRequestUrl: string | null;
+    filesCount: number;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }>;
+  researchRuns: Array<{
+    id: string;
+    status: string;
+    tokens: number;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }>;
 }
 
 export interface AdminDataSyncRun {

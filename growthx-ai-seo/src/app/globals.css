@@ -1311,4 +1311,95 @@ dialog::backdrop {
   overscroll-behavior: contain;
 }
 
+/* ───── Root NOC Engineering Control Plane (.admin-noc) ─────
+   Completely distinct visual identity from the customer SaaS workspace:
+   obsidian telemetry canvas, carbon instrument panels, etched steel borders,
+   and electric cyan accent replacing the customer lime palette. */
+.admin-noc {
+  --color-canvas: #04070d;
+  --color-surface-1: #090f19;
+  --color-surface-2: #0d1624;
+  --color-surface-3: #132035;
+  --color-line: #1c2b42;
+  --color-line-strong: #2a3f60;
+  --border-color: #1c2b42;
+
+  --color-brand-50: #0b1320;
+  --color-brand-100: #111c2e;
+  --color-brand-200: #1c2b42;
+  --color-brand-300: #2c4160;
+  --color-brand-400: #7c93b5;
+  --color-brand-500: #9ab0ce;
+  --color-brand-600: #bacbe2;
+  --color-brand-700: #d4e0ef;
+  --color-brand-800: #e6edf7;
+  --color-brand-900: #f1f5fb;
+  --color-brand-950: #f8fbff;
+
+  --color-signal-400: #22d3ee;
+  --color-signal-500: #06b6d4;
+  --color-signal-ink: #03131b;
+
+  --color-primary-50: #082032;
+  --color-primary-100: #0c2d45;
+  --color-primary-200: #14496d;
+  --color-primary-300: #1f6d9e;
+  --color-primary-600: #22d3ee;
+  --color-primary-700: #06b6d4;
+
+  --color-accent-50: #082032;
+  --color-accent-200: #154c74;
+  --color-accent-500: #38bdf8;
+  --color-accent-600: #0ea5e9;
+  --color-accent-700: #7dd3fc;
+
+  --color-success-50: #062118;
+  --color-success-200: #0e4a35;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #4ade80;
+
+  --color-warning-50: #241806;
+  --color-warning-200: #593b0d;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #fbbf24;
+
+  --color-error-50: #290b12;
+  --color-error-200: #631929;
+  --color-error-500: #f43f5e;
+  --color-error-600: #e11d48;
+  --color-error-700: #fda4af;
+
+  --bg-base: #04070d;
+  --bg-subtle: #090f19;
+  --bg-muted: #0d1624;
+  --text-primary: #f8fbff;
+  --text-secondary: #9ab0ce;
+  --text-muted: #7c93b5;
+  --surface-1: #090f19;
+  --surface-2: #0d1624;
+  --surface-3: #132035;
+  --card-bg: #090f19;
+  --card-border: #1c2b42;
+
+  color-scheme: dark;
+  color: #f8fbff;
+  background-color: #04070d;
+  background-image: radial-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.admin-noc .card {
+  border-radius: 6px;
+  border-color: #1c2b42;
+  background-color: #090f19;
+}
+
+.admin-noc select option {
+  background-color: #090f19;
+  color: #f8fbff;
+}
+
+
 

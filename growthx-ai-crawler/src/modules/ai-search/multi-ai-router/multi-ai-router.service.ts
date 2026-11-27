@@ -105,6 +105,10 @@ export class MultiAiRouterService {
   private readonly responseCacheMaxEntries: number;
   private readonly fastRouteTiers: ReadonlySet<string>;
 
+  /** Runtime operator circuit-breakers and model overrides (in-memory, zero-restart). */
+  private readonly runtimeDisabledProviders = new Set<AiProvider>();
+  private readonly runtimeModelOverrides = new Map<AiProvider, string>();
+
   constructor(
     private readonly config: ConfigService,
     /**
@@ -211,7 +215,7 @@ export class MultiAiRouterService {
     return isConfiguredValue(value);
   }
 
-  configuredProviders(): AiProvider[] {
+  private rawKeyConfiguredProviders(): AiProvider[] {
     const configured: AiProvider[] = [];
     if (this.mammouth) configured.push(AiProvider.MAMMOUTH);
     if (this.isRealKey(this.sarvamKey)) configured.push(AiProvider.SARVAM);
@@ -221,7 +225,26 @@ export class MultiAiRouterService {
     if (this.groq) configured.push(AiProvider.GROQ);
     if (this.openrouter) configured.push(AiProvider.OPENROUTER);
     if (this.perplexity) configured.push(AiProvider.PERPLEXITY);
-    return configured.filter((p) => isProviderAllowed(this.providerAllowlist, p));
+    return configured;
+  }
+
+  private defaultModelMap(): Record<AiProvider, string> {
+    return {
+      [AiProvider.MAMMOUTH]: this.mammouthModel,
+      [AiProvider.ANTHROPIC]: this.anthropicModel,
+      [AiProvider.GEMINI]: this.geminiModel,
+      [AiProvider.OPENAI]: this.openaiModel,
+      [AiProvider.SARVAM]: this.sarvamModel,
+      [AiProvider.GROQ]: this.groqModel,
+      [AiProvider.OPENROUTER]: this.openrouterModel,
+      [AiProvider.PERPLEXITY]: this.perplexityModel,
+    };
+  }
+
+  configuredProviders(): AiProvider[] {
+    return this.rawKeyConfiguredProviders().filter(
+      (p) => isProviderAllowed(this.providerAllowlist, p) && !this.runtimeDisabledProviders.has(p),
+    );
   }
 
   /**
@@ -239,19 +262,87 @@ export class MultiAiRouterService {
 
   /** The model each configured provider would use. Names only — never key material. */
   configuredModels(): Record<string, string> {
-    const models: Record<string, string> = {
-      [AiProvider.MAMMOUTH]: this.mammouthModel,
-      [AiProvider.ANTHROPIC]: this.anthropicModel,
-      [AiProvider.GEMINI]: this.geminiModel,
-      [AiProvider.OPENAI]: this.openaiModel,
-      [AiProvider.SARVAM]: this.sarvamModel,
-      [AiProvider.GROQ]: this.groqModel,
-      [AiProvider.OPENROUTER]: this.openrouterModel,
-      [AiProvider.PERPLEXITY]: this.perplexityModel,
-    };
-
+    const defaults = this.defaultModelMap();
     const configured = this.configuredProviders();
-    return Object.fromEntries(configured.map((p) => [p, models[p]]));
+    return Object.fromEntries(
+      configured.map((p) => [p, this.runtimeModelOverrides.get(p) ?? defaults[p]]),
+    );
+  }
+
+  /** Live router topology and runtime override state for the operator console (never exposes secrets). */
+  getAdminDiagnostics() {
+    const keyed = new Set(this.rawKeyConfiguredProviders());
+    const defaults = this.defaultModelMap();
+    const allProviders = Object.values(AiProvider);
+
+    const providers = allProviders.map((provider) => {
+      const keyConfigured = keyed.has(provider);
+      const allowlisted = isProviderAllowed(this.providerAllowlist, provider);
+      const runtimeDisabled = this.runtimeDisabledProviders.has(provider);
+      const overrideModel = this.runtimeModelOverrides.get(provider) ?? null;
+      const defaultModel = defaults[provider];
+      return {
+        provider,
+        keyConfigured,
+        allowlisted,
+        runtimeDisabled,
+        active: keyConfigured && allowlisted && !runtimeDisabled,
+        defaultModel,
+        overrideModel,
+        effectiveModel: overrideModel ?? defaultModel,
+      };
+    });
+
+    const taskMatrix = Object.values(AiTask).map((task) => ({
+      task,
+      profile: profileFor(task),
+      chain: this.chainFor(task),
+    }));
+
+    return {
+      providers,
+      taskMatrix,
+      allowlist: this.providerAllowlist ? [...this.providerAllowlist] : null,
+      fastRouteTiers: [...this.fastRouteTiers],
+      serverSideFallbackEnabled: this.serverSideFallbackEnabled,
+      caches: {
+        responseCacheEntries: this.responseCache.size,
+        responseCacheMaxEntries: this.responseCacheMaxEntries,
+        responseCacheTtlMs: this.responseCacheTtlMs,
+        orgTierCacheEntries: this.orgTierCache.size,
+      },
+    };
+  }
+
+  setProviderRuntimeEnabled(provider: AiProvider, enabled: boolean): void {
+    if (enabled) this.runtimeDisabledProviders.delete(provider);
+    else this.runtimeDisabledProviders.add(provider);
+    this.logger.warn(`Operator set AI provider ${provider} runtime state to ${enabled ? 'ENABLED' : 'DISABLED'}.`);
+  }
+
+  setProviderModelOverride(provider: AiProvider, model: string | null): void {
+    const trimmed = typeof model === 'string' ? model.trim() : '';
+    if (!trimmed) {
+      this.runtimeModelOverrides.delete(provider);
+      this.logger.warn(`Operator cleared runtime model override for ${provider}.`);
+    } else {
+      this.runtimeModelOverrides.set(provider, trimmed);
+      this.logger.warn(`Operator set runtime model override for ${provider} -> ${trimmed}.`);
+    }
+  }
+
+  setServerSideFallbackEnabled(enabled: boolean): void {
+    this.serverSideFallbackEnabled = enabled;
+    this.logger.warn(`Operator set Anthropic server-side fallback -> ${enabled}.`);
+  }
+
+  clearRuntimeCaches(): { clearedResponses: number; clearedOrgTiers: number } {
+    const clearedResponses = this.responseCache.size;
+    const clearedOrgTiers = this.orgTierCache.size;
+    this.responseCache.clear();
+    this.orgTierCache.clear();
+    this.logger.log(`Operator cleared AI caches (${clearedResponses} responses, ${clearedOrgTiers} org tiers).`);
+    return { clearedResponses, clearedOrgTiers };
   }
 
   /**
@@ -639,8 +730,9 @@ export class MultiAiRouterService {
     task: AiTask,
   ): Promise<AiCompletion> {
     const startedAt = Date.now();
+    const effectiveModel = request.model ?? this.runtimeModelOverrides.get(provider);
     try {
-      const completion = await this.invoke(provider, request, task, request.model);
+      const completion = await this.invoke(provider, request, task, effectiveModel);
       this.usageLedger?.record({
         organizationId: request.organizationId,
         projectId: request.projectId,

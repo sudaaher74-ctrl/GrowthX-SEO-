@@ -1,9 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../database/prisma.service';
 import { TokensService } from '../tokens/tokens.service';
-import { UpdateAdminTenantDto } from './admin.dto';
+import { CrawlerService } from '../crawler/crawler.service';
+import { CrawlerProcessor } from '../crawler/crawler.processor';
+import { MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { AiTask } from '../ai-search/multi-ai-router/multi-ai-router.types';
+import {
+  AiRouterProbeDto,
+  TriggerWebsiteCrawlDto,
+  UpdateAdminTenantDto,
+  UpdateAdminWebsiteDto,
+  UpdateAiRouterConfigDto,
+} from './admin.dto';
 
 function isConfiguredEnvKey(raw: string | undefined): boolean {
   if (!raw) return false;
@@ -16,12 +32,25 @@ function startOfUtcMonth(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
 }
 
+function parseRedisInfo(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line || line.startsWith('#')) continue;
+    const idx = line.indexOf(':');
+    if (idx > 0) out[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+  }
+  return out;
+}
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
     private readonly tokens: TokensService,
+    @Optional() private readonly crawlerService?: CrawlerService,
+    @Optional() private readonly crawlerProcessor?: CrawlerProcessor,
+    @Optional() private readonly aiRouter?: MultiAiRouterService,
   ) {}
 
   private managedQueues() {
@@ -41,6 +70,8 @@ export class AdminService {
     }
     return filtered;
   }
+
+  // ───────────────────────────────────────────── QUEUES & BULLMQ RUNTIME
 
   async getQueueStats() {
     const queues = this.managedQueues();
@@ -132,17 +163,914 @@ export class AdminService {
       .slice(0, limit);
   }
 
-  /**
-   * Real model spend, grouped by the model that actually ran.
-   */
+  async getQueueJobs(queueName: string, state: string, limit = 30) {
+    const [target] = this.selectQueues(queueName);
+    if (!target.queue) return [];
+
+    const allowedStates = ['failed', 'active', 'waiting', 'delayed', 'completed'] as const;
+    const normalized = allowedStates.includes(state as any) ? (state as (typeof allowedStates)[number]) : 'failed';
+    const cap = Math.max(1, Math.min(60, limit));
+
+    try {
+      const jobs = await target.queue.getJobs([normalized], 0, cap - 1, true);
+      return jobs.map((job) => {
+        const data = (job.data ?? {}) as Record<string, any>;
+        return {
+          id: String(job.id ?? ''),
+          queue: target.name,
+          state: normalized,
+          name: job.name || target.name,
+          domain: typeof data.domain === 'string' ? data.domain : null,
+          targetUrl:
+            typeof data.targetUrl === 'string'
+              ? data.targetUrl
+              : typeof data.startUrl === 'string'
+                ? data.startUrl
+                : null,
+          crawlJobId: typeof data.jobId === 'string' ? data.jobId : null,
+          attemptsMade: job.attemptsMade ?? 0,
+          failedReason: job.failedReason ? String(job.failedReason).slice(0, 800) : null,
+          stacktrace: Array.isArray(job.stacktrace) ? job.stacktrace.slice(0, 3) : [],
+          timestamp: job.timestamp ? new Date(job.timestamp).toISOString() : null,
+          processedOn: job.processedOn ? new Date(job.processedOn).toISOString() : null,
+          finishedOn: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
+          data,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async removeQueueJob(queueName: string, jobId: string) {
+    const [target] = this.selectQueues(queueName);
+    if (!target.queue) throw new ServiceUnavailableException(`Queue "${queueName}" is not connected.`);
+    const job = await target.queue.getJob(jobId);
+    if (!job) throw new NotFoundException(`Job "${jobId}" not found in queue "${queueName}"`);
+    await job.remove();
+    return { success: true, queue: queueName, jobId };
+  }
+
+  async drainQueue(queueName: string, delayed = false) {
+    const [target] = this.selectQueues(queueName);
+    if (!target.queue) throw new ServiceUnavailableException(`Queue "${queueName}" is not connected.`);
+    await target.queue.drain(Boolean(delayed));
+    return { success: true, queue: queueName, drainedDelayed: Boolean(delayed) };
+  }
+
+  async pauseQueues(queueName?: string) {
+    const targets = this.selectQueues(queueName);
+    const affected: string[] = [];
+    for (const q of targets) {
+      if (q.queue) {
+        await q.queue.pause();
+        affected.push(q.name);
+      }
+    }
+    return { success: true, status: 'PAUSED', queues: affected };
+  }
+
+  async resumeQueues(queueName?: string) {
+    const targets = this.selectQueues(queueName);
+    const affected: string[] = [];
+    for (const q of targets) {
+      if (q.queue) {
+        await q.queue.resume();
+        affected.push(q.name);
+      }
+    }
+    return { success: true, status: 'ACTIVE', queues: affected };
+  }
+
+  async retryFailedJobs(queueName?: string, jobId?: string) {
+    let retriedCount = 0;
+    const targets = this.selectQueues(queueName);
+
+    for (const q of targets) {
+      if (!q.queue) continue;
+      try {
+        if (jobId) {
+          const job = await q.queue.getJob(jobId);
+          if (job) {
+            await job.retry();
+            retriedCount++;
+          }
+        } else {
+          const failed = await q.queue.getFailed();
+          for (const job of failed) {
+            await job.retry();
+            retriedCount++;
+          }
+        }
+      } catch {
+        // ignore queue inspection errors
+      }
+    }
+    return { success: true, retriedCount };
+  }
+
+  async cleanFailedJobs(queueName?: string) {
+    let cleanedCount = 0;
+    const targets = this.selectQueues(queueName);
+
+    for (const q of targets) {
+      if (!q.queue || typeof q.queue.clean !== 'function') continue;
+      try {
+        const removed = await q.queue.clean(0, 500, 'failed');
+        cleanedCount += Array.isArray(removed) ? removed.length : 0;
+      } catch {
+        // ignore clean errors
+      }
+    }
+    return { success: true, cleanedCount };
+  }
+
+  // ───────────────────────────────────────────── RUNTIME & INFRASTRUCTURE
+
+  async getSystemRuntime() {
+    const mem = process.memoryUsage();
+    const cpu = process.cpuUsage();
+
+    let dbSizePretty: string | null = null;
+    let activeConnections: number | null = null;
+    try {
+      const sizeRows = (await this.prisma.$queryRaw<
+        Array<{ size_pretty: string; active_conns: number }>
+      >`SELECT pg_size_pretty(pg_database_size(current_database())) AS size_pretty, (SELECT count(*)::int FROM pg_stat_activity WHERE datname = current_database()) AS active_conns`) as any[];
+      if (sizeRows?.[0]) {
+        dbSizePretty = sizeRows[0].size_pretty ?? null;
+        activeConnections = Number(sizeRows[0].active_conns ?? 0);
+      }
+    } catch {
+      // Ignore if DB role restricts pg_stat_activity
+    }
+
+    const safeCount = (delegate: any) =>
+      delegate && typeof delegate.count === 'function' ? delegate.count().catch(() => 0) : Promise.resolve(0);
+
+    const [
+      organizations,
+      users,
+      projects,
+      websites,
+      crawlJobs,
+      pages,
+      issues,
+      aiUsageRecords,
+      tokenTransactions,
+      auditLogs,
+    ] = await Promise.all([
+      safeCount(this.prisma.organization),
+      safeCount(this.prisma.user),
+      safeCount(this.prisma.project),
+      safeCount(this.prisma.website),
+      safeCount(this.prisma.crawlJob),
+      safeCount(this.prisma.page),
+      safeCount(this.prisma.issue),
+      safeCount(this.prisma.aiUsageRecord),
+      safeCount(this.prisma.tokenTransaction),
+      safeCount(this.prisma.auditLog),
+    ]);
+
+    let redisInfo: {
+      connected: boolean;
+      status: string;
+      usedMemoryHuman: string | null;
+      connectedClients: number | null;
+      uptimeSec: number | null;
+      opsPerSec: number | null;
+      hitRatePct: number | null;
+      maxmemoryPolicy: string | null;
+    } = {
+      connected: false,
+      status: 'disconnected',
+      usedMemoryHuman: null,
+      connectedClients: null,
+      uptimeSec: null,
+      opsPerSec: null,
+      hitRatePct: null,
+      maxmemoryPolicy: null,
+    };
+
+    const redisClient =
+      this.queueService && typeof (this.queueService as any).getRedisClient === 'function'
+        ? (this.queueService as any).getRedisClient()
+        : null;
+
+    if (redisClient) {
+      redisInfo.connected = redisClient.status === 'ready';
+      redisInfo.status = String(redisClient.status || 'unknown');
+      try {
+        const raw = await redisClient.info();
+        const parsed = parseRedisInfo(String(raw));
+        const hits = Number(parsed.keyspace_hits || 0);
+        const misses = Number(parsed.keyspace_misses || 0);
+        redisInfo = {
+          connected: redisClient.status === 'ready',
+          status: String(redisClient.status || 'ready'),
+          usedMemoryHuman: parsed.used_memory_human ?? null,
+          connectedClients: parsed.connected_clients ? Number(parsed.connected_clients) : null,
+          uptimeSec: parsed.uptime_in_seconds ? Number(parsed.uptime_in_seconds) : null,
+          opsPerSec: parsed.instantaneous_ops_per_sec ? Number(parsed.instantaneous_ops_per_sec) : null,
+          hitRatePct: hits + misses > 0 ? Number(((hits / (hits + misses)) * 100).toFixed(1)) : null,
+          maxmemoryPolicy: parsed.maxmemory_policy ?? null,
+        };
+      } catch {
+        // Keep basic status if INFO command is restricted
+      }
+    }
+
+    // Strictly non-secret runtime flags and tuning parameters only
+    const envFlags: Array<{ key: string; value: string }> = [
+      { key: 'NODE_ENV', value: process.env.NODE_ENV || 'development' },
+      { key: 'AI_PROVIDERS', value: process.env.AI_PROVIDERS || '(all configured)' },
+      { key: 'AI_TIERED_ROUTING', value: process.env.AI_TIERED_ROUTING || 'true' },
+      { key: 'AI_FAST_TIERS', value: process.env.AI_FAST_TIERS || 'founder_free,starter' },
+      { key: 'CRAWL_SPLIT_RENDER_QUEUE', value: process.env.CRAWL_SPLIT_RENDER_QUEUE || 'false' },
+      {
+        key: 'MAX_RENDER_CONCURRENCY',
+        value: process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || '3',
+      },
+      { key: 'CRAWLER_JOB_CONCURRENCY', value: process.env.CRAWLER_JOB_CONCURRENCY || '5' },
+      { key: 'CRAWLER_WORKER_CONCURRENCY', value: process.env.CRAWLER_WORKER_CONCURRENCY || '(auto)' },
+      { key: 'PAGE_FETCH_LOCK_MS', value: process.env.PAGE_FETCH_LOCK_MS || '180000' },
+      { key: 'TOKENS_MODE', value: process.env.TOKENS_MODE || 'shadow' },
+      { key: 'TOKENS_MONTHLY_ALLOWANCE', value: process.env.TOKENS_MONTHLY_ALLOWANCE || '(default)' },
+      { key: 'WORKER_MODE', value: process.env.WORKER_MODE || 'enabled' },
+    ];
+
+    return {
+      process: {
+        nodeVersion: process.version,
+        platform: `${process.platform}/${process.arch}`,
+        pid: process.pid,
+        uptimeSec: Math.round(process.uptime()),
+        rssMb: Math.round(mem.rss / 1024 / 1024),
+        heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotalMb: Math.round(mem.heapTotal / 1024 / 1024),
+        externalMb: Math.round(mem.external / 1024 / 1024),
+        cpuUserMs: Math.round(cpu.user / 1000),
+        cpuSystemMs: Math.round(cpu.system / 1000),
+      },
+      database: {
+        sizePretty: dbSizePretty,
+        activeConnections,
+        tableCounts: {
+          organizations,
+          users,
+          projects,
+          websites,
+          crawlJobs,
+          pages,
+          issues,
+          aiUsageRecords,
+          tokenTransactions,
+          auditLogs,
+        },
+      },
+      redis: redisInfo,
+      workers: this.crawlerProcessor?.workerStatus ?? {
+        crawlJobs: false,
+        pageFetch: false,
+        pageRender: false,
+        splitRenderQueue: process.env.CRAWL_SPLIT_RENDER_QUEUE === 'true',
+        disabledByEnv: process.env.WORKER_MODE === 'false' || process.env.DISABLE_WORKERS === 'true',
+      },
+      envFlags,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ───────────────────────────────────────────── WEBSITE AUDIT & CRAWLER ENGINE
+
+  async getWebsites(limit = 100) {
+    if (!this.prisma.website) return [];
+    const websites = await this.prisma.website.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: Math.max(10, Math.min(250, limit)),
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            organization: { select: { id: true, name: true, subscriptionTier: true } },
+          },
+        },
+        crawlJobs: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            pagesCrawled: true,
+            pagesDiscovered: true,
+            issuesFound: true,
+            healthScore: true,
+            errorMessage: true,
+            startedAt: true,
+            finishedAt: true,
+            createdAt: true,
+          },
+        },
+        _count: { select: { crawlJobs: true } },
+      },
+    });
+
+    return websites.map((w: any) => {
+      const latest = w.crawlJobs?.[0] ?? null;
+      return {
+        id: w.id,
+        domain: w.domain,
+        url: w.url,
+        scope: w.scope,
+        isVerified: Boolean(w.isVerified),
+        verifiedAt: w.verifiedAt ? w.verifiedAt.toISOString() : null,
+        crawlFrequency: w.crawlFrequency,
+        maxConcurrency: w.maxConcurrency,
+        maxDepth: w.maxDepth,
+        rateLimitDelayMs: w.rateLimitDelayMs,
+        projectId: w.project?.id ?? null,
+        projectName: w.project?.name ?? null,
+        organizationId: w.project?.organization?.id ?? null,
+        organizationName: w.project?.organization?.name ?? null,
+        subscriptionTier: w.project?.organization?.subscriptionTier ?? null,
+        totalCrawls: w._count?.crawlJobs ?? 0,
+        latestCrawl: latest
+          ? {
+              id: latest.id,
+              status: latest.status,
+              pagesCrawled: latest.pagesCrawled,
+              pagesDiscovered: latest.pagesDiscovered,
+              issuesFound: latest.issuesFound,
+              healthScore: latest.healthScore,
+              errorMessage: latest.errorMessage,
+              startedAt: latest.startedAt ? latest.startedAt.toISOString() : null,
+              finishedAt: latest.finishedAt ? latest.finishedAt.toISOString() : null,
+              createdAt: latest.createdAt.toISOString(),
+            }
+          : null,
+        updatedAt: w.updatedAt.toISOString(),
+      };
+    });
+  }
+
+  async updateWebsite(websiteId: string, dto: UpdateAdminWebsiteDto, actorUserId?: string) {
+    const existing = await this.prisma.website.findUnique({
+      where: { id: websiteId },
+      include: { project: { select: { organizationId: true } } },
+    });
+    if (!existing) throw new NotFoundException(`Website "${websiteId}" not found`);
+
+    const data: Prisma.WebsiteUpdateInput = {};
+    if (dto.isVerified !== undefined) {
+      data.isVerified = dto.isVerified;
+      data.verifiedAt = dto.isVerified ? existing.verifiedAt ?? new Date() : null;
+    }
+    if (dto.crawlFrequency !== undefined) data.crawlFrequency = dto.crawlFrequency as any;
+    if (dto.maxConcurrency !== undefined) data.maxConcurrency = dto.maxConcurrency;
+    if (dto.maxDepth !== undefined) data.maxDepth = dto.maxDepth;
+    if (dto.rateLimitDelayMs !== undefined) data.rateLimitDelayMs = dto.rateLimitDelayMs;
+
+    const updated = await this.prisma.website.update({
+      where: { id: websiteId },
+      data,
+    });
+
+    const orgId = existing.project?.organizationId;
+    if (orgId && this.prisma.auditLog?.create) {
+      await this.prisma.auditLog
+        .create({
+          data: {
+            organizationId: orgId,
+            userId: actorUserId ?? null,
+            action: 'ADMIN_WEBSITE_CONFIG_UPDATED',
+            resource: `website:${websiteId}`,
+            details: {
+              domain: existing.domain,
+              changes: dto as any,
+            },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return updated;
+  }
+
+  async triggerWebsiteCrawl(websiteId: string, dto: TriggerWebsiteCrawlDto, actorUserId?: string) {
+    if (!this.crawlerService) {
+      throw new ServiceUnavailableException('CrawlerService is unavailable in this process.');
+    }
+    const website = await this.prisma.website.findUnique({
+      where: { id: websiteId },
+      include: { project: { select: { organizationId: true } } },
+    });
+    if (!website) throw new NotFoundException(`Website "${websiteId}" not found`);
+
+    if (dto.forceVerify && !website.isVerified) {
+      await this.prisma.website.update({
+        where: { id: websiteId },
+        data: { isVerified: true, verifiedAt: new Date() },
+      });
+    }
+
+    const jobId = await this.crawlerService.startCrawlJob(websiteId, {
+      maxConcurrency: dto.maxConcurrency,
+      maxDepth: dto.maxDepth,
+      pageLimit: dto.pageLimit,
+      rateLimitDelayMs: dto.rateLimitDelayMs,
+      renderBudget: dto.renderBudget,
+      useSitemap: dto.useSitemap,
+    });
+
+    const orgId = website.project?.organizationId;
+    if (orgId && this.prisma.auditLog?.create) {
+      await this.prisma.auditLog
+        .create({
+          data: {
+            organizationId: orgId,
+            userId: actorUserId ?? null,
+            action: 'ADMIN_CRAWL_TRIGGERED',
+            resource: `crawl:${jobId}`,
+            details: { websiteId, domain: website.domain, overrides: dto as any },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return { success: true, jobId, websiteId, domain: website.domain };
+  }
+
+  async getCrawlDetail(jobId: string) {
+    const job = await this.prisma.crawlJob.findUnique({
+      where: { id: jobId },
+      include: {
+        website: {
+          select: {
+            id: true,
+            domain: true,
+            url: true,
+            scope: true,
+            project: { select: { id: true, name: true, organization: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    });
+    if (!job) throw new NotFoundException(`Crawl job "${jobId}" not found`);
+
+    const [frontierStats, issueSeverities, pageStatusCodes, sampleIssues, problemPages, redisPending] =
+      await Promise.all([
+        this.prisma.crawlFrontier
+          ? this.prisma.crawlFrontier
+              .groupBy({
+                by: ['state'],
+                where: { crawlJobId: jobId },
+                _count: { _all: true },
+              })
+              .catch(() => [])
+          : Promise.resolve([]),
+        this.prisma.issue
+          ? this.prisma.issue
+              .groupBy({
+                by: ['severity'],
+                where: { crawlJobId: jobId },
+                _count: { _all: true },
+              })
+              .catch(() => [])
+          : Promise.resolve([]),
+        this.prisma.page
+          ? this.prisma.page
+              .groupBy({
+                by: ['statusCode'],
+                where: { crawlJobId: jobId },
+                _count: { _all: true },
+              })
+              .catch(() => [])
+          : Promise.resolve([]),
+        this.prisma.issue
+          ? this.prisma.issue
+              .findMany({
+                where: { crawlJobId: jobId },
+                orderBy: { createdAt: 'desc' },
+                take: 25,
+                select: {
+                  id: true,
+                  severity: true,
+                  category: true,
+                  issueType: true,
+                  description: true,
+                  affectedUrl: true,
+                },
+              })
+              .catch(() => [])
+          : Promise.resolve([]),
+        this.prisma.page
+          ? this.prisma.page
+              .findMany({
+                where: { crawlJobId: jobId, OR: [{ statusCode: { gte: 400 } }, { statusCode: 0 }] },
+                take: 20,
+                select: { id: true, url: true, statusCode: true, responseTimeMs: true, wordCount: true },
+              })
+              .catch(() => [])
+          : Promise.resolve([]),
+        this.queueService && typeof this.queueService.getPendingTasks === 'function'
+          ? this.queueService.getPendingTasks(jobId).catch(() => 0)
+          : Promise.resolve(0),
+      ]);
+
+    return {
+      id: job.id,
+      websiteId: job.websiteId,
+      domain: job.website.domain,
+      url: job.website.url,
+      scope: job.website.scope,
+      projectName: job.website.project?.name ?? null,
+      organizationName: job.website.project?.organization?.name ?? null,
+      status: job.status,
+      pagesCrawled: job.pagesCrawled,
+      pagesDiscovered: job.pagesDiscovered,
+      issuesFound: job.issuesFound,
+      uniqueIssuesCount: job.uniqueIssuesCount,
+      healthScore: job.healthScore,
+      concurrency: job.concurrency,
+      depthLimit: job.depthLimit,
+      pageLimit: job.pageLimit,
+      errorMessage: job.errorMessage,
+      qualityDiagnostics: job.qualityDiagnostics ?? null,
+      redisPendingTasks: redisPending,
+      startedAt: job.startedAt ? job.startedAt.toISOString() : null,
+      finishedAt: job.finishedAt ? job.finishedAt.toISOString() : null,
+      createdAt: job.createdAt.toISOString(),
+      frontierByStatus: Object.fromEntries(
+        (frontierStats as any[]).map((r) => [r.state, r._count?._all ?? 0]),
+      ),
+      issuesBySeverity: Object.fromEntries(
+        (issueSeverities as any[]).map((r) => [r.severity, r._count?._all ?? 0]),
+      ),
+      pagesByStatusCode: (pageStatusCodes as any[])
+        .map((r) => ({ statusCode: r.statusCode, count: r._count?._all ?? 0 }))
+        .sort((a, b) => b.count - a.count),
+      sampleIssues: (sampleIssues as any[]).map((i) => ({
+        id: i.id,
+        severity: i.severity,
+        category: i.category ?? 'GENERAL',
+        issueType: i.issueType,
+        title: i.description,
+        url: i.affectedUrl,
+      })),
+      problemPages: (problemPages as any[]).map((p) => ({
+        id: p.id,
+        url: p.url,
+        statusCode: p.statusCode,
+        loadTimeMs: p.responseTimeMs,
+        wordCount: p.wordCount,
+      })),
+    };
+  }
+
+  async cancelCrawl(jobId: string, actorUserId?: string) {
+    const existing = await this.prisma.crawlJob.findUnique({
+      where: { id: jobId },
+      include: { website: { include: { project: { select: { organizationId: true } } } } },
+    });
+    if (!existing) throw new NotFoundException(`Crawl job "${jobId}" not found`);
+
+    let cancelled = false;
+    if (this.crawlerService) {
+      cancelled = await this.crawlerService.cancelCrawlJob(jobId);
+    } else {
+      const res = await this.prisma.crawlJob.updateMany({
+        where: { id: jobId, status: { in: ['PENDING', 'RUNNING'] } },
+        data: { status: 'CANCELLED', finishedAt: new Date(), errorMessage: 'Cancelled by platform operator.' },
+      });
+      cancelled = res.count > 0;
+    }
+
+    if (this.queueService && typeof this.queueService.forgetJobTasks === 'function') {
+      await this.queueService.forgetJobTasks(jobId).catch(() => {});
+    }
+
+    const orgId = existing.website?.project?.organizationId;
+    if (orgId && this.prisma.auditLog?.create) {
+      await this.prisma.auditLog
+        .create({
+          data: {
+            organizationId: orgId,
+            userId: actorUserId ?? null,
+            action: 'ADMIN_CRAWL_CANCELLED',
+            resource: `crawl:${jobId}`,
+            details: { domain: existing.website?.domain, cancelled },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return { success: true, jobId, cancelled };
+  }
+
+  async forceFailCrawl(jobId: string, reason?: string, actorUserId?: string) {
+    const existing = await this.prisma.crawlJob.findUnique({
+      where: { id: jobId },
+      include: { website: { include: { project: { select: { organizationId: true } } } } },
+    });
+    if (!existing) throw new NotFoundException(`Crawl job "${jobId}" not found`);
+
+    const msg = reason?.trim() || 'Force-closed by platform operator.';
+    const updated = await this.prisma.crawlJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'FAILED',
+        finishedAt: existing.finishedAt ?? new Date(),
+        errorMessage: msg,
+      },
+      select: { id: true, status: true, errorMessage: true, finishedAt: true },
+    });
+
+    if (this.queueService && typeof this.queueService.forgetJobTasks === 'function') {
+      await this.queueService.forgetJobTasks(jobId).catch(() => {});
+    }
+
+    const orgId = existing.website?.project?.organizationId;
+    if (orgId && this.prisma.auditLog?.create) {
+      await this.prisma.auditLog
+        .create({
+          data: {
+            organizationId: orgId,
+            userId: actorUserId ?? null,
+            action: 'ADMIN_CRAWL_FORCE_FAILED',
+            resource: `crawl:${jobId}`,
+            details: { domain: existing.website?.domain, reason: msg },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return { success: true, crawl: updated };
+  }
+
+  // ───────────────────────────────────────────── AI ROUTER LIVE CONTROL & PROBE
+
+  getAiRouterConfig() {
+    if (!this.aiRouter) {
+      return {
+        available: false,
+        providers: [],
+        taskMatrix: [],
+        allowlist: null,
+        fastRouteTiers: [],
+        serverSideFallbackEnabled: false,
+        caches: {
+          responseCacheEntries: 0,
+          responseCacheMaxEntries: 0,
+          responseCacheTtlMs: 0,
+          orgTierCacheEntries: 0,
+        },
+      };
+    }
+    return {
+      available: true,
+      ...this.aiRouter.getAdminDiagnostics(),
+    };
+  }
+
+  updateAiRouterConfig(dto: UpdateAiRouterConfigDto) {
+    if (!this.aiRouter) {
+      throw new ServiceUnavailableException('MultiAiRouterService is unavailable in this process.');
+    }
+    if (dto.provider) {
+      if (dto.enabled !== undefined) {
+        this.aiRouter.setProviderRuntimeEnabled(dto.provider, dto.enabled);
+      }
+      if (dto.modelOverride !== undefined) {
+        this.aiRouter.setProviderModelOverride(dto.provider, dto.modelOverride);
+      }
+    }
+    if (dto.serverSideFallbackEnabled !== undefined) {
+      this.aiRouter.setServerSideFallbackEnabled(dto.serverSideFallbackEnabled);
+    }
+    return this.getAiRouterConfig();
+  }
+
+  clearAiRouterCaches() {
+    if (!this.aiRouter) {
+      throw new ServiceUnavailableException('MultiAiRouterService is unavailable in this process.');
+    }
+    const counts = this.aiRouter.clearRuntimeCaches();
+    return { success: true, ...counts };
+  }
+
+  async probeAiRouter(dto: AiRouterProbeDto) {
+    if (!this.aiRouter) {
+      throw new ServiceUnavailableException('MultiAiRouterService is unavailable in this process.');
+    }
+    const prompt = dto.prompt?.trim();
+    if (!prompt) throw new BadRequestException('Prompt is required');
+
+    const startedAt = Date.now();
+    try {
+      const completion = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: dto.systemInstruction?.trim() || undefined,
+        task: dto.task ?? AiTask.FAST,
+        provider: dto.provider,
+        model: dto.model?.trim() || undefined,
+        maxTokens: dto.maxTokens ?? 400,
+        allowFallback: dto.allowFallback !== false,
+        cacheable: false,
+      });
+      return {
+        ok: true,
+        provider: completion.provider,
+        model: completion.model,
+        latencyMs: Date.now() - startedAt,
+        refused: completion.refused,
+        text: completion.text,
+        usage: completion.usage,
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        ok: false,
+        provider: dto.provider ?? null,
+        model: dto.model ?? null,
+        latencyMs: Date.now() - startedAt,
+        refused: false,
+        text: '',
+        usage: null,
+        error: String(err?.message || 'AI probe failed'),
+      };
+    }
+  }
+
+  // ───────────────────────────────────────────── PIPELINES MONITOR
+
+  async getPipelines(limit = 25) {
+    const cap = Math.max(5, Math.min(60, limit));
+    const [autopilotRuns, visibilityScans, backlinkRuns, automationRuns, researchRuns] = await Promise.all([
+      this.prisma.autopilotRun
+        ? this.prisma.autopilotRun
+            .findMany({
+              orderBy: { startedAt: 'desc' },
+              take: cap,
+              select: {
+                id: true,
+                domain: true,
+                status: true,
+                step: true,
+                error: true,
+                startedAt: true,
+                finishedAt: true,
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+      this.prisma.aiVisibilityScan
+        ? this.prisma.aiVisibilityScan
+            .findMany({
+              orderBy: { createdAt: 'desc' },
+              take: cap,
+              select: {
+                id: true,
+                cycleId: true,
+                status: true,
+                errorMessage: true,
+                startedAt: true,
+                completedAt: true,
+                createdAt: true,
+                project: { select: { name: true, organization: { select: { name: true } } } },
+                _count: { select: { runs: true } },
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+      this.prisma.backlinkDiscoveryRun
+        ? this.prisma.backlinkDiscoveryRun
+            .findMany({
+              orderBy: { startedAt: 'desc' },
+              take: cap,
+              select: {
+                id: true,
+                status: true,
+                stage: true,
+                candidates: true,
+                added: true,
+                verified: true,
+                error: true,
+                startedAt: true,
+                finishedAt: true,
+                project: { select: { name: true, organization: { select: { name: true } } } },
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+      this.prisma.automationRun
+        ? this.prisma.automationRun
+            .findMany({
+              orderBy: { startedAt: 'desc' },
+              take: cap,
+              select: {
+                id: true,
+                kind: true,
+                status: true,
+                branch: true,
+                pullRequestUrl: true,
+                filesChanged: true,
+                error: true,
+                startedAt: true,
+                finishedAt: true,
+                repository: { select: { owner: true, name: true } },
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+      this.prisma.marketResearchRun
+        ? this.prisma.marketResearchRun
+            .findMany({
+              orderBy: { startedAt: 'desc' },
+              take: cap,
+              select: {
+                id: true,
+                status: true,
+                inputTokens: true,
+                outputTokens: true,
+                startedAt: true,
+                finishedAt: true,
+                error: true,
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      autopilotRuns: (autopilotRuns as any[]).map((r) => ({
+        id: r.id,
+        domain: r.domain,
+        status: r.status,
+        step: r.step,
+        error: r.error ?? null,
+        startedAt: r.startedAt.toISOString(),
+        finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
+      })),
+      visibilityScans: (visibilityScans as any[]).map((s) => ({
+        id: s.id,
+        cycleId: s.cycleId,
+        projectName: s.project?.name ?? null,
+        organizationName: s.project?.organization?.name ?? null,
+        status: s.status,
+        providerRuns: s._count?.runs ?? 0,
+        error: s.errorMessage ?? null,
+        startedAt: (s.startedAt ?? s.createdAt).toISOString(),
+        finishedAt: s.completedAt ? s.completedAt.toISOString() : null,
+      })),
+      backlinkRuns: (backlinkRuns as any[]).map((b) => ({
+        id: b.id,
+        projectName: b.project?.name ?? null,
+        organizationName: b.project?.organization?.name ?? null,
+        status: b.status,
+        stage: b.stage,
+        candidates: b.candidates,
+        added: b.added,
+        verified: b.verified,
+        error: b.error ?? null,
+        startedAt: b.startedAt.toISOString(),
+        finishedAt: b.finishedAt ? b.finishedAt.toISOString() : null,
+      })),
+      automationRuns: (automationRuns as any[]).map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        status: a.status,
+        repository: a.repository ? `${a.repository.owner}/${a.repository.name}` : null,
+        branch: a.branch ?? null,
+        pullRequestUrl: a.pullRequestUrl ?? null,
+        filesCount: Array.isArray(a.filesChanged) ? a.filesChanged.length : 0,
+        error: a.error ?? null,
+        startedAt: a.startedAt.toISOString(),
+        finishedAt: a.finishedAt ? a.finishedAt.toISOString() : null,
+      })),
+      researchRuns: (researchRuns as any[]).map((m) => ({
+        id: m.id,
+        status: m.status,
+        tokens: (m.inputTokens ?? 0) + (m.outputTokens ?? 0),
+        error: m.error ?? null,
+        startedAt: m.startedAt.toISOString(),
+        finishedAt: m.finishedAt ? m.finishedAt.toISOString() : null,
+      })),
+    };
+  }
+
+  // ───────────────────────────────────────────── EXISTING ANALYTICS, TENANTS, USERS
+
   async getApiCosts() {
     const runs = this.prisma.marketResearchRun
-      ? await this.prisma.marketResearchRun.findMany({
-          where: { modelUsage: { not: Prisma.DbNull } },
-          select: { modelUsage: true, inputTokens: true, outputTokens: true },
-          orderBy: { startedAt: 'desc' },
-          take: 1000,
-        }).catch(() => [])
+      ? await this.prisma.marketResearchRun
+          .findMany({
+            where: { modelUsage: { not: Prisma.DbNull } },
+            select: { modelUsage: true, inputTokens: true, outputTokens: true },
+            orderBy: { startedAt: 'desc' },
+            take: 1000,
+          })
+          .catch(() => [])
       : [];
 
     const byModel = new Map<
@@ -170,11 +1098,13 @@ export class AdminService {
     }
 
     const routed = this.prisma.aiUsageRecord
-      ? await this.prisma.aiUsageRecord.groupBy({
-          by: ['provider', 'model', 'status'],
-          _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true, latencyMs: true },
-          _count: { _all: true },
-        }).catch(() => [])
+      ? await this.prisma.aiUsageRecord
+          .groupBy({
+            by: ['provider', 'model', 'status'],
+            _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true, latencyMs: true },
+            _count: { _all: true },
+          })
+          .catch(() => [])
       : [];
 
     for (const row of routed) {
@@ -492,6 +1422,9 @@ export class AdminService {
   }
 
   private configuredAiProviders(): string[] {
+    if (this.aiRouter) {
+      return this.aiRouter.configuredProviders().map((p) => p.toLowerCase());
+    }
     const allowlistRaw = process.env.AI_PROVIDERS;
     const allowlist = allowlistRaw
       ? new Set(
@@ -504,10 +1437,13 @@ export class AdminService {
 
     const candidates: Array<{ name: string; env: string | undefined }> = [
       { name: 'mammouth', env: process.env.MAMMOUTH_API_KEY },
+      { name: 'sarvam', env: process.env.SARVAM_API_KEY },
       { name: 'gemini', env: process.env.GEMINI_API_KEY },
       { name: 'openai', env: process.env.OPENAI_API_KEY },
       { name: 'anthropic', env: process.env.ANTHROPIC_API_KEY },
       { name: 'groq', env: process.env.GROQ_API_KEY },
+      { name: 'openrouter', env: process.env.OPENROUTER_API_KEY },
+      { name: 'perplexity', env: process.env.PERPLEXITY_API_KEY },
     ];
 
     return candidates
@@ -603,10 +1539,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * Platform totals. Includes currently logged-in active users (with active,
-   * unexpired refresh sessions) and total active sessions.
-   */
   async getStats() {
     const now = new Date();
     const [tenants, users, projects, activeSessions] = await Promise.all([
@@ -753,7 +1685,7 @@ export class AdminService {
         severity: aiErrors24h >= 10 ? 'critical' : 'warn',
         category: 'ai',
         title: `${aiErrors24h} AI provider call${aiErrors24h === 1 ? '' : 's'} failed in the last 24h`,
-        detail: 'Inspect AI FinOps & Routing for provider error messages and latency.',
+        detail: 'Inspect AI_ROUTER for provider error messages, latency, and circuit breakers.',
         timestamp: now.toISOString(),
       });
     }
@@ -764,7 +1696,7 @@ export class AdminService {
         severity: 'warn',
         category: 'webhook',
         title: `${webhookFailures24h} outgoing webhook delivery failure${webhookFailures24h === 1 ? '' : 's'} (24h)`,
-        detail: 'Inspect Audit Log & Webhooks to see target hosts and HTTP codes.',
+        detail: 'Inspect PIPELINES_AUDIT -> Webhooks for target hosts and HTTP status codes.',
         timestamp: now.toISOString(),
       });
     }
@@ -775,7 +1707,7 @@ export class AdminService {
         severity: 'warn',
         category: 'sync',
         title: `${syncFailures24h} Google data sync job${syncFailures24h === 1 ? '' : 's'} failed (24h)`,
-        detail: 'Check Queues & Crawls -> Data Sync Runs for affected projects.',
+        detail: 'Inspect QUEUE_RUNTIME -> Google Data Syncs for affected projects.',
         timestamp: now.toISOString(),
       });
     }
@@ -977,6 +1909,42 @@ export class AdminService {
     });
   }
 
+  async verifyUserEmail(userId: string, actorUserId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+        memberships: { select: { organizationId: true }, take: 1 },
+      },
+    });
+    if (!user) throw new NotFoundException(`User "${userId}" not found`);
+
+    const now = user.emailVerifiedAt ?? new Date();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: now },
+    });
+
+    const primaryOrgId = user.memberships[0]?.organizationId;
+    if (primaryOrgId && this.prisma.auditLog?.create) {
+      await this.prisma.auditLog
+        .create({
+          data: {
+            organizationId: primaryOrgId,
+            userId: actorUserId ?? null,
+            action: 'ADMIN_USER_EMAIL_VERIFIED',
+            resource: `user:${userId}`,
+            details: { targetEmail: user.email, verifiedAt: now.toISOString() },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return { success: true, userId, emailVerifiedAt: now.toISOString() };
+  }
+
   async revokeUserSessions(userId: string, actorUserId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -1029,11 +1997,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * Detailed breakdown of AI model usage. Attributes direct user TokenTransactions
-   * to the calling user and org-scoped AiUsageRecords once per organization (avoiding
-   * multi-member double counting while preserving single-member attribution).
-   */
   async getUserModelBreakdown() {
     const [aiRecords, users, tokenUsage] = await Promise.all([
       this.prisma.aiUsageRecord
@@ -1386,6 +2349,7 @@ export class AdminService {
               take: limit,
               select: {
                 id: true,
+                websiteId: true,
                 status: true,
                 pagesCrawled: true,
                 pagesDiscovered: true,
@@ -1436,6 +2400,7 @@ export class AdminService {
     return {
       crawls: crawls.map((c: any) => ({
         id: c.id,
+        websiteId: c.websiteId,
         domain: c.website?.domain ?? 'unknown',
         scope: c.website?.scope ?? 'own',
         projectName: c.website?.project?.name ?? null,
@@ -1558,72 +2523,5 @@ export class AdminService {
         createdAt: d.createdAt.toISOString(),
       })),
     };
-  }
-
-  async pauseQueues(queueName?: string) {
-    const targets = this.selectQueues(queueName);
-    const affected: string[] = [];
-    for (const q of targets) {
-      if (q.queue) {
-        await q.queue.pause();
-        affected.push(q.name);
-      }
-    }
-    return { success: true, status: 'PAUSED', queues: affected };
-  }
-
-  async resumeQueues(queueName?: string) {
-    const targets = this.selectQueues(queueName);
-    const affected: string[] = [];
-    for (const q of targets) {
-      if (q.queue) {
-        await q.queue.resume();
-        affected.push(q.name);
-      }
-    }
-    return { success: true, status: 'ACTIVE', queues: affected };
-  }
-
-  async retryFailedJobs(queueName?: string, jobId?: string) {
-    let retriedCount = 0;
-    const targets = this.selectQueues(queueName);
-
-    for (const q of targets) {
-      if (!q.queue) continue;
-      try {
-        if (jobId) {
-          const job = await q.queue.getJob(jobId);
-          if (job) {
-            await job.retry();
-            retriedCount++;
-          }
-        } else {
-          const failed = await q.queue.getFailed();
-          for (const job of failed) {
-            await job.retry();
-            retriedCount++;
-          }
-        }
-      } catch {
-        // ignore queue inspection errors
-      }
-    }
-    return { success: true, retriedCount };
-  }
-
-  async cleanFailedJobs(queueName?: string) {
-    let cleanedCount = 0;
-    const targets = this.selectQueues(queueName);
-
-    for (const q of targets) {
-      if (!q.queue || typeof q.queue.clean !== 'function') continue;
-      try {
-        const removed = await q.queue.clean(0, 500, 'failed');
-        cleanedCount += Array.isArray(removed) ? removed.length : 0;
-      } catch {
-        // ignore clean errors
-      }
-    }
-    return { success: true, cleanedCount };
   }
 }

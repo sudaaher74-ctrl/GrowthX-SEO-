@@ -2,28 +2,35 @@
 
 import React from "react";
 import {
-  Activity,
   AlertCircle,
   AlertTriangle,
   ArrowRight,
-  Building2,
   CheckCircle2,
   Cpu,
   Database,
+  HardDrive,
   Server,
-  Users,
-  Wallet,
+  Terminal,
   Zap,
 } from "lucide-react";
-import { Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
+import { Pill, relativeTime } from "@/components/ui/console";
 import type { AdminSection } from "@/components/layout/admin-sidebar";
 import type {
   AdminOpsSummary,
   AdminSystemHealth,
+  AdminSystemRuntime,
   ApiCostStat,
   QueueStat,
 } from "@/lib/api-types";
-import { AdminSkeletonCard, formatCompactNumber, formatUsd } from "./admin-primitives";
+import {
+  AdminSkeletonCard,
+  NocButton,
+  NocPanel,
+  NocStat,
+  formatCompactNumber,
+  formatDurationSec,
+  formatUsd,
+} from "./admin-primitives";
 import { cn } from "@/lib/utils";
 
 interface OverviewSectionProps {
@@ -37,23 +44,18 @@ interface OverviewSectionProps {
   } | null;
   opsSummary: AdminOpsSummary | null;
   systemHealth: AdminSystemHealth | null;
+  runtime: AdminSystemRuntime | null;
   queues: QueueStat[];
   apiCosts: ApiCostStat[];
   onNavigate: (section: AdminSection) => void;
 }
-
-const TIER_META: Array<{ id: string; label: string; colorClass: string }> = [
-  { id: "agency", label: "Agency", colorClass: "bg-success-500" },
-  { id: "growth", label: "Growth", colorClass: "bg-accent-500" },
-  { id: "starter", label: "Starter", colorClass: "bg-warning-500" },
-  { id: "founder_free", label: "Founder Free", colorClass: "bg-brand-400" },
-];
 
 export function OverviewSection({
   loading,
   stats,
   opsSummary,
   systemHealth,
+  runtime,
   queues,
   apiCosts,
   onNavigate,
@@ -68,20 +70,25 @@ export function OverviewSection({
   const crawlsRunning = opsSummary?.crawls24h.running ?? 0;
   const totalCrawls24h = crawlsCompleted + crawlsFailed + crawlsRunning;
 
-  const totalFailedQueueJobs = queues.reduce((sum, q) => sum + q.failed, 0);
-  const totalTierOrgs = Object.values(opsSummary?.tierBreakdown ?? {}).reduce((a, b) => a + b, 0);
+  const heapPct =
+    runtime && runtime.process.heapTotalMb > 0
+      ? Math.min(100, Math.round((runtime.process.heapUsedMb / runtime.process.heapTotalMb) * 100))
+      : 0;
 
   const alertTarget = (category: string): AdminSection => {
-    if (category === "crawl" || category === "sync") return "queues";
+    if (category === "crawl") return "crawler";
+    if (category === "sync") return "queues";
     if (category === "ai") return "ai-models";
     if (category === "budget") return "tenants";
     return "governance";
   };
 
-  if (loading && !stats && !systemHealth) {
+  if (loading && !stats && !systemHealth && !runtime) {
     return (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <AdminSkeletonCard />
+          <AdminSkeletonCard />
           <AdminSkeletonCard />
           <AdminSkeletonCard />
           <AdminSkeletonCard />
@@ -95,102 +102,111 @@ export function OverviewSection({
     );
   }
 
+  const tableEntries = runtime
+    ? [
+        { name: "Organization", count: runtime.database.tableCounts.organizations },
+        { name: "User", count: runtime.database.tableCounts.users },
+        { name: "Project", count: runtime.database.tableCounts.projects },
+        { name: "Website", count: runtime.database.tableCounts.websites },
+        { name: "CrawlJob", count: runtime.database.tableCounts.crawlJobs },
+        { name: "Page", count: runtime.database.tableCounts.pages },
+        { name: "Issue", count: runtime.database.tableCounts.issues },
+        { name: "AiUsageRecord", count: runtime.database.tableCounts.aiUsageRecords },
+        { name: "TokenTransaction", count: runtime.database.tableCounts.tokenTransactions },
+        { name: "AuditLog", count: runtime.database.tableCounts.auditLogs },
+      ]
+    : [];
+
   return (
-    <div className="space-y-5">
-      {/* KPI strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Kpi
-          label="Active Tenants"
-          value={stats ? stats.tenants.toLocaleString() : "—"}
-          sub={stats ? `${stats.projects.toLocaleString()} projects across organizations` : "Loading organizations"}
-          aside={
-            <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-600">
-              <Building2 size={15} />
-            </span>
-          }
-        />
-        <Kpi
-          label="Platform Users"
-          value={stats ? stats.users.toLocaleString() : "—"}
+    <div className="space-y-4">
+      {/* High-density 6-tile NOC KPI Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <NocStat
+          label="PG_LATENCY"
+          value={systemHealth ? `${systemHealth.database.latencyMs}ms` : "—"}
+          tone={systemHealth?.database.status === "CONNECTED" ? "good" : "bad"}
           sub={
-            stats
-              ? `${stats.loggedInUsers} online · ${stats.activeSessions} active session${stats.activeSessions === 1 ? "" : "s"}`
-              : "Loading user sessions"
-          }
-          aside={
-            stats && stats.loggedInUsers > 0 ? (
-              <Pill tone="good" dot>
-                {stats.loggedInUsers} live
-              </Pill>
-            ) : (
-              <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-600">
-                <Users size={15} />
-              </span>
-            )
+            runtime?.database.sizePretty
+              ? `${runtime.database.sizePretty} · ${runtime.database.activeConnections ?? 0} conns`
+              : systemHealth?.database.status ?? "CHECKING"
           }
         />
-        <Kpi
-          label="24h Crawl Runs"
-          value={opsSummary ? totalCrawls24h.toLocaleString() : "—"}
-          tone={crawlsFailed > 0 ? "danger" : "default"}
+        <NocStat
+          label="REDIS_MEM"
+          value={runtime?.redis.usedMemoryHuman ?? (systemHealth?.redis.status === "CONNECTED" ? "OK" : "OFF")}
+          tone={runtime?.redis.connected ? "cyan" : "bad"}
           sub={
-            opsSummary
-              ? `${crawlsCompleted} ok · ${crawlsRunning} running · ${crawlsFailed} failed`
-              : "Loading crawl telemetry"
-          }
-          aside={
-            <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-600">
-              <Activity size={15} />
-            </span>
+            runtime?.redis.connected
+              ? `${runtime.redis.opsPerSec ?? 0} ops/s · ${runtime.redis.connectedClients ?? 0} clients`
+              : "Synchronous fallback"
           }
         />
-        <Kpi
-          label="AI Spend (MTD)"
+        <NocStat
+          label="NODE_HEAP"
+          value={runtime ? `${runtime.process.heapUsedMb}MB` : "—"}
+          tone={heapPct > 85 ? "warn" : "default"}
+          sub={
+            runtime
+              ? `RSS ${runtime.process.rssMb}MB · up ${formatDurationSec(runtime.process.uptimeSec)}`
+              : "Process metrics"
+          }
+        />
+        <NocStat
+          label="CRAWLS_24H"
+          value={opsSummary ? String(totalCrawls24h) : "—"}
+          tone={crawlsFailed > 0 ? "bad" : "cyan"}
+          sub={`${crawlsCompleted} ok · ${crawlsRunning} run · ${crawlsFailed} fail`}
+        />
+        <NocStat
+          label="LIVE_SESSIONS"
+          value={stats ? String(stats.loggedInUsers) : "—"}
+          tone={stats && stats.loggedInUsers > 0 ? "good" : "default"}
+          sub={stats ? `${stats.users} users · ${stats.tenants} orgs` : "IAM telemetry"}
+        />
+        <NocStat
+          label="AI_SPEND_MTD"
           value={formatUsd(mtdSpend)}
-          tone={(opsSummary?.aiMtd.errors24h ?? 0) > 0 ? "danger" : "good"}
+          tone={(opsSummary?.aiMtd.errors24h ?? 0) > 0 ? "warn" : "good"}
           sub={
             opsSummary
-              ? `${formatCompactNumber(opsSummary.aiMtd.tokens)} tokens · ${opsSummary.aiMtd.errors24h} err (24h)`
-              : "Loading AI ledger"
-          }
-          aside={
-            <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-brand-600">
-              <Wallet size={15} />
-            </span>
+              ? `${formatCompactNumber(opsSummary.aiMtd.tokens)} tok · ${opsSummary.aiMtd.errors24h} err`
+              : "AI ledger"
           }
         />
       </div>
 
-      {/* Infrastructure Health + Attention Feed */}
+      {/* Infrastructure Matrix + Incident Stream */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Panel
+        <NocPanel
           className="xl:col-span-2"
-          title="Infrastructure Health"
-          subtitle="Live telemetry from PostgreSQL, Redis BullMQ queues, crawler workers, and the Multi-AI Router."
+          code="SYS"
+          title="SUBSYSTEM_HEALTH_MATRIX"
+          subtitle="Live probes across PostgreSQL, Redis/BullMQ, Worker Threads, and Multi-AI Router."
           padded
           actions={
             systemHealth?.timestamp ? (
-              <span className="font-mono text-[11px] text-brand-400">
-                Checked {relativeTime(systemHealth.timestamp)}
+              <span className="font-mono text-[10.5px] text-brand-400">
+                SYNC {relativeTime(systemHealth.timestamp)}
               </span>
             ) : null
           }
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <InfraTile
-              icon={<Database size={15} className="text-success-500" />}
-              name="PostgreSQL"
+            <SubsysTile
+              icon={<Database size={13} className="text-success-500" />}
+              name="POSTGRESQL"
               status={systemHealth?.database.status ?? "UNKNOWN"}
               tone={systemHealth?.database.status === "CONNECTED" ? "good" : "bad"}
-              detail="Primary relational store & Prisma connection pool."
-              metrics={[
-                { label: "Ping", value: systemHealth ? `${systemHealth.database.latencyMs}ms` : "—" },
-                { label: "Projects", value: stats ? String(stats.projects) : "—" },
+              kv={[
+                ["PING", systemHealth ? `${systemHealth.database.latencyMs}ms` : "—"],
+                ["DB_SIZE", runtime?.database.sizePretty ?? "—"],
+                ["CONNECTIONS", runtime?.database.activeConnections != null ? String(runtime.database.activeConnections) : "—"],
+                ["CRAWL_ROWS", runtime ? formatCompactNumber(runtime.database.tableCounts.crawlJobs) : "—"],
               ]}
             />
-            <InfraTile
-              icon={<Server size={15} className="text-accent-500" />}
-              name="Redis / BullMQ"
+            <SubsysTile
+              icon={<Server size={13} className="text-signal-400" />}
+              name="REDIS // BULLMQ"
               status={systemHealth?.redis.status ?? "UNKNOWN"}
               tone={
                 systemHealth?.redis.status === "CONNECTED"
@@ -199,41 +215,40 @@ export function OverviewSection({
                     ? "warn"
                     : "bad"
               }
-              detail="Job coordination across crawl-jobs, page-fetch, and page-render."
-              metrics={[
-                {
-                  label: "Queues",
-                  value: systemHealth
-                    ? `${systemHealth.redis.connectedQueues ?? 0}/${systemHealth.redis.totalQueues ?? queues.length}`
-                    : "—",
-                },
-                {
-                  label: "Paused",
-                  value: systemHealth ? String(systemHealth.redis.pausedQueues ?? 0) : "—",
-                },
+              kv={[
+                ["MEMORY", runtime?.redis.usedMemoryHuman ?? "—"],
+                ["OPS/SEC", runtime?.redis.opsPerSec != null ? String(runtime.redis.opsPerSec) : "—"],
+                ["HIT_RATE", runtime?.redis.hitRatePct != null ? `${runtime.redis.hitRatePct}%` : "—"],
+                ["EVICTION", runtime?.redis.maxmemoryPolicy ?? "—"],
               ]}
             />
-            <InfraTile
-              icon={<Cpu size={15} className="text-signal-400" />}
-              name="Crawler Workers"
-              status={systemHealth?.crawlerCluster.status ?? "UNKNOWN"}
-              tone={
-                systemHealth?.crawlerCluster.status === "OPERATIONAL"
-                  ? "good"
-                  : systemHealth?.crawlerCluster.status === "PAUSED"
-                    ? "warn"
-                    : "bad"
+            <SubsysTile
+              icon={<Cpu size={13} className="text-signal-400" />}
+              name="WORKER_THREADS"
+              status={
+                runtime?.workers.disabledByEnv
+                  ? "DISABLED_BY_ENV"
+                  : runtime?.workers.crawlJobs || runtime?.workers.pageFetch
+                    ? "CONSUMING"
+                    : systemHealth?.crawlerCluster.status ?? "IDLE"
               }
-              detail="Live headless & static crawler throughput from queue + CrawlJob state."
-              metrics={[
-                { label: "Active Jobs", value: systemHealth ? String(systemHealth.crawlerCluster.activeWorkers) : "—" },
-                { label: "Running Crawls", value: systemHealth ? String(systemHealth.crawlerCluster.runningCrawls ?? 0) : "—" },
-                { label: "Failed", value: String(totalFailedQueueJobs) },
+              tone={
+                runtime?.workers.disabledByEnv
+                  ? "warn"
+                  : runtime?.workers.crawlJobs && runtime?.workers.pageFetch
+                    ? "good"
+                    : "warn"
+              }
+              kv={[
+                ["CRAWL_WORKER", runtime?.workers.crawlJobs ? "ONLINE" : "OFF"],
+                ["FETCH_WORKER", runtime?.workers.pageFetch ? "ONLINE" : "OFF"],
+                ["RENDER_WORKER", runtime?.workers.pageRender ? "ONLINE" : "SHARED"],
+                ["ACTIVE_JOBS", systemHealth ? String(systemHealth.crawlerCluster.activeWorkers) : "—"],
               ]}
             />
-            <InfraTile
-              icon={<Zap size={15} className="text-warning-500" />}
-              name="Multi-AI Router"
+            <SubsysTile
+              icon={<Zap size={13} className="text-warning-500" />}
+              name="MULTI_AI_ROUTER"
               status={systemHealth?.aiRouter.status ?? "UNKNOWN"}
               tone={
                 systemHealth?.aiRouter.status === "OPERATIONAL"
@@ -242,260 +257,239 @@ export function OverviewSection({
                     ? "warn"
                     : "bad"
               }
-              detail={
-                systemHealth?.aiRouter.configuredProviders && systemHealth.aiRouter.configuredProviders.length > 0
-                  ? `Active providers: ${systemHealth.aiRouter.configuredProviders.join(", ")}`
-                  : "No configured AI provider keys detected in environment."
-              }
-              metrics={[
-                { label: "24h Calls", value: systemHealth ? String(systemHealth.aiRouter.calls24h ?? 0) : "—" },
-                {
-                  label: "Error Rate",
-                  value: systemHealth ? `${systemHealth.aiRouter.errorRatePct ?? 0}%` : "—",
-                },
-                {
-                  label: "Avg Latency",
-                  value: systemHealth?.aiRouter.avgLatencyMs ? `${systemHealth.aiRouter.avgLatencyMs}ms` : "—",
-                },
+              kv={[
+                [
+                  "PROVIDERS",
+                  systemHealth?.aiRouter.configuredProviders?.length
+                    ? systemHealth.aiRouter.configuredProviders.join(",").toUpperCase()
+                    : "NONE",
+                ],
+                ["24H_CALLS", systemHealth ? String(systemHealth.aiRouter.calls24h ?? 0) : "—"],
+                ["ERR_RATE", systemHealth ? `${systemHealth.aiRouter.errorRatePct ?? 0}%` : "—"],
+                ["AVG_LAT", systemHealth?.aiRouter.avgLatencyMs ? `${systemHealth.aiRouter.avgLatencyMs}ms` : "—"],
               ]}
             />
           </div>
-        </Panel>
 
-        <Panel
-          title="Needs Attention"
-          subtitle="Real incidents from the last 24h and active budget alerts."
+          {/* Live Process Memory Bar */}
+          {runtime && (
+            <div className="mt-3 rounded-sm border border-brand-200 bg-surface-2/60 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]">
+              <div className="flex flex-wrap items-center gap-4 text-brand-500">
+                <span>
+                  <strong className="text-brand-950">NODE</strong> {runtime.process.nodeVersion}
+                </span>
+                <span>
+                  <strong className="text-brand-950">PID</strong> {runtime.process.pid}
+                </span>
+                <span>
+                  <strong className="text-brand-950">HOST</strong> {runtime.process.platform}
+                </span>
+                <span>
+                  <strong className="text-brand-950">CPU</strong> {runtime.process.cpuUserMs}ms usr /{" "}
+                  {runtime.process.cpuSystemMs}ms sys
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-brand-400">
+                  HEAP {runtime.process.heapUsedMb}/{runtime.process.heapTotalMb}MB ({heapPct}%)
+                </span>
+                <div className="h-1.5 w-24 overflow-hidden rounded-xs bg-surface-3">
+                  <div
+                    className={cn("h-full", heapPct > 85 ? "bg-error-500" : "bg-signal-400")}
+                    style={{ width: `${heapPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </NocPanel>
+
+        {/* Live Incident Feed */}
+        <NocPanel
+          code="ALRT"
+          title="INCIDENT_STREAM_24H"
+          subtitle="Failed crawls, AI spikes, budget breaches, and sync/webhook errors."
           padded
           actions={
             opsSummary ? (
-              <Pill tone={opsSummary.alerts.length > 0 ? "warn" : "good"}>
-                {opsSummary.alerts.length} open
+              <Pill tone={opsSummary.alerts.length > 0 ? "bad" : "good"}>
+                {opsSummary.alerts.length} OPEN
               </Pill>
             ) : null
           }
         >
           {!opsSummary || opsSummary.alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success-50 text-success-600 mb-2.5">
-                <CheckCircle2 size={18} />
-              </span>
-              <p className="text-[13px] font-semibold text-brand-950">All clear</p>
-              <p className="mt-1 text-[11.5px] text-brand-500 max-w-[220px]">
-                No failed crawls, AI spikes, webhook errors, or budget alerts in the last 24 hours.
+              <CheckCircle2 size={20} className="text-success-500 mb-2" />
+              <p className="font-mono text-[12px] font-bold text-brand-950">NOMINAL // 0 INCIDENTS</p>
+              <p className="mt-1 text-[11px] text-brand-400">
+                No crawl failures, AI spikes, webhook errors, or budget alerts in 24h.
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
               {opsSummary.alerts.map((alert) => (
                 <button
                   key={alert.id}
                   type="button"
                   onClick={() => onNavigate(alertTarget(alert.category))}
-                  className="group w-full rounded-xl border border-brand-200 bg-surface-2/70 p-3 text-left transition hover:border-brand-300 hover:bg-surface-2 cursor-pointer"
+                  className="group w-full rounded-sm border border-brand-200 bg-surface-2/70 p-2.5 text-left transition hover:border-signal-400/50 hover:bg-surface-2 cursor-pointer"
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-2">
                     <span
                       className={cn(
                         "mt-0.5 shrink-0",
                         alert.severity === "critical" ? "text-error-500" : "text-warning-500",
                       )}
                     >
-                      {alert.severity === "critical" ? <AlertCircle size={14} /> : <AlertTriangle size={14} />}
+                      {alert.severity === "critical" ? <AlertCircle size={13} /> : <AlertTriangle size={13} />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[12px] font-semibold text-brand-950">
+                        <span className="truncate font-mono text-[11.5px] font-bold text-brand-950">
                           {alert.title}
                         </span>
                         <ArrowRight
-                          size={12}
-                          className="shrink-0 text-brand-400 transition group-hover:translate-x-0.5 group-hover:text-brand-950"
+                          size={11}
+                          className="shrink-0 text-brand-400 transition group-hover:translate-x-0.5 group-hover:text-signal-400"
                         />
                       </div>
-                      <p className="mt-0.5 line-clamp-2 text-[11px] text-brand-500">{alert.detail}</p>
+                      <p className="mt-0.5 line-clamp-2 font-mono text-[10.5px] text-brand-400">{alert.detail}</p>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
           )}
-        </Panel>
+        </NocPanel>
       </div>
 
-      {/* Queue Throughput + Tenant Tier Mix */}
+      {/* Bottom Technical Trio: Table Counts + Queue Bars + Safe Runtime Env */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Panel
-          className="xl:col-span-2"
-          title="Worker Queue Throughput"
-          subtitle="Live BullMQ status across crawl-jobs, page-fetch, and page-render."
+        <NocPanel
+          code="DB"
+          title="POSTGRES_TABLE_VOLUME"
+          subtitle="Live exact row counts across core platform tables."
+          padded
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {tableEntries.map((t) => (
+              <div
+                key={t.name}
+                className="flex items-center justify-between rounded-sm border border-brand-200 bg-surface-2/60 px-2.5 py-2 font-mono text-[11px]"
+              >
+                <span className="flex items-center gap-1.5 text-brand-500 truncate">
+                  <HardDrive size={11} className="text-brand-400 shrink-0" />
+                  {t.name}
+                </span>
+                <strong className="text-brand-950 tabular-nums">{t.count.toLocaleString()}</strong>
+              </div>
+            ))}
+          </div>
+        </NocPanel>
+
+        <NocPanel
+          code="MQ"
+          title="QUEUE_THROUGHPUT"
+          subtitle="Live BullMQ lane utilization across crawler queues."
           padded
           actions={
-            <button
-              type="button"
-              onClick={() => onNavigate("queues")}
-              className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-600 hover:text-brand-950 cursor-pointer"
-            >
-              Inspect queues <ArrowRight size={12} />
-            </button>
+            <NocButton onClick={() => onNavigate("queues")}>
+              OPEN_QUEUES
+            </NocButton>
           }
         >
           {queues.length === 0 ? (
-            <p className="py-8 text-center text-[12px] text-brand-500">No queue telemetry returned yet.</p>
+            <p className="py-8 text-center font-mono text-[11.5px] text-brand-400">NO_QUEUE_TELEMETRY</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {queues.map((q) => {
                 const total = q.completed + q.failed + q.active + q.waiting;
-                const completedPct = total > 0 ? (q.completed / total) * 100 : 0;
+                const okPct = total > 0 ? (q.completed / total) * 100 : 0;
                 const activePct = total > 0 ? ((q.active + q.waiting) / total) * 100 : 0;
-                const failedPct = total > 0 ? (q.failed / total) * 100 : 0;
-
+                const failPct = total > 0 ? (q.failed / total) * 100 : 0;
                 return (
                   <div key={q.name} className="space-y-1.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[12.5px] font-semibold text-brand-950">{q.name}</span>
-                        <Pill tone={q.paused ? "warn" : q.failed > 0 ? "bad" : q.status === "active" ? "good" : "default"}>
-                          {q.paused ? "PAUSED" : q.status.toUpperCase()}
-                        </Pill>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 font-mono text-[11.5px] tabular-nums">
-                        <span className="text-brand-700">
-                          <strong className="text-brand-950">{q.active}</strong> active
-                        </span>
-                        <span className="text-brand-500">
-                          <strong>{q.waiting}</strong> waiting
-                        </span>
-                        <span className="text-success-600">
-                          <strong>{q.completed.toLocaleString()}</strong> ok
-                        </span>
-                        <span className={q.failed > 0 ? "font-semibold text-error-600" : "text-brand-400"}>
-                          <strong>{q.failed}</strong> failed
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
+                      <span className="font-bold text-brand-950">{q.name}</span>
+                      <Pill tone={q.paused ? "warn" : q.failed > 0 ? "bad" : q.status === "active" ? "good" : "default"}>
+                        {q.paused ? "PAUSED" : q.status.toUpperCase()}
+                      </Pill>
                     </div>
-                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-3">
-                      {completedPct > 0 && (
-                        <div className="bg-success-500 transition-all" style={{ width: `${completedPct}%` }} />
-                      )}
-                      {activePct > 0 && (
-                        <div className="bg-accent-500 transition-all" style={{ width: `${activePct}%` }} />
-                      )}
-                      {failedPct > 0 && (
-                        <div className="bg-error-500 transition-all" style={{ width: `${failedPct}%` }} />
-                      )}
+                    <div className="flex h-2 w-full overflow-hidden rounded-xs bg-surface-3">
+                      {okPct > 0 && <div className="bg-success-500" style={{ width: `${okPct}%` }} />}
+                      {activePct > 0 && <div className="bg-signal-400" style={{ width: `${activePct}%` }} />}
+                      {failPct > 0 && <div className="bg-error-500" style={{ width: `${failPct}%` }} />}
+                    </div>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-brand-400 tabular-nums">
+                      <span>ACT:{q.active} WAIT:{q.waiting} DLY:{q.delayed ?? 0}</span>
+                      <span>
+                        OK:{q.completed} · <strong className={q.failed > 0 ? "text-error-700" : "text-brand-400"}>FAIL:{q.failed}</strong>
+                      </span>
                     </div>
                   </div>
                 );
               })}
-              <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] text-brand-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-success-500" />
-                  Completed
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-accent-500" />
-                  Active / Waiting
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-error-500" />
-                  Failed
-                </span>
-              </div>
             </div>
           )}
-        </Panel>
+        </NocPanel>
 
-        <Panel
-          title="Subscription Tier Mix"
-          subtitle="Organizations by server-owned subscription tier."
+        <NocPanel
+          code="ENV"
+          title="RUNTIME_TUNING_FLAGS"
+          subtitle="Non-secret active environment knobs governing crawler, AI, and tokens."
           padded
-          actions={
-            <button
-              type="button"
-              onClick={() => onNavigate("tenants")}
-              className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-600 hover:text-brand-950 cursor-pointer"
-            >
-              Manage tenants <ArrowRight size={12} />
-            </button>
-          }
         >
-          {totalTierOrgs === 0 ? (
-            <p className="py-8 text-center text-[12px] text-brand-500">No organizations registered yet.</p>
-          ) : (
-            <div className="space-y-3.5">
-              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-3">
-                {TIER_META.map((t) => {
-                  const count = opsSummary?.tierBreakdown[t.id] ?? 0;
-                  if (count === 0) return null;
-                  const pct = (count / totalTierOrgs) * 100;
-                  return <div key={t.id} className={t.colorClass} style={{ width: `${pct}%` }} />;
-                })}
+          <div className="divide-y divide-brand-200/70 rounded-sm border border-brand-200 bg-surface-2/40 max-h-[240px] overflow-y-auto">
+            {(runtime?.envFlags ?? []).map((f) => (
+              <div key={f.key} className="flex items-center justify-between gap-2 px-2.5 py-1.5 font-mono text-[10.5px]">
+                <span className="flex items-center gap-1.5 text-brand-400 truncate">
+                  <Terminal size={10} className="shrink-0 text-signal-400" />
+                  {f.key}
+                </span>
+                <span className="truncate font-bold text-brand-950 max-w-[160px]" title={f.value}>
+                  {f.value}
+                </span>
               </div>
-
-              <div className="space-y-2.5">
-                {TIER_META.map((t) => {
-                  const count = opsSummary?.tierBreakdown[t.id] ?? 0;
-                  const pct = totalTierOrgs > 0 ? Math.round((count / totalTierOrgs) * 100) : 0;
-                  return (
-                    <div key={t.id} className="flex items-center justify-between text-[12.5px]">
-                      <span className="flex items-center gap-2 text-brand-700">
-                        <span className={cn("h-2 w-2 rounded-full", t.colorClass)} />
-                        {t.label}
-                      </span>
-                      <span className="font-mono text-[12px] tabular-nums">
-                        <strong className="text-brand-950">{count}</strong>{" "}
-                        <span className="text-brand-400">({pct}%)</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </Panel>
+            ))}
+          </div>
+        </NocPanel>
       </div>
     </div>
   );
 }
 
-function InfraTile({
+function SubsysTile({
   icon,
   name,
   status,
   tone,
-  detail,
-  metrics,
+  kv,
 }: {
   icon: React.ReactNode;
   name: string;
   status: string;
   tone: "good" | "warn" | "bad";
-  detail: string;
-  metrics: Array<{ label: string; value: string }>;
+  kv: Array<[string, string]>;
 }) {
   return (
-    <div className="rounded-xl border border-brand-200 bg-surface-2/60 p-4 flex flex-col justify-between gap-3">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-[13px] font-semibold text-brand-950">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200 bg-surface-1">
-              {icon}
-            </span>
-            {name}
-          </span>
-          <Pill tone={tone} dot>
-            {status}
-          </Pill>
-        </div>
-        <p className="text-[11.5px] leading-relaxed text-brand-500">{detail}</p>
+    <div className="rounded-sm border border-brand-200 bg-surface-2/60 p-3 space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 font-mono text-[11.5px] font-bold tracking-[0.04em] text-brand-950">
+          {icon}
+          {name}
+        </span>
+        <Pill tone={tone} dot>
+          {status}
+        </Pill>
       </div>
-      <div className="flex flex-wrap items-center gap-4 border-t border-brand-200/70 pt-2.5">
-        {metrics.map((m) => (
-          <div key={m.label}>
-            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">
-              {m.label}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-brand-200/80 pt-2">
+        {kv.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <span className="block font-mono text-[9px] font-semibold tracking-[0.1em] text-brand-400">{k}</span>
+            <span className="block truncate font-mono text-[11.5px] font-bold text-brand-950 tabular-nums" title={v}>
+              {v}
             </span>
-            <span className="font-mono text-[12px] font-semibold text-brand-950 tabular-nums">{m.value}</span>
           </div>
         ))}
       </div>

@@ -1902,36 +1902,62 @@ export const api = {
 
   // ── Admin
   checkAdminAccess: () => get<import("./api-types").AdminAccessCheck>("/api/admin/access"),
-  getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
-  getAdminFailedJobs: (limit = 40) =>
-    get<import("./api-types").AdminFailedJob[]>(`/api/admin/queues/failed?limit=${limit}`),
-  getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
-  getAdminAiAnalytics: (days = 14) =>
-    get<import("./api-types").AdminAiAnalytics>(`/api/admin/ai-analytics?days=${days}`),
-  getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
-  getAdminTenantDetail: (orgId: string) =>
-    get<import("./api-types").AdminTenantDetail>(`/api/admin/tenants/${orgId}`),
-  updateAdminTenant: (orgId: string, body: import("./api-types").UpdateAdminTenantInput) =>
-    patch<unknown>(`/api/admin/tenants/${orgId}`, body),
   getAdminSystemHealth: () => get<AdminSystemHealth>("/api/admin/system-health"),
-  getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
-  revokeAdminUserSessions: (userId: string) =>
-    post<{ success: boolean; userId: string; revokedSessions: number; invalidatedAt: string }>(
-      `/api/admin/users/${userId}/revoke-sessions`,
-      {},
-    ),
+  getAdminSystemRuntime: () => get<import("./api-types").AdminSystemRuntime>("/api/admin/system-runtime"),
   getAdminStats: () =>
     get<{ tenants: number; users: number; projects: number; loggedInUsers: number; activeSessions: number }>(
       "/api/admin/stats",
     ),
   getAdminOpsSummary: () => get<import("./api-types").AdminOpsSummary>("/api/admin/ops-summary"),
-  getAdminUserModels: () => get<AdminUserModelUsage[]>("/api/admin/user-models"),
+
+  // Crawler Engine & Websites
+  getAdminWebsites: (limit = 100) =>
+    get<import("./api-types").AdminWebsiteItem[]>(`/api/admin/websites?limit=${limit}`),
+  updateAdminWebsite: (
+    websiteId: string,
+    body: {
+      isVerified?: boolean;
+      crawlFrequency?: "OFF" | "DAILY" | "WEEKLY" | "MONTHLY";
+      maxConcurrency?: number;
+      maxDepth?: number;
+      rateLimitDelayMs?: number;
+    },
+  ) => patch<unknown>(`/api/admin/websites/${websiteId}`, body),
+  triggerAdminWebsiteCrawl: (
+    websiteId: string,
+    body?: {
+      maxConcurrency?: number;
+      maxDepth?: number;
+      pageLimit?: number;
+      rateLimitDelayMs?: number;
+      renderBudget?: number;
+      useSitemap?: boolean;
+      forceVerify?: boolean;
+    },
+  ) =>
+    post<{ success: boolean; jobId: string; websiteId: string; domain: string }>(
+      `/api/admin/websites/${websiteId}/crawl`,
+      body ?? {},
+    ),
   getAdminCrawls: (limit = 40) =>
     get<import("./api-types").AdminRecentCrawlsResponse>(`/api/admin/crawls?limit=${limit}`),
-  getAdminAuditLogs: (limit = 100) =>
-    get<import("./api-types").AdminAuditLogItem[]>(`/api/admin/audit-logs?limit=${limit}`),
-  getAdminWebhooks: (limit = 40) =>
-    get<import("./api-types").AdminWebhooksResponse>(`/api/admin/webhooks?limit=${limit}`),
+  getAdminCrawlDetail: (jobId: string) =>
+    get<import("./api-types").AdminCrawlDetail>(`/api/admin/crawls/${jobId}`),
+  cancelAdminCrawl: (jobId: string) =>
+    post<{ success: boolean; jobId: string; cancelled: boolean }>(`/api/admin/crawls/${jobId}/cancel`, {}),
+  forceFailAdminCrawl: (jobId: string, reason?: string) =>
+    post<{ success: boolean }>(`/api/admin/crawls/${jobId}/force-fail`, reason ? { reason } : {}),
+
+  // BullMQ Queue Runtime
+  getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
+  getAdminFailedJobs: (limit = 40) =>
+    get<import("./api-types").AdminFailedJob[]>(`/api/admin/queues/failed?limit=${limit}`),
+  getAdminQueueJobs: (queue: string, state = "failed", limit = 30) =>
+    get<import("./api-types").AdminQueueJobDetail[]>(
+      `/api/admin/queues/jobs?queue=${encodeURIComponent(queue)}&state=${encodeURIComponent(state)}&limit=${limit}`,
+    ),
+  removeAdminQueueJob: (queue: string, jobId: string) =>
+    del<{ success: boolean }>(`/api/admin/queues/${encodeURIComponent(queue)}/jobs/${encodeURIComponent(jobId)}`),
   pauseAdminQueues: (queue?: string) =>
     post<{ success: boolean; status: string; queues?: string[] }>("/api/admin/queues/pause", queue ? { queue } : {}),
   resumeAdminQueues: (queue?: string) =>
@@ -1940,6 +1966,59 @@ export const api = {
     post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", opts ?? {}),
   cleanAdminFailedJobs: (queue?: string) =>
     post<{ success: boolean; cleanedCount: number }>("/api/admin/queues/clean-failed", queue ? { queue } : {}),
+  drainAdminQueue: (queue: string, delayed = false) =>
+    post<{ success: boolean; queue: string }>("/api/admin/queues/drain", { queue, delayed }),
+
+  // AI Router Live Control & FinOps
+  getAdminAiRouterConfig: () => get<import("./api-types").AdminAiRouterConfig>("/api/admin/ai-router/config"),
+  updateAdminAiRouterConfig: (body: {
+    provider?: string;
+    enabled?: boolean;
+    modelOverride?: string | null;
+    serverSideFallbackEnabled?: boolean;
+  }) => patch<import("./api-types").AdminAiRouterConfig>("/api/admin/ai-router/config", body),
+  clearAdminAiRouterCaches: () =>
+    post<{ success: boolean; clearedResponses: number; clearedOrgTiers: number }>(
+      "/api/admin/ai-router/cache/clear",
+      {},
+    ),
+  probeAdminAiRouter: (body: {
+    prompt: string;
+    systemInstruction?: string;
+    task?: string;
+    provider?: string;
+    model?: string;
+    maxTokens?: number;
+    allowFallback?: boolean;
+  }) => post<import("./api-types").AdminAiProbeResult>("/api/admin/ai-router/probe", body),
+  getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
+  getAdminAiAnalytics: (days = 14) =>
+    get<import("./api-types").AdminAiAnalytics>(`/api/admin/ai-analytics?days=${days}`),
+  getAdminUserModels: () => get<AdminUserModelUsage[]>("/api/admin/user-models"),
+
+  // Tenants, Users & Governance
+  getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
+  getAdminTenantDetail: (orgId: string) =>
+    get<import("./api-types").AdminTenantDetail>(`/api/admin/tenants/${orgId}`),
+  updateAdminTenant: (orgId: string, body: import("./api-types").UpdateAdminTenantInput) =>
+    patch<unknown>(`/api/admin/tenants/${orgId}`, body),
+  getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
+  verifyAdminUserEmail: (userId: string) =>
+    post<{ success: boolean; userId: string; emailVerifiedAt: string }>(
+      `/api/admin/users/${userId}/verify-email`,
+      {},
+    ),
+  revokeAdminUserSessions: (userId: string) =>
+    post<{ success: boolean; userId: string; revokedSessions: number; invalidatedAt: string }>(
+      `/api/admin/users/${userId}/revoke-sessions`,
+      {},
+    ),
+  getAdminPipelines: (limit = 25) =>
+    get<import("./api-types").AdminPipelinesResponse>(`/api/admin/pipelines?limit=${limit}`),
+  getAdminAuditLogs: (limit = 100) =>
+    get<import("./api-types").AdminAuditLogItem[]>(`/api/admin/audit-logs?limit=${limit}`),
+  getAdminWebhooks: (limit = 40) =>
+    get<import("./api-types").AdminWebhooksResponse>(`/api/admin/webhooks?limit=${limit}`),
 
   // ── Persisted Automation Settings & Scheduler ──────────────────────────
   automationSettings: {

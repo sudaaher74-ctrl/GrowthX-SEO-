@@ -12,7 +12,6 @@ import {
 import {
   ActionButton,
   MeterBar,
-  Panel,
   Pill,
   StatusNote,
   Tabs,
@@ -37,6 +36,8 @@ import {
   AdminThead,
   ConfirmModal,
   FilterChipGroup,
+  NocButton,
+  NocPanel,
   SlideOverDialog,
   TierBadge,
   formatCompactNumber,
@@ -83,20 +84,21 @@ export function TenantsSection({ tenants, loading, onRefresh }: TenantsSectionPr
 
   return (
     <div className="space-y-4">
-      <Panel
-        title="Tenant Organizations"
-        subtitle="Manage client workspaces, subscription tiers, monthly AI spend caps, and token wallets."
+      <NocPanel
+        code="ORG"
+        title="TENANT_ORGANIZATIONS_AND_QUOTAS"
+        subtitle="Manage subscription tiers, monthly AI USD spend ceilings, white-label entitlements, and token wallets."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             <FilterChipGroup<TierFilter>
               value={tierFilter}
               onChange={setTierFilter}
               options={[
-                { id: "all", label: "All", count: tenants.length },
-                { id: "agency", label: "Agency", count: tierCounts.agency },
-                { id: "growth", label: "Growth", count: tierCounts.growth },
-                { id: "starter", label: "Starter", count: tierCounts.starter },
-                { id: "founder_free", label: "Founder Free", count: tierCounts.founder_free },
+                { id: "all", label: "ALL", count: tenants.length },
+                { id: "agency", label: "AGENCY", count: tierCounts.agency },
+                { id: "growth", label: "GROWTH", count: tierCounts.growth },
+                { id: "starter", label: "STARTER", count: tierCounts.starter },
+                { id: "founder_free", label: "FREE", count: tierCounts.founder_free },
               ]}
             />
             <AdminSearchInput
@@ -104,7 +106,7 @@ export function TenantsSection({ tenants, loading, onRefresh }: TenantsSectionPr
               onChange={setSearch}
               placeholder="Search org, slug, or owner…"
             />
-          </div>
+          </>
         }
       >
         {loading && tenants.length === 0 ? (
@@ -197,29 +199,28 @@ export function TenantsSection({ tenants, loading, onRefresh }: TenantsSectionPr
                         </div>
                       </Td>
                       <Td align="right">
-                        <ActionButton
-                          variant="secondary"
-                          icon={<SlidersHorizontal size={12} />}
+                        <NocButton
+                          icon={<SlidersHorizontal size={11} />}
                           onClick={() => setSelectedTenant(t)}
                           className="ml-auto"
                         >
-                          Manage
-                        </ActionButton>
+                          MANAGE
+                        </NocButton>
                       </Td>
                     </Tr>
                   );
                 })
               ) : (
                 <Tr>
-                  <Td colSpan={7} className="py-10 text-center text-[12.5px] text-brand-500">
-                    No organizations match your current filters.
+                  <Td colSpan={7} className="py-10 text-center font-mono text-[11.5px] text-brand-400">
+                    NO_ORGANIZATIONS_MATCH_FILTER
                   </Td>
                 </Tr>
               )}
             </tbody>
           </AdminTableWrap>
         )}
-      </Panel>
+      </NocPanel>
 
       {selectedTenant && (
         <TenantDetailDrawer
