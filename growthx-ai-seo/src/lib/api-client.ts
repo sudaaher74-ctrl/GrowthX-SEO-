@@ -2003,6 +2003,17 @@ export const api = {
   updateAdminTenant: (orgId: string, body: import("./api-types").UpdateAdminTenantInput) =>
     patch<unknown>(`/api/admin/tenants/${orgId}`, body),
   getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
+  getAdminUsersIntelligence: (window: import("./api-types").AdminCostWindow = "30d") =>
+    get<import("./api-types").AdminUsersIntelligenceResponse>(
+      `/api/admin/users/intelligence?window=${encodeURIComponent(window)}`,
+    ),
+  getAdminUser360: (userId: string, window: import("./api-types").AdminCostWindow = "30d") =>
+    get<import("./api-types").AdminUser360Response>(
+      `/api/admin/users/${encodeURIComponent(userId)}/360?window=${encodeURIComponent(window)}`,
+    ),
+  getAdminCostRates: () => get<import("./api-types").AdminCostRates>("/api/admin/cost-rates"),
+  updateAdminCostRates: (body: import("./api-types").UpdateAdminCostRatesPayload) =>
+    patch<import("./api-types").AdminCostRates>("/api/admin/cost-rates", body),
   verifyAdminUserEmail: (userId: string) =>
     post<{ success: boolean; userId: string; emailVerifiedAt: string }>(
       `/api/admin/users/${userId}/verify-email`,

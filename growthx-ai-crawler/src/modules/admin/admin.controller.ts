@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
+import { AdminCostEngineService } from './admin-cost-engine.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from './platform-admin.guard';
 import {
@@ -10,6 +11,7 @@ import {
   QueueActionDto,
   RetryQueueJobsDto,
   TriggerWebsiteCrawlDto,
+  UpdateAdminCostRatesDto,
   UpdateAdminTenantDto,
   UpdateAdminWebsiteDto,
   UpdateAiRouterConfigDto,
@@ -20,7 +22,10 @@ import {
 @Controller('api/admin')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly costEngine: AdminCostEngineService,
+  ) {}
 
   @Get('access')
   @ApiOperation({ summary: 'Verify operator access for the current signed-in user' })
@@ -256,11 +261,38 @@ export class AdminController {
     return this.adminService.updateTenant(orgId, body, req.user?.userId);
   }
 
-  // ── Users & IAM
+  // ── Users & IAM + Automated FinOps Cost Engine
   @Get('users')
   @ApiOperation({ summary: 'Get platform users directory' })
   async getUsers() {
     return this.adminService.getUsers();
+  }
+
+  @Get('users/intelligence')
+  @ApiOperation({ summary: 'Get complete per-user status, token burn, crawl usage, and auto-calculated 5-bucket COGS' })
+  @ApiQuery({ name: 'window', required: false, description: '24h | 7d | mtd | 30d | all' })
+  async getUsersIntelligence(@Query('window') window?: string) {
+    return this.costEngine.getUsersIntelligence(window);
+  }
+
+  @Get('users/:userId/360')
+  @ApiOperation({ summary: 'Get deep 360° telemetry, daily cost trend, models, crawls, and wallet for one user' })
+  @ApiParam({ name: 'userId' })
+  @ApiQuery({ name: 'window', required: false, description: '24h | 7d | mtd | 30d | all' })
+  async getUser360(@Param('userId') userId: string, @Query('window') window?: string) {
+    return this.costEngine.getUser360(userId, window);
+  }
+
+  @Get('cost-rates')
+  @ApiOperation({ summary: 'Read live unit-cost rate card (crawl, Chromium, Geo-Grid, APIs, MRR, USD/INR FX)' })
+  getCostRates() {
+    return this.costEngine.getRates();
+  }
+
+  @Patch('cost-rates')
+  @ApiOperation({ summary: 'Update live unit-cost rate card & USD/INR exchange rate for automated COGS accounting' })
+  async updateCostRates(@Req() req: any, @Body() body: UpdateAdminCostRatesDto) {
+    return this.costEngine.updateRates(body, req.user?.userId);
   }
 
   @Post('users/:userId/verify-email')

@@ -1575,6 +1575,7 @@ export class AdminService {
     const [
       crawls24h,
       aiMtd,
+      aiVisMtd,
       aiErrors24h,
       tierGroups,
       webhookFailures24h,
@@ -1597,6 +1598,15 @@ export class AdminService {
               where: { createdAt: { gte: monthStart } },
               _sum: { estimatedCostUsd: true, inputTokens: true, outputTokens: true },
               _avg: { latencyMs: true },
+              _count: { _all: true },
+            })
+            .catch(() => null)
+        : Promise.resolve(null),
+      this.prisma.aiVisibilityProviderUsage?.aggregate
+        ? this.prisma.aiVisibilityProviderUsage
+            .aggregate({
+              where: { createdAt: { gte: monthStart } },
+              _sum: { cost: true, inputTokens: true, outputTokens: true },
               _count: { _all: true },
             })
             .catch(() => null)
@@ -1742,12 +1752,22 @@ export class AdminService {
       }
     }
 
+    const mergedAiSpendUsd =
+      (aiMtd?._sum?.estimatedCostUsd ?? 0) + (aiVisMtd?._sum?.cost ?? 0);
+    const mergedAiCalls =
+      (aiMtd?._count?._all ?? 0) + (aiVisMtd?._count?._all ?? 0);
+    const mergedAiTokens =
+      (aiMtd?._sum?.inputTokens ?? 0) +
+      (aiMtd?._sum?.outputTokens ?? 0) +
+      (aiVisMtd?._sum?.inputTokens ?? 0) +
+      (aiVisMtd?._sum?.outputTokens ?? 0);
+
     return {
       crawls24h: crawlCounts,
       aiMtd: {
-        spendUsd: Number((aiMtd?._sum?.estimatedCostUsd ?? 0).toFixed(4)),
-        calls: aiMtd?._count?._all ?? 0,
-        tokens: (aiMtd?._sum?.inputTokens ?? 0) + (aiMtd?._sum?.outputTokens ?? 0),
+        spendUsd: Number(mergedAiSpendUsd.toFixed(4)),
+        calls: mergedAiCalls,
+        tokens: mergedAiTokens,
         avgLatencyMs: aiMtd?._avg?.latencyMs ? Math.round(aiMtd._avg.latencyMs) : null,
         errors24h: aiErrors24h,
       },

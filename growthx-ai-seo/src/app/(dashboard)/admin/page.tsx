@@ -22,6 +22,7 @@ import type {
   AdminAiAnalytics,
   AdminAiRouterConfig,
   AdminAuditLogItem,
+  AdminCostWindow,
   AdminOpsSummary,
   AdminPipelinesResponse,
   AdminRecentCrawlsResponse,
@@ -29,6 +30,7 @@ import type {
   AdminSystemRuntime,
   AdminUserItem,
   AdminUserModelUsage,
+  AdminUsersIntelligenceResponse,
   AdminWebhooksResponse,
   AdminWebsiteItem,
   ApiCostStat,
@@ -74,8 +76,9 @@ function AdminConsole() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [failedCalls, setFailedCalls] = useState<string[]>([]);
   const [aiWindowDays, setAiWindowDays] = useState(14);
+  const [costWindow, setCostWindow] = useState<AdminCostWindow>("30d");
 
-  // Core NOC telemetry
+  // Core Control Plane telemetry
   const [stats, setStats] = useState<{
     tenants: number;
     users: number;
@@ -95,12 +98,13 @@ function AdminConsole() {
   const [userModels, setUserModels] = useState<AdminUserModelUsage[]>([]);
   const [tenants, setTenants] = useState<TenantStat[]>([]);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [usersIntelligence, setUsersIntelligence] = useState<AdminUsersIntelligenceResponse | null>(null);
   const [pipelines, setPipelines] = useState<AdminPipelinesResponse | null>(null);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLogItem[]>([]);
   const [webhooks, setWebhooks] = useState<AdminWebhooksResponse | null>(null);
 
   const loadSectionData = useCallback(
-    async (section: AdminSection, days = aiWindowDays) => {
+    async (section: AdminSection, days = aiWindowDays, cWindow = costWindow) => {
       const failures: string[] = [];
       const capture = <T,>(
         result: PromiseSettledResult<T>,
@@ -125,13 +129,14 @@ function AdminConsole() {
       };
 
       if (section === "overview") {
-        const [statsR, opsR, healthR, runtimeR, queuesR, costsR] = await Promise.allSettled([
+        const [statsR, opsR, healthR, runtimeR, queuesR, costsR, intelR] = await Promise.allSettled([
           api.getAdminStats(),
           api.getAdminOpsSummary(),
           api.getAdminSystemHealth(),
           api.getAdminSystemRuntime(),
           api.getAdminQueues(),
           api.getAdminCosts(),
+          api.getAdminUsersIntelligence("mtd"),
         ]);
         capture(statsR, "stats", setStats);
         capture(opsR, "ops-summary", setOpsSummary);
@@ -139,6 +144,7 @@ function AdminConsole() {
         capture(runtimeR, "runtime", setRuntime);
         capture(queuesR, "queues", setQueues);
         capture(costsR, "costs", setApiCosts);
+        capture(intelR, "users-intelligence", setUsersIntelligence);
       } else if (section === "crawler") {
         const [sitesR, crawlsR, healthR] = await Promise.allSettled([
           api.getAdminWebsites(120),
@@ -176,10 +182,12 @@ function AdminConsole() {
         capture(tenantsR, "tenants", setTenants);
         capture(healthR, "health", setSystemHealth);
       } else if (section === "users") {
-        const [usersR, statsR] = await Promise.allSettled([
+        const [intelR, usersR, statsR] = await Promise.allSettled([
+          api.getAdminUsersIntelligence(cWindow),
           api.getAdminUsers(),
           api.getAdminStats(),
         ]);
+        capture(intelR, "users-intelligence", setUsersIntelligence);
         capture(usersR, "users", setUsers);
         capture(statsR, "stats", setStats);
       } else if (section === "governance") {
@@ -196,7 +204,7 @@ function AdminConsole() {
       setFailedCalls(failures);
       setLastUpdatedAt(new Date().toISOString());
     },
-    [aiWindowDays],
+    [aiWindowDays, costWindow],
   );
 
   const verifyAccess = useCallback(async () => {
@@ -229,7 +237,7 @@ function AdminConsole() {
     let active = true;
     const run = async () => {
       setLoading(true);
-      await loadSectionData(activeSection, aiWindowDays);
+      await loadSectionData(activeSection, aiWindowDays, costWindow);
       if (active) setLoading(false);
     };
     const timer = setTimeout(() => void run(), 0);
@@ -237,30 +245,30 @@ function AdminConsole() {
       active = false;
       clearTimeout(timer);
     };
-  }, [accessState, activeSection, aiWindowDays, loadSectionData]);
+  }, [accessState, activeSection, aiWindowDays, costWindow, loadSectionData]);
 
   useEffect(() => {
     if (accessState !== "granted" || !livePolling) return;
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
-        void loadSectionData(activeSection, aiWindowDays);
+        void loadSectionData(activeSection, aiWindowDays, costWindow);
       }
     }, 15_000);
     return () => clearInterval(interval);
-  }, [accessState, livePolling, activeSection, aiWindowDays, loadSectionData]);
+  }, [accessState, livePolling, activeSection, aiWindowDays, costWindow, loadSectionData]);
 
   const handleManualRefresh = async () => {
     setRefreshing(true);
-    await loadSectionData(activeSection, aiWindowDays);
+    await loadSectionData(activeSection, aiWindowDays, costWindow);
     setRefreshing(false);
   };
 
   if (accessState === "checking") {
     return (
       <div className="flex min-h-[65vh] items-center justify-center">
-        <div className="flex items-center gap-2.5 rounded-sm border border-brand-200 bg-surface-1 px-4 py-3 font-mono text-[12px] text-brand-600">
-          <Loader2 size={14} className="animate-spin text-signal-400" />
-          <span>VERIFYING_ROOT_OPERATOR_TOKEN…</span>
+        <div className="flex items-center gap-2.5 rounded-lg border border-brand-200 bg-surface-1 px-4 py-3 text-[13px] font-medium text-brand-600">
+          <Loader2 size={14} className="animate-spin text-primary-600" />
+          <span>Verifying operator session…</span>
         </div>
       </div>
     );
@@ -271,27 +279,27 @@ function AdminConsole() {
     const signedInId = profile.data?.id;
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-2">
-        <div className="w-full max-w-md rounded-md border border-brand-300 bg-surface-1 overflow-hidden shadow-2xl">
-          <div className="flex items-center justify-between border-b border-brand-200 bg-surface-2 px-4 py-2.5 font-mono text-[11px]">
-            <span className="flex items-center gap-2 font-bold text-error-700">
+        <div className="w-full max-w-md rounded-lg border border-brand-300 bg-surface-1 overflow-hidden shadow-2xl">
+          <div className="flex items-center justify-between border-b border-brand-200 bg-surface-2 px-4 py-2.5 text-[12px]">
+            <span className="flex items-center gap-2 font-semibold text-error-700">
               <ShieldAlert size={14} />
-              ACCESS_DENIED // HTTP 403
+              Access Denied · HTTP 403
             </span>
-            <span className="text-brand-400">ROOT_NOC</span>
+            <span className="font-mono text-[10.5px] text-brand-400">Platform Admin</span>
           </div>
           <div className="p-6 space-y-4">
-            <p className="font-mono text-[12px] leading-relaxed text-brand-500">
-              {deniedMessage || "This control plane is restricted to verified platform operator UUIDs."}
+            <p className="text-[13px] leading-relaxed text-brand-500">
+              {deniedMessage || "This control plane is restricted to verified platform operator accounts."}
             </p>
 
             {signedInEmail && (
-              <div className="rounded-sm border border-brand-200 bg-surface-2 px-3.5 py-2.5 font-mono space-y-1">
-                <span className="block text-[9.5px] font-bold uppercase tracking-wider text-brand-400">
-                  CURRENT_PRINCIPAL
+              <div className="rounded-md border border-brand-200 bg-surface-2 px-3.5 py-2.5 space-y-1">
+                <span className="block text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">
+                  Signed-in Account
                 </span>
-                <span className="block truncate text-[12px] font-bold text-brand-950">{signedInEmail}</span>
+                <span className="block truncate text-[13px] font-semibold text-brand-950">{signedInEmail}</span>
                 {signedInId && (
-                  <span className="block truncate text-[10.5px] text-signal-400">UUID: {signedInId}</span>
+                  <span className="block truncate font-mono text-[11px] text-primary-600">UUID: {signedInId}</span>
                 )}
               </div>
             )}
@@ -299,16 +307,16 @@ function AdminConsole() {
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-200">
               <Link
                 href="/dashboard"
-                className="inline-flex h-8 items-center justify-center rounded-sm border border-brand-200 bg-surface-2 px-3 font-mono text-[11px] font-bold text-brand-600 hover:text-brand-950"
+                className="inline-flex h-8 items-center justify-center rounded-md border border-brand-200 bg-surface-2 px-3 text-[12px] font-medium text-brand-600 hover:text-brand-950"
               >
-                EXIT_TO_APP
+                Back to Workspace
               </Link>
               <NocButton
                 variant="primary"
-                icon={<RefreshCw size={11} />}
+                icon={<RefreshCw size={12} />}
                 onClick={() => void verifyAccess()}
               >
-                RETRY_AUTH
+                Retry Access
               </NocButton>
             </div>
           </div>
@@ -319,32 +327,29 @@ function AdminConsole() {
 
   return (
     <div className="space-y-4 pb-10">
-      {/* NOC Engineering Command Header */}
-      <header className="flex flex-col justify-between gap-3 rounded-md border border-brand-200 bg-surface-1 px-4 py-3 sm:flex-row sm:items-center">
+      {/* Refined Executive Control Plane Header */}
+      <header className="flex flex-col justify-between gap-3 rounded-lg border border-brand-200 bg-surface-1 px-4 py-3.5 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-signal-400/50 bg-signal-400/12 text-signal-400">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary-200 bg-primary-50 text-primary-600">
             <currentMeta.icon size={16} />
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] font-bold text-brand-400">
-                {`${currentMeta.code} //`}
-              </span>
-              <h1 className="font-mono text-[16px] font-bold tracking-[0.04em] text-brand-950">
+              <h1 className="text-[16px] font-semibold tracking-tight text-brand-950">
                 {currentMeta.label}
               </h1>
               {systemHealth && (
                 <Pill tone={systemHealth.status === "HEALTHY" ? "good" : "warn"} dot>
-                  {systemHealth.status}
+                  {systemHealth.status === "HEALTHY" ? "Healthy" : systemHealth.status}
                 </Pill>
               )}
             </div>
-            <p className="mt-0.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-brand-400">
+            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] text-brand-400">
               <span className="truncate">{currentMeta.description}</span>
               {lastUpdatedAt && (
                 <>
                   <span>·</span>
-                  <span>SYNC {relativeTime(lastUpdatedAt)}</span>
+                  <span className="font-mono text-[11px]">Synced {relativeTime(lastUpdatedAt)}</span>
                 </>
               )}
             </p>
@@ -356,40 +361,43 @@ function AdminConsole() {
             type="button"
             onClick={() => setLivePolling((v) => !v)}
             aria-pressed={livePolling}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 font-mono text-[11px] font-bold transition cursor-pointer ${
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[12px] font-medium transition cursor-pointer ${
               livePolling
                 ? "border-success-200 bg-success-50 text-success-700"
                 : "border-brand-200 bg-surface-2 text-brand-500 hover:border-brand-300 hover:text-brand-950"
             }`}
           >
-            <Radio size={11} className={livePolling ? "animate-pulse" : ""} />
-            <span>{livePolling ? "POLL:15S" : "POLL:OFF"}</span>
+            <Radio size={12} className={livePolling ? "animate-pulse" : ""} />
+            <span>{livePolling ? "Auto-sync: 15s" : "Auto-sync: Off"}</span>
           </button>
 
           <NocButton
             variant="primary"
             disabled={refreshing}
-            icon={<RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />}
+            icon={<RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />}
             onClick={() => void handleManualRefresh()}
           >
-            SYNC_NOW
+            Sync Now
           </NocButton>
         </div>
       </header>
 
       {failedCalls.length > 0 && (
         <StatusNote tone="warn">
-          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11.5px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
             <span className="flex items-center gap-1.5">
               <Terminal size={12} />
-              TELEMETRY_PARTIAL_FAILURE: {failedCalls.join(", ")}
+              Partial telemetry unavailable: <span className="font-mono">{failedCalls.join(", ")}</span>
+              {failedCalls.some((c) => c.includes("(404)")) && (
+                <span className="text-brand-400"> — redeploy the backend API container to enable new endpoints.</span>
+              )}
             </span>
             <button
               type="button"
               onClick={() => void handleManualRefresh()}
-              className="font-bold underline cursor-pointer"
+              className="font-semibold underline cursor-pointer"
             >
-              RETRY
+              Retry
             </button>
           </div>
         </StatusNote>
@@ -404,6 +412,7 @@ function AdminConsole() {
           runtime={runtime}
           queues={queues}
           apiCosts={apiCosts}
+          usersIntelligence={usersIntelligence}
           onNavigate={navigateTo}
         />
       )}
@@ -451,9 +460,12 @@ function AdminConsole() {
       {activeSection === "users" && (
         <UsersSection
           users={users}
+          intelligence={usersIntelligence}
+          window={costWindow}
+          onChangeWindow={setCostWindow}
           onlineTotal={stats?.loggedInUsers ?? 0}
           loading={loading}
-          onRefresh={() => loadSectionData("users", aiWindowDays)}
+          onRefresh={() => loadSectionData("users", aiWindowDays, costWindow)}
         />
       )}
 

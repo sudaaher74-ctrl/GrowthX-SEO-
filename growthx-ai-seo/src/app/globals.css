@@ -1311,94 +1311,95 @@ dialog::backdrop {
   overscroll-behavior: contain;
 }
 
-/* ───── Root NOC Engineering Control Plane (.admin-noc) ─────
-   Completely distinct visual identity from the customer SaaS workspace:
-   obsidian telemetry canvas, carbon instrument panels, etched steel borders,
-   and electric cyan accent replacing the customer lime palette. */
+/* ───── Enterprise Control Plane (.admin-noc) ─────
+   Matte Carbon & Electric Indigo (Linear / Vercel Pro / Stripe aesthetic):
+   pure neutral charcoal surfaces, crisp 1px zinc borders, high-contrast
+   alabaster typography, and one disciplined Electric Indigo accent. */
 .admin-noc {
-  --color-canvas: #04070d;
-  --color-surface-1: #090f19;
-  --color-surface-2: #0d1624;
-  --color-surface-3: #132035;
-  --color-line: #1c2b42;
-  --color-line-strong: #2a3f60;
-  --border-color: #1c2b42;
+  --color-canvas: #09090b;
+  --color-surface-1: #111114;
+  --color-surface-2: #18181c;
+  --color-surface-3: #222228;
+  --color-line: #26262e;
+  --color-line-strong: #343440;
+  --border-color: #26262e;
 
-  --color-brand-50: #0b1320;
-  --color-brand-100: #111c2e;
-  --color-brand-200: #1c2b42;
-  --color-brand-300: #2c4160;
-  --color-brand-400: #7c93b5;
-  --color-brand-500: #9ab0ce;
-  --color-brand-600: #bacbe2;
-  --color-brand-700: #d4e0ef;
-  --color-brand-800: #e6edf7;
-  --color-brand-900: #f1f5fb;
-  --color-brand-950: #f8fbff;
+  --color-brand-50: #111114;
+  --color-brand-100: #18181c;
+  --color-brand-200: #26262e;
+  --color-brand-300: #343440;
+  --color-brand-400: #8b8b98;
+  --color-brand-500: #a1a1aa;
+  --color-brand-600: #c4c4cc;
+  --color-brand-700: #d4d4d8;
+  --color-brand-800: #e4e4e7;
+  --color-brand-900: #f4f4f5;
+  --color-brand-950: #fafafa;
 
-  --color-signal-400: #22d3ee;
-  --color-signal-500: #06b6d4;
-  --color-signal-ink: #03131b;
+  /* Disciplined Electric Indigo primary accent */
+  --color-signal-400: #6366f1;
+  --color-signal-500: #4f46e5;
+  --color-signal-ink: #ffffff;
 
-  --color-primary-50: #082032;
-  --color-primary-100: #0c2d45;
-  --color-primary-200: #14496d;
-  --color-primary-300: #1f6d9e;
-  --color-primary-600: #22d3ee;
-  --color-primary-700: #06b6d4;
+  --color-primary-50: #171730;
+  --color-primary-100: #1e1e42;
+  --color-primary-200: #312e81;
+  --color-primary-300: #4338ca;
+  --color-primary-600: #818cf8;
+  --color-primary-700: #6366f1;
 
-  --color-accent-50: #082032;
-  --color-accent-200: #154c74;
-  --color-accent-500: #38bdf8;
-  --color-accent-600: #0ea5e9;
-  --color-accent-700: #7dd3fc;
+  --color-accent-50: #171730;
+  --color-accent-200: #3730a3;
+  --color-accent-500: #818cf8;
+  --color-accent-600: #6366f1;
+  --color-accent-700: #a5b4fc;
 
-  --color-success-50: #062118;
-  --color-success-200: #0e4a35;
-  --color-success-500: #22c55e;
-  --color-success-600: #16a34a;
-  --color-success-700: #4ade80;
+  /* Restrained, low-glare semantic status tokens */
+  --color-success-50: #071e15;
+  --color-success-200: #114232;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #34d399;
 
-  --color-warning-50: #241806;
-  --color-warning-200: #593b0d;
+  --color-warning-50: #1f1707;
+  --color-warning-200: #4d380c;
   --color-warning-500: #f59e0b;
   --color-warning-600: #d97706;
   --color-warning-700: #fbbf24;
 
-  --color-error-50: #290b12;
-  --color-error-200: #631929;
+  --color-error-50: #220b12;
+  --color-error-200: #571929;
   --color-error-500: #f43f5e;
   --color-error-600: #e11d48;
-  --color-error-700: #fda4af;
+  --color-error-700: #fb7185;
 
-  --bg-base: #04070d;
-  --bg-subtle: #090f19;
-  --bg-muted: #0d1624;
-  --text-primary: #f8fbff;
-  --text-secondary: #9ab0ce;
-  --text-muted: #7c93b5;
-  --surface-1: #090f19;
-  --surface-2: #0d1624;
-  --surface-3: #132035;
-  --card-bg: #090f19;
-  --card-border: #1c2b42;
+  --bg-base: #09090b;
+  --bg-subtle: #111114;
+  --bg-muted: #18181c;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #8b8b98;
+  --surface-1: #111114;
+  --surface-2: #18181c;
+  --surface-3: #222228;
+  --card-bg: #111114;
+  --card-border: #26262e;
 
   color-scheme: dark;
-  color: #f8fbff;
-  background-color: #04070d;
-  background-image: radial-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px);
-  background-size: 20px 20px;
+  color: #fafafa;
+  background-color: #09090b;
+  background-image: radial-gradient(ellipse 80% 45% at 50% -15%, rgba(99, 102, 241, 0.09), transparent 70%);
 }
 
 .admin-noc .card {
-  border-radius: 6px;
-  border-color: #1c2b42;
-  background-color: #090f19;
+  border-radius: 8px;
+  border-color: #26262e;
+  background-color: #111114;
 }
 
 .admin-noc select option {
-  background-color: #090f19;
-  color: #f8fbff;
+  background-color: #111114;
+  color: #fafafa;
 }
 
 

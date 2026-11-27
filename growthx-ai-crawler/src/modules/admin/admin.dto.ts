@@ -195,3 +195,71 @@ export class AiRouterProbeDto {
   @IsBoolean()
   allowFallback?: boolean;
 }
+
+export class UpdateAdminCostRatesDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(1000)
+  usdToInr?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  staticPageCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  renderedPageCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  geoGridPointCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  serpFallbackCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  keywordGapFallbackCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  backlinkRunCostUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  freeHighBurnThresholdUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  starterMrrUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  growthMrrUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  agencyMrrUsd?: number;
+}

@@ -36,7 +36,7 @@ export interface AdminSectionItem {
   code: string;
   label: string;
   shortLabel: string;
-  group: "INFRA & ENGINES" | "AI & MODELS" | "ACCESS & BILLING" | "OPS & AUDIT";
+  group: "OVERVIEW & FINOPS" | "ENGINES & INFRA" | "AI & MODELS" | "OPS & AUDIT";
   icon: LucideIcon;
   description: string;
 }
@@ -45,72 +45,72 @@ export const ADMIN_SECTIONS: AdminSectionItem[] = [
   {
     id: "overview",
     code: "01",
-    label: "SYSTEM_NOC",
-    shortLabel: "System",
-    group: "INFRA & ENGINES",
+    label: "System Overview",
+    shortLabel: "Overview",
+    group: "OVERVIEW & FINOPS",
     icon: Activity,
-    description: "Node process, Postgres tables, Redis INFO, worker threads & alerts",
+    description: "Platform health, unit economics, database, Redis & worker runtime",
+  },
+  {
+    id: "users",
+    code: "02",
+    label: "Users 360° & Costs",
+    shortLabel: "Users 360°",
+    group: "OVERVIEW & FINOPS",
+    icon: Users,
+    description: "Per-user live status, token burn, crawls, AI models & automated COGS",
+  },
+  {
+    id: "tenants",
+    code: "03",
+    label: "Workspaces & Quotas",
+    shortLabel: "Workspaces",
+    group: "OVERVIEW & FINOPS",
+    icon: Building2,
+    description: "Organizations, plan tiers, AI USD caps, token wallets & white-label",
   },
   {
     id: "crawler",
-    code: "02",
-    label: "CRAWL_ENGINE",
+    code: "04",
+    label: "Crawl Engine",
     shortLabel: "Crawler",
-    group: "INFRA & ENGINES",
+    group: "ENGINES & INFRA",
     icon: Globe,
     description: "Website registry, force-crawl overrides, frontier diagnostics & kill switch",
   },
   {
     id: "queues",
-    code: "03",
-    label: "QUEUE_RUNTIME",
+    code: "05",
+    label: "Queues & Runtime",
     shortLabel: "Queues",
-    group: "INFRA & ENGINES",
+    group: "ENGINES & INFRA",
     icon: Cpu,
-    description: "BullMQ crawl-jobs / page-fetch / page-render JSON job inspector & drain",
+    description: "BullMQ crawl-jobs / page-fetch / page-render JSON inspector & drain",
   },
   {
     id: "ai-models",
-    code: "04",
-    label: "AI_ROUTER",
+    code: "06",
+    label: "AI Router & Models",
     shortLabel: "AI Router",
     group: "AI & MODELS",
     icon: Terminal,
-    description: "Provider circuit breakers, live model overrides, prompt probe & FinOps",
-  },
-  {
-    id: "tenants",
-    code: "05",
-    label: "TENANTS_QUOTAS",
-    shortLabel: "Tenants",
-    group: "ACCESS & BILLING",
-    icon: Building2,
-    description: "Organizations, plan tiers, AI USD caps, token ledger & allowance overrides",
-  },
-  {
-    id: "users",
-    code: "06",
-    label: "USERS_IAM",
-    shortLabel: "IAM",
-    group: "ACCESS & BILLING",
-    icon: Users,
-    description: "Accounts, active sessions, manual email verification & force sign-out",
+    description: "Provider circuit breakers, live model overrides, prompt probe & spend",
   },
   {
     id: "governance",
     code: "07",
-    label: "PIPELINES_AUDIT",
+    label: "Pipelines & Audit",
     shortLabel: "Pipelines",
     group: "OPS & AUDIT",
     icon: Workflow,
-    description: "Autopilot / AI Visibility / Backlink / Fix runs, audit log & webhooks",
+    description: "Autopilot, AI Visibility, Backlink & Fix runs, audit trail & webhooks",
   },
 ];
 
 const GROUP_ORDER: AdminSectionItem["group"][] = [
-  "INFRA & ENGINES",
+  "OVERVIEW & FINOPS",
+  "ENGINES & INFRA",
   "AI & MODELS",
-  "ACCESS & BILLING",
   "OPS & AUDIT",
 ];
 
@@ -167,35 +167,35 @@ export function AdminSidebar({
           collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
       >
-        {/* Terminal NOC Brand Bar */}
-        <div className="flex h-[48px] shrink-0 items-center justify-between border-b border-brand-200 px-3.5 bg-surface-2/80">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-signal-400/50 bg-signal-400/15 font-mono text-[11px] font-bold text-signal-400">
-              <ShieldCheck size={13} />
+        {/* Brand Bar */}
+        <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-brand-200 px-3.5 bg-surface-1">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-signal-400 text-white shadow-xs">
+              <ShieldCheck size={14} />
             </span>
-            <div className="leading-none">
-              <span className="block font-mono text-[11.5px] font-bold tracking-[0.06em] text-brand-950">
-                REIGEL // NOC
+            <div className="leading-tight">
+              <span className="block text-[13px] font-semibold tracking-tight text-brand-950">
+                Reigel Admin
               </span>
-              <span className="block font-mono text-[9px] tracking-[0.14em] text-signal-400">
-                ROOT CONTROL PLANE
+              <span className="block text-[10px] font-medium text-brand-400">
+                Control Plane &amp; FinOps
               </span>
             </div>
           </div>
           <span
-            title="Control Plane Armed"
-            className="h-2 w-2 rounded-full bg-success-500 animate-pulse"
+            title="Control Plane Live"
+            className="h-2 w-2 rounded-full bg-success-500"
           />
         </div>
 
         {/* Subsystem Nav */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3.5 space-y-5">
           {GROUP_ORDER.map((groupName) => {
             const items = ADMIN_SECTIONS.filter((s) => s.group === groupName);
             return (
               <div key={groupName}>
                 <div className="flex items-center justify-between px-2 pb-1.5">
-                  <span className="font-mono text-[9.5px] font-bold tracking-[0.14em] text-brand-400">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-400">
                     {groupName}
                   </span>
                 </div>
@@ -209,22 +209,17 @@ export function AdminSidebar({
                         onClick={() => setMobileOpen?.(false)}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "group flex items-center gap-2 rounded-sm border-l-2 px-2 py-1.5 font-mono text-[11.5px] transition-colors",
+                          "group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[12.5px] transition-colors",
                           active
-                            ? "border-signal-400 bg-signal-400/12 font-bold text-signal-400"
-                            : "border-transparent font-medium text-brand-500 hover:bg-surface-2 hover:text-brand-950",
+                            ? "bg-signal-400/15 font-semibold text-primary-600 ring-1 ring-inset ring-signal-400/30"
+                            : "font-medium text-brand-500 hover:bg-surface-2 hover:text-brand-950",
                         )}
                       >
-                        <span
-                          className={cn(
-                            "text-[10px] tabular-nums",
-                            active ? "text-signal-400" : "text-brand-400 group-hover:text-brand-600",
-                          )}
-                        >
-                          {s.code}
-                        </span>
-                        <s.icon size={13} className={active ? "text-signal-400" : "text-brand-400"} />
-                        <span className="min-w-0 flex-1 truncate tracking-[0.02em]">{s.label}</span>
+                        <s.icon
+                          size={14}
+                          className={active ? "text-primary-600" : "text-brand-400 group-hover:text-brand-700"}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{s.label}</span>
                       </Link>
                     );
                   })}
@@ -237,10 +232,10 @@ export function AdminSidebar({
             <Link
               href="/dashboard"
               onClick={() => setMobileOpen?.(false)}
-              className="flex items-center gap-2 rounded-sm px-2.5 py-1.5 font-mono text-[11px] font-medium text-brand-400 transition-colors hover:bg-surface-2 hover:text-brand-950"
+              className="flex items-center gap-2 rounded-md px-2.5 py-2 text-[12px] font-medium text-brand-400 transition-colors hover:bg-surface-2 hover:text-brand-950"
             >
               <ArrowLeft size={13} />
-              <span>EXIT_TO_CUSTOMER_APP</span>
+              <span>Back to Workspace</span>
             </Link>
           </div>
         </nav>

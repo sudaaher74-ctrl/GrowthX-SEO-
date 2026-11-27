@@ -3816,4 +3816,264 @@ export interface UpdateWhiteLabelInput {
   footerText?: string | null;
 }
 
+export type AdminCostWindow = "24h" | "7d" | "mtd" | "30d" | "all";
+
+export type AdminProfitabilityStatus =
+  | "PROFITABLE"
+  | "WATCH"
+  | "LOSS_MAKING"
+  | "FREE_HIGH_BURN"
+  | "IDLE";
+
+export interface AdminCostRates {
+  usdToInr: number;
+  staticPageCostUsd: number;
+  renderedPageCostUsd: number;
+  geoGridPointCostUsd: number;
+  serpFallbackCostUsd: number;
+  keywordGapFallbackCostUsd: number;
+  backlinkRunCostUsd: number;
+  freeHighBurnThresholdUsd: number;
+  tierMrrUsd: {
+    founder_free: number;
+    starter: number;
+    growth: number;
+    agency: number;
+  };
+  updatedAt: string;
+}
+
+export interface UpdateAdminCostRatesPayload {
+  usdToInr?: number;
+  staticPageCostUsd?: number;
+  renderedPageCostUsd?: number;
+  geoGridPointCostUsd?: number;
+  serpFallbackCostUsd?: number;
+  keywordGapFallbackCostUsd?: number;
+  backlinkRunCostUsd?: number;
+  freeHighBurnThresholdUsd?: number;
+  starterMrrUsd?: number;
+  growthMrrUsd?: number;
+  agencyMrrUsd?: number;
+}
+
+export interface AdminCostBuckets {
+  aiRouterUsd: number;
+  aiVisibilityUsd: number;
+  crawlerComputeUsd: number;
+  geoGridUsd: number;
+  externalApisUsd: number;
+  totalUsd: number;
+  totalInr: number;
+}
+
+export interface AdminUserIntelligenceRow {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  authProvider: string;
+  isPlatformAdmin: boolean;
+  platformAdminRevoked: boolean;
+  isOnline: boolean;
+  activeSessionsCount: number;
+  lastActiveAt: string;
+  createdAt: string;
+  primaryOrgId: string | null;
+  primaryOrgName: string;
+  primaryRole: string;
+  subscriptionTier: AdminSubscriptionTier | string;
+  aiMonthlyBudgetUsd: number | null;
+  workspacesCount: number;
+  isSharedWorkspace: boolean;
+  projectsCount: number;
+  websitesCount: number;
+  tokens: {
+    spent: number;
+    directUserSpent: number;
+    available: number;
+    monthlyAllowance: number;
+    bonus: number;
+    shortfall: number;
+    utilizationPct: number;
+  };
+  crawls: {
+    total: number;
+    failed: number;
+    pagesCrawled: number;
+    pagesRendered: number;
+    pagesStatic: number;
+  };
+  ai: {
+    calls: number;
+    errors: number;
+    tokens: number;
+    unpricedCalls: number;
+    topModels: Array<{ model: string; calls: number }>;
+  };
+  apis: {
+    geoGridPoints: number;
+    externalApiCalls: number;
+  };
+  cost: AdminCostBuckets;
+  projectedMonthlyUsd: number;
+  projectedMonthlyInr: number;
+  mrrUsd: number;
+  netMarginUsd: number;
+  marginPct: number | null;
+  profitabilityStatus: AdminProfitabilityStatus;
+}
+
+export interface AdminUsersIntelligenceResponse {
+  window: AdminCostWindow;
+  since: string | null;
+  rates: AdminCostRates;
+  summary: {
+    totalUsers: number;
+    activeUsers: number;
+    freeHighBurnUsers: number;
+    lossMakingUsers: number;
+    totalCostUsd: number;
+    totalCostInr: number;
+    totalMrrUsd: number;
+    netMarginUsd: number;
+    avgCostPerUserUsd: number;
+    totalTokensSpent: number;
+    totalCrawls: number;
+    totalPagesCrawled: number;
+    totalRenderedPages: number;
+    totalAiCalls: number;
+    totalAiTokens: number;
+    buckets: AdminCostBuckets;
+  };
+  users: AdminUserIntelligenceRow[];
+}
+
+export interface AdminUser360Response {
+  window: AdminCostWindow;
+  since: string | null;
+  rates: AdminCostRates;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    authProvider: string;
+    isPlatformAdmin: boolean;
+    createdAt: string;
+    activeSessions: Array<{ id: string; createdAt: string; expiresAt: string }>;
+  };
+  workspaces: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    role: string;
+    subscriptionTier: AdminSubscriptionTier | string;
+    aiMonthlyBudgetUsd: number | null;
+    whiteLabelEnabled: boolean;
+    memberCount: number;
+    wallet: {
+      available: number;
+      allowanceRemaining: number;
+      periodGranted: number;
+      monthlyAllowance: number;
+      customMonthlyAllowance: number | null;
+      bonus: number;
+      periodEnd: string | null;
+    };
+  }>;
+  websites: Array<{
+    id: string;
+    domain: string;
+    url: string;
+    isVerified: boolean;
+    crawlFrequency: string;
+    maxConcurrency: number;
+    maxDepth: number;
+  }>;
+  cost: AdminCostBuckets & {
+    projectedMonthlyUsd: number;
+    projectedMonthlyInr: number;
+    mrrUsd: number;
+    netMarginUsd: number;
+    marginPct: number | null;
+    profitabilityStatus: AdminProfitabilityStatus;
+    unpricedAiCalls: number;
+  };
+  dailyTrend: Array<{
+    date: string;
+    aiUsd: number;
+    crawlUsd: number;
+    apisUsd: number;
+    totalUsd: number;
+    totalInr: number;
+  }>;
+  models: Array<{
+    provider: string;
+    model: string;
+    calls: number;
+    errors: number;
+    inputTokens: number;
+    outputTokens: number;
+    avgLatencyMs: number;
+    costUsd: number;
+    costInr: number;
+  }>;
+  tasks: Array<{
+    taskType: string;
+    calls: number;
+    tokens: number;
+    costUsd: number;
+    costInr: number;
+  }>;
+  usageSummary: {
+    crawlsCount: number;
+    pagesCrawled: number;
+    pagesRendered: number;
+    aiVisibilityScans: number;
+    geoGridRuns: number;
+    geoGridPoints: number;
+    serpChecks: number;
+    keywordGapChecks: number;
+    backlinkRuns: number;
+    fixInterventions: number;
+    auditReports: number;
+    voiceSessions: number;
+  };
+  recentCrawls: Array<{
+    id: string;
+    websiteId: string;
+    domain: string;
+    scope: string;
+    status: string;
+    pagesCrawled: number;
+    pagesDiscovered: number;
+    pagesRendered: number;
+    issuesFound: number;
+    costUsd: number;
+    costInr: number;
+    errorMessage: string | null;
+    createdAt: string;
+    finishedAt: string | null;
+  }>;
+  recentTokenTransactions: Array<{
+    id: string;
+    organizationId: string;
+    kind: string;
+    action: string;
+    tokens: number;
+    shortfall: number;
+    balanceAfter: number;
+    userId: string | null;
+    detail: unknown;
+    createdAt: string;
+  }>;
+  recentAuditEvents: Array<{
+    id: string;
+    action: string;
+    resource: string | null;
+    createdAt: string;
+  }>;
+}
+
 

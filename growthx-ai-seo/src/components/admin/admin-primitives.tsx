@@ -27,36 +27,36 @@ export function NocPanel({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-md border border-brand-200 bg-surface-1 shadow-2xs",
+        "overflow-hidden rounded-lg border border-brand-200 bg-surface-1 shadow-2xs",
         className,
       )}
     >
       {(title || actions) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-surface-2/70 px-3.5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-surface-2/60 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {code && (
-                <span className="rounded-xs border border-signal-400/40 bg-signal-400/10 px-1.5 py-0.5 font-mono text-[9.5px] font-bold tracking-[0.08em] text-signal-400">
+                <span className="rounded-sm border border-primary-200 bg-primary-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-primary-600">
                   {code}
                 </span>
               )}
               {title && (
-                <h2 className="truncate font-mono text-[12px] font-bold tracking-[0.04em] text-brand-950 uppercase">
+                <h2 className="truncate text-[13px] font-semibold tracking-tight text-brand-950">
                   {title}
                 </h2>
               )}
             </div>
-            {subtitle && <p className="mt-0.5 text-[11px] text-brand-400">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 text-[11.5px] text-brand-400">{subtitle}</p>}
           </div>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
-      <div className={padded ? "p-3.5" : undefined}>{children}</div>
+      <div className={padded ? "p-4" : undefined}>{children}</div>
     </section>
   );
 }
 
-/** High-density monospace metric tile for NOC telemetry grids. */
+/** High-density monospace metric tile for executive FinOps & telemetry grids. */
 export function NocStat({
   label,
   value,
@@ -71,16 +71,16 @@ export function NocStat({
   aside?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-brand-200 bg-surface-1 px-3.5 py-3 flex flex-col justify-between gap-1.5">
+    <div className="rounded-lg border border-brand-200 bg-surface-1 px-4 py-3.5 flex flex-col justify-between gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-400">
+        <span className="text-[11px] font-medium text-brand-400">
           {label}
         </span>
         {aside}
       </div>
       <div
         className={cn(
-          "font-mono text-[22px] font-bold leading-none tracking-tight tabular-nums",
+          "font-mono text-[22px] font-semibold leading-none tracking-tight tabular-nums",
           tone === "good"
             ? "text-success-700"
             : tone === "warn"
@@ -88,13 +88,13 @@ export function NocStat({
               : tone === "bad"
                 ? "text-error-700"
                 : tone === "cyan"
-                  ? "text-signal-400"
+                  ? "text-primary-600"
                   : "text-brand-950",
         )}
       >
         {value}
       </div>
-      {sub && <div className="font-mono text-[10.5px] text-brand-400 truncate">{sub}</div>}
+      {sub && <div className="text-[11px] text-brand-400 truncate">{sub}</div>}
     </div>
   );
 }
@@ -113,13 +113,13 @@ export function NocButton({
     <button
       {...props}
       className={cn(
-        "inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-2.5 font-mono text-[11px] font-bold tracking-[0.03em] transition-colors disabled:opacity-45 cursor-pointer",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors disabled:opacity-45 cursor-pointer",
         variant === "primary"
-          ? "bg-signal-400 text-signal-ink hover:bg-signal-500"
+          ? "bg-signal-400 text-white hover:bg-signal-500 shadow-2xs"
           : variant === "danger"
             ? "border border-error-200 bg-error-50 text-error-700 hover:bg-error-600 hover:text-white"
             : variant === "warn"
-              ? "border border-warning-200 bg-warning-50 text-warning-700 hover:bg-warning-600 hover:text-signal-ink"
+              ? "border border-warning-200 bg-warning-50 text-warning-700 hover:bg-warning-600 hover:text-white"
               : "border border-brand-200 bg-surface-2 text-brand-700 hover:border-brand-300 hover:bg-surface-3 hover:text-brand-950",
         props.className,
       )}
@@ -484,6 +484,12 @@ export function formatUsd(amount: number | null | undefined, digits = 2): string
   if (amount == null || !Number.isFinite(amount)) return "—";
   if (amount > 0 && amount < 0.01) return `$${amount.toFixed(4)}`;
   return `$${amount.toFixed(digits)}`;
+}
+
+export function formatInr(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return "—";
+  if (amount > 0 && amount < 1) return `₹${amount.toFixed(2)}`;
+  return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatCompactNumber(value: number | null | undefined): string {
