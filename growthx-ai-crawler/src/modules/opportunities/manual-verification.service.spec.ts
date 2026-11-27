@@ -135,4 +135,90 @@ describe('ManualVerificationService', () => {
       }),
     );
   });
+
+  it('refuses verification when finding lacks actionable single-URL live rules (no blind 200 pass)', async () => {
+    prisma.growthOpportunity.findFirst.mockResolvedValue({
+      id: 'finding-generic',
+      projectId: 'proj-1',
+      title: 'Site-wide orphan pages detected across blog taxonomy',
+      summary: 'Cross-site orphan issue with no single-URL verifiable rule',
+      recommendedAction: 'Internal linking architecture reorganization across site',
+      source: 'WEBSITE',
+      affectedPages: ['https://example.com/blog/'],
+      lifecycle: FindingLifecycle.DETECTED,
+      transitions: [],
+    });
+    mockGet.mockResolvedValue({
+      status: 200,
+      data: '<html><head><title>Blog</title></head><body><h1>Blog</h1></body></html>',
+    });
+
+    const result = await service.verifyManualFix('proj-1', 'finding-generic', { type: 'USER', id: 'u1' });
+
+    expect(result.verified).toBe(false);
+    expect(result.checks.some((c) => !c.passed && c.name === 'Fix-specific live check')).toBe(true);
+    expect(result.checks.find((c) => c.name === 'Fix-specific live check')?.observed).toContain('Automatic single-URL verification is not supported');
+  });
+
+  it('fails verification when live page has conflicting multiple title tags', async () => {
+    prisma.growthOpportunity.findFirst.mockResolvedValue({
+      id: 'finding-title',
+      projectId: 'proj-1',
+      title: 'Missing title tag or title too short',
+      summary: 'Homepage lacks unique title',
+      recommendedAction: 'Add title tag',
+      source: 'WEBSITE',
+      affectedPages: ['https://example.com/'],
+      lifecycle: FindingLifecycle.DETECTED,
+      transitions: [],
+    });
+    mockGet.mockResolvedValue({
+      status: 200,
+      data: `<!doctype html><html><head>
+        <title>Old Static Shell Title</title>
+        <title>New Hydrated Sourdough Title</title>
+        <meta name="description" content="Order freshly baked artisan sourdough and pastries delivered every morning across downtown.">
+        <link rel="canonical" href="https://example.com/">
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"Example Bakery"}</script>
+      </head><body><h1>Fresh Bakery</h1></body></html>`,
+    });
+
+    const result = await service.verifyManualFix('proj-1', 'finding-title', { type: 'USER', id: 'u1' });
+
+    expect(result.verified).toBe(false);
+    const titleCheck = result.checks.find((c) => c.name.includes('<title>'));
+    expect(titleCheck).toBeDefined();
+    expect(titleCheck?.passed).toBe(false);
+    expect(titleCheck?.observed).toContain('Conflicting <title> tags (2)');
+  });
+
+  it('fails verification when live page has conflicting multiple canonical tags', async () => {
+    prisma.growthOpportunity.findFirst.mockResolvedValue({
+      id: 'finding-canonical',
+      projectId: 'proj-1',
+      title: 'Canonical URL missing or incorrect',
+      summary: 'Needs explicit self canonical',
+      recommendedAction: 'Add canonical tag',
+      source: 'WEBSITE',
+      affectedPages: ['https://example.com/page'],
+      lifecycle: FindingLifecycle.DETECTED,
+      transitions: [],
+    });
+    mockGet.mockResolvedValue({
+      status: 200,
+      data: `<!doctype html><html><head>
+        <title>Example Page</title>
+        <link rel="canonical" href="https://example.com/page">
+        <link rel="canonical" href="https://example.com/other-page">
+      </head><body><h1>Example</h1></body></html>`,
+    });
+
+    const result = await service.verifyManualFix('proj-1', 'finding-canonical', { type: 'USER', id: 'u1' });
+
+    expect(result.verified).toBe(false);
+    const canonCheck = result.checks.find((c) => c.name.includes('Canonical'));
+    expect(canonCheck).toBeDefined();
+    expect(canonCheck?.passed).toBe(false);
+    expect(canonCheck?.observed).toContain('Conflicting canonical targets (2)');
+  });
 });

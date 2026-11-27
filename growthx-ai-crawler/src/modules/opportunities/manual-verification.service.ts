@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { FindingLifecycle, Prisma } from '@prisma/client';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { assertPublicUrl, isPrivateAddress, publicAxios, SSRF_ERROR_CODE, SsrfBlockedError } from '../security/ssrf';
+import { FetchService } from '../crawler/fetch/fetch.service';
+import { normalizeUrl } from '../crawler/url/url-normalizer';
 import type { LifecycleActor, LifecycleTransitionRecord } from './lifecycle.service';
 
 export interface LiveSignalCheck {
@@ -21,16 +23,44 @@ export interface ManualVerificationResult {
   checks: LiveSignalCheck[];
   observed: {
     title: string | null;
+    titles?: string[];
     metaDescription: string | null;
+    metaDescriptions?: string[];
     h1: string | null;
     canonicalUrl: string | null;
+    canonicalUrls?: string[];
     robotsDirectives: string | null;
+    xRobotsTag?: string | null;
+    renderUnavailable?: boolean;
     jsonLdCount: number;
     jsonLdTypes: string[];
   } | null;
   summary: string;
   ledgerEventId: string | null;
   lifecycle: FindingLifecycle;
+}
+
+const SEARCH_INDEX_BOTS = new Set(['*', 'googlebot', 'googlebot-news', 'googlebot-image', 'bingbot', 'growthxbot']);
+
+function hasSearchNoindexDirective(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const clauses = value.toLowerCase().split(/[,;]+/).map((c) => c.trim()).filter(Boolean);
+  for (const clause of clauses) {
+    const botMatch = clause.match(/^([a-z0-9_*-]+)\s*:\s*(.+)$/);
+    if (botMatch) {
+      const bot = botMatch[1].trim();
+      const tokens = botMatch[2].trim().split(/\s+/);
+      if (SEARCH_INDEX_BOTS.has(bot) && tokens.some((t) => t === 'noindex' || t === 'none')) {
+        return true;
+      }
+      continue;
+    }
+    const tokens = clause.split(/\s+/);
+    if (tokens.some((t) => t === 'noindex' || t === 'none')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeCandidateUrl(raw: string | null | undefined, fallbackDomain: string | null): string | null {
@@ -83,13 +113,19 @@ export function evaluateFindingLiveSignals(
   httpStatus: number,
   observed: {
     title: string | null;
+    titles?: string[];
     metaDescription: string | null;
+    metaDescriptions?: string[];
     h1: string | null;
     canonicalUrl: string | null;
+    canonicalUrls?: string[];
     robotsDirectives: string | null;
+    xRobotsTag?: string | null;
+    renderUnavailable?: boolean;
     jsonLdCount: number;
     jsonLdTypes: string[];
   },
+  targetUrl?: string,
 ): LiveSignalCheck[] {
   const hay = `${finding.title} ${finding.summary} ${finding.recommendedAction}`.toLowerCase();
   const checks: LiveSignalCheck[] = [
@@ -100,27 +136,54 @@ export function evaluateFindingLiveSignals(
     },
   ];
 
-  if (/\btitle\b|title tag/.test(hay)) {
-    const len = observed.title?.length ?? 0;
+  if (observed.renderUnavailable) {
     checks.push({
-      name: 'Page <title> present',
-      passed: len >= 10,
-      observed: observed.title ? `"${observed.title.slice(0, 80)}" (${len} chars)` : 'Missing <title>',
+      name: 'Rendered page assessment',
+      passed: false,
+      observed: 'JavaScript rendering was unavailable; live DOM could not be verified safely.',
+    });
+  }
+
+  let matchedSpecificRule = 0;
+
+  if (/\btitle\b|title tag/.test(hay)) {
+    matchedSpecificRule++;
+    const titles = observed.titles ?? (observed.title ? [observed.title] : []);
+    const uniqueTitles = [...new Set(titles.map((t) => t.trim()).filter(Boolean))];
+    const len = uniqueTitles[0]?.length ?? 0;
+    const singleValid = titles.length === 1 && len >= 10;
+    checks.push({
+      name: 'Page <title> present and unique',
+      passed: singleValid,
+      observed:
+        titles.length > 1
+          ? `Conflicting <title> tags (${titles.length}): ${uniqueTitles.slice(0, 3).map((t) => `"${t.slice(0, 50)}"`).join(' vs. ')}`
+          : observed.title
+            ? `"${observed.title.slice(0, 80)}" (${len} chars)`
+            : 'Missing <title>',
     });
   }
 
   if (/meta description|description tag/.test(hay)) {
-    const len = observed.metaDescription?.length ?? 0;
+    matchedSpecificRule++;
+    const descriptions = observed.metaDescriptions ?? (observed.metaDescription ? [observed.metaDescription] : []);
+    const uniqueDescs = [...new Set(descriptions.map((d) => d.trim()).filter(Boolean))];
+    const len = uniqueDescs[0]?.length ?? 0;
+    const singleValid = descriptions.length === 1 && len >= 30;
     checks.push({
-      name: 'Meta description present',
-      passed: len >= 30,
-      observed: observed.metaDescription
-        ? `"${observed.metaDescription.slice(0, 90)}" (${len} chars)`
-        : 'Missing meta description',
+      name: 'Meta description present and unique',
+      passed: singleValid,
+      observed:
+        descriptions.length > 1
+          ? `Conflicting meta description tags (${descriptions.length})`
+          : observed.metaDescription
+            ? `"${observed.metaDescription.slice(0, 90)}" (${len} chars)`
+            : 'Missing meta description',
     });
   }
 
   if (/\bh1\b|primary heading|main heading/.test(hay)) {
+    matchedSpecificRule++;
     checks.push({
       name: 'Primary <h1> present',
       passed: Boolean(observed.h1 && observed.h1.length >= 3),
@@ -129,14 +192,29 @@ export function evaluateFindingLiveSignals(
   }
 
   if (/canonical/.test(hay)) {
+    matchedSpecificRule++;
+    const rawCanonicals = observed.canonicalUrls ?? (observed.canonicalUrl ? [observed.canonicalUrl] : []);
+    const normalizedCanonicals = [...new Set(rawCanonicals.map((c) => normalizeUrl(c)).filter(Boolean))];
+    const normalizedTarget = targetUrl ? normalizeUrl(targetUrl) : null;
+    const hasSingleCanonical = rawCanonicals.length === 1 && normalizedCanonicals.length === 1;
+    const matchesTarget = !normalizedTarget || normalizedCanonicals[0] === normalizedTarget;
+    const isHttpUrl = Boolean(rawCanonicals[0] && /^https?:\/\//i.test(rawCanonicals[0]));
     checks.push({
-      name: 'Canonical tag present',
-      passed: Boolean(observed.canonicalUrl && /^https?:\/\//i.test(observed.canonicalUrl)),
-      observed: observed.canonicalUrl ?? 'Missing canonical <link>',
+      name: 'Canonical tag valid and unambiguous',
+      passed: hasSingleCanonical && isHttpUrl && matchesTarget,
+      observed:
+        normalizedCanonicals.length > 1
+          ? `Conflicting canonical targets (${normalizedCanonicals.length}): ${normalizedCanonicals.join(', ')}`
+          : rawCanonicals.length === 0
+            ? 'Missing canonical <link>'
+            : !matchesTarget
+              ? `Canonical points elsewhere: ${rawCanonicals[0]} (expected ${targetUrl})`
+              : rawCanonicals[0],
     });
   }
 
-  if (/json-ld|schema|structured data|localbusiness|faqpage|organization/.test(hay)) {
+  if (/\b(json-ld|schema|structured data|localbusiness|faqpage|organization)\b/i.test(hay)) {
+    matchedSpecificRule++;
     checks.push({
       name: 'Valid JSON-LD schema detected',
       passed: observed.jsonLdCount > 0,
@@ -148,11 +226,27 @@ export function evaluateFindingLiveSignals(
   }
 
   if (/noindex|blocked by robots|indexability/.test(hay)) {
-    const hasNoindex = Boolean(observed.robotsDirectives && /noindex/i.test(observed.robotsDirectives));
+    matchedSpecificRule++;
+    const metaNoindex = hasSearchNoindexDirective(observed.robotsDirectives);
+    const headerNoindex = hasSearchNoindexDirective(observed.xRobotsTag);
+    const hasNoindex = metaNoindex || headerNoindex;
     checks.push({
-      name: 'Page allows indexing',
+      name: 'Page allows search indexing',
       passed: !hasNoindex,
-      observed: observed.robotsDirectives || 'Indexable (no noindex directive)',
+      observed: headerNoindex
+        ? `X-Robots-Tag: ${observed.xRobotsTag}`
+        : metaNoindex
+          ? `<meta name="robots" content="${observed.robotsDirectives}">`
+          : observed.robotsDirectives || 'Indexable (no search noindex directive)',
+    });
+  }
+
+  if (matchedSpecificRule === 0) {
+    checks.push({
+      name: 'Fix-specific live check',
+      passed: false,
+      observed:
+        'Automatic single-URL verification is not supported for this finding type (HTTP 200 alone cannot prove resolution). Run a full site recrawl to verify.',
     });
   }
 
@@ -161,15 +255,18 @@ export function evaluateFindingLiveSignals(
 
 /**
  * Closes the loop for manual implementations shipped outside GitHub/CMS Fix Engine:
- * fetches the live public URL (with SSRF protection), verifies real HTML/HTTP signals,
- * and — ONLY when checks pass — records a VERIFIED_LIVE FixSnapshot, appends a
- * TECHNICAL_FIX_CONFIRMED FixImpactLedgerEvent, and transitions the finding to VERIFIED.
+ * fetches the live public URL (with SSRF protection and Playwright rendering when
+ * FetchService is available), verifies real HTML/HTTP signals, and — ONLY when
+ * fix-specific checks pass — records VERIFIED_LIVE proof.
  */
 @Injectable()
 export class ManualVerificationService {
   private readonly logger = new Logger(ManualVerificationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly fetchService?: FetchService,
+  ) {}
 
   async verifyManualFix(
     projectId: string,
@@ -222,20 +319,37 @@ export class ManualVerificationService {
     const checkedAt = new Date();
     let httpStatus: number | null = null;
     let html = '';
+    let finalUrl = targetUrl;
+    let xRobotsTag: string | null = null;
+    let renderUnavailable = false;
 
     try {
-      const response = await publicAxios.get<string>(targetUrl, {
-        timeout: 12_000,
-        maxRedirects: 5,
-        responseType: 'text',
-        validateStatus: () => true,
-        headers: {
-          'User-Agent': 'ReigelBot/1.0 (+https://www.reigel.in/verification)',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
-      });
-      httpStatus = typeof response.status === 'number' ? response.status : null;
-      html = typeof response.data === 'string' ? response.data : '';
+      if (this.fetchService) {
+        const outcome = await this.fetchService.fetch(targetUrl, { renderAllowed: true });
+        if (outcome.error) {
+          throw new Error(outcome.error.message || 'Live URL could not be reached.');
+        }
+        httpStatus = typeof outcome.statusCode === 'number' ? outcome.statusCode : null;
+        html = outcome.html || '';
+        finalUrl = outcome.finalUrl || targetUrl;
+        xRobotsTag = outcome.headers?.['x-robots-tag'] || null;
+        renderUnavailable = Boolean(outcome.renderUnavailable);
+      } else {
+        const response = await publicAxios.get<string>(targetUrl, {
+          timeout: 12_000,
+          maxRedirects: 5,
+          responseType: 'text',
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': 'ReigelBot/1.0 (+https://www.reigel.in/verification)',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+        });
+        httpStatus = typeof response.status === 'number' ? response.status : null;
+        html = typeof response.data === 'string' ? response.data : '';
+        const rawHeader = (response as any)?.headers?.['x-robots-tag'];
+        xRobotsTag = Array.isArray(rawHeader) ? rawHeader.join(', ') : typeof rawHeader === 'string' ? rawHeader : null;
+      }
     } catch (err: any) {
       if (err instanceof SsrfBlockedError || err?.code === SSRF_ERROR_CODE) {
         throw new BadRequestException(err?.message || 'Blocked unsafe redirect or private address.');
@@ -257,17 +371,45 @@ export class ManualVerificationService {
     }
 
     const $ = cheerio.load(html || '');
-    const title = $('title').first().text().trim() || null;
-    const metaDescription =
-      $('meta[name="description"]').attr('content')?.trim() ||
-      $('meta[name="Description"]').attr('content')?.trim() ||
-      null;
+    const titles = $('title')
+      .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
+      .get()
+      .filter(Boolean);
+    const title = titles[0] || null;
+
+    const metaDescriptions = $('meta[name]')
+      .filter((_, el) => ($(el).attr('name') || '').trim().toLowerCase() === 'description')
+      .map((_, el) => ($(el).attr('content') || '').trim())
+      .get()
+      .filter(Boolean);
+    const metaDescription = metaDescriptions[0] || null;
+
     const h1 = $('h1').first().text().replace(/\s+/g, ' ').trim() || null;
-    const canonicalUrl = $('link[rel="canonical"]').attr('href')?.trim() || null;
-    const robotsDirectives =
-      $('meta[name="robots"]').attr('content')?.trim() ||
-      $('meta[name="googlebot"]').attr('content')?.trim() ||
-      null;
+
+    const canonicalUrls = $('link[rel]')
+      .filter((_, el) => ($(el).attr('rel') || '').toLowerCase().split(/\s+/).includes('canonical'))
+      .map((_, el) => {
+        const href = ($(el).attr('href') || '').trim();
+        if (!href) return '';
+        try {
+          return new URL(href, finalUrl).toString();
+        } catch {
+          return href;
+        }
+      })
+      .get()
+      .filter(Boolean);
+    const canonicalUrl = canonicalUrls[0] || null;
+
+    const robotsValues = $('meta[name]')
+      .filter((_, el) => {
+        const name = ($(el).attr('name') || '').trim().toLowerCase();
+        return name === 'robots' || name === 'googlebot';
+      })
+      .map((_, el) => ($(el).attr('content') || '').trim())
+      .get()
+      .filter(Boolean);
+    const robotsDirectives = robotsValues.length > 0 ? robotsValues.join(', ') : null;
 
     const rawJsonLd: string[] = [];
     $('script[type="application/ld+json"]').each((_idx, el) => {
@@ -278,10 +420,15 @@ export class ManualVerificationService {
 
     const observed = {
       title,
+      titles,
       metaDescription,
+      metaDescriptions,
       h1,
       canonicalUrl,
+      canonicalUrls,
       robotsDirectives,
+      xRobotsTag,
+      renderUnavailable,
       jsonLdCount: jsonLdTypes.length > 0 ? rawJsonLd.length : 0,
       jsonLdTypes,
     };
@@ -295,6 +442,7 @@ export class ManualVerificationService {
       },
       httpStatus ?? 0,
       observed,
+      finalUrl,
     );
 
     const allPassed = checks.every((c) => c.passed);

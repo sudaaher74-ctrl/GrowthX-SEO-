@@ -228,6 +228,18 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
     return { provenWins, evaluating, stagnant, pivoted, verifiedLive };
   }, [allCards]);
 
+  const maxObservedDay = useMemo(() => {
+    let maxDay = 0;
+    for (const card of allCards) {
+      if (card.after?.verifiedAt) {
+        const vDate = new Date(card.after.verifiedAt);
+        const day = Math.max(1, Math.min(21, Math.floor((nowMs - vDate.getTime()) / 86400000)));
+        if (day > maxDay) maxDay = day;
+      }
+    }
+    return maxDay;
+  }, [allCards, nowMs]);
+
   // Filtered experiments
   const filteredCards = useMemo(() => {
     return allCards.filter((card) => {
@@ -262,7 +274,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
       />
 
       {/* 2. 21-Day Multi-Pillar Observation Pipeline Stepper */}
-      <MilestoneStepper day={1} totalDays={21} />
+      <MilestoneStepper day={maxObservedDay || 1} totalDays={21} />
 
       {/* 3. Filter Ribbon with View Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
@@ -399,10 +411,49 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                           <MilestoneStepper day={daysObserved} compact />
                         </td>
                         <td className="px-4 py-3">
-                          <div className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/80 bg-success-50/70 px-2.5 py-1 text-[11px] font-bold text-success-700">
-                            <CheckCircle2 size={12} className="text-success-600 shrink-0" />
-                            <span>Live on Website</span>
-                          </div>
+                          {(() => {
+                            const status = card.after?.verificationStatus;
+                            const isVerified = status === "VERIFIED" || status === "VERIFIED_LIVE";
+                            const isVerifying = status === "VERIFYING";
+                            const isFailed = status === "FAILED" || status === "MISMATCH";
+                            const isUnsupported = status === "UNSUPPORTED";
+                            if (isVerified) {
+                              return (
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-success-200/80 bg-success-50/70 px-2.5 py-1 text-[11px] font-bold text-success-700">
+                                  <CheckCircle2 size={12} className="text-success-600 shrink-0" />
+                                  <span>Verified Live</span>
+                                </div>
+                              );
+                            }
+                            if (isVerifying) {
+                              return (
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-warning-200/80 bg-warning-50/70 px-2.5 py-1 text-[11px] font-bold text-warning-700">
+                                  <Clock size={12} className="text-warning-600 shrink-0" />
+                                  <span>Verifying Live…</span>
+                                </div>
+                              );
+                            }
+                            if (isFailed) {
+                              return (
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-error-200/80 bg-error-50/70 px-2.5 py-1 text-[11px] font-bold text-error-700">
+                                  <AlertCircle size={12} className="text-error-600 shrink-0" />
+                                  <span>Live Mismatch</span>
+                                </div>
+                              );
+                            }
+                            if (isUnsupported) {
+                              return (
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-brand-600">
+                                  <span>Manual Check</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-brand-600">
+                                <span>Staged (Unverified)</span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <div className="space-y-0.5">

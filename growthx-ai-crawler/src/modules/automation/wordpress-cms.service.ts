@@ -1,5 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AutomationRunKind, AutomationRunStatus } from '@prisma/client';
+import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../security/security.service';
 import {
@@ -12,6 +13,7 @@ import {
   SsrfBlockedError,
 } from '../security/ssrf';
 import { VerificationEngineService } from '../crawler/verification-engine.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { FindingSyncService } from '../opportunities/finding-sync.service';
 
 export interface ConnectWordPressInput {
@@ -41,6 +43,19 @@ export interface VerifyManualCmsFixInput {
   platform?: string;
 }
 
+/**
+ * What `finalizeCmsFixVerification` must prove before a CMS fix is called
+ * verified: the exact field that changed, as observed on the live page.
+ */
+export interface CmsVerifyOptions {
+  field: string;
+  expected: string;
+  /** When set, a passing check records the VERIFIED_LIVE snapshot and ledger event. */
+  runId?: string;
+  actor?: string;
+  pullRequestUrl?: string;
+}
+
 export interface ConnectShopifyInput {
   shopDomain: string;
   accessToken: string;
@@ -61,18 +76,117 @@ export class WordPressCmsService {
     private readonly security: SecurityService,
     @Optional() private readonly verificationEngine?: VerificationEngineService,
     @Optional() @Inject(forwardRef(() => FindingSyncService)) private readonly findingSync?: FindingSyncService,
+    @Optional() private readonly fetchService?: FetchService,
   ) {}
 
   /**
-   * Automatically runs live targeted re-verification on a CMS-updated URL,
-   * updates the linked GrowthOpportunity / SavedPlan status honestly, and syncs
-   * Fix Engine so the change is reflected immediately without waiting for a full crawl.
+   * Checks ONE field on the live page: the exact title/description, or the
+   * JSON-LD types, that the fix was meant to put there. A 200 response or a
+   * substring somewhere in the body is never enough. Conflicting duplicate
+   * tags are reported as a failure, not resolved in the fix's favour.
+   * `supported: false` means no safe assertion exists, so the fix stays unverified.
+   */
+  async liveFieldCheck(
+    targetUrl: string,
+    field: string,
+    expected: string,
+  ): Promise<{ supported: boolean; passed: boolean; observed: string }> {
+    const f = (field || '').toUpperCase();
+    const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+    const wanted = norm(expected || '');
+    const supported = (f === 'META_TITLE' || f === 'META_DESCRIPTION' || f.includes('SCHEMA')) && Boolean(wanted);
+    if (!supported) {
+      return { supported: false, passed: false, observed: 'No fix-specific live assertion exists for this field.' };
+    }
+
+    let html = '';
+    try {
+      if (this.fetchService) {
+        const outcome = await this.fetchService.fetch(targetUrl, { renderAllowed: true });
+        if (outcome.error || !outcome.html) {
+          return { supported: true, passed: false, observed: outcome.error?.message || 'Live page returned no HTML.' };
+        }
+        if (typeof outcome.statusCode !== 'number' || outcome.statusCode < 200 || outcome.statusCode >= 300) {
+          return { supported: true, passed: false, observed: `Live page returned HTTP ${outcome.statusCode ?? 'none'}.` };
+        }
+        if (outcome.renderUnavailable) {
+          return { supported: true, passed: false, observed: 'The page could not be rendered, so the live result is unknown.' };
+        }
+        html = outcome.html;
+      } else {
+        const res = await this.safeFetch(
+          targetUrl,
+          { method: 'GET', headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Reigel-SEO-Verifier/1.0' } },
+          15000,
+        );
+        if (!res.ok) return { supported: true, passed: false, observed: `Live page returned HTTP ${res.status}.` };
+        html = (await res.text()).slice(0, 2_000_000);
+      }
+    } catch (err: any) {
+      return { supported: true, passed: false, observed: `Live check failed: ${err?.message || 'fetch error'}` };
+    }
+
+    const $ = cheerio.load(html);
+    if (f === 'META_TITLE') {
+      const titles = $('title').map((_, el) => norm($(el).text())).get().filter(Boolean);
+      if (titles.length > 1) return { supported: true, passed: false, observed: `Conflicting <title> tags (${titles.length}): ${titles.join(' | ')}` };
+      return { supported: true, passed: titles[0] === wanted, observed: titles[0] || 'Missing <title>' };
+    }
+    if (f === 'META_DESCRIPTION') {
+      const descriptions = $('meta[name]')
+        .filter((_, el) => ($(el).attr('name') || '').trim().toLowerCase() === 'description')
+        .map((_, el) => norm($(el).attr('content') || ''))
+        .get()
+        .filter(Boolean);
+      if (descriptions.length > 1) return { supported: true, passed: false, observed: `Conflicting meta descriptions (${descriptions.length})` };
+      return { supported: true, passed: descriptions[0] === wanted, observed: descriptions[0] || 'Missing meta description' };
+    }
+
+    // Schema: every @type in the proposed JSON-LD must exist in a parseable live block.
+    const typesOf = (raw: string): string[] => {
+      const out = new Set<string>();
+      const walk = (node: unknown) => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) return node.forEach(walk);
+        const obj = node as Record<string, unknown>;
+        const t = obj['@type'];
+        if (typeof t === 'string') out.add(t);
+        if (Array.isArray(t)) t.forEach((x) => typeof x === 'string' && out.add(x));
+        if (Array.isArray(obj['@graph'])) walk(obj['@graph']);
+      };
+      try {
+        walk(JSON.parse(raw));
+      } catch {
+        /* malformed JSON-LD proves nothing */
+      }
+      return [...out];
+    };
+    const expectedTypes = typesOf(expected);
+    if (expectedTypes.length === 0) {
+      return { supported: false, passed: false, observed: 'The proposed schema has no parseable @type to verify.' };
+    }
+    const liveTypes = new Set<string>();
+    $('script[type="application/ld+json"]').each((_, el) => typesOf($(el).html() || '').forEach((t) => liveTypes.add(t)));
+    const missing = expectedTypes.filter((t) => !liveTypes.has(t));
+    return {
+      supported: true,
+      passed: missing.length === 0,
+      observed: liveTypes.size ? `Live JSON-LD types: ${[...liveTypes].join(', ')}` : 'No valid JSON-LD found',
+    };
+  }
+
+  /**
+   * Updates the linked GrowthOpportunity / SavedPlan status honestly and syncs
+   * Fix Engine. A fix is VERIFIED only when a live check of the exact changed
+   * field passed. No check, an unsupported field, an error, or a failed assertion
+   * all leave it VERIFYING — never the other way round.
    */
   private async finalizeCmsFixVerification(
     projectId: string,
     targetUrl: string,
     findingId?: string,
     publishMode: 'draft' | 'publish' = 'publish',
+    opts?: CmsVerifyOptions,
   ): Promise<'VERIFIED' | 'VERIFYING'> {
     if (publishMode !== 'publish') {
       if (findingId && this.prisma.growthOpportunity?.update) {
@@ -83,26 +197,51 @@ export class WordPressCmsService {
       return 'VERIFYING';
     }
 
-    let verifiedLive = true;
-    if (this.verificationEngine && this.prisma.project?.findUnique) {
-      const project = await this.prisma.project
-        .findUnique({ where: { id: projectId }, select: { organizationId: true } })
-        .catch(() => null);
-      if (project?.organizationId) {
-        const cert = await this.verificationEngine
-          .runVerification(project.organizationId, projectId, { urls: [targetUrl] })
-          .catch((err) => {
-            this.logger.warn(`[${projectId}] Post-CMS live verification skipped: ${(err as Error).message}`);
-            return null;
-          });
-        if (cert && cert.totalTested > 0 && cert.failedCount > 0) {
-          verifiedLive = false;
-        }
+    let verifiedLive = false;
+    let checkObserved = '';
+    if (opts) {
+      const check = await this.liveFieldCheck(targetUrl, opts.field, opts.expected);
+      verifiedLive = check.supported && check.passed;
+      checkObserved = check.observed;
+      if (!verifiedLive) {
+        this.logger.warn(`[${projectId}] ${opts.field} on ${targetUrl} not verified live: ${check.observed}`);
       }
     }
 
     const now = new Date();
     const lifecycle: 'VERIFIED' | 'VERIFYING' = verifiedLive ? 'VERIFIED' : 'VERIFYING';
+
+    // The VERIFIED_LIVE proof is written only AFTER the live check passed.
+    if (verifiedLive && opts?.runId) {
+      try {
+        await this.prisma.fixSnapshot.create({
+          data: {
+            projectId,
+            automationRunId: opts.runId,
+            url: targetUrl,
+            snapshotType: 'VERIFIED_LIVE',
+            contentSnippet: opts.expected,
+            capturedAt: now,
+          },
+        });
+        await this.prisma.fixImpactLedgerEvent.create({
+          data: {
+            projectId,
+            automationRunId: opts.runId,
+            eventType: 'DEPLOYMENT_VERIFIED',
+            title: `Live Change Verified: ${opts.field}`,
+            description: `Live page check confirmed ${opts.field} on ${targetUrl}.`,
+            actor: opts.actor || 'CMS_AGENT',
+            affectedUrl: targetUrl,
+            pullRequestUrl: opts.pullRequestUrl,
+            verificationStatus: 'VERIFIED_LIVE',
+            evidenceData: { field: opts.field, observed: checkObserved.slice(0, 300) },
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`[${projectId}] Could not record verified-live proof: ${(err as Error).message}`);
+      }
+    }
 
     if (findingId && this.prisma.growthOpportunity?.update) {
       await this.prisma.growthOpportunity
@@ -725,7 +864,7 @@ export class WordPressCmsService {
           projectId,
           automationRunId: run.id,
           url: targetUrl,
-          snapshotType: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'PROPOSED',
+          snapshotType: 'PROPOSED',
           title: input.field === 'META_TITLE' ? input.afterValue : beforeTitle,
           metaDescription: input.field === 'META_DESCRIPTION' ? input.afterValue : beforeExcerpt,
           contentSnippet: input.afterValue,
@@ -737,7 +876,7 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: publishMode === 'publish' ? 'DEPLOYMENT_VERIFIED' : 'PR_CREATED',
+        eventType: publishMode === 'publish' ? 'DEPLOYMENT_PUBLISHED' : 'PR_CREATED',
         title:
           publishMode === 'publish'
             ? `WordPress Fix Published: ${input.findingTitle || input.field}`
@@ -749,7 +888,7 @@ export class WordPressCmsService {
         actor: 'WORDPRESS_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: wpAdminEditUrl,
-        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
+        verificationStatus: publishMode === 'publish' ? 'PUBLISHED_UNVERIFIED' : 'STAGED_LOCALLY',
         evidenceData: {
           wpPostId: wpItem.id,
           wpRevisionId: updatedWp?.id ?? null,
@@ -763,12 +902,13 @@ export class WordPressCmsService {
       },
     });
 
-    const verifiedState = await this.finalizeCmsFixVerification(
-      projectId,
-      targetUrl,
-      input.findingId,
-      publishMode,
-    );
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode, {
+      field: input.field,
+      expected: input.afterValue,
+      runId: run.id,
+      actor: 'WORDPRESS_AGENT',
+      pullRequestUrl: wpAdminEditUrl,
+    });
 
     return {
       success: true,
@@ -868,26 +1008,11 @@ export class WordPressCmsService {
       html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i);
     const liveDescription = descMatch ? descMatch[1].replace(/\s+/g, ' ').trim() : '';
 
-    const normalizedHtml = html.replace(/\s+/g, ' ').toLowerCase();
-    const normalizedExpected = expected.replace(/\s+/g, ' ').trim().toLowerCase();
-
-    let verified = false;
-    let detectedLiveValue = '';
-
-    if (input.field === 'META_TITLE') {
-      detectedLiveValue = liveTitle;
-      verified =
-        liveTitle.toLowerCase().includes(normalizedExpected) ||
-        normalizedHtml.includes(normalizedExpected);
-    } else if (input.field === 'META_DESCRIPTION') {
-      detectedLiveValue = liveDescription;
-      verified =
-        liveDescription.toLowerCase().includes(normalizedExpected) ||
-        normalizedHtml.includes(normalizedExpected);
-    } else {
-      detectedLiveValue = normalizedHtml.includes(normalizedExpected) ? expected : liveTitle || 'Live HTML';
-      verified = normalizedHtml.includes(normalizedExpected);
-    }
+    // Exact, field-scoped assertion. Matching text anywhere in the body (nav,
+    // copy, inline JSON) used to count; it proves nothing about the tag.
+    const fieldCheck = await this.liveFieldCheck(targetUrl, input.field, expected);
+    const verified = fieldCheck.supported && fieldCheck.passed;
+    const detectedLiveValue = fieldCheck.observed || (input.field === 'META_DESCRIPTION' ? liveDescription : liveTitle);
 
     const platformLabel = input.platform || 'CMS';
     const repo = await this.getOrCreateCmsRepository(projectId, 'cms', targetUrl, platformLabel.toLowerCase());
@@ -962,7 +1087,7 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: verified ? 'TECHNICAL_FIX_CONFIRMED' : 'DEPLOYMENT_VERIFIED',
+        eventType: verified ? 'TECHNICAL_FIX_CONFIRMED' : 'MANUAL_FIX_RECORDED',
         title: verified
           ? `${platformLabel} Fix Verified Live: ${input.findingTitle || input.field}`
           : `${platformLabel} Fix Recorded: ${input.findingTitle || input.field}`,
@@ -984,7 +1109,10 @@ export class WordPressCmsService {
     });
 
     if (verified) {
-      await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish');
+      await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, 'publish', {
+        field: input.field,
+        expected,
+      });
     }
 
     return {
@@ -1324,7 +1452,7 @@ export class WordPressCmsService {
           projectId,
           automationRunId: run.id,
           url: targetUrl,
-          snapshotType: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'PROPOSED',
+          snapshotType: 'PROPOSED',
           title: input.field === 'META_TITLE' ? input.afterValue : targetItem.title || null,
           metaDescription: input.field === 'META_DESCRIPTION' ? input.afterValue : null,
           contentSnippet: input.afterValue,
@@ -1336,7 +1464,7 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: publishMode === 'publish' ? 'DEPLOYMENT_VERIFIED' : 'PR_CREATED',
+        eventType: publishMode === 'publish' ? 'DEPLOYMENT_PUBLISHED' : 'PR_CREATED',
         title:
           publishMode === 'publish'
             ? `Shopify Fix Published: ${input.findingTitle || input.field}`
@@ -1348,7 +1476,7 @@ export class WordPressCmsService {
         actor: 'SHOPIFY_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: shopAdminUrl,
-        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
+        verificationStatus: publishMode === 'publish' ? 'PUBLISHED_UNVERIFIED' : 'STAGED_LOCALLY',
         evidenceData: {
           shopifyResourceId: targetItem.id,
           resourceType,
@@ -1361,7 +1489,13 @@ export class WordPressCmsService {
       },
     });
 
-    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode);
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode, {
+      field: input.field,
+      expected: input.afterValue,
+      runId: run.id,
+      actor: 'SHOPIFY_AGENT',
+      pullRequestUrl: shopAdminUrl,
+    });
 
     return {
       success: true,
@@ -1751,7 +1885,7 @@ export class WordPressCmsService {
           projectId,
           automationRunId: run.id,
           url: targetUrl,
-          snapshotType: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'PROPOSED',
+          snapshotType: 'PROPOSED',
           title: seoPayload.title || null,
           metaDescription: seoPayload.description || null,
           contentSnippet: input.afterValue,
@@ -1763,7 +1897,7 @@ export class WordPressCmsService {
       data: {
         projectId,
         automationRunId: run.id,
-        eventType: publishMode === 'publish' ? 'DEPLOYMENT_VERIFIED' : 'PR_CREATED',
+        eventType: publishMode === 'publish' ? 'DEPLOYMENT_PUBLISHED' : 'PR_CREATED',
         title:
           publishMode === 'publish'
             ? `Webflow Fix Published: ${input.findingTitle || input.field}`
@@ -1775,7 +1909,7 @@ export class WordPressCmsService {
         actor: 'WEBFLOW_AGENT',
         affectedUrl: targetUrl,
         pullRequestUrl: webflowAdminUrl,
-        verificationStatus: publishMode === 'publish' ? 'VERIFIED_LIVE' : 'STAGED_LOCALLY',
+        verificationStatus: publishMode === 'publish' ? 'PUBLISHED_UNVERIFIED' : 'STAGED_LOCALLY',
         evidenceData: {
           webflowPageId: targetPage.id,
           slug: targetPage.slug,
@@ -1788,7 +1922,13 @@ export class WordPressCmsService {
       },
     });
 
-    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode);
+    const verifiedState = await this.finalizeCmsFixVerification(projectId, targetUrl, input.findingId, publishMode, {
+      field: input.field,
+      expected: input.afterValue,
+      runId: run.id,
+      actor: 'WEBFLOW_AGENT',
+      pullRequestUrl: webflowAdminUrl,
+    });
 
     return {
       success: true,

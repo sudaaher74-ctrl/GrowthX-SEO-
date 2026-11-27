@@ -742,4 +742,47 @@ describe('ProofOfImpactService', () => {
       expect(readPullRequestEvidence).not.toHaveBeenCalled();
     });
   });
+
+  describe('closeVerifiedFixLoop (D-02)', () => {
+    it('only updates exact verifiedIssueIds and never mass-closes unrelated findings on the page', async () => {
+      prisma.growthOpportunity.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+
+      const changes = [{ url: 'https://example.com/page', issueId: 'opp_targeted_1' }];
+      const verifiedUrls = ['https://example.com/page'];
+      await (service as any).closeVerifiedFixLoop('proj_1', changes, verifiedUrls);
+
+      expect(prisma.growthOpportunity.updateMany).toHaveBeenCalledWith({
+        where: {
+          projectId: 'proj_1',
+          status: 'OPEN',
+          lifecycle: {
+            in: [
+              'DETECTED',
+              'QUEUED',
+              'APPROVED',
+              'APPLYING',
+              'VERIFYING',
+            ],
+          },
+          id: { in: ['opp_targeted_1'] },
+        },
+        data: {
+          status: 'RESOLVED',
+          lifecycle: 'VERIFIED',
+          resolvedAt: expect.any(Date),
+          lastTransitionAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('skips growthOpportunity update when no verifiedIssueIds are provided', async () => {
+      prisma.growthOpportunity.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+
+      const changes = [{ url: 'https://example.com/page' }];
+      const verifiedUrls = ['https://example.com/page'];
+      await (service as any).closeVerifiedFixLoop('proj_1', changes, verifiedUrls);
+
+      expect(prisma.growthOpportunity.updateMany).not.toHaveBeenCalled();
+    });
+  });
 });

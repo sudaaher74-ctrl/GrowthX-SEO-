@@ -984,16 +984,35 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
         }
         liveHtml = response.html;
         const $ = cheerio.load(response.html);
-        liveTitle = $('title').first().text().trim() || null;
-        liveDescription = $('meta[name="description"]').attr('content')?.trim() || null;
+        const liveTitles = $('title')
+          .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
+          .get()
+          .filter(Boolean);
+        const liveDescriptions = $('meta[name]')
+          .filter((_, el) => ($(el).attr('name') || '').trim().toLowerCase() === 'description')
+          .map((_, el) => ($(el).attr('content') || '').trim())
+          .get()
+          .filter(Boolean);
+        liveTitle = liveTitles[0] || null;
+        liveDescription = liveDescriptions[0] || null;
         liveH1 = $('h1').first().text().trim() || null;
         const expectedValue = typeof change.after === 'string' ? change.after.trim() : '';
         if (targetField === 'META_TITLE') {
-          liveValue = liveTitle;
-          isMatched = Boolean(expectedValue && liveValue === expectedValue);
+          if (liveTitles.length > 1) {
+            liveValue = `Conflicting <title> tags (${liveTitles.length}): ${liveTitles.join(' | ')}`;
+            isMatched = false;
+          } else {
+            liveValue = liveTitle;
+            isMatched = Boolean(expectedValue && liveValue === expectedValue);
+          }
         } else if (targetField === 'META_DESCRIPTION') {
-          liveValue = liveDescription;
-          isMatched = Boolean(expectedValue && liveValue === expectedValue);
+          if (liveDescriptions.length > 1) {
+            liveValue = `Conflicting meta descriptions (${liveDescriptions.length}): ${liveDescriptions.join(' | ')}`;
+            isMatched = false;
+          } else {
+            liveValue = liveDescription;
+            isMatched = Boolean(expectedValue && liveValue === expectedValue);
+          }
         } else if (targetField === 'ALT_TEXT' || (targetField === 'CODE_AND_SEO_UPDATE' && /alt\s*=|alt text|image.*blind/i.test(`${change.after || ''} ${change.why || ''}`))) {
           const pattern = expectedAltPattern(change);
           const liveAltTexts = $('img').toArray().map((image) => $(image).attr('alt')?.trim() || '').filter(Boolean);
@@ -1124,11 +1143,9 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
         .catch(() => null);
     }
 
-    if (this.prisma.growthOpportunity?.updateMany) {
-      const matchClauses: any[] = [{ affectedPages: { hasSome: verifiedUrls } }];
-      if (verifiedIssueIds.length > 0) {
-        matchClauses.push({ id: { in: verifiedIssueIds } });
-      }
+    // Only resolve the exact GrowthOpportunity IDs tied to the verified change.
+    // Never bulk-close unrelated open findings on the same URL.
+    if (verifiedIssueIds.length > 0 && this.prisma.growthOpportunity?.updateMany) {
       await this.prisma.growthOpportunity
         .updateMany({
           where: {
@@ -1143,7 +1160,7 @@ export class ProofOfImpactService implements OnModuleInit, OnModuleDestroy {
                 FindingLifecycle.VERIFYING,
               ],
             },
-            OR: matchClauses,
+            id: { in: verifiedIssueIds },
           },
           data: {
             status: 'RESOLVED',

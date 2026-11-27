@@ -656,4 +656,154 @@ describe('WordPressCmsService', () => {
       expect(hopSpy.mock.calls.some(([url]) => String(url).includes('attacker.example.com'))).toBe(false);
     });
   });
+
+  describe('verification honesty (D-02)', () => {
+    const shopifyIntegration = {
+      id: 'int_shopify_1',
+      projectId: 'proj_1',
+      provider: 'shopify',
+      accessToken: 'enc_shpat_secret_123',
+      selectedResourceId: 'https://milquu-store.myshopify.com',
+      selectedResourceName: 'MilQuu Store',
+      status: 'CONNECTED',
+    };
+
+    function mockShopifyWithLivePage(liveHtml: string) {
+      jest.spyOn(ssrfTransport, 'executeHop').mockImplementation(async (url, opts) => {
+        if (String(url).includes('/admin/api/')) {
+          if (opts.method === 'PUT') return hopRes(200, { product: { id: 777 } });
+          return hopRes(200, { products: [{ id: 777, handle: 'a2-milk', title: 'A2 Milk' }] });
+        }
+        return hopRes(200, liveHtml, { 'content-type': 'text/html' });
+      });
+    }
+
+    beforeEach(() => {
+      prisma.fixSnapshot.create = jest.fn().mockResolvedValue({ id: 'snap_verified' });
+      prisma.siteRepository.findUnique.mockResolvedValue({ id: 'repo_cms_1', projectId: 'proj_1' });
+      prisma.automationRun.create.mockResolvedValue({ id: 'run_cms_1' });
+      prisma.integration.findUnique.mockResolvedValue(shopifyIntegration);
+    });
+
+    const ledgerTypes = () => prisma.fixImpactLedgerEvent.create.mock.calls.map((c: any[]) => c[0].data.eventType);
+
+    it('does not mark a manual fix verified when the expected text only appears in the body, not the <title>', async () => {
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(200, '<html><head><title>Old Title</title></head><body><p>Updated Organic Title</p></body></html>'),
+      );
+
+      const res = await service.verifyManualCmsFix('proj_1', {
+        findingId: 'finding_2',
+        targetUrl: 'https://example-wp.com/about',
+        field: 'META_TITLE',
+        expectedAfterValue: 'Updated Organic Title',
+        platform: 'WordPress',
+      });
+
+      expect(res.verified).toBe(false);
+      expect(ledgerTypes()).not.toContain('TECHNICAL_FIX_CONFIRMED');
+      expect(ledgerTypes()).not.toContain('DEPLOYMENT_VERIFIED');
+      expect(prisma.growthOpportunity.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ lifecycle: 'VERIFIED' }) }),
+      );
+    });
+
+    it('refuses to verify a field type that has no fix-specific live assertion', async () => {
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(200, '<html><head><title>T</title></head><body>Add the new delivery paragraph here</body></html>'),
+      );
+
+      const res = await service.verifyManualCmsFix('proj_1', {
+        targetUrl: 'https://example-wp.com/about',
+        field: 'CODE_AND_SEO_UPDATE',
+        expectedAfterValue: 'Add the new delivery paragraph here',
+      });
+
+      expect(res.verified).toBe(false);
+      expect(ledgerTypes()).not.toContain('TECHNICAL_FIX_CONFIRMED');
+    });
+
+    it('treats conflicting duplicate <title> tags as unverified even if one matches', async () => {
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(200, '<html><head><title>Homepage Brand</title><title>Updated Organic Title</title></head><body></body></html>'),
+      );
+
+      const res = await service.verifyManualCmsFix('proj_1', {
+        targetUrl: 'https://example-wp.com/about',
+        field: 'META_TITLE',
+        expectedAfterValue: 'Updated Organic Title',
+      });
+
+      expect(res.verified).toBe(false);
+      expect(res.detectedLiveValue).toMatch(/Conflicting <title>/);
+    });
+
+    it('verifies a manual fix only when the exact single <title> matches', async () => {
+      jest.spyOn(ssrfTransport, 'executeHop').mockResolvedValue(
+        hopRes(200, '<html><head><title>Updated Organic Title</title></head><body></body></html>'),
+      );
+
+      const res = await service.verifyManualCmsFix('proj_1', {
+        targetUrl: 'https://example-wp.com/about',
+        field: 'META_TITLE',
+        expectedAfterValue: 'Updated Organic Title',
+      });
+
+      expect(res.verified).toBe(true);
+      expect(ledgerTypes()).toContain('TECHNICAL_FIX_CONFIRMED');
+    });
+
+    it('keeps a published CMS fix VERIFYING_LIVE with no VERIFIED_LIVE proof when the live page still shows the old title', async () => {
+      mockShopifyWithLivePage('<html><head><title>Old Title</title></head><body></body></html>');
+
+      const res = await service.stageShopifyFix('proj_1', {
+        findingId: 'finding_9',
+        targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
+        field: 'META_TITLE',
+        afterValue: 'Fresh A2 Gir Cow Milk Online',
+        publishMode: 'publish',
+      });
+
+      expect(res.status).toBe('VERIFYING_LIVE');
+      expect(ledgerTypes()).toEqual(['DEPLOYMENT_PUBLISHED']);
+      expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
+      const snapshotTypes = prisma.fixSnapshot.createMany.mock.calls[0][0].data.map((s: any) => s.snapshotType);
+      expect(snapshotTypes).not.toContain('VERIFIED_LIVE');
+      expect(prisma.growthOpportunity.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ lifecycle: 'VERIFIED' }) }),
+      );
+    });
+
+    it('records VERIFIED_LIVE proof only after the live page shows the exact new title', async () => {
+      mockShopifyWithLivePage('<html><head><title>Fresh A2 Gir Cow Milk Online</title></head><body></body></html>');
+
+      const res = await service.stageShopifyFix('proj_1', {
+        findingId: 'finding_9',
+        targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
+        field: 'META_TITLE',
+        afterValue: 'Fresh A2 Gir Cow Milk Online',
+        publishMode: 'publish',
+      });
+
+      expect(res.status).toBe('VERIFIED_LIVE');
+      expect(ledgerTypes()).toEqual(['DEPLOYMENT_PUBLISHED', 'DEPLOYMENT_VERIFIED']);
+      expect(prisma.fixSnapshot.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ snapshotType: 'VERIFIED_LIVE', automationRunId: 'run_cms_1' }) }),
+      );
+    });
+
+    it('leaves a published fix unverified when the field has no live assertion', async () => {
+      mockShopifyWithLivePage('<html><head><title>T</title></head><body>Add the new paragraph</body></html>');
+
+      const res = await service.stageShopifyFix('proj_1', {
+        targetUrl: 'https://milquu-store.myshopify.com/products/a2-milk',
+        field: 'CODE_AND_SEO_UPDATE',
+        afterValue: 'Add the new paragraph',
+        publishMode: 'publish',
+      });
+
+      expect(res.status).toBe('VERIFYING_LIVE');
+      expect(prisma.fixSnapshot.create).not.toHaveBeenCalled();
+    });
+  });
 });
