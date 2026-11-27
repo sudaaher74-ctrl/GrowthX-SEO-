@@ -93,11 +93,37 @@ export class GraphService {
       });
     }
 
-    // Fetch all internal graph edges recorded during crawl
-    const rawEdges = await this.prisma.internalGraph.findMany({
-      where: { crawlJobId },
-      select: { sourceUrl: true, targetUrl: true, crawlDepth: true },
-    });
+    // Fetch all internal graph edges from real extracted hyperlinks, falling back to internalGraph
+    let realLinks: any[] = [];
+    try {
+      if (this.prisma.link?.findMany) {
+        realLinks = (await this.prisma.link.findMany({
+          where: {
+            sourcePage: { crawlJobId },
+            linkType: 'INTERNAL',
+          },
+          select: {
+            sourcePage: { select: { url: true } },
+            targetUrl: true,
+          },
+        })) || [];
+      }
+    } catch {
+      realLinks = [];
+    }
+
+    let rawEdges: Array<{ sourceUrl: string; targetUrl: string }> = [];
+    if (realLinks.length > 0) {
+      rawEdges = realLinks.map((l) => ({
+        sourceUrl: l.sourcePage.url,
+        targetUrl: l.targetUrl,
+      }));
+    } else {
+      rawEdges = await this.prisma.internalGraph.findMany({
+        where: { crawlJobId },
+        select: { sourceUrl: true, targetUrl: true },
+      });
+    }
 
     // Calculate in-degree and out-degree using normalized URLs
     const inDegreeMap = new Map<string, number>();
@@ -124,7 +150,7 @@ export class GraphService {
     }
 
     // BFS from Homepage (depth 0) to compute exact minimal shortest-path depth
-    const startPage = pages[0];
+    const startPage = pages.find((p) => this.isRootPath(p.url)) || pages[0];
     const startNorm = this.normalizeUrl(startPage.url);
     if (startPage && pageMap.has(startNorm)) {
       const queue: Array<{ url: string; depth: number }> = [{ url: startNorm, depth: 0 }];
@@ -166,7 +192,7 @@ export class GraphService {
           }
         }
         const newScore = (1 - d) / n + d * sumIn;
-        nextEquity.set(pNorm, parseFloat((newScore * n).toFixed(4)));
+        nextEquity.set(pNorm, newScore);
       }
       for (const [k, v] of nextEquity.entries()) {
         equityMap.set(k, v);
@@ -183,14 +209,15 @@ export class GraphService {
       const outDeg = outDegreeMap.get(pNorm) || 0;
       const meta = pageMap.get(pNorm);
       const depth = meta?.depth || 0;
-      const equity = equityMap.get(pNorm) || 1.0;
+      const equity = equityMap.get(pNorm) != null ? parseFloat((equityMap.get(pNorm)! * n).toFixed(4)) : 1.0;
 
       const isRoot = this.isRootPath(p.url);
       const isUtility = this.isUtilityPage(p.url);
       const isCanonicalizedAway = Boolean(meta?.canonicalUrl && this.normalizeUrl(meta.canonicalUrl) !== pNorm);
+      const isIndexableCandidate = p.statusCode === 200 && !meta?.isNoindex;
 
       let isOrphan = false;
-      if (inDeg === 0 && !isRoot && !isUtility && !isCanonicalizedAway) {
+      if (inDeg === 0 && !isRoot && !isUtility && !isCanonicalizedAway && isIndexableCandidate) {
         isOrphan = true;
         orphanPages.push({
           url: p.url,

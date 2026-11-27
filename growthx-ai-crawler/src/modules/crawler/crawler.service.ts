@@ -1236,6 +1236,35 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           }).catch(() => {});
         }
 
+        // 3b. Save extracted Schemas (structured data)
+        const VALID_SCHEMA_TYPES = new Set([
+          'ORGANIZATION',
+          'LOCAL_BUSINESS',
+          'PRODUCT',
+          'ARTICLE',
+          'BREADCRUMB',
+          'FAQ',
+          'REVIEW',
+          'VIDEO',
+          'RECIPE',
+          'EVENT',
+        ]);
+        if (this.prisma.schema?.create && Array.isArray(schemas)) {
+          for (const s of schemas) {
+            const rawType = String(s.schemaType || '').toUpperCase();
+            const schemaType = VALID_SCHEMA_TYPES.has(rawType) ? rawType : 'OTHER';
+            await this.prisma.schema.create({
+              data: {
+                pageId: page.id,
+                schemaType: schemaType as any,
+                isValid: Boolean(s.isValid),
+                validationErrors: Array.isArray(s.errors) ? s.errors : [],
+                rawJson: s.rawJson ? (typeof s.rawJson === 'string' ? s.rawJson.slice(0, 50000) : JSON.stringify(s.rawJson).slice(0, 50000)) : null,
+              },
+            }).catch(() => {});
+          }
+        }
+
         // 4. Run Issue Engine.
         //
         // Suppressed entirely when the fetch produced no response, or when the

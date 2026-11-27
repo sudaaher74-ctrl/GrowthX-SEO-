@@ -25,6 +25,7 @@ function makeService(overrides: Record<string, any> = {}): { service: CrawlerSer
     crawlJob: { update: jest.fn(async () => ({ pagesCrawled: 1 })) },
     issue: { findFirst: jest.fn(async () => null), create: jest.fn(async (args: any) => issues.push(args.data)) },
     image: { create: jest.fn(async () => ({})) },
+    schema: { create: jest.fn(async () => ({})) },
     link: { create: jest.fn(async () => ({})) },
     internalGraph: { create: jest.fn(async () => ({})) },
     siteSocialLink: { upsert: jest.fn(async () => ({})) },
@@ -827,5 +828,46 @@ describe('CrawlerService split static/render queue handoff', () => {
     );
     // Bundle route must NOT create a synthetic Link edge so orphan detection remains intact
     expect(linkCreates.some((l) => l.targetUrl === 'https://example.com/hidden-offer')).toBe(false);
+  });
+
+  it('persists validated structured data into prisma.schema table (D-06)', async () => {
+    const schemaCreates: any[] = [];
+    const base = makeService();
+    (base.service as any).prisma.schema = {
+      create: jest.fn(async (args: any) => {
+        schemaCreates.push(args.data);
+        return {};
+      }),
+    };
+    (base.service as any).schemaValidator = {
+      validateSchemas: jest.fn(() => [
+        {
+          schemaType: 'PRODUCT',
+          isValid: true,
+          errors: [],
+          findings: [],
+          rawJson: JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: 'Milk' }),
+        },
+      ]),
+    };
+    (base.service as any).fetchSvc = {
+      fetch: jest.fn(async () => outcome({
+        statusCode: 200,
+        html: '<!doctype html><html><head><title>Product</title></head><body>Product</body></html>',
+      })),
+    };
+
+    await base.service.processPageFetch(payload);
+
+    expect(schemaCreates.length).toBeGreaterThan(0);
+    expect(schemaCreates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          pageId: 'page1',
+          schemaType: 'PRODUCT',
+          isValid: true,
+        }),
+      ]),
+    );
   });
 });

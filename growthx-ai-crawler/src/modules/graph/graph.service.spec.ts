@@ -10,8 +10,11 @@ describe('GraphService', () => {
       page: {
         findMany: jest.fn(),
       },
+      link: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       internalGraph: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       issue: {
@@ -66,5 +69,64 @@ describe('GraphService', () => {
         evidence: expect.stringContaining('Incoming internal HTML links: 0'),
       }),
     }));
+  });
+
+  it('uses real extracted links from prisma.link instead of internalGraph spanning tree', async () => {
+    mockPrisma.page.findMany.mockResolvedValue([
+      { id: 'p1', url: 'https://example.com/', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'HOME' },
+      { id: 'p2', url: 'https://example.com/about', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'ABOUT' },
+      { id: 'p3', url: 'https://example.com/blog', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'BLOG' },
+    ]);
+    // prisma.link has real edges: home -> about, about -> blog, blog -> home
+    mockPrisma.link.findMany.mockResolvedValue([
+      { sourcePage: { url: 'https://example.com/' }, targetUrl: 'https://example.com/about' },
+      { sourcePage: { url: 'https://example.com/about' }, targetUrl: 'https://example.com/blog' },
+      { sourcePage: { url: 'https://example.com/blog' }, targetUrl: 'https://example.com/' },
+    ]);
+
+    const report = await service.generateGraphReport('job_1');
+    expect(mockPrisma.link.findMany).toHaveBeenCalled();
+    expect(mockPrisma.internalGraph.findMany).not.toHaveBeenCalled();
+    expect(report.totalEdges).toBe(3);
+    expect(report.orphanPages).toEqual([]);
+    // PageRank scores should be balanced and non-zero
+    for (const node of report.nodes) {
+      expect(node.linkEquityScore).toBeGreaterThan(0.5);
+      expect(node.linkEquityScore).toBeLessThan(2.0);
+    }
+  });
+
+  it('does not flag 404 or noindex pages as orphan pages', async () => {
+    mockPrisma.page.findMany.mockResolvedValue([
+      { id: 'p1', url: 'https://example.com/', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'HOME' },
+      { id: 'p2', url: 'https://example.com/deleted-page', statusCode: 404, canonicalUrl: null, robotsMeta: null, pageType: 'OTHER' },
+      { id: 'p3', url: 'https://example.com/noindex-page', statusCode: 200, canonicalUrl: null, robotsMeta: 'noindex, follow', pageType: 'OTHER' },
+    ]);
+    mockPrisma.link.findMany.mockResolvedValue([]);
+    mockPrisma.internalGraph.findMany.mockResolvedValue([]);
+
+    const report = await service.generateGraphReport('job_1');
+    expect(report.orphanPages).toEqual([]);
+  });
+
+  it('correctly anchors BFS from the homepage even if pages are returned out of order', async () => {
+    mockPrisma.page.findMany.mockResolvedValue([
+      { id: 'p2', url: 'https://example.com/deep/nested/page', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'BLOG' },
+      { id: 'p1', url: 'https://example.com/', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'HOME' },
+      { id: 'p3', url: 'https://example.com/direct-child', statusCode: 200, canonicalUrl: null, robotsMeta: null, pageType: 'CATEGORY' },
+    ]);
+    mockPrisma.link.findMany.mockResolvedValue([
+      { sourcePage: { url: 'https://example.com/' }, targetUrl: 'https://example.com/direct-child' },
+      { sourcePage: { url: 'https://example.com/direct-child' }, targetUrl: 'https://example.com/deep/nested/page' },
+    ]);
+
+    const report = await service.generateGraphReport('job_1');
+    const homeNode = report.nodes.find((n) => n.url === 'https://example.com/');
+    const childNode = report.nodes.find((n) => n.url === 'https://example.com/direct-child');
+    const deepNode = report.nodes.find((n) => n.url === 'https://example.com/deep/nested/page');
+
+    expect(homeNode?.crawlDepth).toBe(0);
+    expect(childNode?.crawlDepth).toBe(1);
+    expect(deepNode?.crawlDepth).toBe(2);
   });
 });
