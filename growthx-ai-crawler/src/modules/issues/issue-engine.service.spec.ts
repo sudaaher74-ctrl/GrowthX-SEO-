@@ -265,4 +265,52 @@ describe('IssueEngineService', () => {
     expect(issues.find((i) => i.issueType === 'DUPLICATE_META_DESCRIPTION')?.severity).toBe('MEDIUM');
     expect(issues.find((i) => i.issueType === 'NOFOLLOW_META_DETECTED')?.severity).toBe('MEDIUM');
   });
+
+  it('suppresses phantom missing tag issues on non-200 responses (e.g. 404)', async () => {
+    const htmlData: any = {
+      title: '',
+      metaDescription: '',
+      h1: [],
+      h2: [],
+      h3: [],
+      canonicalUrl: undefined,
+    };
+    const content: any = { wordCount: 0, readingTimeMin: 0, headingStructureErrors: [] };
+
+    const issues = await service.evaluateAndPersistIssues(
+      'job_404', 'proj_1', 'site_1', 'page_404', 'https://example.com/missing', 404,
+      ['https://example.com/missing'], '<html>404 Not Found</html>', cheerio.load('<html>404 Not Found</html>'),
+      htmlData, [], { internalCount: 0, externalCount: 0 } as any, content, [], false, true, 'OTHER',
+    );
+
+    const types = issues.map((i) => i.issueType);
+    expect(types).toContain('BROKEN_LINK_4XX');
+    expect(types).not.toContain('MISSING_TITLE');
+    expect(types).not.toContain('MISSING_META_DESCRIPTION');
+    expect(types).not.toContain('MISSING_H1');
+  });
+
+  it('downgrades NOINDEX_DETECTED to LOW advisory on utility paths like /cart or /app/cart', async () => {
+    const htmlData: any = {
+      title: 'Cart - My Store',
+      metaDescription: 'Your shopping cart contents',
+      h1: ['Shopping Cart'],
+      h2: [],
+      h3: [],
+      robotsMeta: 'noindex, nofollow',
+    };
+    const content: any = { wordCount: 150, readingTimeMin: 1, headingStructureErrors: [] };
+
+    const issues = await service.evaluateAndPersistIssues(
+      'job_cart', 'proj_1', 'site_1', 'page_cart', 'https://example.com/app/cart', 200,
+      ['https://example.com/app/cart'], '<html>Cart</html>', cheerio.load('<html>Cart</html>'),
+      htmlData, [], { internalCount: 2, externalCount: 0 } as any, content, [], false, true, 'OTHER',
+    );
+
+    const noindexIssue = issues.find((i) => i.issueType === 'NOINDEX_DETECTED');
+    expect(noindexIssue).toBeDefined();
+    expect(noindexIssue?.severity).toBe('LOW');
+    expect(noindexIssue?.confidence).toBe('ADVISORY');
+    expect(noindexIssue?.aiFixAvailable).toBe(false);
+  });
 });

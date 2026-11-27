@@ -72,7 +72,9 @@ export class IssueEngineService {
     const isHomePage = this.isRootUrl(pageUrl);
     const utilityPage = /\/(?:app\/)?(?:login|register|sign-in|signup|account|cart|checkout|wallet)(?:\/|$)/i.test(new URL(pageUrl).pathname);
     const searchContent = !utilityPage && !/(?:^|[,;\s])(?:noindex|none)(?:$|[,;\s])/i.test(htmlData.robotsMeta || '');
+    const is2xx = statusCode >= 200 && statusCode < 300;
     const canonicalTargets = [...new Set((htmlData.canonicalUrls || [htmlData.canonicalUrl]).filter(Boolean).map(url => normalizeUrl(url!)).filter(Boolean))];
+    if (is2xx) {
     if (canonicalTargets.length > 1) issues.push({
       issueType: 'CONFLICTING_CANONICALS', severity: 'HIGH', confidence: 'CONFIRMED', category: 'TECHNICAL', affectedUrl: pageUrl,
       description: 'Page declares conflicting canonical URLs.',
@@ -323,6 +325,7 @@ export class IssueEngineService {
         aiFixAvailable: true,
       });
     }
+    } // end is2xx on-page content checks
 
     // 7. Soft 404: answered 200, but the page is a "not found" page. Google
     // drops these as errors, and nothing in the status code says so.
@@ -515,28 +518,34 @@ export class IssueEngineService {
       const hasIndex = tokens.has('index');
       const hasNofollow = tokens.has('nofollow') || tokens.has('none');
 
-      if (hasNoindex) {
+      if (hasNoindex && is2xx) {
         issues.push({
           issueType: 'NOINDEX_DETECTED',
-          severity: isHomePage ? 'CRITICAL' : 'HIGH',
-          confidence: 'CONFIRMED',
+          severity: isHomePage ? 'CRITICAL' : utilityPage ? 'LOW' : 'HIGH',
+          confidence: utilityPage ? 'ADVISORY' : 'CONFIRMED',
           category: 'TECHNICAL',
           affectedUrl: pageUrl,
-          description: `Page contains robots meta directive "noindex".`,
+          description: utilityPage
+            ? 'Utility page contains robots meta directive "noindex" (expected for checkout/account paths).'
+            : 'Page contains robots meta directive "noindex".',
           explanation: 'The noindex tag explicitly tells search engines not to display this URL in search results.',
-          impact: 'Complete removal from organic search index if intended to be public.',
-          recommendation: 'If this page is meant for search indexation, remove the noindex directive.',
+          impact: utilityPage
+            ? 'Prevents internal utility page from competing with public catalog pages.'
+            : 'Complete removal from organic search index if intended to be public.',
+          recommendation: utilityPage
+            ? 'No action required if this utility page is intended to stay out of search results.'
+            : 'If this page is meant for search indexation, remove the noindex directive.',
           evidence: `robots meta: "${htmlData.robotsMeta}"`,
           dedupKey: `${pageUrl}::NOINDEX_DETECTED`,
-          aiFixAvailable: true,
+          aiFixAvailable: !utilityPage,
         });
       }
 
-      if (hasNofollow) {
+      if (hasNofollow && is2xx) {
         issues.push({
           issueType: 'NOFOLLOW_META_DETECTED',
-          severity: isHomePage ? 'HIGH' : 'MEDIUM',
-          confidence: 'CONFIRMED',
+          severity: isHomePage ? 'HIGH' : utilityPage ? 'LOW' : 'MEDIUM',
+          confidence: utilityPage ? 'ADVISORY' : 'CONFIRMED',
           category: 'TECHNICAL',
           affectedUrl: pageUrl,
           description: `Page contains robots meta directive "nofollow".`,

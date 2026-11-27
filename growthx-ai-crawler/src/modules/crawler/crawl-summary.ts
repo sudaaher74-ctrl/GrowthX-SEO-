@@ -3,6 +3,7 @@ import { Indexability } from './indexability';
 export interface SummaryPage {
   url: string;
   statusCode?: number | null;
+  statusChain?: any;
   indexability?: string | null;
   blockedSuspected?: boolean | null;
   jsRequired?: boolean | null;
@@ -147,7 +148,12 @@ export function computeCrawlSummary(params: {
   const noResponse = (p: SummaryPage) => p.statusCode === null || p.statusCode === undefined || p.statusCode === 0;
 
   const successful = pages.filter((p) => typeof p.statusCode === 'number' && p.statusCode >= 200 && p.statusCode < 300).length;
-  const redirected = pages.filter((p) => typeof p.statusCode === 'number' && p.statusCode >= 300 && p.statusCode < 400).length;
+  const isRedirect = (p: SummaryPage) => {
+    if (typeof p.statusCode === 'number' && p.statusCode >= 300 && p.statusCode < 400) return true;
+    if (Array.isArray(p.statusChain) && p.statusChain.length > 1) return true;
+    return false;
+  };
+  const redirected = pages.filter(isRedirect).length;
   const blocked = pages.filter((p) => p.blockedSuspected === true).length;
   const unreachable = pages.filter(noResponse).length;
   const errored = pages.filter(
@@ -315,7 +321,8 @@ export function computeHealth(issues: SummaryIssue[], pagesScored: number, pages
   }
 
   const totalPenalty = [...perUrl.values()].reduce((a, b) => a + b, 0);
-  const normalised = totalPenalty / pages;
+  const maxPossiblePenalty = pages * MAX_PENALTY_PER_URL;
+  const normalised = maxPossiblePenalty > 0 ? (totalPenalty / maxPossiblePenalty) * 100 : 0;
   const score = Math.max(0, Math.min(100, Math.round(100 - normalised)));
 
   return {

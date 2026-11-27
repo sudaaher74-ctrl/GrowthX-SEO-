@@ -111,7 +111,12 @@ describe('computeHealth', () => {
     expect(health.penalties.find((p) => p.severity === 'CRITICAL')).toEqual({ severity: 'CRITICAL', count: 1, penalty: 20 });
     expect(health.penalties.find((p) => p.severity === 'MEDIUM')).toEqual({ severity: 'MEDIUM', count: 1, penalty: 3 });
     expect(health.totalPenalty).toBe(23);
-    expect(health.score).toBe(98);
+    expect(health.score).toBe(89);
+  });
+
+  it('allows health score to reach 0 when 100% of pages have critical errors', () => {
+    const allDead = Array.from({ length: 10 }, (_, i) => ({ issueType: '500_ERROR', severity: 'CRITICAL', affectedUrl: `p${i}` }));
+    expect(computeHealth(allDead, 10, 0).score).toBe(0);
   });
 
   it('caps one broken page so it cannot sink the whole site', () => {
