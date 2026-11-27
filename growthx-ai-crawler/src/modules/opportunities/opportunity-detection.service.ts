@@ -134,8 +134,8 @@ export class OpportunityDetectionService {
   /** Detects broken links (4xx/5xx) and critical crawl errors from website audit. */
   private async technicalCrawlIssues(projectId: string): Promise<Detected[]> {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: { projectId } },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: { projectId } },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!job) return [];
@@ -204,8 +204,8 @@ export class OpportunityDetectionService {
   /** Detects lack of Schema.org JSON-LD and AEO (Answer Engine Optimization) readiness. */
   private async structuredDataAndAeo(projectId: string): Promise<Detected[]> {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: { projectId } },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: { projectId } },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!job) return [];
@@ -260,8 +260,8 @@ export class OpportunityDetectionService {
   /** Detects missing meta descriptions and missing H1 headings from crawled pages. */
   private async onpageSeoGaps(projectId: string): Promise<Detected[]> {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: { projectId } },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: { projectId } },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!job) return [];
@@ -327,8 +327,8 @@ export class OpportunityDetectionService {
   /** Detects thin content and missing high-converting content hubs. */
   private async contentDepthAndQuality(projectId: string): Promise<Detected[]> {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: { projectId } },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: { projectId } },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!job) return [];
@@ -860,8 +860,8 @@ export class OpportunityDetectionService {
   /** Pages from the most recent completed crawl of a website. */
   private async latestPages(websiteWhere: any) {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: websiteWhere },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: websiteWhere },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!job) return [];

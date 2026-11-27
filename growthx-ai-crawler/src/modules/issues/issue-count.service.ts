@@ -195,8 +195,8 @@ export class IssueCountService {
     const crawls: LatestCrawl[] = [];
     for (const w of websites) {
       const job = await this.prisma.crawlJob.findFirst({
-        where: { websiteId: w.id, status: 'COMPLETED' },
-        orderBy: { createdAt: 'desc' },
+        where: { websiteId: w.id, status: 'COMPLETED', pagesCrawled: { gt: 0 } },
+        orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
         select: {
           id: true,
           websiteId: true,

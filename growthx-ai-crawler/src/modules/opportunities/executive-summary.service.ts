@@ -146,8 +146,8 @@ export class ExecutiveSummaryService {
       }
   > {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { status: 'COMPLETED', website: { projectId } },
-      orderBy: { finishedAt: 'desc' },
+      where: { status: 'COMPLETED', pagesCrawled: { gt: 0 }, website: { projectId } },
+      orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
       select: {
         id: true,
         pagesCrawled: true,

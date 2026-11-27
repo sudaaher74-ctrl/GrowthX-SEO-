@@ -172,8 +172,8 @@ export class AuditReportService {
     let pages: AuditFacts['pages'] = null;
     if (website) {
       const job = await this.prisma.crawlJob.findFirst({
-        where: { websiteId: website.id, status: 'COMPLETED' },
-        orderBy: { finishedAt: 'desc' },
+        where: { websiteId: website.id, status: 'COMPLETED', pagesCrawled: { gt: 0 } },
+        orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
         select: { id: true },
       });
       if (job) {

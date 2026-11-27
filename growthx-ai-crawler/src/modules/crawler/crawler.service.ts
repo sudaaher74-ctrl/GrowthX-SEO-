@@ -2078,7 +2078,7 @@ export function crawlLimits() {
     maxConcurrency: num('CRAWL_MAX_CONCURRENCY', 10),
     maxDepth: num('CRAWL_MAX_DEPTH', 25),
     defaultPageLimit: num('CRAWL_DEFAULT_PAGE_LIMIT', 2000),
-    maxPageLimit: num('CRAWL_MAX_PAGE_LIMIT', 5000),
+    maxPageLimit: num('CRAWL_MAX_PAGE_LIMIT', 100_000),
     unlimitedPages: process.env.CRAWL_UNLIMITED_PAGES === 'true',
   };
 }
