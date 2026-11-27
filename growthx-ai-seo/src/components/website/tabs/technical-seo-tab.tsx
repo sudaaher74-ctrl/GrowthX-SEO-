@@ -170,14 +170,17 @@ export function TechnicalSeoTab({
 
   const avgLcpMs = summary.coreWebVitals.lcpMs;
 
-  // HTTPS & Security
-  const isHttps = pages.length > 0 ? pages.some((p) => p.url.startsWith("https://")) : true;
+  // HTTPS & Security (protocol & mixed-content checks only; TLS cert and security headers are not crawled)
+  const hasHttpIssue =
+    issues.some((i) => (i.issueType || "").toUpperCase() === "HTTPS_ISSUE") ||
+    pages.some((p) => p.url.startsWith("http://"));
+  const isHttps = pages.length > 0 && pages.every((p) => p.url.startsWith("https://")) && !hasHttpIssue;
   const hasSslIssue = issues.some(
     (i) => (i.issueType || "").toUpperCase().includes("SSL") || (i.issueType || "").toUpperCase().includes("CERT")
   );
   const hasMixedContent = issues.some((i) => (i.issueType || "").toUpperCase().includes("MIXED"));
   const hasMalware = issues.some((i) => i.severity === "CRITICAL" && i.category === "SECURITY");
-  const securityGood = isHttps && !hasSslIssue && !hasMixedContent && !hasMalware;
+  const securityGood = pages.length > 0 && isHttps && !hasSslIssue && !hasMixedContent && !hasMalware;
 
   // Issue Distribution Donut Data
   const severityCounts = useMemo(() => {

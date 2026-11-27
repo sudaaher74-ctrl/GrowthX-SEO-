@@ -288,7 +288,14 @@ export class AuditReportService {
     }
   }
 
-  async latest(projectId: string): Promise<WebsiteAuditReport | null> {
+  async latest(projectId: string, organizationId?: string): Promise<WebsiteAuditReport | null> {
+    if (organizationId && this.prisma.project?.findFirst) {
+      const owned = await this.prisma.project.findFirst({
+        where: { id: projectId, organizationId },
+        select: { id: true },
+      });
+      if (!owned) return null;
+    }
     const row = await this.prisma.auditReportSnapshot.findFirst({
       where: { projectId },
       orderBy: { createdAt: 'desc' },

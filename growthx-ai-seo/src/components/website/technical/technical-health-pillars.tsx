@@ -293,37 +293,83 @@ export function TechnicalHealthPillars({
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
-                <Lock size={14} className="text-success-500" />
+                <Lock size={14} className={summary.pagesCrawled === 0 ? "text-brand-400" : securityGood ? "text-success-500" : "text-error-500"} />
                 <span>HTTPS &amp; Security</span>
               </div>
-              <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold", securityGood ? "bg-success-50/50 text-success-700 border-success-200/50" : "bg-error-50/50 text-error-700 border-error-200/50")}>
-                {securityGood ? "Protected" : "Needs Review"}
+              <span
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold",
+                  summary.pagesCrawled === 0
+                    ? "bg-brand-50 text-brand-500 border-brand-200/60"
+                    : securityGood
+                      ? "bg-success-50/50 text-success-700 border-success-200/50"
+                      : "bg-error-50/50 text-error-700 border-error-200/50",
+                )}
+              >
+                {summary.pagesCrawled === 0 ? "Not Measured" : securityGood ? "Protocol OK" : "Needs Review"}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 mt-3">
               <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
-                <CheckCircle2 size={13} className={isHttps ? "text-success-500 shrink-0" : "text-brand-400 shrink-0"} />
-                <span className="truncate">HTTPS enabled</span>
+                <CheckCircle2
+                  size={13}
+                  className={
+                    summary.pagesCrawled === 0
+                      ? "text-brand-300 shrink-0"
+                      : isHttps
+                        ? "text-success-500 shrink-0"
+                        : "text-error-600 shrink-0"
+                  }
+                />
+                <span className="truncate">
+                  {summary.pagesCrawled === 0 ? "HTTPS: not crawled" : isHttps ? "HTTPS observed" : "HTTP URLs found"}
+                </span>
               </div>
               <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
-                <CheckCircle2 size={13} className={!hasSslIssue ? "text-success-500 shrink-0" : "text-error-600 shrink-0"} />
-                <span className="truncate">Valid SSL cert</span>
+                <CheckCircle2
+                  size={13}
+                  className={
+                    summary.pagesCrawled === 0
+                      ? "text-brand-300 shrink-0"
+                      : !hasMixedContent
+                        ? "text-success-500 shrink-0"
+                        : "text-warning-500 shrink-0"
+                  }
+                />
+                <span className="truncate">
+                  {summary.pagesCrawled === 0
+                    ? "Mixed content: —"
+                    : !hasMixedContent
+                      ? "No mixed content"
+                      : "Mixed content found"}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
-                <CheckCircle2 size={13} className={!hasMixedContent ? "text-success-500 shrink-0" : "text-warning-500 shrink-0"} />
-                <span className="truncate">No mixed content</span>
+              <div className="flex items-center gap-1.5 text-[11.5px] text-brand-400 font-medium">
+                <CheckCircle2 size={13} className={hasSslIssue ? "text-error-600 shrink-0" : "text-brand-300 shrink-0"} />
+                <span className="truncate">{hasSslIssue ? "SSL issue flagged" : "TLS cert: not audited"}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
-                <CheckCircle2 size={13} className={!hasMalware ? "text-success-500 shrink-0" : "text-error-600 shrink-0"} />
-                <span className="truncate">Safe browsing</span>
+              <div className="flex items-center gap-1.5 text-[11.5px] text-brand-400 font-medium">
+                <CheckCircle2 size={13} className={hasMalware ? "text-error-600 shrink-0" : "text-brand-300 shrink-0"} />
+                <span className="truncate">{hasMalware ? "Security issue" : "Headers: not audited"}</span>
               </div>
             </div>
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-brand-200/60 flex items-center justify-between text-[10.5px] text-brand-400 font-mono">
-            <span>SSL &amp; Protocol Integrity</span>
-            <span className="text-success-600 font-bold">100% Secure</span>
+            <span>Protocol &amp; Mixed Content</span>
+            <span
+              className={cn(
+                "font-bold",
+                summary.pagesCrawled === 0
+                  ? "text-brand-400"
+                  : securityGood
+                    ? "text-success-600"
+                    : "text-error-600",
+              )}
+            >
+              {summary.pagesCrawled === 0 ? "Not checked" : securityGood ? "Checks passed" : "Issues found"}
+            </span>
           </div>
         </div>
       </div>

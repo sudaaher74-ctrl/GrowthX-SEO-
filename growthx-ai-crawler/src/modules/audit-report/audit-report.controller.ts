@@ -20,7 +20,7 @@ export class AuditReportController {
 
   @Get('latest')
   @ApiOperation({ summary: 'The most recently generated Website Audit report, or null' })
-  latest(@Param('projectId') projectId: string) {
-    return this.reports.latest(projectId);
+  latest(@Param('projectId') projectId: string, @Req() req: any) {
+    return this.reports.latest(projectId, req?.organizationId);
   }
 }

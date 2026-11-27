@@ -1,4 +1,7 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { AuditReportController } from './audit-report.controller';
 import { AuditReportService, buildAuditPrompt, normaliseAuditAnalysis } from './audit-report.service';
 
 const page = (over: Record<string, unknown> = {}) => ({
@@ -135,5 +138,29 @@ describe('normaliseAuditAnalysis', () => {
   it('never throws on odd model output', () => {
     expect(normaliseAuditAnalysis('nope')).toEqual({ summary: '', scoreExplained: '', fixes: [], quickWins: [], whatIsGood: [], plan: [], dataGaps: [] });
     expect(normaliseAuditAnalysis({ fixes: [{ pages: -3 }] }).fixes[0]).toMatchObject({ title: 'Untitled problem', pages: 0, whoCanFix: 'you', priority: 'medium' });
+  });
+});
+
+describe('AuditReportController & AuditReportService tenant scoping (D-05)', () => {
+  it('protects AuditReportController with JwtAuthGuard (project membership scope) and enforces org ownership in latest()', async () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, AuditReportController) || [];
+    expect(guards).toContain(JwtAuthGuard);
+
+    const { service, prisma } = setup({ generate: jest.fn() });
+    (prisma.project as any).findFirst = jest.fn().mockResolvedValue(null);
+    prisma.auditReportSnapshot.findFirst.mockResolvedValue({ id: 'snap_secret', report: { generatedAt: '2026-01-01' } });
+    const controller = new AuditReportController(service);
+
+    const denied = await controller.latest('proj_other', { organizationId: 'org_caller' });
+    expect(denied).toBeNull();
+    expect((prisma.project as any).findFirst).toHaveBeenCalledWith({
+      where: { id: 'proj_other', organizationId: 'org_caller' },
+      select: { id: true },
+    });
+    expect(prisma.auditReportSnapshot.findFirst).not.toHaveBeenCalled();
+
+    (prisma.project as any).findFirst.mockResolvedValue({ id: 'proj_own' });
+    const allowed = await controller.latest('proj_own', { organizationId: 'org_caller' });
+    expect(allowed).toMatchObject({ snapshotId: 'snap_secret' });
   });
 });
