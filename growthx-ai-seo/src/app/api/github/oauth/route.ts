@@ -233,9 +233,10 @@ export async function POST(req: NextRequest) {
           scope: "repo read:user user:email",
         }),
         cache: "no-store",
+        signal: AbortSignal.timeout(10000),
       });
 
-      const data = (await ghRes.json()) as {
+      const data = (await ghRes.json().catch(() => ({}))) as {
         device_code?: string;
         user_code?: string;
         verification_uri?: string;
@@ -285,9 +286,10 @@ export async function POST(req: NextRequest) {
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
         }),
         cache: "no-store",
+        signal: AbortSignal.timeout(10000),
       });
 
-      const data = (await ghRes.json()) as {
+      const data = (await ghRes.json().catch(() => ({}))) as {
         access_token?: string;
         scope?: string;
         error?: string;

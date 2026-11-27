@@ -19,7 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { GitHubLogo } from "@/components/settings/integration-logos";
-import { clearLegacyCmsBrowserRecords } from "@/lib/api-client";
+import { clearLegacyCmsBrowserRecords, getApiBase } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
 export interface GitHubAgentConnectWorkflowProps {
@@ -124,7 +124,47 @@ export function GitHubAgentConnectWorkflow({
 
   const popupRef = useRef<Window | null>(null);
   const manifestFormRef = useRef<HTMLFormElement | null>(null);
+  const deviceStartAttemptedRef = useRef<boolean>(false);
   const [manifestJson, setManifestJson] = useState<string>("");
+
+  /**
+   * Calls `/api/github/oauth` and, if the short-lived `access_token` cookie has
+   * expired, silently refreshes the HttpOnly session via `/auth/refresh` once
+   * before retrying.
+   */
+  const postGitHubOAuth = useCallback(async (payload: Record<string, unknown>): Promise<Response> => {
+    const send = () =>
+      fetch("/api/github/oauth", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        signal: AbortSignal.timeout(12000),
+      });
+
+    let res = await send();
+    if (res.status === 401) {
+      try {
+        const refreshRes = await fetch(`${getApiBase()}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Auth-Mode": "cookie",
+          },
+          body: "{}",
+          signal: AbortSignal.timeout(8000),
+        });
+        if (refreshRes.ok) {
+          res = await send();
+        }
+      } catch {
+        // Return the original 401 so the UI displays a clear error instead of spinning.
+      }
+    }
+    return res;
+  }, []);
   const [manifestActionUrl, setManifestActionUrl] = useState<string>(
     "https://github.com/settings/apps/new",
   );
@@ -161,14 +201,8 @@ export function GitHubAgentConnectWorkflow({
     setLoadingRepos(true);
     setErrorText(null);
     try {
-      const res = await fetch("/api/github/oauth", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list_repos" }),
-        cache: "no-store",
-      });
-      const data = (await res.json()) as { repos?: GitHubLiveRepo[]; error?: string };
+      const res = await postGitHubOAuth({ action: "list_repos" });
+      const data = (await res.json().catch(() => ({}))) as { repos?: GitHubLiveRepo[]; error?: string };
       if (!res.ok) {
         if (res.status === 401) {
           setGhUser(null);
@@ -214,7 +248,7 @@ export function GitHubAgentConnectWorkflow({
     } finally {
       setLoadingRepos(false);
     }
-  }, [existingRepo, projectDomain]);
+  }, [existingRepo, projectDomain, postGitHubOAuth]);
 
   useEffect(() => {
     if (ghUser) {
@@ -224,18 +258,12 @@ export function GitHubAgentConnectWorkflow({
 
   // Start a real GitHub OAuth Device session (`https://github.com/login/device/code`)
   const startDeviceSession = useCallback(async () => {
+    deviceStartAttemptedRef.current = true;
     setIsStartingDevice(true);
     setErrorText(null);
     try {
-      const res = await fetch("/api/github/oauth", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "device_start",
-        }),
-      });
-      const data = (await res.json()) as {
+      const res = await postGitHubOAuth({ action: "device_start" });
+      const data = (await res.json().catch(() => ({}))) as {
         deviceCode?: string;
         userCode?: string;
         verificationUri?: string;
@@ -243,7 +271,7 @@ export function GitHubAgentConnectWorkflow({
         error?: string;
       };
       if (!res.ok || !data.deviceCode || !data.userCode) {
-        throw new Error(data.error || "Unable to start GitHub OAuth session.");
+        throw new Error(data.error || `Unable to start GitHub OAuth session (HTTP ${res.status}).`);
       }
       setDeviceCode(data.deviceCode);
       setUserCode(data.userCode);
@@ -254,10 +282,10 @@ export function GitHubAgentConnectWorkflow({
     } finally {
       setIsStartingDevice(false);
     }
-  }, []);
+  }, [postGitHubOAuth]);
 
   useEffect(() => {
-    if (!ghUser && !oauthCode && !deviceCode && !isStartingDevice) {
+    if (!ghUser && !oauthCode && !deviceCode && !isStartingDevice && !deviceStartAttemptedRef.current) {
       startDeviceSession();
     }
   }, [ghUser, oauthCode, deviceCode, isStartingDevice, startDeviceSession]);
@@ -362,16 +390,11 @@ export function GitHubAgentConnectWorkflow({
 
     const pollOnce = async () => {
       try {
-        const res = await fetch("/api/github/oauth", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "device_poll",
-            deviceCode,
-          }),
+        const res = await postGitHubOAuth({
+          action: "device_poll",
+          deviceCode,
         });
-        const data = (await res.json()) as {
+        const data = (await res.json().catch(() => ({}))) as {
           status?: "authorized" | "pending" | "failed";
           user?: GitHubAuthenticatedUser;
           interval?: number;
@@ -514,13 +537,8 @@ export function GitHubAgentConnectWorkflow({
     setIsVerifyingPat(true);
     setErrorText(null);
     try {
-      const res = await fetch("/api/github/oauth", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify_pat", pat: trimmed }),
-      });
-      const data = (await res.json()) as { user?: GitHubAuthenticatedUser; error?: string };
+      const res = await postGitHubOAuth({ action: "verify_pat", pat: trimmed });
+      const data = (await res.json().catch(() => ({}))) as { user?: GitHubAuthenticatedUser; error?: string };
       if (!res.ok || !data.user) {
         throw new Error(data.error || "GitHub rejected this token. Verify the token has `repo` permissions.");
       }
@@ -546,6 +564,7 @@ export function GitHubAgentConnectWorkflow({
     setDeviceCode(null);
     setUserCode(null);
     setIsWaitingForGitHub(false);
+    deviceStartAttemptedRef.current = false;
   };
 
   const filteredRepos = useMemo(() => {
@@ -585,18 +604,13 @@ export function GitHubAgentConnectWorkflow({
     setErrorText(null);
     setIsConnectingRepo(true);
     try {
-      const res = await fetch("/api/github/oauth", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "connect_repo",
-          projectId,
-          owner: owner.trim(),
-          name: name.trim(),
-          defaultBranch: branchInput.trim() || "main",
-          framework: frameworkInput || "nextjs",
-        }),
+      const res = await postGitHubOAuth({
+        action: "connect_repo",
+        projectId,
+        owner: owner.trim(),
+        name: name.trim(),
+        defaultBranch: branchInput.trim() || "main",
+        framework: frameworkInput || "nextjs",
       });
       const data = (await res.json()) as { error?: string; message?: string };
       if (!res.ok) {
