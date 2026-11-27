@@ -41,7 +41,27 @@ export class HtmlExtractorService {
     const metaDescription = $('meta[name="description" i]').attr('content')?.trim();
     const metaKeywords = $('meta[name="keywords" i]').attr('content')?.trim();
     const viewport = $('meta[name="viewport" i]').attr('content')?.trim();
-    const robotsMeta = $('meta[name="robots" i]').attr('content')?.trim() || $('meta[name="googlebot" i]').attr('content')?.trim();
+    // Combine all <meta name="robots"> (and <meta name="googlebot">) tags in document order.
+    // Per Google Search Central rules, when multiple robots meta tags exist on a page
+    // (common with CMS plugins or React Helmet hydration), directives are merged and
+    // the most restrictive rule wins. Reading only `.first()` silently hides a second
+    // `noindex` tag or a conflicting `index` + `noindex` pair.
+    const robotsDirectives: string[] = [];
+    const seenDirectives = new Set<string>();
+    $('meta[name="robots" i], meta[name="googlebot" i]').each((_, el) => {
+      const content = $(el).attr('content')?.trim();
+      if (!content) return;
+      for (const part of content.split(/[,;]/)) {
+        const cleaned = part.trim();
+        if (!cleaned) continue;
+        const key = cleaned.toLowerCase();
+        if (!seenDirectives.has(key)) {
+          seenDirectives.add(key);
+          robotsDirectives.push(cleaned);
+        }
+      }
+    });
+    const robotsMeta = robotsDirectives.length > 0 ? robotsDirectives.join(', ') : undefined;
 
     // 3. Canonical
     const canonicalUrls = [...new Set($('link[rel="canonical" i]').map((_, el) => {

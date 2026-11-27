@@ -221,8 +221,9 @@ export class FetchService {
     }
 
     const htmlResponse = isHtmlResponse(statik.headers['content-type']);
-    const verdict = htmlResponse ? shouldEscalateToRender(statik.body, { force: options.forceRender })
-      : { reasons: [], escalate: false, rawAnchorCount: 0, rawTitle: undefined };
+    const verdict = htmlResponse
+      ? shouldEscalateToRender(statik.body, { force: options.forceRender })
+      : { reasons: [] as EscalationReason[], escalate: false, rawBodyTextLength: 0, rawAnchorCount: 0, rawTitle: undefined };
     const renderAllowed = options.renderAllowed !== false;
 
     const base: FetchOutcome = {
@@ -262,7 +263,11 @@ export class FetchService {
     }
 
     // Tier 2 — rendered.
-    const rendered = await this.fetchRendered(targetUrl, userAgent, timeoutMs);
+    const rendered = await this.fetchRendered(targetUrl, userAgent, timeoutMs, {
+      hasSpaFingerprint: verdict.reasons.includes('SPA_FINGERPRINT'),
+      rawBodyTextLength: verdict.rawBodyTextLength,
+      rawAnchorCount: verdict.rawAnchorCount,
+    });
     if (!rendered) {
       return {
         ...base,
@@ -447,7 +452,12 @@ export class FetchService {
     throw new FetchError('http', `More than ${maxRedirects} redirects starting at ${targetUrl}`, 310);
   }
 
-  private async fetchRendered(targetUrl: string, userAgent: string, timeoutMs: number): Promise<RenderedResponse | undefined> {
+  private async fetchRendered(
+    targetUrl: string,
+    userAgent: string,
+    timeoutMs: number,
+    baseline?: { hasSpaFingerprint?: boolean; rawBodyTextLength?: number; rawAnchorCount?: number },
+  ): Promise<RenderedResponse | undefined> {
     const settleMs = Number(process.env.RENDER_SETTLE_MS || 3000);
 
     return this.browserPool.withPage(userAgent, async (page) => {
@@ -481,6 +491,16 @@ export class FetchService {
         .catch(() => {});
 
       let documentStatus: number | undefined;
+      const pendingDataRequests = new Set<object>();
+
+      // Track in-flight XHR/fetch requests (e.g. product catalogs, CMS APIs) so
+      // pre-rendered SPA shells do not settle before dynamic data finishes loading.
+      page.on('request', (req) => {
+        const type = req.resourceType();
+        if (type === 'fetch' || type === 'xhr') pendingDataRequests.add(req);
+      });
+      page.on('requestfinished', (req) => pendingDataRequests.delete(req));
+      page.on('requestfailed', (req) => pendingDataRequests.delete(req));
 
       // Only the main frame's own document response tells us the page's status.
       // Matching on "any response whose URL equals page.url()" is what let an
@@ -493,7 +513,7 @@ export class FetchService {
 
       let navigationStatus: number | undefined;
       try {
-        // domcontentloaded first, then network idle as a separate wait.
+        // domcontentloaded first, then load + network idle as separate bounded waits.
         // Handing the whole budget to a single `waitUntil: 'networkidle'` means
         // one slow third-party asset - a font, an analytics beacon - consumes
         // the time the page needed to hydrate, and we then read a DOM that is
@@ -504,7 +524,24 @@ export class FetchService {
         this.logger.debug(`[${targetUrl}] render navigation did not settle cleanly: ${(err as Error).message}`);
       }
 
+      // Deferred ES module scripts (`<script type="module">`) used by Vite/React/Vue
+      // execute after `domcontentloaded` and before `load`. Since images, fonts,
+      // media, third-party CSS, and trackers are aborted above, `load` cleanly waits
+      // for application JS bundles without stalling on slow media.
+      if (baseline?.hasSpaFingerprint) {
+        await page.waitForLoadState('load', { timeout: settleMs }).catch(() => {});
+      }
+
       await page.waitForLoadState('networkidle', { timeout: settleMs * 2 }).catch(() => {});
+
+      // Wait briefly for any in-flight API XHR/fetch calls triggered during mount
+      // so catalog/feed links populated asynchronously are present in the DOM.
+      if (pendingDataRequests.size > 0) {
+        const xhrDeadline = Date.now() + Math.min(settleMs * 2, 6000);
+        while (pendingDataRequests.size > 0 && Date.now() < xhrDeadline) {
+          await page.waitForTimeout(100).catch(() => undefined);
+        }
+      }
 
       // Then the explicit settle: the first anchor, or the framework's mount
       // node acquiring children, whichever lands first. `networkidle` is not a
@@ -586,14 +623,11 @@ export class FetchService {
             }
             return w.__gxStable >= quietPolls;
           },
-          2,
+          3,
           // A ceiling, not a wait. The check returns as soon as the text has
-          // held steady for two polls, so a page that renders quickly costs
-          // ~300ms of this budget and a slow one is allowed to finish rather
-          // than being read half-built. Tying it to `settleMs` capped heavy
-          // pages at six seconds, which is under what a large SPA on a slow
-          // connection needs, and the cost of expiring early is a page
-          // recorded with a fraction of its words.
+          // held steady for three polls (~450ms), so a page that renders quickly costs
+          // under half a second of this budget and a slow SPA or pre-rendered shell
+          // hydrating asynchronously is allowed to finish rather than being read half-built.
           { timeout: Number(process.env.RENDER_STABLE_TIMEOUT_MS || 12_000), polling: 150 },
         )
         .catch(() => undefined);

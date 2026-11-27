@@ -702,4 +702,130 @@ describe('CrawlerService split static/render queue handoff', () => {
     expect(upserts[0].create.jsRequired).toBe(true);
     expect(settlePageFetchTask).toHaveBeenCalledTimes(1);
   });
+
+  it('bypasses HTTP 304 delta carry-forward for jsRequired SPA pages so dynamic API/JS updates are never stale', async () => {
+    const fetchMock = jest.fn(async () =>
+      outcome({
+        url: 'https://example.com/products',
+        finalUrl: 'https://example.com/products',
+        tier: 'rendered',
+        jsRequired: true,
+        renderedHtml: '<html><body><h1>Fresh Products</h1></body></html>',
+        html: '<html><body><h1>Fresh Products</h1></body></html>',
+      }),
+    );
+
+    const { service } = makeService({ fetchSvc: { fetch: fetchMock } });
+    const prisma = (service as any).prisma;
+    prisma.crawlJob.findFirst = jest.fn().mockResolvedValue({ id: 'prev-job-spa' });
+    prisma.page.findUnique = jest.fn(async ({ where }: any) => {
+      if (where.crawlJobId_url?.crawlJobId === 'prev-job-spa') {
+        return {
+          id: 'prev-spa-page',
+          statusCode: 200,
+          jsRequired: true,
+          httpEtag: '"static-shell-etag"',
+          httpLastModified: 'Mon, 23 Nov 2026 00:00:00 GMT',
+          links: [],
+          issues: [],
+        };
+      }
+      return null;
+    });
+
+    await service.processPageFetch({ ...payload, targetUrl: 'https://example.com/products' });
+
+    // Must NOT pass conditional validators for a prior jsRequired page
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/products', { renderAllowed: true });
+  });
+
+  it('attributes homepage, javascript_dom, canonical, and bundle sources accurately without fake link edges for bundle routes', async () => {
+    const recordedBatches: any[] = [];
+    const linkCreates: any[] = [];
+    const discoverBundleRoutes = jest.fn(async () => [
+      { url: 'https://example.com/hidden-offer', normalizedUrl: 'https://example.com/hidden-offer', source: 'bundle' as const },
+    ]);
+
+    const { service } = makeService({
+      fetchSvc: {
+        fetch: jest.fn(async () =>
+          outcome({
+            tier: 'rendered',
+            jsRequired: true,
+            escalationReasons: ['SPA_FINGERPRINT'],
+            rawHtml: '<html><body><a href="/static-nav">Nav</a><script type="module" src="/assets/index-abc123.js"></script></body></html>',
+            renderedHtml: '<html><body><a href="/static-nav">Nav</a><a href="/js-nav">JS Nav</a></body></html>',
+            html: '<html><body><a href="/static-nav">Nav</a><a href="/js-nav">JS Nav</a></body></html>',
+          }),
+        ),
+      },
+      discovery: {
+        isAllowed: jest.fn(() => ({ allowed: true, evidence: 'ok' })),
+        extractLinks: jest.fn((html: string) => {
+          const out: any[] = [];
+          if (html.includes('/static-nav')) out.push({ normalizedUrl: 'https://example.com/static-nav' });
+          if (html.includes('/js-nav')) out.push({ normalizedUrl: 'https://example.com/js-nav' });
+          return out;
+        }),
+        discoverBundleRoutes,
+      },
+      htmlExtractor: {
+        extract: jest.fn(() => ({
+          title: 'Home',
+          canonicalUrl: 'https://example.com/preferred',
+          h1: ['Home'],
+          h2: [],
+          h3: [],
+          openGraph: {},
+          twitterCards: {},
+          jsonLd: [],
+          microdataTypes: [],
+          rawStructuredDataCount: 0,
+        })),
+      },
+      linkAnalyzer: {
+        analyzeLinks: jest.fn(() => ({
+          internalLinks: [
+            { targetUrl: 'https://example.com/static-nav', anchorText: 'Nav', isNofollow: false },
+            { targetUrl: 'https://example.com/js-nav', anchorText: 'JS Nav', isNofollow: false },
+          ],
+          externalLinks: [],
+          brokenAnchors: [],
+          nofollowLinks: [],
+          internalCount: 2,
+          externalCount: 0,
+          totalCount: 2,
+        })),
+      },
+      inventory: {
+        record: jest.fn(async (_jobId: string, additions: any[]) => {
+          recordedBatches.push(...additions);
+          return { added: additions.length, merged: 0, invalid: 0 };
+        }),
+        markQueued: jest.fn(async () => undefined),
+        markCrawled: jest.fn(async () => undefined),
+        markExcluded: jest.fn(async () => undefined),
+        metrics: jest.fn(async () => null),
+      },
+    });
+    (service as any).prisma.link.create = jest.fn(async (args: any) => {
+      linkCreates.push(args.data);
+      return {};
+    });
+
+    await service.processPageFetch(payload);
+
+    expect(discoverBundleRoutes).toHaveBeenCalledTimes(1);
+    expect(recordedBatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ url: 'https://example.com/static-nav', source: 'homepage' }),
+        expect.objectContaining({ url: 'https://example.com/js-nav', source: 'javascript_dom' }),
+        expect.objectContaining({ url: 'https://example.com/js-nav', source: 'homepage' }),
+        expect.objectContaining({ url: 'https://example.com/preferred', source: 'canonical' }),
+        expect.objectContaining({ url: 'https://example.com/hidden-offer', source: 'bundle' }),
+      ]),
+    );
+    // Bundle route must NOT create a synthetic Link edge so orphan detection remains intact
+    expect(linkCreates.some((l) => l.targetUrl === 'https://example.com/hidden-offer')).toBe(false);
+  });
 });

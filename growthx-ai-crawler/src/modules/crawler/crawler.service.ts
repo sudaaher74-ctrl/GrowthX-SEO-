@@ -785,6 +785,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         },
       });
       if (!prevPage || prevPage.statusCode !== 200) return null;
+      // A client-rendered SPA's static HTML shell keeps the same ETag/Last-Modified
+      // even when its JS bundle or backend API changes products, routes, or DOM.
+      // Never short-circuit JS-required pages via 304 so re-crawls always inspect live DOM.
+      if (prevPage.jsRequired) return null;
       if (!prevPage.httpEtag && !prevPage.httpLastModified) return null;
       return prevPage;
     } catch {
@@ -1291,6 +1295,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           // that source.
           const jsOnlyTargets = this.linksOnlyInRenderedDom(outcome, normUrl);
           await this.discoverInternalLinksAndEnqueue(payload, allInternalTargets, page.id, jsOnlyTargets);
+
+          // On the root homepage of an SPA, also inspect Next.js manifests / verified
+          // client router bundles once per crawl so unlinked public routes enter discovery.
+          if (
+            isHomepage &&
+            outcome.escalationReasons?.includes('SPA_FINGERPRINT') &&
+            typeof this.discovery.discoverBundleRoutes === 'function'
+          ) {
+            try {
+              const bundleRoutes = await this.discovery.discoverBundleRoutes(
+                new URL(normUrl).origin,
+                outcome.rawHtml || fetchRes.html || '',
+                crawlState.robots,
+              );
+              if (bundleRoutes.length > 0) {
+                const bundleTargets = bundleRoutes.map((r) => ({
+                  targetUrl: r.normalizedUrl,
+                  anchorText: 'bundle',
+                  isNofollow: false,
+                }));
+                await this.discoverInternalLinksAndEnqueue(payload, bundleTargets, page.id, new Set());
+              }
+            } catch (bundleErr) {
+              this.logger.debug(`[JOB ${payload.jobId}] Bundle route discovery skipped: ${(bundleErr as Error).message}`);
+            }
+          }
         }
         await this.inventory.markCrawled(payload.jobId, normUrl, storedOutcome);
       } catch (dbErr: any) {
@@ -1573,15 +1603,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     for (const link of internalLinks) {
       const targetClean = this.state.normalizeUrl(link.targetUrl);
 
-      this.prisma.link.create({
-        data: {
-          sourcePageId,
-          targetUrl: targetClean,
-          linkType: 'INTERNAL',
-          anchorText: link.anchorText || undefined,
-          isNofollow: link.isNofollow || false,
-        },
-      }).catch(() => {});
+      // Bundle-discovered routes are not hyperlinks in the DOM; do not create a
+      // synthetic link edge so truly unlinked SPA routes are still caught as orphans.
+      if (link.anchorText !== 'bundle') {
+        this.prisma.link.create({
+          data: {
+            sourcePageId,
+            targetUrl: targetClean,
+            linkType: 'INTERNAL',
+            anchorText: link.anchorText || undefined,
+            isNofollow: link.isNofollow || false,
+          },
+        }).catch(() => {});
+      }
 
       // The link is still recorded above — it exists on the page and the graph
       // should know about it — but a file is not fetched. This is the half of
@@ -1622,19 +1656,44 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // repeated across 32 pages is 32 events over a handful of URLs. The
       // inventory below is where the unique URLs go.
       await this.state.bumpJobStat(payload.jobId, 'internalLinksFound', internalLinks.length);
+      const sourceIsHomepage = (() => {
+        try {
+          const p = new URL(payload.targetUrl).pathname;
+          return p === '' || p === '/';
+        } catch {
+          return false;
+        }
+      })();
+      const inventoryAdditions: Array<{ url: string; source: string; sourceUrl: string; depth: number }> = [];
+      for (const link of internalLinks) {
+        const normalized = this.state.normalizeUrl(link.targetUrl);
+        if (link.anchorText === 'canonical') {
+          inventoryAdditions.push({ url: normalized, source: 'canonical', sourceUrl: payload.targetUrl, depth: payload.depth + 1 });
+          continue;
+        }
+        if (link.anchorText === 'bundle') {
+          inventoryAdditions.push({ url: normalized, source: 'bundle', sourceUrl: payload.targetUrl, depth: payload.depth + 1 });
+          continue;
+        }
+        const isJsOnly = jsOnlyTargets.has(normalized);
+        inventoryAdditions.push({
+          url: normalized,
+          source: isJsOnly ? 'javascript_dom' : sourceIsHomepage ? 'homepage' : 'internal_link',
+          sourceUrl: payload.targetUrl,
+          depth: payload.depth + 1,
+        });
+        // A JS-rendered link on the homepage was discovered via BOTH the homepage and JavaScript DOM.
+        if (isJsOnly && sourceIsHomepage) {
+          inventoryAdditions.push({
+            url: normalized,
+            source: 'homepage',
+            sourceUrl: payload.targetUrl,
+            depth: payload.depth + 1,
+          });
+        }
+      }
       await this.inventory
-        .record(
-          payload.jobId,
-          internalLinks.map((link) => {
-            const normalized = this.state.normalizeUrl(link.targetUrl);
-            return {
-              url: normalized,
-              source: jsOnlyTargets.has(normalized) ? 'javascript_dom' : 'internal_link',
-              sourceUrl: payload.targetUrl,
-              depth: payload.depth + 1,
-            };
-          }),
-        )
+        .record(payload.jobId, inventoryAdditions)
         .catch((error) => { if (process.env.CRAWL_FAIR_SCHEDULING === 'true') throw error; });
     }
 

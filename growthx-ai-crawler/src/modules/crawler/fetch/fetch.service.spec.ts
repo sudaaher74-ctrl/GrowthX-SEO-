@@ -318,4 +318,37 @@ describe('FetchService', () => {
     expect(out.renderUnavailable).toBe(true);
     expect(out.escalationReasons.length).toBeGreaterThan(0);
   });
+
+  it('waits for hydration and in-flight API fetches on a pre-rendered Vite SPA shell', async () => {
+    const preRenderedShell = `<!doctype html><html><head><title>Shop</title><script type="module" src="/assets/index-Abc12345.js"></script></head><body><div id="root"><h1>Shop</h1><p>Static fallback text with enough characters to look populated before React hydrates and calls the product catalog API.</p><nav><a href="/about">About</a></nav></div></body></html>`;
+    const clientScript = `
+      setTimeout(() => {
+        fetch('/api/catalog').then(r => r.json()).then(items => {
+          const links = items.map(i => '<a href="/product/' + i.slug + '">' + i.name + '</a>').join('');
+          document.querySelector('#root').innerHTML =
+            '<main><h1>Hydrated Product Catalog</h1>' +
+            '<p>Explore our complete freshly hydrated dairy catalog loaded dynamically from the live inventory API with farm-direct pricing and daily delivery options.</p>' +
+            '<nav><a href="/about">About</a>' + links + '</nav></main>';
+        });
+      }, 200);
+    `;
+    server = await startFixtureServer({
+      '/': { body: preRenderedShell },
+      '/assets/index-Abc12345.js': { headers: { 'content-type': 'application/javascript' }, body: clientScript },
+      '/api/catalog': {
+        handler: (_req, res) => {
+          setTimeout(() => {
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify([{ slug: 'dynamic-sku', name: 'Dynamic SKU' }]));
+          }, 600);
+        },
+      },
+    });
+
+    const out = await fetcher.fetch(server.url('/'));
+
+    expect(out.tier).toBe('rendered');
+    expect(out.html).toContain('/product/dynamic-sku');
+    expect(out.jsRequired).toBe(true);
+  });
 });

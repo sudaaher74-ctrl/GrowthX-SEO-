@@ -10,6 +10,7 @@ import { registrableDomain, sameRegistrableDomain } from '../url/registrable-dom
 import { DEFAULT_CHROME_UA } from '../fetch/browser-pool.service';
 import { deadlineSignal } from '../fetch/http-deadline';
 import { extractUrlsFromJsonLd } from '../page-extract';
+import { crawlExclusionReason } from '../crawlable';
 
 export type DiscoverySource =
   | 'seed'
@@ -442,19 +443,26 @@ export class DiscoveryService {
    * navigation.
    *
    * Best-effort by nature, and marked `bundle` so nothing downstream mistakes a
-   * guess for a fact. Every candidate must be verified with a real fetch before
-   * it is trusted — a minifier's string table contains a great many things that
-   * look like paths and are not.
+   * guess for a fact. Distinguishes authoritative build manifests (Next.js
+   * `_buildManifest.js`) from heuristic string extraction in generic bundles:
+   * on hosts that return HTTP 200 for any unknown path (SPA catch-all rewrites),
+   * heuristic bundle guesses cannot be verified by status code alone and are
+   * skipped to avoid polluting crawls with synthetic soft-404s.
    */
-  async discoverBundleRoutes(origin: string, html: string): Promise<DiscoveredUrl[]> {
+  async discoverBundleRoutes(origin: string, html: string, robots?: ParsedRobots): Promise<DiscoveredUrl[]> {
     const $ = cheerio.load(html || '');
     const scripts: string[] = [];
     $('script[src]').each((_, el) => {
       const src = $(el).attr('src');
-      if (src) scripts.push(new URL(src, origin).toString());
+      if (src) {
+        try {
+          scripts.push(new URL(src, origin).toString());
+        } catch {}
+      }
     });
 
-    const candidates = new Set<string>();
+    const manifestRoutes = new Set<string>();
+    const heuristicRoutes = new Set<string>();
 
     // Next.js publishes its route table verbatim.
     const buildManifest = scripts.find((s) => /_buildManifest\.js$/.test(s));
@@ -463,31 +471,48 @@ export class DiscoveryService {
       if (body) {
         for (const match of body.matchAll(/"(\/[A-Za-z0-9._~\-/[\]]*)"\s*:/g)) {
           const route = match[1];
-          // Dynamic segments cannot be fetched as written.
-          if (!route.includes('[')) candidates.add(route);
+          // Dynamic segments and internal error/special Next routes cannot be fetched as pages.
+          if (!route.includes('[') && !/^\/_(?:app|document|error|not-found)\b/.test(route)) {
+            manifestRoutes.add(route);
+          }
         }
       }
     }
 
-    // React Router and friends: path string literals in the main bundle.
+    // React Router and friends: root-anchored path string literals in the main bundle.
     for (const script of scripts.filter((s) => !/_buildManifest\.js$/.test(s)).slice(0, 3)) {
       const body = await this.fetchText(script);
       if (!body) continue;
       for (const match of body.matchAll(/path\s*:\s*["'](\/[A-Za-z0-9._~\-/]*)["']/g)) {
-        candidates.add(match[1]);
+        heuristicRoutes.add(match[1]);
       }
       for (const match of body.matchAll(/(?:to|href)\s*:\s*["'](\/[A-Za-z0-9._~\-/]{2,})["']/g)) {
-        candidates.add(match[1]);
+        heuristicRoutes.add(match[1]);
       }
     }
+
+    // On SPA hosts with catch-all fallback routing, a random nonexistent path
+    // returns HTTP 200. Only probe heuristic guesses when the origin distinguishes
+    // missing routes from real ones; authoritative build manifests stay eligible.
+    let isCatchAllHost = false;
+    if (heuristicRoutes.size > 0) {
+      const probePath = `/__reigel_route_probe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      isCatchAllHost = await this.urlResponds(new URL(probePath, origin).toString());
+    }
+
+    const candidates = new Set<string>([
+      ...manifestRoutes,
+      ...(isCatchAllHost ? [] : heuristicRoutes),
+    ]);
 
     const verified: DiscoveredUrl[] = [];
     for (const route of [...candidates].slice(0, Number(process.env.MAX_BUNDLE_ROUTES || 50))) {
       if (/\.(js|css|map|png|jpe?g|svg|webp|ico|woff2?|json)$/i.test(route)) continue;
       const absolute = new URL(route, origin).toString();
       const normalized = normalizeUrl(absolute);
-      if (!normalized) continue;
-      if (await this.urlResponds(absolute)) {
+      if (!normalized || crawlExclusionReason(normalized)) continue;
+      if (robots && this.isAllowed(robots, normalized)?.allowed === false) continue;
+      if (manifestRoutes.has(route) || (await this.urlResponds(absolute))) {
         verified.push({ url: absolute, normalizedUrl: normalized, source: 'bundle', foundIn: 'javascript bundle' });
       }
     }

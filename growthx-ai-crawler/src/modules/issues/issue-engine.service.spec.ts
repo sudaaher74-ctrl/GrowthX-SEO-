@@ -193,4 +193,34 @@ describe('IssueEngineService', () => {
       data: expect.objectContaining({ dedupKey: 'https://growthx.ai/p::MISSING_TITLE' }),
     }));
   });
+
+  it('distinguishes a clean noindex directive from conflicting index + noindex directives', async () => {
+    const baseData: any = {
+      title: 'Valid Page Title For Testing',
+      metaDescription: 'Valid meta description for testing.',
+      canonicalUrl: 'https://example.com/cart',
+      h1: ['Shopping Cart'],
+      h2: [],
+      h3: [],
+    };
+    const content: any = { wordCount: 400, readingTimeMin: 2, duplicateScore: 0, headingStructureErrors: [] };
+
+    const cleanNoindex = await service.evaluateAndPersistIssues(
+      'job_1', 'proj_1', 'site_1', 'page_1', 'https://example.com/cart', 200,
+      ['https://example.com/cart'], '<html></html>', cheerio.load('<html></html>'),
+      { ...baseData, robotsMeta: 'noindex, follow' },
+      [], { internalCount: 1, externalCount: 0 } as any, content, [], true, true, 'OTHER',
+    );
+    expect(cleanNoindex.some((i) => i.issueType === 'NOINDEX_DETECTED')).toBe(true);
+    expect(cleanNoindex.some((i) => i.issueType === 'INCORRECT_ROBOTS')).toBe(false);
+
+    const conflicting = await service.evaluateAndPersistIssues(
+      'job_2', 'proj_1', 'site_1', 'page_2', 'https://example.com/cart', 200,
+      ['https://example.com/cart'], '<html></html>', cheerio.load('<html></html>'),
+      { ...baseData, robotsMeta: 'index, follow, noindex' },
+      [], { internalCount: 1, externalCount: 0 } as any, content, [], true, true, 'OTHER',
+    );
+    expect(conflicting.some((i) => i.issueType === 'NOINDEX_DETECTED')).toBe(true);
+    expect(conflicting.some((i) => i.issueType === 'INCORRECT_ROBOTS')).toBe(true);
+  });
 });

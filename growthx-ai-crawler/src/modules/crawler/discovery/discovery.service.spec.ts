@@ -266,6 +266,56 @@ describe('DiscoveryService', () => {
       'https://www.example.com/page/2',
     ]);
   });
+
+  describe('discoverBundleRoutes', () => {
+    it('discovers Next.js _buildManifest routes while honoring robots.txt Disallow', async () => {
+      server = await startFixtureServer({
+        '/_next/static/build/_buildManifest.js': {
+          headers: { 'content-type': 'application/javascript' },
+          body: 'self.__BUILD_MANIFEST = {"/pricing":["a.js"],"/admin/secret":["b.js"],"/blog/[slug]":["c.js"],"/_error":["e.js"]};',
+        },
+        '/pricing': { body: '<html><body>Pricing</body></html>' },
+      });
+      const robots = parseRobotsTxt('User-agent: *\nDisallow: /admin/\n');
+      const html = '<html><head><script src="/_next/static/build/_buildManifest.js"></script></head><body></body></html>';
+
+      const found = await discovery.discoverBundleRoutes(server.origin, html, robots);
+
+      expect(found.map((f) => f.normalizedUrl)).toEqual([`${server.origin}/pricing`]);
+      expect(found[0].source).toBe('bundle');
+    });
+
+    it('skips heuristic bundle guesses on SPA catch-all hosts so missing paths are not turned into fake 200 pages', async () => {
+      server = await startFixtureServer({
+        '/assets/index-abc.js': {
+          headers: { 'content-type': 'application/javascript' },
+          body: 'const routes = [{ path: "/maybe-real" }, { path: "/probably-admin-child" }];',
+        },
+        // Catch-all SPA rewrite answers 200 to every unknown URL
+        '*': { body: '<html><body>SPA Shell</body></html>' },
+      });
+      const html = '<html><head><script src="/assets/index-abc.js"></script></head><body></body></html>';
+
+      const found = await discovery.discoverBundleRoutes(server.origin, html);
+
+      expect(found).toEqual([]);
+    });
+
+    it('keeps verified heuristic routes when the host distinguishes 404 from 200', async () => {
+      server = await startFixtureServer({
+        '/assets/index-abc.js': {
+          headers: { 'content-type': 'application/javascript' },
+          body: 'const routes = [{ path: "/live-page" }, { path: "/not-real" }];',
+        },
+        '/live-page': { body: '<html><body>Real page</body></html>' },
+      });
+      const html = '<html><head><script src="/assets/index-abc.js"></script></head><body></body></html>';
+
+      const found = await discovery.discoverBundleRoutes(server.origin, html);
+
+      expect(found.map((f) => f.normalizedUrl)).toEqual([`${server.origin}/live-page`]);
+    });
+  });
 });
 
 describe('robots.txt precedence', () => {

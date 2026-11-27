@@ -50,4 +50,28 @@ describe('HtmlExtractorService', () => {
     expect(res.jsonLd[0].name).toBe('GrowthX');
     expect(res.language).toBe('en');
   });
+
+  it('combines multiple robots meta tags so a second noindex or conflict is never hidden', () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="robots" content="index, follow">
+        <meta name="robots" content="noindex, follow">
+      </head>
+      <body><h1>Conflicting robots</h1></body>
+      </html>
+    `;
+    const res = service.extract(cheerio.load(html), 'https://example.com/cart');
+    expect(res.robotsMeta).toBe('index, follow, noindex');
+
+    const dedupHtml = `
+      <html><head>
+        <meta name="robots" content="index, follow">
+        <meta name="robots" content="INDEX, FOLLOW">
+      </head><body></body></html>
+    `;
+    const dedupRes = service.extract(cheerio.load(dedupHtml), 'https://example.com/ok');
+    expect(dedupRes.robotsMeta).toBe('index, follow');
+  });
 });

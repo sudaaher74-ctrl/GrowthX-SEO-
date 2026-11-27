@@ -453,8 +453,17 @@ export class IssueEngineService {
 
     // 14. Robots Meta Directives
     if (htmlData.robotsMeta) {
-      const lower = htmlData.robotsMeta.toLowerCase();
-      if (lower.includes('noindex')) {
+      const tokens = new Set(
+        htmlData.robotsMeta
+          .toLowerCase()
+          .split(/[,;\s]+/)
+          .map((t) => t.trim())
+          .filter(Boolean),
+      );
+      const hasNoindex = tokens.has('noindex') || tokens.has('none');
+      const hasIndex = tokens.has('index');
+
+      if (hasNoindex) {
         issues.push({
           issueType: 'NOINDEX_DETECTED',
           severity: isHomePage ? 'CRITICAL' : 'HIGH',
@@ -471,7 +480,7 @@ export class IssueEngineService {
         });
       }
 
-      if (lower.includes('index') && lower.includes('noindex')) {
+      if (hasIndex && hasNoindex) {
         issues.push({
           issueType: 'INCORRECT_ROBOTS',
           severity: 'HIGH',
