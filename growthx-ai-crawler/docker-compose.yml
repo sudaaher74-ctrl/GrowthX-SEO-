@@ -19,6 +19,7 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
+      - CRAWL_UNLIMITED_PAGES=${CRAWL_UNLIMITED_PAGES:-true}
       - DATABASE_URL=postgresql://growthx:${POSTGRES_PASSWORD}@postgres:5432/growthx_crawler?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
