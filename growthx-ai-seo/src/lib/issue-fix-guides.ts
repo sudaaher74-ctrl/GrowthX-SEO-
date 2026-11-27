@@ -140,6 +140,94 @@ export function getIssueFixGuide(input: IssueGuideInput): IssueFixGuide {
     };
   };
 
+  if (key.includes("MULTIPLE TITLE") || key.includes("MULTIPLE_TITLE_TAGS") || key.includes("MULTIPLE META DESCRIPTION") || key.includes("MULTIPLE_META_DESCRIPTIONS")) {
+    const isTitle = key.includes("TITLE");
+    const tagLabel = isTitle ? "<title>" : '<meta name="description">';
+    return finalize({
+      whatIsWrong: isTitle
+        ? "This page outputs more than one <title> tag inside its HTML head — usually because both the base HTML template and an SEO plugin or React/Next.js head library are inserting titles."
+        : "This page outputs more than one <meta name=\"description\"> tag — usually because a static fallback tag stays in the HTML after an SEO plugin or JavaScript framework injects another one.",
+      whyItMatters:
+        "When Google sees two competing head tags, it may pick the generic fallback text instead of your optimized page copy, hurting rankings and search click-through rates.",
+      difficulty: "cms_or_dev",
+      estimatedTime: "10–15 mins",
+      platformSteps: {
+        wordpress: [
+          "Check Plugins → Installed Plugins and ensure only ONE SEO plugin (Yoast SEO OR Rank Math, never both) is active.",
+          `Open Appearance → Theme File Editor → header.php and verify the theme does not hardcode an extra ${tagLabel} tag.`,
+          "Clear your page cache and re-check the live page source.",
+        ],
+        shopify: [
+          "Go to Online Store → Themes → Edit code → layout/theme.liquid.",
+          `Search for ${isTitle ? "<title" : 'name="description"'} and remove any duplicate tag injected by an old theme snippet or uninstalled SEO app.`,
+          "Save theme.liquid and inspect the live page source.",
+        ],
+        webflow: [
+          "Open Project Settings → Custom Code → Head Code and remove any manually pasted title or meta description tags.",
+          "Also check Page Settings → Custom Code on affected pages so only Webflow's native SEO fields output the tag.",
+          "Publish your site.",
+        ],
+        wix: [
+          "Open Marketing & SEO → SEO Settings → Additional Meta Tags and remove any manually added duplicate tags.",
+          "Manage titles and descriptions exclusively through each page's SEO Basics panel.",
+          "Publish your changes.",
+        ],
+        developer: [
+          `Inspect the rendered DOM (DevTools → Elements → <head>) on ${firstUrl} to find all ${tagLabel} tags.`,
+          "In React/Vite SPAs (react-helmet-async), ensure the static base index.html tag is updated/replaced (e.g., data-rh=\"true\" or removed when injected dynamically) instead of appending a second tag.",
+          "In Next.js/SSR apps, declare metadata in one place (Next Metadata API or one <Head> owner) and remove duplicate fallback tags from layout files.",
+        ],
+      },
+      exampleLabel: `Ensure only one ${tagLabel} exists in <head>`,
+      exampleCode: isTitle
+        ? `<title>Primary Offering | Your Brand</title>`
+        : `<meta name="description" content="Clear 120–160 character summary of what this specific page offers." />`,
+      verifySteps: [
+        `Open ${firstUrl} in Chrome DevTools → Elements → <head> and confirm exactly ONE ${tagLabel} tag is present.`,
+        "Re-run Website Audit to confirm the warning clears.",
+      ],
+    });
+  }
+
+  if (key.includes("NOFOLLOW")) {
+    return finalize({
+      whatIsWrong:
+        "This page includes a page-level 'nofollow' instruction inside its robots meta tag, telling search engines not to follow any links on the page.",
+      whyItMatters:
+        "Google will not pass ranking strength through internal links on this page or use them to discover deeper pages on your site.",
+      difficulty: "cms_or_dev",
+      estimatedTime: "5–10 mins",
+      platformSteps: {
+        wordpress: [
+          "Open the affected page → scroll to Yoast SEO / Rank Math → Advanced tab.",
+          "Set 'Should search engines follow links on this page?' to YES (Follow) and click Update.",
+        ],
+        shopify: [
+          "Open Online Store → Themes → Edit code → layout/theme.liquid and search for 'nofollow'.",
+          "Remove 'nofollow' from any public page robots meta tag and click Save.",
+        ],
+        webflow: [
+          "Open Page Settings → Custom Code → Inside <head> tag and remove 'nofollow' from any robots meta tag.",
+          "Save and Publish your site.",
+        ],
+        wix: [
+          "Open Pages & Menu → affected page → SEO Settings → Advanced SEO → Robots Meta Tag.",
+          "Uncheck 'nofollow' on public pages and Publish.",
+        ],
+        developer: [
+          "Inspect all <meta name=\"robots\"> tags in the rendered DOM (including any injected by client-side SEO components).",
+          "Change public pages to <meta name=\"robots\" content=\"index, follow\" /> (keep 'noindex, nofollow' only on private/cart/auth pages if intended).",
+        ],
+      },
+      exampleLabel: "Recommended robots meta tag for public pages",
+      exampleCode: `<meta name="robots" content="index, follow" />`,
+      verifySteps: [
+        "Inspect the rendered <head> in Chrome DevTools and confirm no 'nofollow' directive remains on public pages.",
+        "Re-run Website Audit to verify.",
+      ],
+    });
+  }
+
   if (key.includes("CANONICAL") || key.includes("REAL ONE") || key.includes("MAIN VERSION")) {
     return finalize({
       whatIsWrong:

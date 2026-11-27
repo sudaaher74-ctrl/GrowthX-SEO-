@@ -90,7 +90,25 @@ export class IssueEngineService {
       evidence: `${pageUrl} -> ${canonicalTargets[0]}`, dedupKey: `${pageUrl}::CANONICAL_POINTS_ELSEWHERE`, aiFixAvailable: false,
     });
 
-    // 1. Missing Title
+    // 1. Missing & Multiple Title checks
+    if (htmlData.titles && htmlData.titles.length > 1) {
+      issues.push({
+        issueType: 'MULTIPLE_TITLE_TAGS',
+        severity: 'HIGH',
+        confidence: 'CONFIRMED',
+        category: 'TECHNICAL',
+        affectedUrl: pageUrl,
+        description: `Page contains ${htmlData.titles.length} <title> tags in the HTML head.`,
+        explanation:
+          'HTML allows only one <title> element per document. Duplicate title tags commonly occur when a CMS plugin or client-side library (such as React Helmet) injects a second title without removing the base template title.',
+        impact: 'Search engines may pick the wrong or fallback title tag, causing duplicate titles across the site and lower organic CTR.',
+        recommendation: 'Remove duplicate <title> elements so only a single authoritative <title> tag is rendered per page.',
+        evidence: `${htmlData.titles.length} <title> tags: ${htmlData.titles.slice(0, 3).map((t) => `"${t}"`).join(' | ')}`,
+        dedupKey: `${pageUrl}::MULTIPLE_TITLE_TAGS`,
+        aiFixAvailable: false,
+      });
+    }
+
     if (!htmlData.title || htmlData.title.trim() === '') {
       issues.push({
         issueType: 'MISSING_TITLE',
@@ -144,7 +162,25 @@ export class IssueEngineService {
       }
     }
 
-    // 4. Missing Meta Description
+    // 4. Meta Description checks (Multiple, Missing, Long, Short)
+    if (htmlData.metaDescriptions && htmlData.metaDescriptions.length > 1) {
+      issues.push({
+        issueType: 'MULTIPLE_META_DESCRIPTIONS',
+        severity: 'HIGH',
+        confidence: 'CONFIRMED',
+        category: 'CONTENT',
+        affectedUrl: pageUrl,
+        description: `Page contains ${htmlData.metaDescriptions.length} meta description tags.`,
+        explanation:
+          'Multiple <meta name="description"> tags usually occur when a theme, SEO plugin, or SPA hydration layer adds a new tag without replacing the fallback tag.',
+        impact: 'Search engines may display an outdated fallback snippet or ignore both descriptions altogether.',
+        recommendation: 'Deduplicate template and SEO plugin head tags so every page outputs exactly one <meta name="description"> tag.',
+        evidence: `${htmlData.metaDescriptions.length} description tags: ${htmlData.metaDescriptions.slice(0, 3).map((d) => `"${d.slice(0, 80)}"`).join(' | ')}`,
+        dedupKey: `${pageUrl}::MULTIPLE_META_DESCRIPTIONS`,
+        aiFixAvailable: false,
+      });
+    }
+
     if (!htmlData.metaDescription || htmlData.metaDescription.trim() === '') {
       issues.push({
         issueType: 'MISSING_META_DESCRIPTION',
@@ -175,6 +211,21 @@ export class IssueEngineService {
           recommendation: 'Keep meta descriptions between 120 and 160 characters.',
           evidence: `Length: ${descLen} characters. Text: "${htmlData.metaDescription.trim()}"`,
           dedupKey: `${pageUrl}::LONG_META_DESCRIPTION`,
+          aiFixAvailable: true,
+        });
+      } else if (descLen < 70) {
+        issues.push({
+          issueType: 'SHORT_META_DESCRIPTION',
+          severity: 'LOW',
+          confidence: 'ADVISORY',
+          category: 'CONTENT',
+          affectedUrl: pageUrl,
+          description: `Meta description is short (${descLen} characters, guideline is 120-160).`,
+          explanation: 'Very brief meta descriptions under 70 characters under-utilize search snippet space and are frequently rewritten by Google.',
+          impact: 'Lower search snippet persuasiveness and missed organic click-through opportunities.',
+          recommendation: 'Expand the meta description to 120-160 characters summarizing the page value and primary offering.',
+          evidence: `Length: ${descLen} characters. Text: "${htmlData.metaDescription.trim()}"`,
+          dedupKey: `${pageUrl}::SHORT_META_DESCRIPTION`,
           aiFixAvailable: true,
         });
       }
@@ -462,6 +513,7 @@ export class IssueEngineService {
       );
       const hasNoindex = tokens.has('noindex') || tokens.has('none');
       const hasIndex = tokens.has('index');
+      const hasNofollow = tokens.has('nofollow') || tokens.has('none');
 
       if (hasNoindex) {
         issues.push({
@@ -476,6 +528,23 @@ export class IssueEngineService {
           recommendation: 'If this page is meant for search indexation, remove the noindex directive.',
           evidence: `robots meta: "${htmlData.robotsMeta}"`,
           dedupKey: `${pageUrl}::NOINDEX_DETECTED`,
+          aiFixAvailable: true,
+        });
+      }
+
+      if (hasNofollow) {
+        issues.push({
+          issueType: 'NOFOLLOW_META_DETECTED',
+          severity: isHomePage ? 'HIGH' : 'MEDIUM',
+          confidence: 'CONFIRMED',
+          category: 'TECHNICAL',
+          affectedUrl: pageUrl,
+          description: `Page contains robots meta directive "nofollow".`,
+          explanation: 'A page-level nofollow directive instructs search crawlers not to follow or pass link equity through any links on this page.',
+          impact: 'Internal links from this page cannot transfer PageRank or help search engines discover linked pages.',
+          recommendation: 'Remove the page-level nofollow directive unless you intentionally want crawlers to ignore all outgoing links on this page.',
+          evidence: `robots meta: "${htmlData.robotsMeta}"`,
+          dedupKey: `${pageUrl}::NOFOLLOW_META_DETECTED`,
           aiFixAvailable: true,
         });
       }
@@ -632,6 +701,29 @@ export class IssueEngineService {
           recommendation: 'Rewrite title tag to uniquely reflect the distinct topic of this specific page.',
           evidence: `Duplicate title: "${htmlData.title}" shared with ${dupTitle.url}`,
           dedupKey: `${pageUrl}::DUPLICATE_TITLE`,
+          aiFixAvailable: true,
+        });
+      }
+    }
+
+    // 20. Duplicate Meta Description check across crawl job
+    if (htmlData.metaDescription && statusCode === 200 && searchContent) {
+      const dupDesc = await this.prisma.page.findFirst({
+        where: { crawlJobId, metaDescription: htmlData.metaDescription, NOT: { id: pageId } },
+      });
+      if (dupDesc) {
+        issues.push({
+          issueType: 'DUPLICATE_META_DESCRIPTION',
+          severity: 'MEDIUM',
+          confidence: 'CONFIRMED',
+          category: 'CONTENT',
+          affectedUrl: pageUrl,
+          description: `Meta description is identical to another page on this website (${dupDesc.url}).`,
+          explanation: 'Unique meta descriptions help search engines and users distinguish between pages on your site in search results.',
+          impact: 'Generic repeated snippets reduce click-through rates and make pages look redundant in SERPs.',
+          recommendation: 'Write a unique 120-160 character meta description tailored specifically to this page.',
+          evidence: `Duplicate description: "${htmlData.metaDescription.slice(0, 100)}" shared with ${dupDesc.url}`,
+          dedupKey: `${pageUrl}::DUPLICATE_META_DESCRIPTION`,
           aiFixAvailable: true,
         });
       }

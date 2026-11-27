@@ -190,6 +190,7 @@ export function planFix(issueType: string, page: PageContext, recommendation?: s
     case 'MISSING_META_DESCRIPTION':
     case 'SHORT_META_DESCRIPTION':
     case 'LONG_META_DESCRIPTION':
+    case 'DUPLICATE_META_DESCRIPTION':
       return {
         fixType: 'META_DESCRIPTION',
         originalValue: page.metaDescription ?? null,

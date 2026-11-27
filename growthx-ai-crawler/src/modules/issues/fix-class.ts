@@ -22,7 +22,9 @@ export const FIX_CLASS: Readonly<Record<string, FixClass>> = {
   SHORT_TITLE: 'AUTO',
   DUPLICATE_TITLE: 'AUTO',
   MISSING_META_DESCRIPTION: 'AUTO',
+  SHORT_META_DESCRIPTION: 'AUTO',
   LONG_META_DESCRIPTION: 'AUTO',
+  DUPLICATE_META_DESCRIPTION: 'AUTO',
   MISSING_ALT_TEXT: 'AUTO',
   MISSING_CANONICAL: 'AUTO',
   BROKEN_CANONICAL: 'AUTO',
@@ -30,8 +32,11 @@ export const FIX_CLASS: Readonly<Record<string, FixClass>> = {
 
   // Visible to visitors, or wrong in a way that costs the whole site if the
   // fix is itself wrong. A human sees the change before it ships.
+  MULTIPLE_TITLE_TAGS: 'APPROVAL',
+  MULTIPLE_META_DESCRIPTIONS: 'APPROVAL',
   CANONICAL_CROSS_DOMAIN: 'APPROVAL',
   NOINDEX_DETECTED: 'APPROVAL',
+  NOFOLLOW_META_DETECTED: 'APPROVAL',
   INCORRECT_ROBOTS: 'APPROVAL',
   MISSING_H1: 'APPROVAL',
   MULTIPLE_H1: 'APPROVAL',

@@ -22,8 +22,19 @@ describe('fixClassFor', () => {
   });
 
   it('never marks a visitor-facing change AUTO', () => {
-    for (const type of ['MISSING_H1', 'MULTIPLE_H1', 'BROKEN_LINK_4XX', 'NOINDEX_DETECTED', 'INCORRECT_ROBOTS']) {
+    for (const type of [
+      'MISSING_H1',
+      'MULTIPLE_H1',
+      'BROKEN_LINK_4XX',
+      'NOINDEX_DETECTED',
+      'NOFOLLOW_META_DETECTED',
+      'INCORRECT_ROBOTS',
+      'MULTIPLE_TITLE_TAGS',
+      'MULTIPLE_META_DESCRIPTIONS',
+    ]) {
       expect(FIX_CLASS[type]).not.toBe('AUTO');
     }
+    expect(fixClassFor('SHORT_META_DESCRIPTION')).toBe('AUTO');
+    expect(fixClassFor('DUPLICATE_META_DESCRIPTION')).toBe('AUTO');
   });
 });

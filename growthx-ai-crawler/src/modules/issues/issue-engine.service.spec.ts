@@ -223,4 +223,46 @@ describe('IssueEngineService', () => {
     expect(conflicting.some((i) => i.issueType === 'NOINDEX_DETECTED')).toBe(true);
     expect(conflicting.some((i) => i.issueType === 'INCORRECT_ROBOTS')).toBe(true);
   });
+
+  it('detects multiple title tags, multiple meta descriptions, short meta description, duplicate meta description, and nofollow meta', async () => {
+    mockPrisma.page.findFirst.mockImplementation(async ({ where }: any) => {
+      if (where?.metaDescription) return { url: 'https://example.com/other-page' };
+      return null;
+    });
+
+    const htmlData: any = {
+      title: 'Fallback Title For Page Testing',
+      titles: ['Fallback Title For Page Testing', 'Hydrated Title For Page'],
+      metaDescription: 'Too short description.',
+      metaDescriptions: ['Too short description.', 'Second description injected later.'],
+      canonicalUrl: 'https://example.com/page',
+      h1: ['Main Heading'],
+      h2: [],
+      h3: [],
+      robotsMeta: 'index, nofollow',
+    };
+    const content: any = { wordCount: 400, readingTimeMin: 2, duplicateScore: 0, headingStructureErrors: [] };
+
+    const issues = await service.evaluateAndPersistIssues(
+      'job_multi', 'proj_1', 'site_1', 'page_multi', 'https://example.com/page', 200,
+      ['https://example.com/page'], '<html></html>', cheerio.load('<html></html>'),
+      htmlData, [], { internalCount: 2, externalCount: 0 } as any, content, [], true, true, 'BLOG',
+    );
+
+    const types = issues.map((i) => i.issueType);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        'MULTIPLE_TITLE_TAGS',
+        'MULTIPLE_META_DESCRIPTIONS',
+        'SHORT_META_DESCRIPTION',
+        'DUPLICATE_META_DESCRIPTION',
+        'NOFOLLOW_META_DETECTED',
+      ]),
+    );
+    expect(issues.find((i) => i.issueType === 'MULTIPLE_TITLE_TAGS')?.severity).toBe('HIGH');
+    expect(issues.find((i) => i.issueType === 'MULTIPLE_META_DESCRIPTIONS')?.severity).toBe('HIGH');
+    expect(issues.find((i) => i.issueType === 'SHORT_META_DESCRIPTION')?.severity).toBe('LOW');
+    expect(issues.find((i) => i.issueType === 'DUPLICATE_META_DESCRIPTION')?.severity).toBe('MEDIUM');
+    expect(issues.find((i) => i.issueType === 'NOFOLLOW_META_DETECTED')?.severity).toBe('MEDIUM');
+  });
 });

@@ -55,6 +55,14 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     fixClass: FIX_CLASS.DUPLICATE_TITLE ?? 'AUTO',
     technical: 'Identical title tags found across multiple distinct URLs.',
   },
+  MULTIPLE_TITLE_TAGS: {
+    title: '{n} pages have more than one title tag in their code',
+    cost: 'When a page outputs two competing title tags, Google may show the wrong fallback headline in search results',
+    action:
+      'Ask your web developer (or check your SEO plugin settings) to remove the duplicate <title> tag so every page outputs only one',
+    fixClass: FIX_CLASS.MULTIPLE_TITLE_TAGS ?? 'APPROVAL',
+    technical: 'Multiple <title> elements detected in the rendered HTML document head.',
+  },
   MISSING_META_DESCRIPTION: {
     title: '{n} pages let Google write their own description — usually badly',
     cost: 'The grey text under your link in search results is your sales pitch. Right now Google picks a random sentence. These pages get {traffic}',
@@ -63,6 +71,14 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     fixClass: FIX_CLASS.MISSING_META_DESCRIPTION ?? 'AUTO',
     technical: 'Missing meta description tag in document head.',
   },
+  SHORT_META_DESCRIPTION: {
+    title: '{n} search descriptions are too short to sell the click',
+    cost: 'A very short description leaves half your Google listing blank and gives Google an excuse to rewrite it',
+    action:
+      'Expand each description to 120–160 characters stating what the page offers and why visitors should click',
+    fixClass: FIX_CLASS.SHORT_META_DESCRIPTION ?? 'AUTO',
+    technical: 'Meta description is shorter than 70 characters.',
+  },
   LONG_META_DESCRIPTION: {
     title: '{n} search descriptions get cut off mid-sentence',
     cost: 'Your pitch ends in "..." before it reaches the point',
@@ -70,6 +86,22 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
       "Cut each description to about 150 characters and keep the strongest point first. You can do this yourself in the page settings",
     fixClass: FIX_CLASS.LONG_META_DESCRIPTION ?? 'AUTO',
     technical: 'Meta description exceeds standard search snippet length (> 160 characters).',
+  },
+  MULTIPLE_META_DESCRIPTIONS: {
+    title: '{n} pages output more than one search description',
+    cost: 'Two competing descriptions confuse Google and often cause outdated template text to appear in search results',
+    action:
+      'Remove the duplicate search description from your base template or conflicting SEO plugin so each page outputs only one',
+    fixClass: FIX_CLASS.MULTIPLE_META_DESCRIPTIONS ?? 'APPROVAL',
+    technical: 'Multiple <meta name="description"> elements detected in the document head.',
+  },
+  DUPLICATE_META_DESCRIPTION: {
+    title: '{n} pages repeat the exact same search description',
+    cost: 'Repeated descriptions make different pages look identical on Google and lower click-through rates',
+    action:
+      'Write a unique 120–160 character description tailored to what each specific page offers',
+    fixClass: FIX_CLASS.DUPLICATE_META_DESCRIPTION ?? 'AUTO',
+    technical: 'Identical meta description tags found across multiple distinct URLs.',
   },
   MISSING_ALT_TEXT: {
     title: '{n} images are invisible to Google and to blind visitors',
@@ -118,6 +150,14 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
       "These pages tell Google to hide them. If they should appear in Google, switch off the \"hide from search engines\" setting on each page, or ask your web developer. Some pages are hidden on purpose, so check first",
     fixClass: FIX_CLASS.NOINDEX_DETECTED ?? 'APPROVAL',
     technical: 'Robots meta tag or X-Robots-Tag header contains noindex directive.',
+  },
+  NOFOLLOW_META_DETECTED: {
+    title: '{n} pages tell Google not to follow any of their links',
+    cost: 'Links on these pages cannot pass ranking strength or help Google discover other pages on your site',
+    action:
+      'Check whether this page should hide its links from search engines. On public pages, turn off the "do not follow links" setting in your page builder or ask your web developer to allow following links',
+    fixClass: FIX_CLASS.NOFOLLOW_META_DETECTED ?? 'APPROVAL',
+    technical: 'Page-level robots meta tag contains a nofollow or none directive.',
   },
   INCORRECT_ROBOTS: {
     title: 'Your site is blocking Google from parts of it',

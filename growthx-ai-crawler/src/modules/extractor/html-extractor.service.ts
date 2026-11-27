@@ -4,7 +4,11 @@ import { resolve as resolveUrl } from 'url';
 
 export interface ExtractedHtmlData {
   title?: string;
+  /** Every `<title>` element found in the document, in DOM order (used to detect duplicate tags). */
+  titles?: string[];
   metaDescription?: string;
+  /** Every `<meta name="description">` element found in the document, in DOM order. */
+  metaDescriptions?: string[];
   canonicalUrl?: string;
   canonicalUrls?: string[];
   robotsMeta?: string;
@@ -37,8 +41,14 @@ export class HtmlExtractorService {
                     $('meta[http-equiv="Content-Type"]').attr('content')?.match(/charset=([^\s;]+)/i)?.[1];
 
     // 2. Title & Meta
-    const title = $('title').first().text().trim() || $('meta[property="og:title"]').attr('content')?.trim();
-    const metaDescription = $('meta[name="description" i]').attr('content')?.trim();
+    const titles = $('title')
+      .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
+      .get();
+    const title = titles.find(Boolean) || $('meta[property="og:title"]').attr('content')?.trim();
+    const metaDescriptions = $('meta[name="description" i]')
+      .map((_, el) => ($(el).attr('content') ?? '').trim())
+      .get();
+    const metaDescription = metaDescriptions.find(Boolean);
     const metaKeywords = $('meta[name="keywords" i]').attr('content')?.trim();
     const viewport = $('meta[name="viewport" i]').attr('content')?.trim();
     // Combine all <meta name="robots"> (and <meta name="googlebot">) tags in document order.
@@ -119,7 +129,9 @@ export class HtmlExtractorService {
 
     return {
       title,
+      titles,
       metaDescription,
+      metaDescriptions,
       canonicalUrl,
       canonicalUrls,
       robotsMeta,

@@ -74,4 +74,27 @@ describe('HtmlExtractorService', () => {
     const dedupRes = service.extract(cheerio.load(dedupHtml), 'https://example.com/ok');
     expect(dedupRes.robotsMeta).toBe('index, follow');
   });
+
+  it('extracts all title and meta description tags so duplicate head tags are detected', () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Fallback Brand Title</title>
+        <title>Page Specific SEO Title</title>
+        <meta name="description" content="Static fallback description">
+        <meta name="description" content="Hydrated page specific meta description">
+      </head>
+      <body><h1>Heading</h1></body>
+      </html>
+    `;
+    const res = service.extract(cheerio.load(html), 'https://example.com/page');
+    expect(res.title).toBe('Fallback Brand Title');
+    expect(res.titles).toEqual(['Fallback Brand Title', 'Page Specific SEO Title']);
+    expect(res.metaDescription).toBe('Static fallback description');
+    expect(res.metaDescriptions).toEqual([
+      'Static fallback description',
+      'Hydrated page specific meta description',
+    ]);
+  });
 });
