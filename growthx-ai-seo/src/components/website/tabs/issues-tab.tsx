@@ -55,9 +55,23 @@ function formatIssueTitle(raw: string): string {
 
 interface IssuesTabProps {
   issues: CrawlIssue[];
+  onInspectUrl?: (url: string) => void;
 }
 
-export function IssuesTab({ issues }: IssuesTabProps) {
+type BusinessTier = "MONEY" | "GROWTH" | "UTILITY";
+
+function classifyBusinessTier(url: string): BusinessTier {
+  const lower = (url || "").toLowerCase();
+  if (/\/(cart|checkout|login|signin|signup|register|account|privacy|terms|cookie|refund|shipping-policy|app\/cart)/.test(lower)) {
+    return "UTILITY";
+  }
+  if (/\/(blog|article|guide|news|faq|case-stud|resource|learn)/.test(lower)) {
+    return "GROWTH";
+  }
+  return "MONEY";
+}
+
+export function IssuesTab({ issues, onInspectUrl }: IssuesTabProps) {
   const { orgId } = useWorkspace();
   const { canUseFixEngine } = useSubscription(orgId);
 
@@ -65,6 +79,7 @@ export function IssuesTab({ issues }: IssuesTabProps) {
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [onlyNoCode, setOnlyNoCode] = useState(false);
+  const [hideUtilityNoise, setHideUtilityNoise] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [platform, setPlatform] = useState<GuidePlatform>(() => readSavedPlatform());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -155,8 +170,11 @@ export function IssuesTab({ issues }: IssuesTabProps) {
     if (onlyNoCode) {
       list = list.filter(({ guide }) => guide.difficulty === "no_code");
     }
+    if (hideUtilityNoise) {
+      list = list.filter(({ issue }) => classifyBusinessTier(issue.affectedUrl) !== "UTILITY" || issue.severity === "CRITICAL");
+    }
     return list;
-  }, [enriched, searchQuery, selectedSeverity, selectedCategory, onlyNoCode]);
+  }, [enriched, searchQuery, selectedSeverity, selectedCategory, onlyNoCode, hideUtilityNoise]);
 
   const severityTone = (sev: string) => {
     switch (sev) {
@@ -234,6 +252,18 @@ export function IssuesTab({ issues }: IssuesTabProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHideUtilityNoise(!hideUtilityNoise)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer",
+                hideUtilityNoise
+                  ? "bg-success-50 text-success-700 border-success-200/70 font-bold"
+                  : "bg-surface-2 text-brand-700 border-brand-200 hover:bg-surface-1",
+              )}
+            >
+              <span>{hideUtilityNoise ? "Money & Growth Focus ✓" : "Showing Utility Pages"}</span>
+            </button>
             <button
               type="button"
               onClick={() => setOnlyNoCode(!onlyNoCode)}

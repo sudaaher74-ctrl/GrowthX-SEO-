@@ -8,7 +8,7 @@ import Link from "next/link";
 import { ArrowRight, ChevronRight, Gauge, Home, Loader2, RefreshCw, Square, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { api } from "@/lib/api-client";
+import { api, type CrawlPage } from "@/lib/api-client";
 import { crawlPageTotal } from "@/lib/crawl-page-total";
 import { useSubscription, DEFAULT_SUBSCRIPTION_LIMITS } from "@/lib/subscription-engine";
 import {
@@ -25,10 +25,14 @@ import { StatusNote } from "@/components/ui/console";
 import { AuditReportTab } from "@/components/website/tabs/audit-report-tab";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
+import { AiReadinessTab } from "@/components/website/tabs/ai-readiness-tab";
 import { PerformanceTab } from "@/components/website/tabs/performance-tab";
 import { PagesTab } from "@/components/website/tabs/pages-tab";
 import { ContentTab } from "@/components/website/tabs/content-tab";
 import { IssuesTab } from "@/components/website/tabs/issues-tab";
+import { PageXrayDrawer } from "@/components/website/page-xray-drawer";
+import { RootCauseSimulator } from "@/components/website/root-cause-simulator";
+import { CrawlDiffRibbon } from "@/components/website/crawl-diff-ribbon";
 
 import type { WebsiteTabId as TabId } from "@/components/website/tabs/tab-id";
 
@@ -69,6 +73,7 @@ function WebsiteAuditClient() {
 
   const VALID_TABS: TabId[] = [
     "technical-seo",
+    "ai-readiness",
     "performance",
     "pages",
     "content",
@@ -91,6 +96,7 @@ function WebsiteAuditClient() {
   const [crawlActionError, setCrawlActionError] = useState<string | null>(null);
   const [crawlActionMessage, setCrawlActionMessage] = useState<string | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [xrayPage, setXrayPage] = useState<CrawlPage | null>(null);
 
   function selectTab(tab: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -194,6 +200,7 @@ function WebsiteAuditClient() {
         : undefined,
       badgeTone: "danger",
     },
+    { id: "ai-readiness", label: "AI & Link Equity", badge: "New", badgeTone: "info" },
     { id: "performance", label: "Speed" },
     {
       id: "pages",
@@ -210,7 +217,11 @@ function WebsiteAuditClient() {
   const headerContent = {
     "technical-seo": {
       title: "Technical Health",
-      subtitle: "Crawl issues, indexability status, and technical blockers.",
+      subtitle: "Crawl issues, root-cause clusters, indexability status, and technical blockers.",
+    },
+    "ai-readiness": {
+      title: "AI Search & Link Architecture",
+      subtitle: "AI crawler permissions (robots.txt), 1-click /llms.txt generator, JS-blindness, and internal link equity.",
     },
     performance: {
       title: "Speed & Vitals",
@@ -451,21 +462,41 @@ function WebsiteAuditClient() {
         {totalPages > allPages.length && (
           <StatusNote>Loaded {allPages.length.toLocaleString()} of {totalPages.toLocaleString()} crawled pages. Page details and breakdowns use this sample; the crawl total covers the whole job.</StatusNote>
         )}
+        <CrawlDiffRibbon
+          historyRuns={historyRuns}
+          onJumpToIssues={() => selectTab("issues")}
+        />
         {/* Render Tab Content based on activeTab */}
         {activeTab === "technical-seo" && (
-          <TechnicalSeoTab
-            totalPages={totalPages}
-            crawl={crawl.data ?? null}
-            issues={allIssues}
+          <div className="space-y-5">
+            <RootCauseSimulator
+              issues={allIssues}
+              currentHealthScore={crawl.data?.healthScore ?? null}
+              totalPages={totalPages}
+              onSelectIssueType={() => selectTab("issues")}
+            />
+            <TechnicalSeoTab
+              totalPages={totalPages}
+              crawl={crawl.data ?? null}
+              issues={allIssues}
+              pages={allPages}
+              qualityDiagnostics={qualityDiagnostics}
+              historyRuns={historyRuns}
+              onSwitchTab={selectTab}
+              onOpenLogs={() => setShowLogsModal(true)}
+              onOpenRecommendations={() => {
+                const el = document.getElementById("technical-issues-table");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+            />
+          </div>
+        )}
+
+        {activeTab === "ai-readiness" && (
+          <AiReadinessTab
+            jobId={crawl.data?.id ?? null}
             pages={allPages}
-            qualityDiagnostics={qualityDiagnostics}
-            historyRuns={historyRuns}
-            onSwitchTab={selectTab}
-            onOpenLogs={() => setShowLogsModal(true)}
-            onOpenRecommendations={() => {
-              const el = document.getElementById("technical-issues-table");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }}
+            onInspectPage={(page) => setXrayPage(page)}
           />
         )}
 
@@ -484,9 +515,7 @@ function WebsiteAuditClient() {
             pages={allPages}
             issues={allIssues}
             historyRuns={historyRuns}
-            onOpenPageDetails={(page) => {
-              window.open(page.url, "_blank");
-            }}
+            onOpenPageDetails={(page) => setXrayPage(page)}
           />
         )}
 
@@ -500,11 +529,30 @@ function WebsiteAuditClient() {
         {activeTab === "report" && <AuditReportTab projectId={auditProjectId || ""} />}
 
         {activeTab === "issues" && (
-          <IssuesTab
-            issues={allIssues}
-          />
+          <div className="space-y-5">
+            <RootCauseSimulator
+              issues={allIssues}
+              currentHealthScore={crawl.data?.healthScore ?? null}
+              totalPages={totalPages}
+            />
+            <IssuesTab
+              issues={allIssues}
+              onInspectUrl={(url) => {
+                const match = allPages.find((p) => p.url === url);
+                if (match) setXrayPage(match);
+              }}
+            />
+          </div>
         )}
       </QueryState>
+
+      {/* Slide-Over Page X-Ray Inspector */}
+      <PageXrayDrawer
+        jobId={crawl.data?.id ?? null}
+        page={xrayPage}
+        allIssues={allIssues}
+        onClose={() => setXrayPage(null)}
+      />
 
       {/* Crawl Logs Modal */}
       {showLogsModal && (

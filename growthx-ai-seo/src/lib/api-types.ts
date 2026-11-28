@@ -825,6 +825,107 @@ export interface CrawlPerformance {
   clsScore: number | null;
 }
 
+export interface HtmlSnapshotSummary {
+  title: string | null;
+  titleCount: number;
+  metaDescription: string | null;
+  metaDescriptionCount: number;
+  h1: string[];
+  canonicalUrl: string | null;
+  wordCount: number;
+  internalLinksCount: number;
+}
+
+export interface PageXrayResponse {
+  page: CrawlPage & {
+    finalUrl?: string | null;
+    contentType?: string | null;
+    robotsMeta?: string | null;
+    schemas?: Array<{
+      id: string;
+      schemaType: string;
+      isValid: boolean;
+      validationErrors: string[];
+      rawJson: string | null;
+    }>;
+    issues?: Array<{
+      id: string;
+      issueType: string;
+      severity: string;
+      category: string;
+      description: string;
+      recommendation: string | null;
+      evidence: string | null;
+      status: string;
+    }>;
+  };
+  rawSummary: HtmlSnapshotSummary | null;
+  renderedSummary: HtmlSnapshotSummary | null;
+  hasRawSnapshot: boolean;
+  hasRenderedSnapshot: boolean;
+  clickDepth: number | null;
+  linkEquityScore: number | null;
+  incomingLinksCount: number;
+  outgoingLinksCount: number;
+  incomingLinks: Array<{ fromUrl: string; fromTitle: string | null; anchorText: string | null }>;
+  outgoingLinks: Array<{ targetUrl: string; anchorText: string | null; isNofollow: boolean }>;
+}
+
+export interface AiReadinessResponse {
+  domain: string;
+  robotsTxtFound: boolean;
+  aiBots: Array<{
+    bot: string;
+    vendor: string;
+    purpose: string;
+    status: "ALLOWED" | "BLOCKED" | "UNSPECIFIED";
+    matchedRule: string | null;
+  }>;
+  llmsTxt: {
+    exists: boolean;
+    status: number;
+    preview: string | null;
+    generatedTemplate: string;
+  };
+  jsBlindness: {
+    totalIndexable: number;
+    jsDependentCount: number;
+    blindnessPct: number;
+  };
+  schemaCoverage: Array<{
+    type: string;
+    pageCount: number;
+    validCount: number;
+    invalidCount: number;
+  }>;
+  architecture: {
+    depthBuckets: {
+      depth0: number;
+      depth1: number;
+      depth2: number;
+      depth3: number;
+      depth4Plus: number;
+      unreached: number;
+    };
+    topAuthorityPages: Array<{
+      url: string;
+      title: string | null;
+      pageType: string;
+      depth: number | null;
+      equity: number;
+      isMoney: boolean;
+    }>;
+    starvedMoneyPages: Array<{
+      url: string;
+      title: string | null;
+      pageType: string;
+      depth: number | null;
+      equity: number;
+      isMoney: boolean;
+    }>;
+  };
+}
+
 export interface CrawlIssue {
   id: string;
   issueType: string;

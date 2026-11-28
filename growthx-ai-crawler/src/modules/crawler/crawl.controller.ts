@@ -19,6 +19,11 @@ import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
 import { OWN_SCOPE, claimScope, websiteKey } from './website-scope';
+import {
+  extractHtmlSnapshotSummary,
+  generateLlmsTxt,
+  parseAiBotsFromRobotsTxt,
+} from './audit-xray.util';
 
 /** What a route needs: view, change data (not a viewer), or manage (owner/admin). */
 type Access = 'read' | 'write' | 'manage';
@@ -912,6 +917,250 @@ export class CrawlController {
     await this.orgContext.assertMembership(req.user?.userId, orgId);
 
     return this.verificationEngine.getLatestCertificate(orgId, projectId);
+  }
+
+  @Get('crawl/:jobId/pages/:pageId/xray')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Page X-Ray: Raw vs JS-Rendered HTML diff, schemas, and internal link equity' })
+  async getPageXray(
+    @Req() req: any,
+    @Param('jobId') jobId: string,
+    @Param('pageId') pageId: string,
+  ) {
+    await this.crawlJobForCaller(req, jobId, 'read');
+
+    const page = await this.prisma.page.findFirst({
+      where: { id: pageId, crawlJobId: jobId },
+      select: {
+        id: true,
+        url: true,
+        finalUrl: true,
+        statusCode: true,
+        responseTimeMs: true,
+        contentType: true,
+        title: true,
+        metaDescription: true,
+        canonicalUrl: true,
+        robotsMeta: true,
+        h1: true,
+        h2: true,
+        pageType: true,
+        wordCount: true,
+        jsRequired: true,
+        discoverySource: true,
+        blockedSuspected: true,
+        indexability: true,
+        indexabilityReason: true,
+        statusChain: true,
+        rawHtml: true,
+        renderedHtml: true,
+        schemas: {
+          select: { id: true, schemaType: true, isValid: true, validationErrors: true, rawJson: true },
+        },
+        issues: {
+          select: {
+            id: true,
+            issueType: true,
+            severity: true,
+            category: true,
+            description: true,
+            recommendation: true,
+            evidence: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!page) throw new NotFoundException('Page not found in this crawl');
+
+    const [incomingLinks, outgoingLinks, graphNode] = await Promise.all([
+      this.prisma.link.findMany({
+        where: { targetUrl: page.url, linkType: 'INTERNAL', sourcePage: { crawlJobId: jobId } },
+        select: { anchorText: true, sourcePage: { select: { url: true, title: true } } },
+        take: 25,
+      }).catch(() => []),
+      this.prisma.link.findMany({
+        where: { sourcePageId: page.id, linkType: 'INTERNAL' },
+        select: { targetUrl: true, anchorText: true, isNofollow: true },
+        take: 25,
+      }).catch(() => []),
+      this.prisma.internalGraph.findFirst({
+        where: { crawlJobId: jobId, targetUrl: page.url },
+        select: { crawlDepth: true, linkEquityScore: true },
+      }).catch(() => null),
+    ]);
+
+    const rawSummary = extractHtmlSnapshotSummary(page.rawHtml, page.url);
+    const renderedSummary = extractHtmlSnapshotSummary(page.renderedHtml, page.url);
+    const { rawHtml: _raw, renderedHtml: _rendered, ...safePage } = page;
+
+    return {
+      page: safePage,
+      rawSummary,
+      renderedSummary,
+      hasRawSnapshot: Boolean(page.rawHtml),
+      hasRenderedSnapshot: Boolean(page.renderedHtml),
+      clickDepth: graphNode?.crawlDepth ?? null,
+      linkEquityScore: graphNode?.linkEquityScore ?? null,
+      incomingLinksCount: incomingLinks.length,
+      outgoingLinksCount: outgoingLinks.length,
+      incomingLinks: incomingLinks.map((l) => ({
+        fromUrl: l.sourcePage.url,
+        fromTitle: l.sourcePage.title,
+        anchorText: l.anchorText,
+      })),
+      outgoingLinks,
+    };
+  }
+
+  @Get('crawl/:jobId/ai-readiness')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'AI Search & LLM Crawler Readiness + Click-Depth Link Equity Summary' })
+  async getAiReadiness(@Req() req: any, @Param('jobId') jobId: string) {
+    const job = await this.crawlJobForCaller(req, jobId, 'read');
+    const domain = job.website.domain;
+    const origin = `https://${domain}`;
+
+    const [pages, schemaRows, graphRows, robotsResult, llmsResult] = await Promise.all([
+      this.prisma.page.findMany({
+        where: { crawlJobId: jobId },
+        select: {
+          id: true,
+          url: true,
+          title: true,
+          metaDescription: true,
+          pageType: true,
+          statusCode: true,
+          wordCount: true,
+          jsRequired: true,
+          indexability: true,
+        },
+      }),
+      this.prisma.schema.findMany({
+        where: { page: { crawlJobId: jobId } },
+        select: { schemaType: true, isValid: true, pageId: true },
+      }).catch(() => []),
+      this.prisma.internalGraph.findMany({
+        where: { crawlJobId: jobId },
+        select: { targetUrl: true, crawlDepth: true, linkEquityScore: true },
+      }).catch(() => []),
+      fetch(`${origin}/robots.txt`, {
+        headers: { 'User-Agent': 'Reigel-AI-SEO-Audit/1.0' },
+        signal: AbortSignal.timeout(5000),
+      })
+        .then(async (r) => ({ status: r.status, text: r.ok ? await r.text() : null }))
+        .catch(() => ({ status: 0, text: null })),
+      fetch(`${origin}/llms.txt`, {
+        headers: { 'User-Agent': 'Reigel-AI-SEO-Audit/1.0' },
+        signal: AbortSignal.timeout(5000),
+      })
+        .then(async (r) => ({
+          exists: r.ok,
+          status: r.status,
+          preview: r.ok ? (await r.text()).slice(0, 1200) : null,
+        }))
+        .catch(() => ({ exists: false, status: 0, preview: null })),
+    ]);
+
+    const aiBots = parseAiBotsFromRobotsTxt(robotsResult.text);
+    const indexablePages = pages.filter((p) => p.statusCode === 200 && p.indexability !== 'NOT_INDEXABLE');
+    const jsDependentPages = indexablePages.filter((p) => p.jsRequired);
+    const jsBlindnessPct =
+      indexablePages.length > 0 ? Math.round((jsDependentPages.length / indexablePages.length) * 100) : 0;
+
+    // Schema coverage by type
+    const schemaByTypeMap = new Map<string, { type: string; pages: Set<string>; validCount: number; invalidCount: number }>();
+    for (const s of schemaRows) {
+      const entry = schemaByTypeMap.get(s.schemaType) ?? {
+        type: s.schemaType,
+        pages: new Set<string>(),
+        validCount: 0,
+        invalidCount: 0,
+      };
+      entry.pages.add(s.pageId);
+      if (s.isValid) entry.validCount++;
+      else entry.invalidCount++;
+      schemaByTypeMap.set(s.schemaType, entry);
+    }
+    const schemaCoverage = Array.from(schemaByTypeMap.values())
+      .map((e) => ({
+        type: e.type,
+        pageCount: e.pages.size,
+        validCount: e.validCount,
+        invalidCount: e.invalidCount,
+      }))
+      .sort((a, b) => b.pageCount - a.pageCount);
+
+    // Click-depth funnel & top/starved authority pages
+    const bestGraphByUrl = new Map<string, { depth: number; equity: number }>();
+    for (const g of graphRows) {
+      const prev = bestGraphByUrl.get(g.targetUrl);
+      const depth = g.crawlDepth ?? 4;
+      const equity = g.linkEquityScore ?? 1.0;
+      if (!prev || depth < prev.depth) {
+        bestGraphByUrl.set(g.targetUrl, { depth, equity });
+      }
+    }
+
+    const depthBuckets = { depth0: 0, depth1: 0, depth2: 0, depth3: 0, depth4Plus: 0, unreached: 0 };
+    const moneyTypes = new Set(['HOME', 'PRODUCT', 'SERVICE', 'PRICING', 'LOCATION', 'CATEGORY']);
+    const equityPages: Array<{ url: string; title: string | null; pageType: string; depth: number | null; equity: number; isMoney: boolean }> = [];
+
+    for (const p of indexablePages) {
+      let isRoot = false;
+      try {
+        const pathname = new URL(p.url).pathname;
+        isRoot = pathname === '/' || pathname === '';
+      } catch {
+        isRoot = false;
+      }
+      const g = bestGraphByUrl.get(p.url);
+      const depth = isRoot ? 0 : g ? g.depth : null;
+      if (depth === 0) depthBuckets.depth0++;
+      else if (depth === 1) depthBuckets.depth1++;
+      else if (depth === 2) depthBuckets.depth2++;
+      else if (depth === 3) depthBuckets.depth3++;
+      else if (depth != null && depth >= 4) depthBuckets.depth4Plus++;
+      else depthBuckets.unreached++;
+
+      equityPages.push({
+        url: p.url,
+        title: p.title,
+        pageType: p.pageType || 'OTHER',
+        depth,
+        equity: g?.equity ?? (isRoot ? 1.5 : 0.15),
+        isMoney: moneyTypes.has((p.pageType || '').toUpperCase()),
+      });
+    }
+
+    const topAuthorityPages = [...equityPages].sort((a, b) => b.equity - a.equity).slice(0, 8);
+    const starvedMoneyPages = equityPages
+      .filter((p) => p.isMoney && (p.depth === null || p.depth >= 3 || p.equity < 0.6))
+      .sort((a, b) => a.equity - b.equity)
+      .slice(0, 8);
+
+    return {
+      domain,
+      robotsTxtFound: robotsResult.status === 200,
+      aiBots,
+      llmsTxt: {
+        exists: llmsResult.exists,
+        status: llmsResult.status,
+        preview: llmsResult.preview,
+        generatedTemplate: generateLlmsTxt(domain, pages),
+      },
+      jsBlindness: {
+        totalIndexable: indexablePages.length,
+        jsDependentCount: jsDependentPages.length,
+        blindnessPct: jsBlindnessPct,
+      },
+      schemaCoverage,
+      architecture: {
+        depthBuckets,
+        topAuthorityPages,
+        starvedMoneyPages,
+      },
+    };
   }
 }
 

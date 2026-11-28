@@ -8,6 +8,7 @@
  */
 export type WebsiteTabId =
   | "technical-seo"
+  | "ai-readiness"
   | "performance"
   | "pages"
   | "content"
