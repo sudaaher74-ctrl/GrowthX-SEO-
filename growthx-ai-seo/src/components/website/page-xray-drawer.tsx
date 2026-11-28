@@ -25,9 +25,10 @@ import {
   Zap,
 } from "lucide-react";
 import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
+import { VisualFixPreview } from "@/components/visual-preview/visual-fix-preview";
 import { cn } from "@/lib/utils";
 
-type XrayTab = "preview" | "diff" | "indexability" | "schema" | "issues";
+type XrayTab = "visual" | "preview" | "diff" | "indexability" | "schema" | "issues";
 
 function safePath(url: string): string {
   try {
@@ -107,6 +108,7 @@ export function PageXrayDrawer({
 
   const tabs: Array<{ id: XrayTab; label: string; count?: number; icon: typeof Eye }> = [
     { id: "preview", label: "SERP & AI Preview", icon: Eye },
+    { id: "visual", label: "Visual Before/After", icon: Sparkles },
     { id: "diff", label: "Raw vs JS DOM", icon: FileCode2 },
     { id: "indexability", label: "Indexability & Hops", count: statusChain.length > 1 ? statusChain.length : undefined, icon: ShieldCheck },
     { id: "schema", label: "Schema (JSON-LD)", count: schemas.length || undefined, icon: Code2 },
@@ -224,6 +226,16 @@ export function PageXrayDrawer({
 
         {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-5">
+          {/* ── VISUAL BEFORE / AFTER WEBSITE STUDIO ── */}
+          {tab === "visual" && (
+            <VisualFixPreview
+              url={page.url}
+              initialProposedTitle={page.title}
+              initialProposedH1={page.h1?.[0] ?? null}
+              initialProposedParagraph={page.metaDescription}
+            />
+          )}
+
           {/* ── TAB 1: SERP & AI PREVIEW ── */}
           {tab === "preview" && (
             <>

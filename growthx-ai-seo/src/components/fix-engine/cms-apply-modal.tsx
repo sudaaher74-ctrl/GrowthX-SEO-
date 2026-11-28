@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardCopy,
   ExternalLink,
+  Eye,
   Globe,
   Layers,
   RefreshCw,
@@ -18,11 +19,12 @@ import {
   WordPressConnectModal,
   type CmsConnectPlatform,
 } from "@/components/settings/wordpress-connect-modal";
+import { VisualFixPreview } from "@/components/visual-preview/visual-fix-preview";
 import { api, type GrowthOpportunity } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 
-type ApplyMode = "DIRECT_CMS_API" | "GUIDED_COPY";
+type ApplyMode = "DIRECT_CMS_API" | "GUIDED_COPY" | "VISUAL_PREVIEW";
 type CmsPlatform = "WordPress" | "Shopify" | "Webflow" | "Custom CMS";
 
 function inferDefaultField(finding?: GrowthOpportunity | null): string {
@@ -247,7 +249,12 @@ export function CmsApplyModal({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+      <div
+        className={cn(
+          "w-full rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 transition-all max-h-[92vh] overflow-y-auto",
+          mode === "VISUAL_PREVIEW" ? "max-w-5xl" : "max-w-lg",
+        )}
+      >
         {/* Minimal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-brand-200/60">
           <div className="flex items-center gap-2.5">
@@ -271,12 +278,12 @@ export function CmsApplyModal({
         </div>
 
         {/* Minimal Mode Switcher */}
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-brand-50 border border-brand-200/60 p-1 text-xs">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-brand-50 border border-brand-200/60 p-1 text-xs">
           <button
             type="button"
             onClick={() => setMode("DIRECT_CMS_API")}
             className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-3 text-xs font-semibold transition",
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-2.5 text-xs font-semibold transition cursor-pointer",
               mode === "DIRECT_CMS_API"
                 ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
                 : "text-brand-400 hover:text-brand-950"
@@ -287,9 +294,22 @@ export function CmsApplyModal({
           </button>
           <button
             type="button"
+            onClick={() => setMode("VISUAL_PREVIEW")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-2.5 text-xs font-semibold transition cursor-pointer",
+              mode === "VISUAL_PREVIEW"
+                ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
+                : "text-brand-400 hover:text-brand-950"
+            )}
+          >
+            <Eye size={13} />
+            <span>Visual Before/After</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setMode("GUIDED_COPY")}
             className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-3 text-xs font-semibold transition",
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-2.5 text-xs font-semibold transition cursor-pointer",
               mode === "GUIDED_COPY"
                 ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
                 : "text-brand-400 hover:text-brand-950"
@@ -299,6 +319,16 @@ export function CmsApplyModal({
             <span>Manual Copy</span>
           </button>
         </div>
+
+        {mode === "VISUAL_PREVIEW" && targetUrl && (
+          <VisualFixPreview
+            url={targetUrl}
+            initialProposedTitle={field === "META_TITLE" ? afterValue : undefined}
+            initialProposedH1={field === "H1" ? afterValue : undefined}
+            initialProposedParagraph={field === "META_DESCRIPTION" ? afterValue : undefined}
+            compact
+          />
+        )}
 
         {/* Page URL & Field Inputs */}
         <div className="space-y-3">
