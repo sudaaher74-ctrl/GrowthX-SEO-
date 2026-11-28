@@ -111,20 +111,6 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
           <>
             <ActionButton onClick={() => setTab('evidence')}>Add source URLs</ActionButton>
             <ActionButton
-              disabled={busy}
-              onClick={() => {
-                void report.refetch();
-                void client.invalidateQueries({ queryKey: ['backlink-intelligence', projectId] });
-                void client.invalidateQueries({ queryKey: ['backlink-profile', projectId] });
-                void client.invalidateQueries({ queryKey: ['backlink-explorer', projectId] });
-                void client.invalidateQueries({ queryKey: ['backlink-changes', projectId] });
-                void client.invalidateQueries({ queryKey: ['backlink-recommendations', projectId] });
-                void client.invalidateQueries({ queryKey: ['backlink-recommendation-stats', projectId] });
-              }}
-            >
-              Refresh page data
-            </ActionButton>
-            <ActionButton
               variant="primary"
               disabled={busy || !data?.queue.available}
               onClick={() => mutation.mutate({ kind: 'verify' })}
@@ -163,15 +149,6 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
               <p className="mt-0.5 text-xs text-brand-500">
                 Destination validation across indexed domains, competitor links, and outreach targets.
               </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/fix-engine"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500"
-              >
-                <span>Open Fix Engine →</span>
-              </Link>
             </div>
           </div>
 

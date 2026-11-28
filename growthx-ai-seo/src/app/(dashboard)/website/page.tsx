@@ -314,15 +314,6 @@ function WebsiteAuditClient() {
                 <span>{crawling ? "Starting…" : "Re-audit website"}</span>
               </button>
             )}
-
-            <Link
-              href="/fix-engine"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:border-brand-300 hover:bg-brand-50 active:scale-95 transition-all"
-            >
-              <Zap size={13} className="text-warning-500 fill-warning-500" />
-              <span>{canUseFixEngine ? "Open Fix Engine" : "Open Action Plan"}</span>
-              <ArrowRight size={12} className="text-brand-400" />
-            </Link>
           </div>
         </div>
       </div>

@@ -438,13 +438,6 @@ function CompetitorIntelligenceClient() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/fix-engine"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition"
-            >
-              <span>{canUseFixEngine ? "Fix Engine" : "Action Plan"}</span>
-            </Link>
-
             {isAtCompetitorsLimit ? (
               <Link
                 href="/settings?tab=subscription"

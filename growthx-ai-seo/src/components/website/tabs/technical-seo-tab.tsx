@@ -324,40 +324,21 @@ export function TechnicalSeoTab({
       {/* Crawl Diagnostics & HTTP Status Breakdown */}
       <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
         <div className="flex flex-col gap-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-bold text-brand-950">
-                  HTTP Status Breakdown
-                </h3>
-                <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
-                  {totalPages.toLocaleString()} URLs
-                </span>
-                <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[10.5px] font-mono text-brand-600">
-                  Avg latency: {avgLatency}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-brand-500">
-                Response codes across crawled pages.
-              </p>
-            </div>
-
+          <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/fix-engine"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500"
-              >
-                <span>Open Fix Engine →</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => onSwitchTab("pages")}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition shadow-2xs cursor-pointer"
-              >
-                <span>View All Pages</span>
-                <ArrowRight size={12} />
-              </button>
+              <h3 className="text-sm font-bold text-brand-950">
+                HTTP Status Breakdown
+              </h3>
+              <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
+                {totalPages.toLocaleString()} URLs
+              </span>
+              <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[10.5px] font-mono text-brand-600">
+                Avg latency: {avgLatency}
+              </span>
             </div>
+            <p className="mt-0.5 text-xs text-brand-500">
+              Response codes across crawled pages.
+            </p>
           </div>
 
           {/* Status Code Telemetry Capsule Bar */}

@@ -178,10 +178,9 @@ function Journey({ projectId }: { projectId: string }) {
   };
 
   return <div className="space-y-5 pb-12">
-    <PageHeader title="AI Visibility" subtitle="Monitor AI recommendations and brand citations across LLMs." actions={<>
-      {run && <ActionButton disabled={busy || !configured.length || query.isLoading} icon={<Bot size={14} />} onClick={() => prepare.mutate()}>Start a new analysis</ActionButton>}
-      <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
-    </>} />
+    <PageHeader title="AI Visibility" subtitle="Monitor AI recommendations and brand citations across LLMs." actions={
+      run ? <ActionButton disabled={busy || !configured.length || query.isLoading} onClick={() => prepare.mutate()}>Run new analysis</ActionButton> : undefined
+    } />
 
     {/* AI Visibility Summary Ribbon */}
     <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
@@ -220,23 +219,6 @@ function Journey({ projectId }: { projectId: string }) {
             <p className="mt-0.5 text-xs text-brand-500">
               Saved recommendations and citations by assistant.
             </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/fix-engine"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500"
-            >
-              <span>Fix Engine</span>
-              <ArrowRight size={12} />
-            </Link>
-            <Link
-              href="/competitor-intelligence?tab=gaps"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
-            >
-              <span>Competitor Gaps</span>
-              <ArrowRight size={12} />
-            </Link>
           </div>
         </div>
 

@@ -74,27 +74,15 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
     <div className="space-y-4">
       {/* Content Summary Banner */}
       <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-brand-950">On-Page Content &amp; Snippet Quality</h3>
-              <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
-                {pages.length} pages
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-brand-500">
-              Word depth, title tags, meta descriptions, and heading structure.
-            </p>
-          </div>
-          {totalMetadataIssues > 0 && (
-            <Link
-              href="/fix-engine"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs"
-            >
-              <span>Optimize in Fix Engine →</span>
-            </Link>
-          )}
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-brand-950">On-Page Content &amp; Snippet Quality</h3>
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
+            {pages.length} pages
+          </span>
         </div>
+        <p className="mt-0.5 text-xs text-brand-500">
+          Word depth, title tags, meta descriptions, and heading structure.
+        </p>
       </div>
 
       {/* Top 4 Interactive KPI Cards */}
