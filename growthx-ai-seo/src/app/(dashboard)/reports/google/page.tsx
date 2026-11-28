@@ -1,5 +1,5 @@
-import { GoogleReport } from "@/components/reports/google-report";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <GoogleReport />;
+  redirect("/google?tab=report");
 }

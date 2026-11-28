@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import {
   TechnicalHealthPillars,
   TechnicalAuditInsights,
-  TechnicalIssuesTable,
 } from "../technical/index";
 
 interface TechnicalSeoTabProps {
@@ -38,14 +37,9 @@ export function TechnicalSeoTab({
   onOpenLogs,
   onOpenRecommendations,
 }: TechnicalSeoTabProps) {
-  // Filter and search states
+  // Filter states
   const { projectId } = useWorkspace();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [selectedPageUrl, setSelectedPageUrl] = useState("ALL");
-  const [sortBy, setSortBy] = useState<"impact" | "severity" | "pages">("impact");
-  const [selectedIssueIds, setSelectedIssueIds] = useState<Set<string>>(new Set());
 
   const [stagedTasks, setStagedTasks] = useState<Set<string>>(() => {
     if (!projectId) return new Set();
@@ -294,70 +288,6 @@ export function TechnicalSeoTab({
     return opps.slice(0, 5);
   }, [issues, avgLcpMs, pages]);
 
-  // Filtered Issues Table Data
-  const filteredIssues = useMemo(() => {
-    let result = [...issues];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (i) =>
-          i.issueType.toLowerCase().includes(q) ||
-          i.description.toLowerCase().includes(q) ||
-          i.affectedUrl.toLowerCase().includes(q)
-      );
-    }
-
-    if (selectedSeverity !== "ALL") {
-      result = result.filter((i) => i.severity === selectedSeverity);
-    }
-
-    if (selectedCategory !== "ALL") {
-      result = result.filter(
-        (i) => (i.category || "Other").replace(/_/g, " ").toLowerCase() === selectedCategory.toLowerCase()
-      );
-    }
-
-    if (selectedPageUrl !== "ALL") {
-      result = result.filter((i) => i.affectedUrl === selectedPageUrl);
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      if (sortBy === "severity" || sortBy === "impact") {
-        const order: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-        return (order[b.severity] || 0) - (order[a.severity] || 0);
-      }
-      return 0;
-    });
-
-    return result;
-  }, [issues, searchQuery, selectedSeverity, selectedCategory, selectedPageUrl, sortBy]);
-
-  // Unique URLs for the filter
-  const uniquePageUrls = useMemo(() => {
-    const urls = new Set<string>();
-    for (const issue of issues) {
-      if (issue.affectedUrl) urls.add(issue.affectedUrl);
-    }
-    return Array.from(urls);
-  }, [issues]);
-
-  const toggleSelectAll = () => {
-    if (selectedIssueIds.size === filteredIssues.length) {
-      setSelectedIssueIds(new Set());
-    } else {
-      setSelectedIssueIds(new Set(filteredIssues.map((i) => i.id)));
-    }
-  };
-
-  const toggleSelectIssue = (id: string) => {
-    const next = new Set(selectedIssueIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIssueIds(next);
-  };
-
   return (
     <div className="space-y-4">
       <TechnicalHealthPillars
@@ -442,10 +372,7 @@ export function TechnicalSeoTab({
             {/* 2xx OK */}
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSelectedSeverity("ALL");
-              }}
+              onClick={() => onSwitchTab("pages")}
               className="flex items-center justify-between rounded-xl border border-success-200/60 bg-success-50/40 p-2.5 text-left transition hover:bg-success-50/80 cursor-pointer"
             >
               <div>
@@ -459,9 +386,7 @@ export function TechnicalSeoTab({
             {/* 3xx Redirect */}
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery("redirect");
-              }}
+              onClick={() => onSwitchTab("issues")}
               className="flex items-center justify-between rounded-xl border border-warning-200/60 bg-warning-50/40 p-2.5 text-left transition hover:bg-warning-50/80 cursor-pointer"
             >
               <div>
@@ -475,9 +400,7 @@ export function TechnicalSeoTab({
             {/* 4xx Not Found */}
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery("404");
-              }}
+              onClick={() => onSwitchTab("issues")}
               className="flex items-center justify-between rounded-xl border border-error-200/60 bg-error-50/40 p-2.5 text-left transition hover:bg-error-50/80 cursor-pointer"
             >
               <div>
@@ -491,9 +414,7 @@ export function TechnicalSeoTab({
             {/* 5xx Server Error */}
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery("500");
-              }}
+              onClick={() => onSwitchTab("issues")}
               className="flex items-center justify-between rounded-xl border border-brand-200/80 bg-surface-2 p-2.5 text-left transition hover:bg-surface-3 cursor-pointer"
             >
               <div>
@@ -578,27 +499,23 @@ export function TechnicalSeoTab({
         </div>
       </div>
 
-      <TechnicalIssuesTable
-        totalIssuesCount={issues.length}
-        totalPagesCount={pages.length}
-        filteredIssues={filteredIssues}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedSeverity={selectedSeverity}
-        onSeverityChange={setSelectedSeverity}
-        severityCounts={severityCounts}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        categoryCounts={categoryCounts}
-        selectedPageUrl={selectedPageUrl}
-        onPageUrlChange={setSelectedPageUrl}
-        uniquePageUrls={uniquePageUrls}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        selectedIssueIds={selectedIssueIds}
-        onToggleSelectAll={toggleSelectAll}
-        onToggleSelectIssue={toggleSelectIssue}
-      />
+      {/* Single-Source-of-Truth CTA to Problems to fix tab */}
+      {issues.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200/80 bg-surface-1 px-4 py-3 shadow-2xs">
+          <p className="text-xs text-brand-600">
+            Found <strong className="font-mono text-brand-950">{issues.length.toLocaleString()}</strong> issues across{" "}
+            <strong className="font-mono text-brand-950">{pages.length.toLocaleString()}</strong> crawled pages. Filter, simulate impact, and fix them in one place.
+          </p>
+          <button
+            type="button"
+            onClick={() => onSwitchTab("issues")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs hover:bg-signal-500 transition cursor-pointer"
+          >
+            <span>Open Problems to fix</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

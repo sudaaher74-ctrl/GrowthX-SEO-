@@ -412,15 +412,18 @@ export function TrafficGrowthConsole({
 
   return (
     <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-5 shadow-card">
-      {/* Header + Tabs */}
+      {/* Header — Landing Pages Only (Keywords & Queries live in Organic Search) */}
       <div className="flex flex-col gap-3 border-b border-brand-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary-600" />
-            <h2 className="text-sm font-bold text-brand-950">Pages &amp; Search Opportunity Console</h2>
+            <FileText className="h-4 w-4 text-primary-600" />
+            <h2 className="text-sm font-bold text-brand-950">Landing Pages Performance</h2>
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 font-mono text-[10px] font-bold text-brand-600">
+              {landingPages.length}
+            </span>
           </div>
           <p className="mt-0.5 text-[11px] text-brand-400">
-            Inspect page engagement, capture striking-distance wins, close CTR shortfalls, and stop ranking drops
+            Click any page to inspect combined GA4 engagement and Search Console history.
           </p>
         </div>
 
@@ -431,8 +434,8 @@ export function TrafficGrowthConsole({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter pages or queries…"
-              aria-label="Filter pages or search queries"
+              placeholder="Filter landing pages…"
+              aria-label="Filter landing pages"
               className="w-full rounded-xl border border-brand-200 bg-brand-50/70 py-1.5 pr-7 pl-8 text-xs text-brand-950 placeholder:text-brand-400 focus:border-primary-500 focus:outline-none"
             />
             {search && (
@@ -447,90 +450,16 @@ export function TrafficGrowthConsole({
             )}
           </div>
 
-          {activeTab === "queries" && filteredQueries.length > 0 && (
-            <button
-              type="button"
-              onClick={() => downloadQueriesCsv(filteredQueries, periodDays)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>CSV</span>
-            </button>
-          )}
+          <Link
+            href="/organic-search"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 hover:text-brand-950 transition"
+          >
+            <Search className="h-3.5 w-3.5 text-primary-600" />
+            <span>
+              Search Queries &amp; Keyword Gaps{queries.length > 0 ? ` (${queries.length})` : ""} →
+            </span>
+          </Link>
         </div>
-      </div>
-
-      {/* 5 Console Tabs */}
-      <div
-        role="tablist"
-        aria-label="SEO growth console tabs"
-        className="mt-3.5 flex flex-wrap items-center gap-1.5"
-      >
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
-                active
-                  ? "border-signal-400 bg-signal-400 text-signal-ink font-bold shadow-xs"
-                  : "border-brand-200/70 bg-brand-50/70 text-brand-600 hover:bg-brand-100 hover:text-brand-950",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{tab.label}</span>
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold leading-none",
-                  active
-                    ? "bg-signal-ink/15 text-signal-ink"
-                    : tab.count > 0 && tab.accent === "bad"
-                      ? "bg-error-50 text-error-700"
-                      : tab.count > 0 && tab.accent === "warn"
-                        ? "bg-warning-50 text-warning-700"
-                        : tab.count > 0 && tab.accent === "good"
-                          ? "bg-success-50 text-success-700"
-                          : "bg-brand-200/70 text-brand-600",
-                )}
-              >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-
-        {activeTab === "queries" && (
-          <div className="ml-auto flex flex-wrap items-center gap-1 text-[11px]">
-            {(
-              [
-                { id: "all", label: "All" },
-                { id: "page1", label: "Page 1" },
-                { id: "page2", label: "Page 2" },
-                { id: "highImp", label: "50+ Imp" },
-              ] as const
-            ).map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setQueryFilter(f.id)}
-                className={cn(
-                  "rounded-full px-2.5 py-1 font-semibold transition cursor-pointer",
-                  queryFilter === f.id
-                    ? "bg-primary-50 text-primary-700"
-                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Scrollable Accessible Table Region with Sticky Headers */}

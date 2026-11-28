@@ -37,7 +37,7 @@ const REPORTS: { title: string; about: string; href: string; step?: number; badg
   {
     title: "Traffic & Growth Intelligence",
     about: "Search Console + GA4 report with bot/datacenter noise detection, conversion blindspot audit, UTM kit, exact city gaps & evidence explorer.",
-    href: "/google/report",
+    href: "/google?tab=report",
     step: 2,
   },
   {
@@ -57,11 +57,6 @@ const REPORTS: { title: string; about: string; href: string; step?: number; badg
     about: "Verified referring domains, broken target 301 redirect maps, lost-link recovery outreach emails, and link health verification.",
     href: "/reports/backlinks",
     step: 5,
-  },
-  {
-    title: "Google Executive Summary (Printable)",
-    about: "Compact client-ready Search Console & Analytics 4 overview formatted for instant white-label PDF printing.",
-    href: "/reports/google",
   },
 ];
 

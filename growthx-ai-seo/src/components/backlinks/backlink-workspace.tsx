@@ -47,7 +47,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
   const [fileError, setFileError] = useState('');
   const [historySource, setHistorySource] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<'overview' | 'link-gap' | 'outreach' | 'recommendations' | 'explorer' | 'evidence' | 'actions' | 'prospects'>('overview');
+  const [tab, setTab] = useState<'overview' | 'link-gap' | 'outreach' | 'recommendations' | 'explorer' | 'evidence'>('overview');
 
   const report = useQuery({
     queryKey: ['backlinks', projectId, offset],
@@ -109,9 +109,6 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         subtitle="See what the backlink index reports, what Reigel has checked, and what needs your attention."
         actions={
           <>
-            <Link className="self-center text-xs text-primary-700 hover:underline" href="/fix-engine">
-              Fix Engine
-            </Link>
             <ActionButton onClick={() => setTab('evidence')}>Add source URLs</ActionButton>
             <ActionButton
               disabled={busy}
@@ -183,14 +180,6 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
                 <span>Fix Engine</span>
                 <ArrowRight size={12} />
               </Link>
-              <button
-                type="button"
-                onClick={() => setTab("link-gap")}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs"
-              >
-                <span>Competitor Link Gap</span>
-                <ArrowRight size={12} />
-              </button>
             </div>
           </div>
 
@@ -261,11 +250,9 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
             { id: 'overview', label: 'Overview' },
             { id: 'link-gap', label: 'Competitor Link Gap' },
             { id: 'outreach', label: 'Lost-Link Recovery & Outreach' },
-            { id: 'recommendations', label: 'Opportunities' },
+            { id: 'recommendations', label: 'Opportunities & Actions' },
             { id: 'explorer', label: 'Profile & reports' },
             { id: 'evidence', label: 'Source checks' },
-            { id: 'actions', label: 'Next actions' },
-            { id: 'prospects', label: 'Competitor sources' },
           ] as const
         ).map((item) => {
           const isActive = tab === item.id;
@@ -288,19 +275,109 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
         })}
       </nav>
 
-      {tab === 'overview' ? <BacklinkOverview projectId={projectId} report={data} onSources={() => setTab('evidence')} onOpportunities={() => setTab('actions')} /> : null}
+      {tab === 'overview' ? <BacklinkOverview projectId={projectId} report={data} onSources={() => setTab('evidence')} onOpportunities={() => setTab('recommendations')} /> : null}
       {tab === 'outreach' ? <BacklinkOutreachRecovery projectId={projectId} /> : null}
 
       {tab === 'link-gap' ? (
-        <CompetitorLinkGap
-          projectId={projectId}
-          onOpenOpportunities={() => setTab('recommendations')}
-        />
+        <div className="space-y-5">
+          <CompetitorLinkGap
+            projectId={projectId}
+            onOpenOpportunities={() => setTab('recommendations')}
+          />
+          {data && data.prospects.length > 0 ? (
+            <Panel
+              title="Observed competitor sources"
+              subtitle="These pages link to a saved competitor. No fresh own-site link was found from their domain in the observed data. Review relevance before acting."
+            >
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Source page</Th>
+                    <Th>Competitor destination</Th>
+                    <Th>Your plan</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.prospects.map((item) => (
+                    <Tr key={`${item.source.id}:${item.targetUrl}`}>
+                      <Td>
+                        <PublicLink url={item.source.sourceUrl} />
+                      </Td>
+                      <Td>
+                        <PublicLink url={item.targetUrl} />
+                      </Td>
+                      <Td>
+                        <ProspectPlan projectId={projectId} sourceId={item.source.id} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+              {data.limits.graphTruncated ? (
+                <p className="p-4 text-xs text-warning-700">Comparison is limited to {data.limits.graphRows} observed links.</p>
+              ) : null}
+            </Panel>
+          ) : null}
+        </div>
       ) : null}
 
-      {/* Opportunities */}
+      {/* Opportunities & Verified Actions */}
       {tab === 'recommendations' ? (
-        <RecommendationDiscovery projectId={projectId} onAddSources={() => setTab('evidence')} />
+        <div className="space-y-5">
+          <RecommendationDiscovery projectId={projectId} onAddSources={() => setTab('evidence')} />
+          {data ? (
+            <Panel
+              title="Verified next actions"
+              subtitle="Repair destinations before seeking links. Completion is verified against fresh evidence."
+              actions={
+                <ActionButton disabled={busy} onClick={() => mutation.mutate({ kind: 'reconcile' })}>
+                  Recheck latest audits
+                </ActionButton>
+              }
+            >
+              <QueryState
+                isEmpty={!data.opportunities.length}
+                emptyTitle="No verified link actions yet"
+                emptyBody="Verify source pages and run a website audit. Actions appear when evidence shows a broken destination or confirmed link loss."
+              >
+                <div className="divide-y">
+                  {data.opportunities.map((action) => (
+                    <div className="space-y-2 p-4" key={action.id}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-sm font-semibold text-brand-950">{action.title}</h2>
+                        <Pill>{action.lifecycle}</Pill>
+                      </div>
+                      <p className="text-sm text-brand-600">{action.summary}</p>
+                      <p className="text-sm text-brand-950">{action.recommendedAction}</p>
+                      <dl className="space-y-1 text-xs text-brand-500">
+                        {action.evidence.map((item) => (
+                          <div key={item.label}>
+                            <dt className="inline font-semibold">{item.label}: </dt>
+                            <dd className="inline break-all">{item.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <div className="flex flex-wrap gap-3">
+                        <ActionButton
+                          disabled={busy || !data.queue.available}
+                          onClick={() => mutation.mutate({ kind: 'verify', sourceId: action.detailRef })}
+                        >
+                          Verify source again
+                        </ActionButton>
+                        <Link className="text-xs text-primary-700 hover:underline" href="/website?tab=issues">
+                          Open website audit
+                        </Link>
+                        <Link className="text-xs text-primary-700 hover:underline" href="/fix-engine">
+                          Open Fix Engine
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </QueryState>
+            </Panel>
+          ) : null}
+        </div>
       ) : null}
 
       {/* TAB 2: Explorer & Analytics */}
@@ -463,102 +540,6 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
             ) : null}
           </QueryState>
         </div>
-      ) : null}
-
-      {/* TAB 4: Next Actions */}
-      {tab === 'actions' && data ? (
-        <Panel
-          title="Next actions"
-          subtitle="Repair destinations before seeking links. Completion is verified against fresh evidence."
-          actions={
-            <ActionButton disabled={busy} onClick={() => mutation.mutate({ kind: 'reconcile' })}>
-              Recheck latest audits
-            </ActionButton>
-          }
-        >
-          <QueryState
-            isEmpty={!data.opportunities.length}
-            emptyTitle="No verified link actions yet"
-            emptyBody="Verify source pages and run a website audit. Actions appear when evidence shows a broken destination or confirmed link loss."
-          >
-            <div className="divide-y">
-              {data.opportunities.map((action) => (
-                <div className="space-y-2 p-4" key={action.id}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-semibold text-brand-950">{action.title}</h2>
-                    <Pill>{action.lifecycle}</Pill>
-                  </div>
-                  <p className="text-sm text-brand-600">{action.summary}</p>
-                  <p className="text-sm text-brand-950">{action.recommendedAction}</p>
-                  <dl className="space-y-1 text-xs text-brand-500">
-                    {action.evidence.map((item) => (
-                      <div key={item.label}>
-                        <dt className="inline font-semibold">{item.label}: </dt>
-                        <dd className="inline break-all">{item.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <div className="flex flex-wrap gap-3">
-                    <ActionButton
-                      disabled={busy || !data.queue.available}
-                      onClick={() => mutation.mutate({ kind: 'verify', sourceId: action.detailRef })}
-                    >
-                      Verify source again
-                    </ActionButton>
-                    <Link className="text-xs text-primary-700 hover:underline" href="/website?tab=issues">
-                      Open website audit
-                    </Link>
-                    <Link className="text-xs text-primary-700 hover:underline" href="/google/opportunities">
-                      Open Opportunities
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </QueryState>
-        </Panel>
-      ) : null}
-
-      {/* TAB 5: Observed Competitor Sources */}
-      {tab === 'prospects' && data ? (
-        <Panel
-          title="Observed competitor sources"
-          subtitle="These pages link to a saved competitor. No fresh own-site link was found from their domain in the observed data. Review relevance before acting."
-        >
-          <QueryState
-            isEmpty={!data.prospects.length}
-            emptyTitle="No observed competitor-only sources yet"
-            emptyBody="Import external pages linking to your saved competitors, then verify them. This comparison covers only monitored sources."
-          >
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Source page</Th>
-                  <Th>Competitor destination</Th>
-                  <Th>Your plan</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.prospects.map((item) => (
-                  <Tr key={`${item.source.id}:${item.targetUrl}`}>
-                    <Td>
-                      <PublicLink url={item.source.sourceUrl} />
-                    </Td>
-                    <Td>
-                      <PublicLink url={item.targetUrl} />
-                    </Td>
-                    <Td>
-                      <ProspectPlan projectId={projectId} sourceId={item.source.id} />
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </QueryState>
-          {data.limits.graphTruncated ? (
-            <p className="p-4 text-xs text-warning-700">Comparison is limited to {data.limits.graphRows} observed links.</p>
-          ) : null}
-        </Panel>
       ) : null}
 
       {historySource ? (

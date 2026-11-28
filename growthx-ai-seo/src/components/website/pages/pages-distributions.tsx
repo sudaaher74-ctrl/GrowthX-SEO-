@@ -26,7 +26,6 @@ export interface DiscoverySourceItem {
 
 interface PagesDistributionsProps {
   pageTypeCounts: PageTypeCount[];
-  statusCodeCounts: StatusCodeCount[];
   discoverySourceList: DiscoverySourceItem[];
   multiSourceUrls: number;
   pagesCount: number;
@@ -34,13 +33,12 @@ interface PagesDistributionsProps {
 
 export function PagesDistributions({
   pageTypeCounts,
-  statusCodeCounts,
   discoverySourceList,
   multiSourceUrls,
   pagesCount,
 }: PagesDistributionsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
       {/* 1. Page Type Distribution (10 Types) */}
       <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
         <div>
@@ -76,34 +74,7 @@ export function PagesDistributions({
         </div>
       </div>
 
-      {/* 2. Status Code Distribution */}
-      <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
-        <div>
-          <h3 className="text-sm font-bold text-brand-950 mb-2">
-            Status Code Distribution
-          </h3>
-          <div className="flex items-center justify-center py-2">
-            <DonutChart
-              data={statusCodeCounts}
-              centerValue={pagesCount}
-              centerLabel="Pages"
-              size={110}
-              thickness={15}
-            />
-          </div>
-        </div>
-        <div className="mt-2 pt-2 border-t border-brand-200/60 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-          {statusCodeCounts.map((item) => (
-            <span key={item.label} className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-brand-600">{item.label}:</span>
-              <b className="text-brand-950 font-mono">{item.value}</b>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. Crawl-Source Breakdown */}
+      {/* 2. Crawl-Source Breakdown */}
       <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
         <div>
           <div className="flex items-center justify-between mb-2">

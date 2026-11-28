@@ -468,28 +468,17 @@ function WebsiteAuditClient() {
         />
         {/* Render Tab Content based on activeTab */}
         {activeTab === "technical-seo" && (
-          <div className="space-y-5">
-            <RootCauseSimulator
-              issues={allIssues}
-              currentHealthScore={crawl.data?.healthScore ?? null}
-              totalPages={totalPages}
-              onSelectIssueType={() => selectTab("issues")}
-            />
-            <TechnicalSeoTab
-              totalPages={totalPages}
-              crawl={crawl.data ?? null}
-              issues={allIssues}
-              pages={allPages}
-              qualityDiagnostics={qualityDiagnostics}
-              historyRuns={historyRuns}
-              onSwitchTab={selectTab}
-              onOpenLogs={() => setShowLogsModal(true)}
-              onOpenRecommendations={() => {
-                const el = document.getElementById("technical-issues-table");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-            />
-          </div>
+          <TechnicalSeoTab
+            totalPages={totalPages}
+            crawl={crawl.data ?? null}
+            issues={allIssues}
+            pages={allPages}
+            qualityDiagnostics={qualityDiagnostics}
+            historyRuns={historyRuns}
+            onSwitchTab={selectTab}
+            onOpenLogs={() => setShowLogsModal(true)}
+            onOpenRecommendations={() => selectTab("issues")}
+          />
         )}
 
         {activeTab === "ai-readiness" && (

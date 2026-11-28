@@ -181,14 +181,6 @@ function FixEngineClient() {
           >
             <span>Complete plan report →</span>
           </Link>
-          <button
-            type="button"
-            onClick={() => setTab("results")}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-signal-400 px-3.5 py-2 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 cursor-pointer"
-          >
-            <span>Verified Results</span>
-            <ArrowUpRight size={13} />
-          </button>
         </div>
       </header>
 

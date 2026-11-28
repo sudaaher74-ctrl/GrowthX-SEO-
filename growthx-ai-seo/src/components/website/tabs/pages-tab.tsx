@@ -167,21 +167,6 @@ export function PagesTab({
     return res.length > 0 ? res : [{ label: "All Pages", value: pages.length, color: "var(--color-series-1)" }];
   }, [pages]);
 
-  // 4. Status Code Distribution Donut
-  const statusCodeCounts = useMemo(() => {
-    const s2xx = pages.filter((p) => p.statusCode >= 200 && p.statusCode < 300).length;
-    const s3xx = pages.filter((p) => p.statusCode >= 300 && p.statusCode < 400).length;
-    const s4xx = pages.filter((p) => p.statusCode >= 400 && p.statusCode < 500).length;
-    const s5xx = pages.filter((p) => p.statusCode >= 500).length;
-
-    return [
-      { label: "200 OK", value: s2xx, color: "var(--color-success-500)" },
-      { label: "3XX Redirect", value: s3xx, color: "var(--color-warning-500)" },
-      { label: "4XX Error", value: s4xx, color: "var(--color-error-500)" },
-      { label: "5XX Error", value: s5xx, color: "var(--color-brand-400)" },
-    ];
-  }, [pages]);
-
   // Crawl Source Breakdown: unique URLs per source, as a share of the URLs that
   // exist.
   //
@@ -273,10 +258,9 @@ export function PagesTab({
         canonicalizedCount={summary.canonicalized || 0}
       />
 
-      {/* MIDDLE ROW: 3 ANALYTICS CARDS */}
+      {/* MIDDLE ROW: 2 ANALYTICS CARDS (HTTP Status lives in Technical Health) */}
       <PagesDistributions
         pageTypeCounts={pageTypeCounts}
-        statusCodeCounts={statusCodeCounts}
         discoverySourceList={discoverySourceList}
         multiSourceUrls={summary.multiSourceUrls}
         pagesCount={pages.length}

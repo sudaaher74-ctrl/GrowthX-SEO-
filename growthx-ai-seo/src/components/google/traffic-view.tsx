@@ -642,25 +642,23 @@ function TrafficViewClient() {
               )}
 
               {declining.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => jumpToConsoleTab("declining")}
-                  className="inline-flex items-center gap-1 rounded-full bg-error-50 px-2.5 py-0.5 font-semibold text-error-700 hover:bg-error-100 transition cursor-pointer"
+                <Link
+                  href="/organic-search"
+                  className="inline-flex items-center gap-1 rounded-full bg-error-50 px-2.5 py-0.5 font-semibold text-error-700 hover:bg-error-100 transition"
                 >
                   <TrendingDown className="h-3 w-3" />
-                  <span>{declining.length} declining {declining.length === 1 ? "query" : "queries"} →</span>
-                </button>
+                  <span>{declining.length} declining {declining.length === 1 ? "query" : "queries"} in Organic Search →</span>
+                </Link>
               )}
 
               {striking.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => jumpToConsoleTab("striking")}
-                  className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 font-semibold text-success-700 hover:bg-success-100 transition cursor-pointer"
+                <Link
+                  href="/organic-search"
+                  className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 font-semibold text-success-700 hover:bg-success-100 transition"
                 >
                   <Target className="h-3 w-3" />
-                  <span>{striking.length} striking-distance wins →</span>
-                </button>
+                  <span>{striking.length} striking-distance wins in Organic Search →</span>
+                </Link>
               )}
             </div>
           )}
