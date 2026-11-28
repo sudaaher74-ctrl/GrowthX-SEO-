@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useProgrammaticMatrix, useWorkspace } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { buildGapItems, buildGapPlan, type GapItem, type GapKind } from "@/lib/gaps-plain";
+import { buildGapBlueprint, buildGapItems, buildGapPlan, type GapItem, type GapKind } from "@/lib/gaps-plain";
 import { stagingEngine } from "@/lib/staging-engine";
 import { useSubscription } from "@/lib/subscription-engine";
 import { cn } from "@/lib/utils";
@@ -712,6 +712,7 @@ export function GapsTab({
           why={planFor.why}
           steps={planFor.steps}
           plan={buildGapPlan(planFor, { domain })}
+          blueprint={buildGapBlueprint(planFor, { domain })}
           onClose={() => setPlanFor(null)}
           onSave={(plan) => {
             stagingEngine.stage(projectId, {

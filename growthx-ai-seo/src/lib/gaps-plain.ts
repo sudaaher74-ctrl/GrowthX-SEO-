@@ -253,12 +253,206 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
 
 /** The plan handed to whoever edits the website. */
 export function buildGapPlan(item: GapItem, you: { domain: string }): string {
+  const bp = buildGapBlueprint(item, you);
   return (
-    `# Plan: ${item.headline}\n\n` +
-    `Competitor: ${item.rival} (${item.rivalDomain})\nYour website: ${you.domain}\n\n` +
-    `## Why this matters\n${item.why}\n\n` +
-    `## What to do\n${item.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n` +
-    (item.example ? `## Their example\n${item.example.url}\n\n` : "") +
-    `## When it's done\nRe-check your website in Reigel (Website Audit → Run audit) and this item will drop off the Gaps list.\n`
+    `# Execution Blueprint: ${item.headline}\n\n` +
+    `Competitor: ${item.rival} (${item.rivalDomain})\nYour website: ${you.domain}\n` +
+    (bp.targetSlug ? `Recommended URL: https://${you.domain}${bp.targetSlug}\n` : "") +
+    `\n## Why this matters\n${item.why}\n\n` +
+    `## Ready-to-Use SEO Metadata\n` +
+    `- **Title:** ${bp.seoTitle}\n` +
+    `- **Meta Description:** ${bp.metaDescription}\n` +
+    `- **Primary H1:** ${bp.h1}\n\n` +
+    `## Recommended Page Outline (SEO + AI Citation Ready)\n` +
+    bp.outlineSections.map((s, i) => `${i + 1}. **${s.heading}** — ${s.guidance}`).join("\n") +
+    `\n\n## Step-by-Step Implementation\n${item.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n` +
+    `## Ready-to-Paste Schema (JSON-LD)\n\`\`\`json\n${bp.jsonLdSnippet}\n\`\`\`\n\n` +
+    (item.example ? `## Competitor Reference\n${item.example.url}\n\n` : "") +
+    `## Verification\nRe-crawl ${you.domain} in Reigel (Website Audit → Run audit) to verify the page is live, indexable, and clears this gap.\n`
   );
+}
+
+export interface GapExecutionBlueprint {
+  targetSlug: string | null;
+  seoTitle: string;
+  metaDescription: string;
+  h1: string;
+  outlineSections: Array<{ heading: string; guidance: string }>;
+  jsonLdType: string;
+  jsonLdSnippet: string;
+  platformSteps: Record<"wordpress" | "shopify" | "webflow" | "nextjs", string[]>;
+}
+
+function toSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+/**
+ * Generates an instant, gap-specific Execution Blueprint (URL slug, SEO metadata,
+ * H1/H2 content structure, valid Schema.org JSON-LD, and platform-specific steps)
+ * so Competitor Intelligence delivers ready-to-ship work, not just issue lists.
+ */
+export function buildGapBlueprint(item: GapItem, you: { domain: string }): GapExecutionBlueprint {
+  const cleanBrand = you.domain.replace(/^www\./i, "").split(".")[0] || "Your Brand";
+  const brandTitle = cleanBrand.charAt(0).toUpperCase() + cleanBrand.slice(1);
+  const coreTopic = item.headline.split(/[|–-]/)[0].replace(/\.$/, "").trim();
+  const slugBase = toSlug(coreTopic) || "new-page";
+  const pageTypeKey = (item.meta?.pageTypeKey || "").toUpperCase();
+
+  let targetSlug: string | null = `/${slugBase}`;
+  let jsonLdType = "WebPage";
+  let outlineSections: Array<{ heading: string; guidance: string }> = [];
+
+  if (item.kind === "topic") {
+    if (pageTypeKey === "PRODUCT") {
+      targetSlug = `/products/${slugBase}`;
+      jsonLdType = "Product";
+      outlineSections = [
+        { heading: "Key Overview & Direct Answer (45–55 words)", guidance: "State clearly what the product is, who it is for, pack sizes/pricing, and delivery availability so Google & AI engines can cite it." },
+        { heading: "Product Specifications & Quality Proof", guidance: "Include ingredients/specs, sourcing details, shelf life, and certifications in a clean bullet list or table." },
+        { heading: "Why Choose Us vs Standard Alternatives", guidance: "Add a crisp 3–4 row comparison table highlighting real differentiators (freshness, purity, turnaround, warranty)." },
+        { heading: "Pricing, Delivery & Subscription Options", guidance: "Spell out transparent pricing, delivery timings, and service areas." },
+        { heading: "Frequently Asked Questions (3–5 Q&As)", guidance: "Answer real customer questions using exact H3 headings + 2–3 sentence direct answers paired with FAQPage schema." },
+      ];
+    } else if (pageTypeKey === "LOCATION") {
+      targetSlug = `/locations/${slugBase}`;
+      jsonLdType = "LocalBusiness";
+      outlineSections = [
+        { heading: "Local Service Overview (Direct Answer)", guidance: "Confirm service availability in this exact city/neighborhood, delivery timings, and coverage pincodes." },
+        { heading: "Popular Offerings in This Area", guidance: "Highlight top products/services with direct links to each offering page." },
+        { heading: "How Delivery / Service Works Locally", guidance: "Step-by-step ordering, dispatch window, and local support contact details." },
+        { heading: "Local FAQs", guidance: "Address area-specific timing, minimum order, and serviceability questions." },
+      ];
+    } else {
+      targetSlug = `/blog/${slugBase}`;
+      jsonLdType = "Article";
+      outlineSections = [
+        { heading: "Key Takeaway & Direct Answer (45–55 words)", guidance: "Answer the core user question immediately in plain language for Google AI Overviews, ChatGPT, and Perplexity." },
+        { heading: "Detailed Breakdown & Practical Guide", guidance: "Cover the core steps, real examples, and buying criteria customers care about." },
+        { heading: "Comparison / Benchmark Table", guidance: "Add a structured Markdown/HTML table comparing options, pros/cons, or specs for high information gain." },
+        { heading: "Common Questions (FAQ Section)", guidance: "Add 3–5 real customer questions with concise answers." },
+        { heading: "Next Step / Product CTA", guidance: "Link contextually to your relevant product or service page." },
+      ];
+    }
+  } else if (item.kind === "question") {
+    targetSlug = `/faq`;
+    jsonLdType = "FAQPage";
+    outlineSections = [
+      { heading: "Top Customer Questions (Direct 2–3 Sentence Answers)", guidance: "Group questions by Pricing, Delivery/Timings, Quality/Specs, and Support." },
+      { heading: "Contextual Links to Core Pages", guidance: "Link each answer to the relevant product, service, or policy page." },
+    ];
+  } else if (item.kind === "schema") {
+    targetSlug = null;
+    jsonLdType = "FAQPage";
+    outlineSections = [
+      { heading: "Identify Target Templates", guidance: "Apply this JSON-LD block to the matching page template (e.g., Product, Article, LocalBusiness, or FAQ pages)." },
+      { heading: "Bind Dynamic Fields", guidance: "Populate name, description, URL, price/availability, or Q&A arrays from your live page data—never hardcode fake ratings." },
+      { heading: "Validate Before Publishing", guidance: "Test with Google Rich Results Test and re-crawl in Reigel to confirm zero validation errors." },
+    ];
+  } else if (item.kind === "pageType" || item.kind === "series") {
+    targetSlug = `/${toSlug(item.meta?.pageTypeLabel || "hub")}`;
+    jsonLdType = "ItemList";
+    outlineSections = [
+      { heading: "Create a Clean Hub / Category Page", guidance: "Build one overview page that links out to every individual page in this family." },
+      { heading: "Launch Top 5 Highest-Intent Pages First", guidance: "Prioritize the offerings or locations with highest commercial intent—each with unique titles, specs, and local/product details." },
+      { heading: "Interlink Related Pages", guidance: "Add breadcrumb navigation and related-page links so crawlers reach every page within ≤3 clicks." },
+    ];
+  } else {
+    targetSlug = null;
+    jsonLdType = "Article";
+    outlineSections = [
+      { heading: "Expand Your Top 5 Revenue Pages", guidance: "Add decision-making details: transparent pricing, specifications, comparison tables, and real photos." },
+      { heading: "Add a Direct-Answer Summary & FAQ Block", guidance: "Help both human shoppers and AI assistants extract exact facts quickly." },
+    ];
+  }
+
+  const seoTitle =
+    item.kind === "topic"
+      ? `${coreTopic.slice(0, 44)} | ${brandTitle}`
+      : `${brandTitle}: ${coreTopic.slice(0, 44)}`;
+  const metaDescription = `Explore ${coreTopic.slice(0, 85)} on ${you.domain}. Clear details, transparent options, and direct answers to help you choose with confidence.`.slice(0, 158);
+  const h1 = coreTopic;
+
+  const pageUrl = `https://${you.domain}${targetSlug || "/"}`;
+  const jsonLdObj =
+    jsonLdType === "Product"
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: h1,
+          description: metaDescription,
+          brand: { "@type": "Brand", name: brandTitle },
+          url: pageUrl,
+        }
+      : jsonLdType === "FAQPage"
+        ? {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [
+              {
+                "@type": "Question",
+                name: `What should customers know about ${coreTopic.slice(0, 60)}?`,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: "Provide a concise, factual 2-3 sentence answer covering key details, availability, and how to get started.",
+                },
+              },
+            ],
+          }
+        : jsonLdType === "LocalBusiness"
+          ? {
+              "@context": "https://schema.org",
+              "@type": "LocalBusiness",
+              name: brandTitle,
+              url: pageUrl,
+              description: metaDescription,
+            }
+          : {
+              "@context": "https://schema.org",
+              "@type": "Article",
+              headline: h1,
+              description: metaDescription,
+              url: pageUrl,
+              publisher: { "@type": "Organization", name: brandTitle },
+            };
+
+  return {
+    targetSlug,
+    seoTitle,
+    metaDescription,
+    h1,
+    outlineSections,
+    jsonLdType,
+    jsonLdSnippet: JSON.stringify(jsonLdObj, null, 2),
+    platformSteps: {
+      wordpress: [
+        `In WordPress Admin, open Pages / Posts → Add New and set the permalink slug to "${targetSlug || "/"}".`,
+        `Paste the SEO Title and Meta Description into Yoast SEO or Rank Math.`,
+        `Build the page using the H1 + H2 outline above, then add the JSON-LD block via a Custom HTML block or your SEO plugin's Schema tab.`,
+        `Publish as Draft to preview, then Publish Live and click Re-crawl in Reigel.`,
+      ],
+      shopify: [
+        `In Shopify Admin, go to Online Store → Pages (or Products → Add product) and set the URL handle to "${slugBase}".`,
+        `Under "Search engine listing", paste the SEO Title and Meta Description.`,
+        `Add the structured H2 sections and FAQ block to the description, and embed the JSON-LD script in your theme template or metafield.`,
+        `Save, verify on the live storefront, and run Reigel Website Audit to confirm.`,
+      ],
+      webflow: [
+        `In Webflow Designer/CMS, create a new page or CMS collection item with slug "${slugBase}".`,
+        `Open Page Settings → SEO Settings and paste the Title Tag and Meta Description.`,
+        `Paste the JSON-LD inside <script type="application/ld+json">...</script> in Custom Code → Inside <head> tag.`,
+        `Publish to staging first, then production.`,
+      ],
+      nextjs: [
+        `Create the route at app${targetSlug || `/${slugBase}`}/page.tsx and export Next.js metadata with the exact title, description, and alternates.canonical.`,
+        `Render the semantic <h1> and <h2> sections with server-rendered HTML (SSR/SSG) so Googlebot & AI crawlers see all text without JS.`,
+        `Inject the JSON-LD via <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />.`,
+        `Open a PR, merge after preview check, and verify live in Reigel.`,
+      ],
+    },
+  };
 }

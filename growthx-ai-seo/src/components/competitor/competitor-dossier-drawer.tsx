@@ -31,7 +31,7 @@ import {
   type RivalMove,
   type TrackedCompetitor,
 } from "@/lib/api-client";
-import { buildGapItems, buildGapPlan, type GapItem } from "@/lib/gaps-plain";
+import { buildGapBlueprint, buildGapItems, buildGapPlan, type GapExecutionBlueprint, type GapItem } from "@/lib/gaps-plain";
 import { buildRadarPlan, KIND_LABEL, toRadarItem } from "@/lib/radar-plain";
 import { stagingEngine } from "@/lib/staging-engine";
 import { cn } from "@/lib/utils";
@@ -107,6 +107,7 @@ export function CompetitorDossierDrawer({
     why: string;
     steps: string[];
     plan: string;
+    blueprint?: GapExecutionBlueprint;
   } | null>(null);
   const [stagedTitles, setStagedTitles] = useState<Set<string>>(() => {
     const s = new Set<string>();
@@ -617,6 +618,7 @@ export function CompetitorDossierDrawer({
                                 why: g.why,
                                 steps: g.steps,
                                 plan: buildGapPlan(g, { domain: yourDomain }),
+                                blueprint: buildGapBlueprint(g, { domain: yourDomain }),
                               })
                             }
                             className="shrink-0 rounded-lg bg-signal-400 px-2.5 py-1 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition-colors cursor-pointer"
@@ -834,6 +836,7 @@ export function CompetitorDossierDrawer({
                               why: item.why,
                               steps: item.steps,
                               plan: buildGapPlan(item, { domain: yourDomain }),
+                              blueprint: buildGapBlueprint(item, { domain: yourDomain }),
                             })
                           }
                           className="inline-flex items-center gap-1 rounded-lg bg-signal-400 px-3 py-1.5 text-[11px] font-bold text-signal-ink hover:bg-signal-500 transition-colors cursor-pointer"
@@ -944,6 +947,7 @@ export function CompetitorDossierDrawer({
           why={planState.why}
           steps={planState.steps}
           plan={planState.plan}
+          blueprint={planState.blueprint}
           onClose={() => setPlanState(null)}
           onSave={(savedPlan) => {
             stagingEngine.stage(projectId, {
