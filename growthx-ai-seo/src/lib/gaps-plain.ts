@@ -25,6 +25,8 @@ export interface GapItem {
   steps: string[];
   /** Optional measured side-by-side comparison for visual bars. */
   compare?: { you: number; them: number; unit: string };
+  /** Optional structured metadata for clean UI pills and grouping. */
+  meta?: { pageTypeKey?: string; pageTypeLabel?: string; wordCount?: number };
   /** Bigger gaps first. */
   weight: number;
 }
@@ -136,11 +138,14 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
             : "Keep it clear and useful; add the details a customer would ask about.",
           "Link to the new page from your menu or a related page so visitors and Google can find it.",
         ],
+        meta: { pageTypeKey: t.pageType, pageTypeLabel: kind.one, wordCount: t.wordCount },
         weight: 60 - i + Math.min(20, t.wordCount / 100),
       });
     });
 
     a.pageTypes.forEach((t) => {
+      // Skip unclassified "OTHER" buckets: saying "rival has 65 pages, you have 0" is misleading.
+      if ((t.pageType || "").toUpperCase() === "OTHER") return;
       const kind = pageKind(t.pageType);
       items.push({
         id: `type:${r.domain}:${t.pageType}`,
@@ -156,6 +161,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
           "Link them together from one overview page.",
         ],
         compare: { you: t.you, them: t.them, unit: kind.many },
+        meta: { pageTypeKey: t.pageType, pageTypeLabel: kind.many },
         weight: 70 + (t.them - t.you),
       });
     });
