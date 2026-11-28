@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
-import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
+import { api, type CrawlIssue, type CrawlPage, type IssueSeverity } from "@/lib/api-client";
 import { VisualFixPreview } from "@/components/visual-preview/visual-fix-preview";
+import { SEVERITY_PLAIN, humanizeIssue } from "@/lib/plain-language";
 import { cn } from "@/lib/utils";
 
 type DrawerTab = "overview" | "visual";
@@ -305,36 +306,43 @@ export function PageXrayDrawer({
                     Issues on This Page ({pageIssues.length})
                   </h3>
                   <ul className="space-y-2">
-                    {pageIssues.map((iss) => (
-                      <li
-                        key={iss.id}
-                        className="rounded-xl border border-brand-200 bg-surface-1 p-3.5 space-y-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              "rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                              iss.severity === "CRITICAL" || iss.severity === "HIGH"
-                                ? "bg-error-50 text-error-700"
-                                : iss.severity === "MEDIUM"
-                                  ? "bg-warning-50 text-warning-700"
-                                  : "bg-brand-100 text-brand-600",
-                            )}
-                          >
-                            {iss.severity}
-                          </span>
-                          <span className="text-xs font-bold text-brand-950">
-                            {iss.issueType.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                        <p className="text-xs text-brand-600">{iss.description}</p>
-                        {iss.recommendation && (
-                          <p className="pt-0.5 text-[11.5px] text-brand-500">
-                            Fix: {iss.recommendation}
-                          </p>
-                        )}
-                      </li>
-                    ))}
+                    {pageIssues.map((iss) => {
+                      const plain = humanizeIssue(iss.issueType);
+                      const sev = SEVERITY_PLAIN[iss.severity as IssueSeverity] ?? SEVERITY_PLAIN.LOW;
+                      return (
+                        <li
+                          key={iss.id}
+                          className="rounded-xl border border-brand-200 bg-surface-1 p-3.5 space-y-1"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={cn(
+                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                iss.severity === "CRITICAL" || iss.severity === "HIGH"
+                                  ? "bg-error-50 text-error-700"
+                                  : iss.severity === "MEDIUM"
+                                    ? "bg-warning-50 text-warning-700"
+                                    : "bg-brand-100 text-brand-600",
+                              )}
+                            >
+                              {sev.label}
+                            </span>
+                            <span className="text-xs font-bold text-brand-950">
+                              {plain.title}
+                            </span>
+                            <span className="text-[10.5px] text-brand-400">
+                              · {plain.impactTag}
+                            </span>
+                          </div>
+                          <p className="text-xs text-brand-600">{iss.description}</p>
+                          {iss.recommendation && (
+                            <p className="pt-0.5 text-[11.5px] text-brand-500">
+                              How to fix: {iss.recommendation}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

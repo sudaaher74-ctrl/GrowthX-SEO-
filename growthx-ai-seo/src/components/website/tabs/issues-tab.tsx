@@ -29,7 +29,7 @@ import {
   getIssueFixGuide,
   type GuidePlatform,
 } from "@/lib/issue-fix-guides";
-import { SEVERITY_PLAIN } from "@/lib/plain-language";
+import { SEVERITY_PLAIN, humanizeIssue } from "@/lib/plain-language";
 import { useSubscription } from "@/lib/subscription-engine";
 import { cn } from "@/lib/utils";
 
@@ -47,10 +47,7 @@ function readSavedPlatform(): GuidePlatform {
 }
 
 function formatIssueTitle(raw: string): string {
-  return raw
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return humanizeIssue(raw).title;
 }
 
 interface IssuesTabProps {
@@ -274,16 +271,8 @@ export function IssuesTab({ issues, onInspectUrl }: IssuesTabProps) {
                   : "bg-surface-2 text-brand-700 border-brand-200 hover:bg-surface-1",
               )}
             >
-              <UserCheck size={12} />
               <span>No coding ({noCodeCount})</span>
             </button>
-            <Link
-              href="/fix-engine"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-2xs transition hover:bg-signal-500"
-            >
-              <span>{canUseFixEngine ? "Open Fix Engine" : "Open Action Plan"}</span>
-              <ArrowRight size={12} />
-            </Link>
           </div>
         </div>
 

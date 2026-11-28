@@ -265,6 +265,70 @@ describe('page rules', () => {
     expect(findings.map((f) => f.id)).not.toContain('REDIRECT_CHAIN');
     expect(findings).toHaveLength(0);
   });
+
+  describe('deep website forensic rules', () => {
+    it('flags slow server TTFB, temporary 302 redirects, missing image dimensions, and internal nofollow leaks', () => {
+      const deepHtml = `<!doctype html><html lang="en"><head>
+        <title>Fresh Dairy Products in Mumbai</title>
+        <meta name="description" content="${'a'.repeat(135)}">
+        <link rel="canonical" href="${url}">
+      </head><body><main>
+        <h1>Fresh Dairy</h1>
+        <h4>Skipped Heading</h4>
+        <p>${'milk '.repeat(350)}</p>
+        <img src="/a.jpg" alt="Bottle 1" />
+        <img src="/b.jpg" alt="Bottle 2" />
+        <a href="https://www.example.com/products" rel="nofollow">Products</a>
+      </main></body></html>`;
+
+      const findings = evaluatePage({
+        url,
+        fetch: outcome({
+          ttfbMs: 2150,
+          headers: { 'content-type': 'text/html', server: 'nginx' },
+          statusChain: [
+            { url: 'https://example.com/', status: 302, location: url },
+            { url, status: 200 },
+          ],
+        }),
+        extracted: extractPage(deepHtml, url),
+        indexability: computeIndexability({ pageUrl: url, statusCode: 200, robotsTxtAllows: true }),
+        isHomepage: true,
+        inSitemap: true,
+      });
+
+      const ids = findings.map((f) => f.id);
+      expect(ids).toContain('SLOW_SERVER_TTFB');
+      expect(ids).toContain('TEMPORARY_REDIRECT_302');
+      expect(ids).toContain('IMAGE_CLS_DIMENSIONS_MISSING');
+      expect(ids).toContain('INTERNAL_NOFOLLOW_LEAK');
+      expect(ids).toContain('BROKEN_HEADING_HIERARCHY');
+      expect(ids).toContain('MISSING_SECURITY_HEADERS');
+    });
+
+    it('flags heavy navigation boilerplate drowning out unique main content', () => {
+      const bloatedHtml = `<!doctype html><html lang="en"><head>
+        <title>Service Page Title Example</title>
+        <meta name="description" content="${'b'.repeat(135)}">
+        <link rel="canonical" href="${url}">
+      </head><body>
+        <header>${'navitem '.repeat(300)}</header>
+        <main><h1>Service</h1><p>${'unique '.repeat(60)}</p></main>
+        <footer>${'footerlink '.repeat(250)}</footer>
+      </body></html>`;
+
+      const findings = evaluatePage({
+        url,
+        fetch: outcome(),
+        extracted: extractPage(bloatedHtml, url),
+        indexability: computeIndexability({ pageUrl: url, statusCode: 200, robotsTxtAllows: true }),
+        isHomepage: false,
+        inSitemap: true,
+      });
+
+      expect(findings.map((f) => f.id)).toContain('LOW_CONTENT_SIGNAL_RATIO');
+    });
+  });
 });
 
 describe('site rules', () => {

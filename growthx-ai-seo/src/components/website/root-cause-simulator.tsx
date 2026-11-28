@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowUpRight, CheckSquare, Layers, Sparkles, Square, Zap } from "lucide-react";
-import type { CrawlIssue } from "@/lib/api-client";
+import { CheckSquare, Square } from "lucide-react";
+import type { CrawlIssue, IssueSeverity } from "@/lib/api-client";
+import { SEVERITY_PLAIN, humanizeIssue } from "@/lib/plain-language";
 import { cn } from "@/lib/utils";
 
 const SEVERITY_WEIGHT: Record<string, number> = {
@@ -12,13 +12,6 @@ const SEVERITY_WEIGHT: Record<string, number> = {
   MEDIUM: 3,
   LOW: 1,
 };
-
-function humanizeIssueType(raw: string): string {
-  return raw
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export function RootCauseSimulator({
   issues,
@@ -58,11 +51,11 @@ export function RootCauseSimulator({
         if (iss.affectedUrl) urls.add(iss.affectedUrl);
         map.set(iss.issueType, {
           issueType: iss.issueType,
-          label: humanizeIssueType(iss.issueType),
+          label: humanizeIssue(iss.issueType).title,
           severity: iss.severity,
           count: 1,
           urls,
-          sampleRecommendation: iss.recommendation || iss.description,
+          sampleRecommendation: humanizeIssue(iss.issueType).impactTag + " — " + (iss.recommendation || iss.description),
           weight: sevW,
         });
       }
@@ -113,23 +106,18 @@ export function RootCauseSimulator({
         className="flex flex-col gap-4 border-b bg-surface-1 p-5 lg:flex-row lg:items-center lg:justify-between"
         style={{ borderColor: "var(--border-color)" }}
       >
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
-            <Layers size={18} />
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-bold text-brand-950">
+              Top Root Causes &amp; Score Impact
+            </h2>
+            <span className="rounded-full bg-brand-100 px-2.5 py-0.5 font-mono text-[10px] font-bold text-brand-700">
+              {selectedTypes.size} selected = {clearedPct}% of issues
+            </span>
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[14.5px] font-bold text-brand-950">
-                Root-Cause Clusters &amp; Health Score Simulator
-              </h2>
-              <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 font-mono text-[10px] font-bold text-brand-950">
-                {selectedTypes.size} root causes = {clearedPct}% of issues
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11.5px] text-brand-500">
-              Instead of fixing {issues.length} individual rows, check off template-level root causes below to preview your projected Health Score gain.
-            </p>
-          </div>
+          <p className="mt-0.5 text-xs text-brand-500">
+            Check off the biggest site-wide causes below to see how much your health score improves.
+          </p>
         </div>
 
         {/* Live Projected Health Gauge */}
@@ -142,7 +130,7 @@ export function RootCauseSimulator({
               </div>
               <span className="text-brand-400">→</span>
               <div>
-                <p className="text-[9.5px] font-bold uppercase tracking-wider text-success-700">Projected</p>
+                <p className="text-[9.5px] font-bold uppercase tracking-wider text-success-700">After Fix</p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-mono text-xl font-black text-success-700">{projectedScore}</span>
                   {projectedGain > 0 && (
@@ -158,15 +146,6 @@ export function RootCauseSimulator({
               {clearedIssues} of {issues.length} issues cleared
             </div>
           )}
-
-          <Link
-            href="/fix-engine"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition-colors shadow-2xs"
-          >
-            <Zap size={12} />
-            <span>Fix Selected</span>
-            <ArrowUpRight size={12} />
-          </Link>
         </div>
       </div>
 
@@ -175,6 +154,7 @@ export function RootCauseSimulator({
         {clusters.map((c) => {
           const checked = selectedTypes.has(c.issueType);
           const isTemplate = c.urls.size >= 3 && totalPages > 0;
+          const sevMeta = SEVERITY_PLAIN[c.severity as IssueSeverity] ?? SEVERITY_PLAIN.LOW;
           return (
             <div
               key={c.issueType}
@@ -208,7 +188,7 @@ export function RootCauseSimulator({
                   </button>
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.2 font-mono text-[9.5px] font-bold",
+                      "rounded-md px-1.5 py-0.2 text-[10px] font-semibold",
                       c.severity === "CRITICAL" || c.severity === "HIGH"
                         ? "bg-error-50 text-error-700"
                         : c.severity === "MEDIUM"
@@ -216,12 +196,11 @@ export function RootCauseSimulator({
                           : "bg-brand-100 text-brand-600",
                     )}
                   >
-                    {c.severity}
+                    {sevMeta.label}
                   </span>
                   {isTemplate && (
-                    <span className="inline-flex items-center gap-0.5 rounded-md bg-brand-100 px-1.5 py-0.2 font-mono text-[9.5px] font-semibold text-brand-700">
-                      <Sparkles size={9} />
-                      Template Fix
+                    <span className="rounded-md bg-brand-100 px-1.5 py-0.2 text-[10px] font-semibold text-brand-700">
+                      Site-wide fix
                     </span>
                   )}
                 </div>

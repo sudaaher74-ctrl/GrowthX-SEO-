@@ -747,6 +747,224 @@ export function getIssueFixGuide(input: IssueGuideInput): IssueFixGuide {
     });
   }
 
+  if (key.includes("SLOW_SERVER_TTFB")) {
+    return finalize({
+      whatIsWrong:
+        "Your web server takes over 1 second just to start answering requests before the browser can even begin drawing the page.",
+      whyItMatters:
+        "Slow server response times delay every single page load, hurt Core Web Vitals (LCP), and cause mobile shoppers to leave before your hero appears.",
+      difficulty: "developer",
+      estimatedTime: "20–30 mins",
+      platformSteps: {
+        wordpress: [
+          "Install and enable a page caching plugin (WP Rocket, LiteSpeed Cache, or WP Super Cache).",
+          "Connect your domain to Cloudflare (free tier) to cache HTML and static assets closer to visitors.",
+          "Deactivate heavy unused plugins slowing down PHP execution on every page load.",
+        ],
+        shopify: [
+          "Remove unused Shopify apps that inject blocking scripts or server-side Liquid overhead.",
+          "Audit large Liquid loops on your homepage and collection templates.",
+        ],
+        webflow: [
+          "Reduce nested CMS Collection Lists on this page and republish to Webflow's edge CDN.",
+        ],
+        wix: [
+          "Enable page caching in Site Speed Dashboard and remove heavy third-party widgets above the fold.",
+        ],
+        developer: [
+          `Measure TTFB on ${firstUrl} and add CDN/edge caching (Cache-Control / s-maxage or ISR/static rendering).`,
+          "Profile slow backend database queries or uncached third-party API calls blocking initial HTML response.",
+        ],
+      },
+      verifySteps: [
+        `Re-check ${firstUrl} and confirm server response time drops under 600ms.`,
+      ],
+    });
+  }
+
+  if (key.includes("IMAGE_CLS_DIMENSIONS_MISSING")) {
+    return finalize({
+      whatIsWrong:
+        "Multiple images on this page do not declare a fixed width and height in HTML, so the browser doesn't know how much space to reserve while they load.",
+      whyItMatters:
+        "Text and buttons suddenly jump down the screen on mobile phones as images pop in — frustrating visitors and triggering a Google Core Web Vitals (CLS) penalty.",
+      difficulty: "cms_or_dev",
+      estimatedTime: "10–15 mins",
+      platformSteps: {
+        wordpress: [
+          "Open your caching/performance plugin (WP Rocket / LiteSpeed / Autoptimize) and turn ON 'Add Missing Image Dimensions'.",
+          "Clear site cache and re-check the page.",
+        ],
+        shopify: [
+          "In your theme Liquid files, pass width and height attributes (or use Shopify's image_tag filter) on hero and product images.",
+        ],
+        webflow: [
+          "Select each image in Designer, set an explicit Width and Height (or Aspect Ratio), and Publish.",
+        ],
+        wix: [
+          "Set fixed container aspect ratios on image strips and galleries, then Publish.",
+        ],
+        developer: [
+          "Add explicit width and height HTML attributes (or CSS aspect-ratio) to every <img> element.",
+          "In Next.js, use next/image with width/height or fill inside a fixed aspect-ratio wrapper.",
+        ],
+      },
+      exampleLabel: "Clean image markup preventing layout shifts",
+      exampleCode: `<img src="/hero.webp" alt="Fresh farm milk bottles" width="800" height="600" />`,
+      verifySteps: [
+        "Reload the page on a throttled mobile connection and verify no text or buttons jump while images load.",
+      ],
+    });
+  }
+
+  if (key.includes("INTERNAL_NOFOLLOW_LEAK")) {
+    return finalize({
+      whatIsWrong:
+        "One or more links pointing to pages on your own website are marked with rel=\"nofollow\".",
+      whyItMatters:
+        "Nofollow tells Google not to pass ranking authority through that link — accidentally starving your own product, service, or guide pages.",
+      difficulty: "cms_or_dev",
+      estimatedTime: "5–10 mins",
+      platformSteps: {
+        wordpress: [
+          "Edit the affected page, click the flagged internal link, and uncheck 'Mark link as nofollow'.",
+          "Check your SEO plugin or theme menu settings to make sure internal links are not automatically tagged nofollow.",
+        ],
+        shopify: [
+          "Open Online Store → Themes → Edit code and remove rel=\"nofollow\" from internal navigation or section links.",
+        ],
+        webflow: [
+          "Select the internal link element in Designer, check Custom Attributes, and delete rel=\"nofollow\", then Publish.",
+        ],
+        wix: [
+          "Open the link settings on the flagged button/text and turn off the 'nofollow' toggle.",
+        ],
+        developer: [
+          "Remove rel=\"nofollow\" from all internal <a> links pointing to indexable routes on your own domain.",
+        ],
+      },
+      verifySteps: [
+        "Inspect the updated internal link in browser DevTools and confirm rel=\"nofollow\" is removed.",
+      ],
+    });
+  }
+
+  if (key.includes("TEMPORARY_REDIRECT_302")) {
+    return finalize({
+      whatIsWrong:
+        "This URL uses a temporary (HTTP 302 or 307) redirect instead of a permanent (HTTP 301) redirect.",
+      whyItMatters:
+        "Temporary redirects tell Google the move isn't final, so backlink strength and rankings stay split instead of transferring cleanly to the destination URL.",
+      difficulty: "cms_or_dev",
+      estimatedTime: "5–10 mins",
+      platformSteps: {
+        wordpress: [
+          "Open your Redirection / Rank Math / Yoast Redirect Manager and change the redirect type from 302 to 301 (Permanent).",
+        ],
+        shopify: [
+          "Use Shopify Online Store → Navigation → URL Redirects (Shopify creates permanent 301 redirects automatically).",
+        ],
+        webflow: [
+          "Update the redirect under Site Settings → Publishing → 301 Redirects and Publish.",
+        ],
+        wix: [
+          "Open Marketing & SEO → SEO → URL Redirect Manager and save a permanent 301 redirect.",
+        ],
+        developer: [
+          "Update your server/router redirect rule (next.config.ts permanent: true, Nginx return 301, or Cloudflare 301 rule).",
+        ],
+      },
+      verifySteps: [
+        "Confirm the URL responds with HTTP 301 directly to the final destination.",
+      ],
+    });
+  }
+
+  if (key.includes("LOW_CONTENT_SIGNAL_RATIO") || key.includes("BROKEN_HEADING_HIERARCHY")) {
+    const isSignal = key.includes("LOW_CONTENT_SIGNAL_RATIO");
+    return finalize({
+      whatIsWrong: isSignal
+        ? "More than 80% of the text on this page is repeated navigation, sidebar, or footer boilerplate rather than unique main content."
+        : "This page either skips heading levels (like jumping from H1 to H4) or has a long wall of text with zero H2 subheadings.",
+      whyItMatters: isSignal
+        ? "When menus and footers drown out unique page copy, Google and AI assistants struggle to see why this page deserves to rank."
+        : "Clear H1 → H2 → H3 headings help human visitors scan quickly and let Google & AI answer engines extract clean answers directly from your page.",
+      difficulty: "no_code",
+      estimatedTime: "10–15 mins",
+      platformSteps: {
+        wordpress: [
+          isSignal
+            ? "Add 2–3 focused paragraphs answering customer questions (pricing, benefits, FAQs) inside the main content area."
+            : "Break the main copy into clear sections using Heading 2 (H2) subheadings every 150–250 words without skipping heading levels.",
+          "Click Update to save.",
+        ],
+        shopify: [
+          isSignal
+            ? "Expand the main description or add an FAQ block on this page/collection so unique text outweighs footer/menu links."
+            : "Format section titles inside the page editor as Heading 2 (H2) and sub-points as Heading 3 (H3).",
+        ],
+        webflow: [
+          isSignal
+            ? "Add dedicated main body copy and FAQ answers inside the <main> section, then Publish."
+            : "Check the Navigator panel and ensure headings follow H1 → H2 → H3 order without skipping levels.",
+        ],
+        wix: [
+          isSignal
+            ? "Add concise, helpful unique copy and FAQs to the main body of this page and Publish."
+            : "Use Heading 2 styles for section titles so visitors and search engines can scan the page easily.",
+        ],
+        developer: [
+          isSignal
+            ? "Ensure primary page content sits inside a semantic <main> landmark and expand unique copy relative to repeated header/footer chrome."
+            : "Maintain sequential heading levels (<h1> → <h2> → <h3>) and add descriptive <h2> section titles for long content.",
+        ],
+      },
+      verifySteps: [
+        "Skim the live page: every section should have a clear heading and helpful, unique copy above the footer.",
+      ],
+    });
+  }
+
+  if (key.includes("UNCOMPRESSED_HTML_PAYLOAD") || key.includes("MISSING_SECURITY_HEADERS")) {
+    const isCompress = key.includes("UNCOMPRESSED_HTML_PAYLOAD");
+    return finalize({
+      whatIsWrong: isCompress
+        ? "Your server is sending a heavy raw HTML file (>150 KB) without Gzip or Brotli compression enabled."
+        : "Your homepage HTTP response is missing standard browser security headers (HSTS and X-Content-Type-Options).",
+      whyItMatters: isCompress
+        ? "Uncompressed HTML takes 3–5× longer to download over mobile networks, slowing down page load and hurting Core Web Vitals."
+        : "Security headers protect visitors from downgrade and MIME-sniffing attacks and are standard hygiene for trustworthy modern websites.",
+      difficulty: "developer",
+      estimatedTime: "10 mins",
+      platformSteps: {
+        wordpress: [
+          isCompress
+            ? "Enable Gzip/Brotli compression in your hosting control panel or Cloudflare (Speed → Optimization)."
+            : "Enable 'Always Use HTTPS' and 'HSTS' in Cloudflare SSL/TLS → Edge Certificates.",
+        ],
+        shopify: [
+          "Shopify manages compression and core HTTPS headers automatically — verify your custom proxy/CDN is not stripping headers.",
+        ],
+        webflow: [
+          "Enable SSL + HSTS under Webflow Site Settings → Publishing → Advanced Publishing Options and Republish.",
+        ],
+        wix: [
+          "Verify your custom domain routes directly through Wix HTTPS servers without an unconfigured third-party proxy.",
+        ],
+        developer: [
+          isCompress
+            ? "Enable Brotli (`br`) and `gzip` compression in Nginx, Cloudflare, Vercel, or your Node/Express server."
+            : "Add `Strict-Transport-Security: max-age=31536000; includeSubDomains` and `X-Content-Type-Options: nosniff` to response headers.",
+        ],
+      },
+      verifySteps: [
+        isCompress
+          ? "Check the Network tab in Chrome DevTools and verify `content-encoding: br` or `gzip` on the document request."
+          : "Inspect response headers on your homepage and confirm HSTS and X-Content-Type-Options are present.",
+      ],
+    });
+  }
+
   // Universal clean fallback for any other finding
   const isOwnerFriendly = input.fixClass === "AUTO" || key.includes("AI_VISIBILITY");
   return finalize({
