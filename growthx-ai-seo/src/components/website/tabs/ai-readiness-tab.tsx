@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { api, type CrawlPage } from "@/lib/api-client";
+import { api, type AiReadinessResponse, type CrawlPage } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 function safePath(url: string): string {
@@ -31,20 +31,148 @@ function safePath(url: string): string {
   }
 }
 
+function buildClientLlmsTxt(domain: string, pages: CrawlPage[]): string {
+  const indexable = pages.filter((p) => p.statusCode === 200 && p.indexability !== "NOT_INDEXABLE");
+  const home = indexable.find((p) => {
+    const path = safePath(p.url);
+    return path === "/" || path === "";
+  });
+  const cleanTitle = (p: CrawlPage) => (p.title || p.url).replace(/[\r\n]+/g, " ").trim().slice(0, 90);
+  const cleanDesc = (d: string | null) => (d ? `: ${d.replace(/[\r\n]+/g, " ").trim().slice(0, 140)}` : "");
+  const moneyTypes = new Set(["HOME", "PRODUCT", "SERVICE", "PRICING", "LOCATION", "CATEGORY"]);
+  const contentTypes = new Set(["BLOG", "ARTICLE", "FAQ", "CASE_STUDY", "GUIDE"]);
+  const corePages = indexable.filter((p) => moneyTypes.has((p.pageType || "").toUpperCase())).slice(0, 20);
+  const guides = indexable.filter((p) => contentTypes.has((p.pageType || "").toUpperCase())).slice(0, 20);
+  const others = indexable
+    .filter((p) => !moneyTypes.has((p.pageType || "").toUpperCase()) && !contentTypes.has((p.pageType || "").toUpperCase()))
+    .slice(0, 10);
+
+  const lines: string[] = [
+    `# ${home?.title?.split(/[|–-]/)[0]?.trim() || domain}`,
+    "",
+    `> ${home?.metaDescription?.trim() || `Official website and offerings for ${domain}.`}`,
+    "",
+  ];
+  if (corePages.length > 0) {
+    lines.push("## Core Pages & Offerings", "");
+    corePages.forEach((p) => lines.push(`- [${cleanTitle(p)}](${p.url})${cleanDesc(p.metaDescription)}`));
+    lines.push("");
+  }
+  if (guides.length > 0) {
+    lines.push("## Guides, Articles & FAQs", "");
+    guides.forEach((p) => lines.push(`- [${cleanTitle(p)}](${p.url})${cleanDesc(p.metaDescription)}`));
+    lines.push("");
+  }
+  if (others.length > 0) {
+    lines.push("## Additional Resources", "");
+    others.forEach((p) => lines.push(`- [${cleanTitle(p)}](${p.url})${cleanDesc(p.metaDescription)}`));
+    lines.push("");
+  }
+  return lines.join("\n").trim() + "\n";
+}
+
+function buildFallbackFromPages(
+  domain: string,
+  pages: CrawlPage[],
+  edgeData: {
+    robotsTxtFound: boolean;
+    aiBots: AiReadinessResponse["aiBots"];
+    llmsTxt: { exists: boolean; status: number; preview: string | null };
+  },
+): AiReadinessResponse {
+  const indexable = pages.filter((p) => p.statusCode === 200 && p.indexability !== "NOT_INDEXABLE");
+  const jsDependent = indexable.filter((p) => p.jsRequired);
+  const blindnessPct = indexable.length > 0 ? Math.round((jsDependent.length / indexable.length) * 100) : 0;
+
+  const depthBuckets = { depth0: 0, depth1: 0, depth2: 0, depth3: 0, depth4Plus: 0, unreached: 0 };
+  const moneyTypes = new Set(["HOME", "PRODUCT", "SERVICE", "PRICING", "LOCATION", "CATEGORY"]);
+  const archPages = indexable.map((p) => {
+    const segs = safePath(p.url).split("?")[0].split("/").filter(Boolean).length;
+    const depth = segs;
+    if (depth === 0) depthBuckets.depth0++;
+    else if (depth === 1) depthBuckets.depth1++;
+    else if (depth === 2) depthBuckets.depth2++;
+    else if (depth === 3) depthBuckets.depth3++;
+    else depthBuckets.depth4Plus++;
+    return {
+      url: p.url,
+      title: p.title,
+      pageType: p.pageType || "OTHER",
+      depth,
+      equity: Number((Math.max(0.2, 2.0 - depth * 0.4)).toFixed(2)),
+      isMoney: moneyTypes.has((p.pageType || "").toUpperCase()),
+    };
+  });
+
+  return {
+    domain,
+    robotsTxtFound: edgeData.robotsTxtFound,
+    aiBots: edgeData.aiBots,
+    llmsTxt: {
+      ...edgeData.llmsTxt,
+      generatedTemplate: buildClientLlmsTxt(domain, pages),
+    },
+    jsBlindness: {
+      totalIndexable: indexable.length,
+      jsDependentCount: jsDependent.length,
+      blindnessPct,
+    },
+    schemaCoverage: [],
+    architecture: {
+      depthBuckets,
+      topAuthorityPages: [...archPages].sort((a, b) => b.equity - a.equity).slice(0, 8),
+      starvedMoneyPages: archPages.filter((p) => p.isMoney && p.depth >= 3).slice(0, 8),
+    },
+  };
+}
+
 export function AiReadinessTab({
   jobId,
+  domain,
   pages,
   onInspectPage,
 }: {
   jobId: string | null;
+  domain?: string | null;
   pages: CrawlPage[];
   onInspectPage?: (page: CrawlPage) => void;
 }) {
   const [copiedLlms, setCopiedLlms] = useState(false);
 
   const query = useQuery({
-    queryKey: ["crawl-ai-readiness", jobId],
-    queryFn: () => api.getCrawlAiReadiness(jobId!),
+    queryKey: ["crawl-ai-readiness", jobId, domain],
+    queryFn: async (): Promise<AiReadinessResponse> => {
+      try {
+        return await api.getCrawlAiReadiness(jobId!);
+      } catch {
+        // Fallback when backend container hasn't deployed /ai-readiness yet:
+        // fetch live robots.txt + /llms.txt via Vercel route and derive page metrics from crawled pages.
+        const fallbackDomain =
+          domain ||
+          (() => {
+            try {
+              return pages[0]?.url ? new URL(pages[0].url).hostname : "";
+            } catch {
+              return "";
+            }
+          })();
+        if (!fallbackDomain) {
+          throw new Error("Could not resolve domain for AI readiness check.");
+        }
+        const res = await fetch(`/api/ai-readiness?domain=${encodeURIComponent(fallbackDomain)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error("Could not fetch live robots.txt and llms.txt.");
+        }
+        const edgeData = (await res.json()) as {
+          robotsTxtFound: boolean;
+          aiBots: AiReadinessResponse["aiBots"];
+          llmsTxt: { exists: boolean; status: number; preview: string | null };
+        };
+        return buildFallbackFromPages(fallbackDomain, pages, edgeData);
+      }
+    },
     enabled: Boolean(jobId),
     staleTime: 5 * 60 * 1000,
     retry: false,

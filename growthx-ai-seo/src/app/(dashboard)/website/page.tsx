@@ -495,6 +495,7 @@ function WebsiteAuditClient() {
         {activeTab === "ai-readiness" && (
           <AiReadinessTab
             jobId={crawl.data?.id ?? null}
+            domain={auditDomain}
             pages={allPages}
             onInspectPage={(page) => setXrayPage(page)}
           />
