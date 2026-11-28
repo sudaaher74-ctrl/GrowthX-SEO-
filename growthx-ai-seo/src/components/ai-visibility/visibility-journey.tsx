@@ -392,13 +392,13 @@ function Journey({ projectId }: { projectId: string }) {
     })()}
 
     {/* ── HIGH-LEVEL NAVIGATION TABS: MATRIX vs SERP SIMULATOR vs RAW RESPONSES ── */}
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-200/80 pb-3">
-      <div className="flex flex-wrap items-center gap-2 p-1 rounded-2xl bg-surface-2 border border-brand-200/80 shadow-2xs">
+    <div className="flex flex-col gap-3 border-b border-brand-200/80 pb-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="grid w-full grid-cols-1 gap-1.5 rounded-2xl border border-brand-200/80 bg-surface-2 p-1 shadow-2xs sm:inline-flex sm:w-auto sm:flex-nowrap sm:items-center">
         <button
           type="button"
           onClick={() => handleSelectTab("prompts")}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
             activeTab === "prompts"
               ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
@@ -415,7 +415,7 @@ function Journey({ projectId }: { projectId: string }) {
           type="button"
           onClick={() => handleSelectTab("simulator")}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
             activeTab === "simulator"
               ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
@@ -433,7 +433,7 @@ function Journey({ projectId }: { projectId: string }) {
           type="button"
           onClick={() => handleSelectTab("answers")}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
+            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer",
             activeTab === "answers"
               ? "bg-surface-1 text-brand-950 shadow-xs border border-brand-200 font-extrabold"
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"

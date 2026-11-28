@@ -277,8 +277,12 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
       <MilestoneStepper day={maxObservedDay || 1} totalDays={21} />
 
       {/* 3. Filter Ribbon with View Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-surface-1 p-3 shadow-2xs">
-        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-surface-2/60 p-1" role="tablist" aria-label="Filter results">
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-brand-200 bg-surface-1 p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-brand-200/80 bg-surface-2/60 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Filter results"
+        >
           {(
             [
               { id: "ALL", label: `All Fixes (${count(allCards.length)})` },
@@ -296,7 +300,7 @@ export function AdaptiveResultsHub({ initialFilter = "ALL", compact = false }: A
                 aria-selected={active}
                 onClick={() => setFilter(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
                   active
                     ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "text-brand-500 hover:bg-surface-1 hover:text-brand-950",

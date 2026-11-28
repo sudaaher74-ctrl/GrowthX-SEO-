@@ -243,16 +243,16 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
       {/* Primary Navigation Tabs */}
       <nav
         aria-label="Backlink intelligence navigation"
-        className="flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-surface-1 p-1.5 shadow-2xs"
+        className="grid w-full grid-cols-2 gap-1.5 rounded-xl border border-brand-200/80 bg-surface-1 p-1.5 shadow-2xs sm:grid-cols-3 lg:grid-cols-6"
       >
         {(
           [
             { id: 'overview', label: 'Overview' },
-            { id: 'link-gap', label: 'Competitor Link Gap' },
-            { id: 'outreach', label: 'Lost-Link Recovery & Outreach' },
-            { id: 'recommendations', label: 'Opportunities & Actions' },
-            { id: 'explorer', label: 'Profile & reports' },
-            { id: 'evidence', label: 'Source checks' },
+            { id: 'link-gap', label: 'Link Gap' },
+            { id: 'outreach', label: 'Recovery & Outreach' },
+            { id: 'recommendations', label: 'Opportunities' },
+            { id: 'explorer', label: 'Profile & Reports' },
+            { id: 'evidence', label: 'Source Checks' },
           ] as const
         ).map((item) => {
           const isActive = tab === item.id;
@@ -263,7 +263,7 @@ function ProjectBacklinks({ projectId }: { projectId: string }) {
               aria-pressed={isActive}
               onClick={() => setTab(item.id)}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                "w-full min-w-0 truncate rounded-lg px-2.5 py-2 text-center text-xs font-semibold transition-all cursor-pointer",
                 isActive
                   ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",

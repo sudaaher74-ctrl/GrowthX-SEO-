@@ -443,12 +443,12 @@ export function IssuesTab({ issues, onInspectUrl }: IssuesTabProps) {
 
                       {/* 5-Platform Step-by-Step Solution */}
                       <div className="rounded-xl border border-brand-200/70 bg-surface-1 p-4 space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-xs font-bold text-brand-950">Step-by-step solution</p>
                           <div
                             role="tablist"
                             aria-label="Choose website platform"
-                            className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-brand-200/70 bg-surface-2 p-1 text-[11px]"
+                            className="inline-flex max-w-full shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-brand-200/70 bg-surface-2 p-1 text-[11px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                           >
                             {GUIDE_PLATFORMS.map((p) => (
                               <button
@@ -458,7 +458,7 @@ export function IssuesTab({ issues, onInspectUrl }: IssuesTabProps) {
                                 aria-selected={platform === p.id}
                                 onClick={() => handleSelectPlatform(p.id)}
                                 className={cn(
-                                  "rounded-lg px-2 py-1 font-semibold transition cursor-pointer",
+                                  "shrink-0 whitespace-nowrap rounded-lg px-2 py-1 font-semibold transition cursor-pointer",
                                   platform === p.id
                                     ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
                                     : "text-brand-600 hover:text-brand-950",

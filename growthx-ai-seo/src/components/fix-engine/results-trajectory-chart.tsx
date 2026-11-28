@@ -215,10 +215,10 @@ export function ResultsTrajectoryChart({
   return (
     <div className="space-y-4 rounded-2xl border border-brand-200 bg-surface-1 p-5 shadow-2xs">
       {/* 5-Pillar Navigation Bar */}
-      <div className="flex flex-col justify-between gap-3 border-b border-brand-200/80 pb-4 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-3.5 border-b border-brand-200/80 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-xs">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-xs">
               <Activity size={15} />
             </span>
             <h2 className="text-[14.5px] font-bold text-brand-950 flex items-center gap-2">
@@ -234,41 +234,45 @@ export function ResultsTrajectoryChart({
           </p>
         </div>
 
-        {/* Pillar Switcher Buttons */}
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Impact Pillars">
+        {/* Full-Width Evenly-Spaced 5-Pillar Switcher */}
+        <div
+          className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"
+          role="tablist"
+          aria-label="Impact Pillars"
+        >
           {[
             {
               id: "GSC" as const,
               label: "Search Console",
-              icon: <Globe size={13} />,
+              icon: <Globe size={13} className="shrink-0" />,
               badge: isGscConnected ? "Live GSC" : "Connect",
               tone: isGscConnected ? "good" : "neutral",
             },
             {
               id: "GA4" as const,
               label: "GA4 Traffic",
-              icon: <BarChart3 size={13} />,
+              icon: <BarChart3 size={13} className="shrink-0" />,
               badge: isGa4Connected ? "Live GA4" : "Connect",
               tone: isGa4Connected ? "good" : "neutral",
             },
             {
               id: "AI_VISIBILITY" as const,
               label: "AI Visibility",
-              icon: <Bot size={13} />,
-              badge: `${visibility?.summary?.citationSharePct ?? 0}% Citations`,
+              icon: <Bot size={13} className="shrink-0" />,
+              badge: `${visibility?.summary?.citationSharePct ?? 0}%`,
               tone: "neutral",
             },
             {
               id: "WEBSITE_AUDIT" as const,
               label: "Website Audit",
-              icon: <ShieldCheck size={13} />,
-              badge: crawl?.healthScore != null ? `${crawl.healthScore}/100` : "Audit Ready",
+              icon: <ShieldCheck size={13} className="shrink-0" />,
+              badge: crawl?.healthScore != null ? `${crawl.healthScore}/100` : "Ready",
               tone: "good",
             },
             {
               id: "COMPETITORS" as const,
               label: "Competitors",
-              icon: <Compass size={13} />,
+              icon: <Compass size={13} className="shrink-0" />,
               badge: `${competitors.length} Rivals`,
               tone: "neutral",
             },
@@ -282,17 +286,19 @@ export function ResultsTrajectoryChart({
                 aria-selected={active}
                 onClick={() => setActivePillar(pillar.id)}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer border",
+                  "flex w-full min-w-0 items-center justify-between gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition cursor-pointer",
                   active
                     ? "border-signal-400/80 bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "border-brand-200 bg-surface-2 text-brand-600 hover:text-brand-950 hover:bg-surface-1",
                 )}
               >
-                {pillar.icon}
-                <span>{pillar.label}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {pillar.icon}
+                  <span className="truncate">{pillar.label}</span>
+                </span>
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-[10px] font-bold font-mono",
+                    "shrink-0 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold font-mono",
                     active
                       ? "bg-black/20 text-signal-ink"
                       : pillar.tone === "good"

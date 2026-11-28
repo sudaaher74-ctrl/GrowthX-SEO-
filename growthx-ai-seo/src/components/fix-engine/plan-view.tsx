@@ -313,8 +313,8 @@ export function PlanView({
 
       {/* Main Action Plan Container */}
       <section className="overflow-hidden rounded-2xl border border-brand-200/80 bg-surface-1 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-100 px-5 py-4">
-          <div>
+        <div className="flex flex-col gap-3 border-b border-brand-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-brand-950">
               Step-by-step action plan ({visibleItems.length})
             </h2>
@@ -326,7 +326,7 @@ export function PlanView({
           <div
             role="tablist"
             aria-label="Filter by fix type"
-            className="inline-flex flex-wrap items-center gap-1 text-[11.5px]"
+            className="inline-flex max-w-full shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-brand-200/80 bg-surface-2/70 p-1 text-[11.5px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {(
               [
@@ -343,10 +343,10 @@ export function PlanView({
                 aria-selected={difficultyFilter === f.id}
                 onClick={() => setDifficultyFilter(f.id)}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer",
+                  "shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer",
                   difficultyFilter === f.id
                     ? "bg-signal-400 text-signal-ink font-bold shadow-2xs"
-                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-950",
+                    : "text-brand-500 hover:bg-surface-1 hover:text-brand-950",
                 )}
               >
                 {f.label}

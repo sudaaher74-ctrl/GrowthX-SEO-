@@ -172,7 +172,7 @@ export function CompetitorBenchmarkChart({
         <div
           role="tablist"
           aria-label="Comparison metric"
-          className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-brand-200/80 bg-brand-50 p-0.5 self-start sm:self-auto"
+          className="inline-flex max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg border border-brand-200/80 bg-brand-50 p-0.5 self-start sm:self-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {availableMetrics.map((m) => {
             const active = m.id === activeMetric.id;
