@@ -4,6 +4,7 @@ import { JobStatus, } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
+import { FetcherService } from './fetcher.service';
 import { SecurityService } from '../security/security.service';
 import { HistoryService } from '../history/history.service';
 import { GraphService } from '../graph/graph.service';
@@ -81,6 +82,7 @@ export class CrawlController {
     private readonly quotaService: SubscriptionQuotaService,
     private readonly verificationEngine: VerificationEngineService,
     private readonly urlInventory: UrlInventoryService,
+    private readonly fetcherService: FetcherService,
   ) {}
 
   /**
@@ -1160,6 +1162,38 @@ export class CrawlController {
         topAuthorityPages,
         starvedMoneyPages,
       },
+    };
+  }
+
+  /**
+   * Renders a public URL using headless Playwright Chromium (with SSRF guard)
+   * and returns the fully hydrated DOM HTML so the Visual Before/After Preview
+   * can display and live-patch client-side React/Vite/Next.js SPAs at 100% fidelity.
+   */
+  @Get('crawl/render-snapshot')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Render a public webpage via Playwright for Visual Before/After Preview' })
+  @ApiQuery({ name: 'url', required: true, type: String })
+  async getRenderedVisualSnapshot(@Query('url') rawUrl: string) {
+    const trimmed = (rawUrl || '').trim();
+    if (!trimmed || !/^https?:\/\//i.test(trimmed)) {
+      throw new BadRequestException('A valid http(s) URL is required.');
+    }
+
+    const result = await this.fetcherService.fetchPage(trimmed, true);
+    if (!result.html || result.statusCode >= 400) {
+      throw new HttpException(
+        result.errorMessage || `Could not render URL (HTTP ${result.statusCode || 502}).`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    return {
+      url: result.finalUrl || trimmed,
+      engine: result.engine,
+      statusCode: result.statusCode,
+      html: result.html.slice(0, 1_500_000),
     };
   }
 }

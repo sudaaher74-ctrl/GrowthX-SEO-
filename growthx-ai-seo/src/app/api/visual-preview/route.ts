@@ -48,6 +48,8 @@ function countMissingAltImages(html: string): number {
  */
 function sanitizeForVisualPreview(rawHtml: string, baseOrigin: string): string {
   let html = rawHtml
+    // Ensure deferred font/CSS stylesheets (media="print" onload="this.media='all'") stay active without JS
+    .replace(/(<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*)\bmedia\s*=\s*["']print["']/gi, '$1media="all"')
     // Remove script tags and inline event handlers
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
@@ -64,6 +66,35 @@ function sanitizeForVisualPreview(rawHtml: string, baseOrigin: string): string {
     html = `<!doctype html><html><head>${baseTag}</head><body>${html}</body></html>`;
   }
   return html;
+}
+
+function isFrameBlockedByHeaders(headers: Headers): boolean {
+  const xfo = (headers.get("x-frame-options") || "").toUpperCase();
+  if (xfo.includes("DENY") || xfo.includes("SAMEORIGIN")) return true;
+  const csp = (headers.get("content-security-policy") || "").toLowerCase();
+  const faMatch = csp.match(/frame-ancestors\s+([^;]+)/);
+  if (faMatch) {
+    const val = faMatch[1].trim();
+    if (val === "'none'" || val === "'self'" || (!val.includes("*") && !val.includes("reigel.in"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function detectClientSideSpa(rawHtml: string, sanitizedHtml: string): boolean {
+  const bodyMatch = sanitizedHtml.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+  const bodyHtml = bodyMatch?.[1] || "";
+  const bodyTextLen = stripHtmlTags(bodyHtml).length;
+  if (bodyTextLen < 120) return true;
+
+  // Detect Vite / React / Vue / Angular SPA shells that only contain a bare fallback list inside #root/#app
+  const hasSpaRoot = /<div\b[^>]*id\s*=\s*["'](root|app|__nuxt)["'][^>]*>/i.test(rawHtml);
+  const hasModuleScript = /<script\b[^>]*type\s*=\s*["']module["'][^>]*>/i.test(rawHtml);
+  const hasVisualLayout = /<(img|picture|svg|header|nav|section|footer)\b/i.test(bodyHtml);
+  if (hasSpaRoot && hasModuleScript && !hasVisualLayout) return true;
+
+  return false;
 }
 
 export async function GET(req: NextRequest) {
@@ -95,17 +126,50 @@ export async function GET(req: NextRequest) {
     const rawHtml = (await upstream.text()).slice(0, 1_200_000);
     const finalUrl = upstream.url || targetUrl.toString();
     const origin = new URL(finalUrl).origin;
-    const sanitizedHtml = sanitizeForVisualPreview(rawHtml, origin);
+    const canEmbedLive = !isFrameBlockedByHeaders(upstream.headers);
+
+    let sanitizedHtml = sanitizeForVisualPreview(rawHtml, origin);
+    let isJsShell = detectClientSideSpa(rawHtml, sanitizedHtml);
+    let renderSource: "ssr-html" | "playwright" | "live-iframe" = isJsShell
+      ? canEmbedLive
+        ? "live-iframe"
+        : "ssr-html"
+      : "ssr-html";
+
+    // If client-side SPA, try backend Playwright renderer first for a 100% rendered DOM snapshot
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "https://api.reigel.in").replace(/\/+$/, "");
+    if (isJsShell && apiBase) {
+      try {
+        const snapRes = await fetch(
+          `${apiBase}/api/crawl/render-snapshot?url=${encodeURIComponent(finalUrl)}`,
+          {
+            headers: {
+              ...(req.headers.get("authorization")
+                ? { authorization: req.headers.get("authorization")! }
+                : {}),
+              ...(req.headers.get("cookie") ? { cookie: req.headers.get("cookie")! } : {}),
+            },
+            cache: "no-store",
+            signal: AbortSignal.timeout(9000),
+          },
+        );
+        if (snapRes.ok) {
+          const snapData = (await snapRes.json()) as { html?: string };
+          if (snapData?.html && snapData.html.length > 500) {
+            sanitizedHtml = sanitizeForVisualPreview(snapData.html, origin);
+            isJsShell = false;
+            renderSource = "playwright";
+          }
+        }
+      } catch {
+        // Backend Playwright snapshot unavailable — seamlessly fall back to live iframe embedding
+      }
+    }
 
     const originalTitle = extractFirstTagText(sanitizedHtml, "title");
     const originalH1 = extractFirstTagText(sanitizedHtml, "h1");
     const originalParagraph = extractFirstTagText(sanitizedHtml, "p");
     const missingAltCount = countMissingAltImages(sanitizedHtml);
-
-    // Detect if the raw HTML is an unhydrated JS shell (very little visible body text)
-    const bodyMatch = sanitizedHtml.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
-    const bodyTextLen = bodyMatch ? stripHtmlTags(bodyMatch[1]).length : 0;
-    const isJsShell = bodyTextLen < 120;
 
     return NextResponse.json(
       {
@@ -116,6 +180,8 @@ export async function GET(req: NextRequest) {
         originalParagraph,
         missingAltCount,
         isJsShell,
+        canEmbedLive,
+        renderSource,
         sanitizedHtml,
       },
       { headers: { "Cache-Control": "no-store" } },

@@ -7,11 +7,13 @@ import {
   ChevronRight,
   Clock,
   Download,
+  Eye,
   Globe,
   Layers,
   RefreshCw,
   UserCheck,
   Wrench,
+  X,
 } from "lucide-react";
 import { PLAN_SOURCES } from "@/lib/plan-sources";
 import { ActionButton, Pill, StatusNote } from "@/components/ui/console";
@@ -19,6 +21,7 @@ import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful
 import { CmsApplyModal } from "@/components/fix-engine/cms-apply-modal";
 import { BatchFixModal } from "@/components/fix-engine/batch-fix-modal";
 import { IssueSolutionGuide } from "@/components/fix-engine/issue-solution-guide";
+import { VisualFixPreview } from "@/components/visual-preview/visual-fix-preview";
 import {
   useFindings,
   useTransitionFinding,
@@ -79,6 +82,7 @@ export function PlanView({
   const [group, setGroup] = useState<string>("ALL");
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>("ALL");
   const [cmsFinding, setCmsFinding] = useState<GrowthOpportunity | null | undefined>(undefined);
+  const [previewFinding, setPreviewFinding] = useState<GrowthOpportunity | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
 
@@ -391,6 +395,7 @@ export function PlanView({
                 }
                 onOpenCmsApply={canAutoApply && f.fixClass !== "MANUAL" ? () => setCmsFinding(f) : undefined}
                 onOpenContentStudio={onOpenContentStudio ? () => onOpenContentStudio(f) : undefined}
+                onOpenVisualPreview={domain || f.affectedPages?.[0] ? () => setPreviewFinding(f) : undefined}
               />
             ))}
           </ul>
@@ -402,6 +407,42 @@ export function PlanView({
           </p>
         )}
       </section>
+
+      {previewFinding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-brand-200 px-5 py-3.5">
+              <div className="min-w-0">
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-brand-400">
+                  Visual Before / After Preview
+                </p>
+                <h2 className="truncate text-sm font-bold text-brand-950">{previewFinding.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewFinding(null)}
+                aria-label="Close visual preview"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-brand-200 text-brand-500 hover:bg-brand-100 hover:text-brand-950 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              <VisualFixPreview
+                url={
+                  previewFinding.affectedPages?.[0] && /^https?:\/\//i.test(previewFinding.affectedPages[0])
+                    ? previewFinding.affectedPages[0]
+                    : domain
+                      ? `https://${domain.replace(/^https?:\/\//i, "")}`
+                      : ""
+                }
+                initialProposedH1={previewFinding.title}
+                initialProposedParagraph={previewFinding.recommendedAction}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {cmsFinding !== undefined && (
         <CmsApplyModal
@@ -442,6 +483,7 @@ function FindingRow({
   onOpenGitHubFixes,
   onOpenCmsApply,
   onOpenContentStudio,
+  onOpenVisualPreview,
 }: {
   finding: GrowthOpportunity;
   guideDifficulty: "no_code" | "cms_or_dev" | "developer";
@@ -456,6 +498,7 @@ function FindingRow({
   onOpenGitHubFixes?: () => void;
   onOpenCmsApply?: () => void;
   onOpenContentStudio?: () => void;
+  onOpenVisualPreview?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const group = groupOf(f.source);
@@ -529,6 +572,18 @@ function FindingRow({
             </span>
           </div>
         </button>
+
+        {onOpenVisualPreview && (
+          <button
+            type="button"
+            onClick={onOpenVisualPreview}
+            title="Preview this fix visually on your live website"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-200 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:border-signal-400 hover:bg-signal-400/10 hover:text-brand-950 transition cursor-pointer"
+          >
+            <Eye size={12} className="text-primary-600" />
+            <span className="hidden sm:inline">Visual Preview</span>
+          </button>
+        )}
       </div>
 
       {open && (

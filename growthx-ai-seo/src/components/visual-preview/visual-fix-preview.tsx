@@ -34,6 +34,8 @@ interface VisualPreviewPayload {
   originalParagraph: string | null;
   missingAltCount: number;
   isJsShell: boolean;
+  canEmbedLive?: boolean;
+  renderSource?: "ssr-html" | "playwright" | "live-iframe";
   sanitizedHtml: string;
 }
 
@@ -44,7 +46,7 @@ export function VisualFixPreview({
   initialProposedParagraph,
   compact = false,
 }: VisualPreviewProps) {
-  const [mode, setMode] = useState<PreviewMode>("after");
+  const [mode, setMode] = useState<PreviewMode>(compact ? "after" : "split");
   const [viewport, setViewport] = useState<ViewportMode>("desktop");
   const [proposedTitle, setProposedTitle] = useState(initialProposedTitle || "");
   const [proposedH1, setProposedH1] = useState(initialProposedH1 || "");
@@ -262,18 +264,18 @@ export function VisualFixPreview({
         </div>
       ) : data ? (
         <div className="space-y-2.5">
-          {data.isJsShell && (
-            <div className="flex items-start gap-2 rounded-xl border border-warning-200 bg-warning-50/60 px-3.5 py-2.5 text-[11.5px] text-warning-800">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning-600" />
+          {data.renderSource === "live-iframe" && (
+            <div className="flex items-start gap-2 rounded-xl border border-brand-200 bg-surface-2/70 px-3.5 py-2 text-[11.5px] text-brand-700">
+              <Sparkles size={13} className="mt-0.5 shrink-0 text-signal-500" />
               <span>
-                <strong>Client-Side SPA Detected:</strong> {domainLabel} renders its hero layout via client-side JavaScript.
-                The sandboxed preview disables scripts for security; full Playwright-rendered visual snapshots activate automatically once your backend crawl snapshot is connected.
+                <strong>Live Full-Site Mode:</strong> Rendering the complete original website for{" "}
+                <strong className="text-brand-950">{domainLabel}</strong> with Reigel&apos;s proposed Before/After edits overlaid live.
               </span>
             </div>
           )}
 
           {/* Realistic Browser Frame */}
-          <div className={cn("grid gap-3", mode === "split" ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1")}>
+          <div className={cn("grid gap-3", mode === "split" ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1")}>
             {(mode === "before" || mode === "split") && (
               <div className="overflow-hidden rounded-2xl border border-brand-200 bg-surface-1 shadow-card">
                 <div className="flex items-center gap-2 border-b border-brand-200 bg-surface-2 px-3 py-2 text-[11px]">
@@ -285,15 +287,27 @@ export function VisualFixPreview({
                   </span>
                 </div>
                 <div className="flex justify-center bg-brand-100/50 p-2">
-                  <iframe
-                    title={`Before preview of ${domainLabel}`}
-                    sandbox="allow-same-origin"
-                    srcDoc={beforeHtml}
-                    className={cn(
-                      "rounded-lg border border-brand-200 bg-white transition-all",
-                      viewport === "mobile" ? "w-[390px] h-[560px]" : "w-full h-[540px]",
-                    )}
-                  />
+                  {data.renderSource === "live-iframe" && data.canEmbedLive ? (
+                    <iframe
+                      title={`Before live preview of ${domainLabel}`}
+                      src={data.url}
+                      referrerPolicy="no-referrer"
+                      className={cn(
+                        "rounded-lg border border-brand-200 bg-white transition-all",
+                        viewport === "mobile" ? "w-[390px] h-[600px]" : "w-full h-[600px]",
+                      )}
+                    />
+                  ) : (
+                    <iframe
+                      title={`Before preview of ${domainLabel}`}
+                      sandbox="allow-same-origin"
+                      srcDoc={beforeHtml}
+                      className={cn(
+                        "rounded-lg border border-brand-200 bg-white transition-all",
+                        viewport === "mobile" ? "w-[390px] h-[600px]" : "w-full h-[600px]",
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -314,15 +328,70 @@ export function VisualFixPreview({
                   )}
                 </div>
                 <div className="flex justify-center bg-brand-100/50 p-2">
-                  <iframe
-                    title={`After preview of ${domainLabel}`}
-                    sandbox="allow-same-origin"
-                    srcDoc={afterHtml}
-                    className={cn(
-                      "rounded-lg border border-brand-200 bg-white transition-all",
-                      viewport === "mobile" ? "w-[390px] h-[560px]" : "w-full h-[540px]",
-                    )}
-                  />
+                  {data.renderSource === "live-iframe" && data.canEmbedLive ? (
+                    <div
+                      className={cn(
+                        "relative overflow-hidden rounded-lg border border-brand-200 bg-white transition-all",
+                        viewport === "mobile" ? "w-[390px] h-[600px]" : "w-full h-[600px]",
+                      )}
+                    >
+                      <iframe
+                        title={`After live preview of ${domainLabel}`}
+                        src={data.url}
+                        referrerPolicy="no-referrer"
+                        className="h-full w-full bg-white"
+                      />
+                      {/* Live Visual Change Overlay pinned onto the real website */}
+                      {(proposedH1.trim() || proposedParagraph.trim() || injectFaq) && (
+                        <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-col gap-2">
+                          {(proposedH1.trim() || proposedParagraph.trim()) && (
+                            <div className="pointer-events-auto rounded-xl border-2 border-success-500 bg-surface-1/95 p-3 shadow-lg backdrop-blur-sm">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success-600 px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-white">
+                                  <Sparkles size={9} />
+                                  <span>Live Change Applied on {domainLabel}</span>
+                                </span>
+                                {titleChanged && (
+                                  <span className="font-mono text-[10px] font-semibold text-success-700">
+                                    SEO Title ✓
+                                  </span>
+                                )}
+                              </div>
+                              {proposedH1.trim() && (
+                                <p className="text-sm font-bold text-brand-950 leading-snug">
+                                  <span className="mr-1.5 font-mono text-[10px] font-bold uppercase text-success-700">H1:</span>
+                                  {proposedH1.trim()}
+                                </p>
+                              )}
+                              {proposedParagraph.trim() && (
+                                <p className="mt-1 text-xs text-brand-700 leading-relaxed line-clamp-2">
+                                  {proposedParagraph.trim()}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {injectFaq && (
+                            <div className="pointer-events-auto rounded-xl border border-success-500/70 bg-success-50/95 px-3 py-2 shadow-md backdrop-blur-sm text-[11px] text-success-900">
+                              <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-success-700">
+                                + New Section Added:
+                              </span>{" "}
+                              <strong>Quick Answers &amp; FAQPage JSON-LD Block</strong> injected below the fold for Google &amp; AI citations.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <iframe
+                      title={`After preview of ${domainLabel}`}
+                      sandbox="allow-same-origin"
+                      srcDoc={afterHtml}
+                      className={cn(
+                        "rounded-lg border border-brand-200 bg-white transition-all",
+                        viewport === "mobile" ? "w-[390px] h-[600px]" : "w-full h-[600px]",
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             )}
