@@ -217,15 +217,15 @@ function WebsiteAuditClient() {
   const headerContent = {
     "technical-seo": {
       title: "Technical Health",
-      subtitle: "Crawl issues, root-cause clusters, indexability status, and technical blockers.",
+      subtitle: "Crawl health, indexability, and technical diagnostics.",
     },
     "ai-readiness": {
       title: "AI Search & Link Architecture",
-      subtitle: "AI crawler permissions (robots.txt), 1-click /llms.txt generator, JS-blindness, and internal link equity.",
+      subtitle: "AI crawler access, /llms.txt generator, and internal link equity.",
     },
     performance: {
       title: "Speed & Vitals",
-      subtitle: "Page speed metrics, Core Web Vitals, and load times.",
+      subtitle: "Core Web Vitals and page load speed.",
     },
     pages: {
       title: "Pages",
@@ -263,31 +263,27 @@ function WebsiteAuditClient() {
 
         {/* Main Title & Action Buttons Row */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-1">
-          <div className="space-y-1.5 min-w-0">
+          <div className="space-y-1 min-w-0">
             <h1 className="text-2xl font-bold tracking-tight text-brand-950">
               {headerContent.title}
             </h1>
-            <p className="text-xs text-brand-400 max-w-2xl leading-relaxed">
+            <p className="text-[13px] text-brand-500">
               {headerContent.subtitle}
             </p>
             {crawl.data?.finishedAt && (
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-brand-400 pt-0.5">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" />
-                <span className="font-medium text-brand-300">
-                  Last checked: {formatRelativeTime(crawl.data.finishedAt)}
+              <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11.5px] text-brand-500">
+                <span className="inline-flex items-center gap-1.5 font-medium text-brand-700">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" />
+                  Audited {formatRelativeTime(crawl.data.finishedAt)}
                 </span>
-                <span className="text-brand-400">·</span>
-                <span>{totalPages.toLocaleString()} / {crawlCap.toLocaleString()} pages</span>
-                <span className="text-brand-400">·</span>
-                <span>
-                  {counts
-                    ? `${counts.openGroups} problem type${counts.openGroups === 1 ? "" : "s"} · ${issues.data?.meta.total ?? counts.openFindings} findings`
-                    : "counting…"}
-                </span>
-                {crawlDuration && (
+                <span className="text-brand-300">·</span>
+                <span className="font-mono text-brand-700">{totalPages.toLocaleString()} pages</span>
+                {counts && (
                   <>
-                    <span className="text-brand-400">·</span>
-                    <span>Completed in {crawlDuration}</span>
+                    <span className="text-brand-300">·</span>
+                    <span className="font-mono text-brand-700">
+                      {counts.openGroups} {counts.openGroups === 1 ? "issue" : "issues"}
+                    </span>
                   </>
                 )}
               </div>
@@ -302,7 +298,7 @@ function WebsiteAuditClient() {
                 onClick={handleStopCrawl}
                 disabled={cancelCrawl.isPending}
                 aria-label="Stop crawling this website"
-                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-error-200 bg-error-50 px-3.5 py-1.5 text-xs font-bold text-error-700 hover:bg-error-100 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-error-200 bg-error-50 px-3.5 py-1.5 text-xs font-bold text-error-700 hover:bg-error-100 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {cancelCrawl.isPending ? <Loader2 size={13} className="animate-spin" /> : <Square size={12} fill="currentColor" />}
                 <span>{cancelCrawl.isPending ? "Stopping…" : "Stop crawl"}</span>
@@ -312,25 +308,16 @@ function WebsiteAuditClient() {
                 type="button"
                 onClick={handleReCrawl}
                 disabled={crawling || !auditDomain}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
               >
                 <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
-                <span>{crawling ? "Starting…" : "Check my website again"}</span>
+                <span>{crawling ? "Starting…" : "Re-audit website"}</span>
               </button>
             )}
 
             <Link
-              href="/settings?tab=subscription"
-              title="Click to view subscription plan & crawl capacity limits"
-              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/80 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-surface-3 transition"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-signal-400" />
-              <span>Cap: {crawlCap.toLocaleString()} URLs ({plan?.name ?? "Active Plan"})</span>
-            </Link>
-
-            <Link
               href="/fix-engine"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:border-brand-300 hover:bg-brand-100 active:scale-95 transition-all"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/80 bg-surface-1 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:border-brand-300 hover:bg-brand-50 active:scale-95 transition-all"
             >
               <Zap size={13} className="text-warning-500 fill-warning-500" />
               <span>{canUseFixEngine ? "Open Fix Engine" : "Open Action Plan"}</span>
