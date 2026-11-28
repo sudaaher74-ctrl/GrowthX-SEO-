@@ -50,6 +50,7 @@ export function CompetitorBenchmarkChart({
   yourDomain,
   yourHealth,
   yourPages,
+  yourAiSharePct,
   youSite,
   rivals,
   sites,
@@ -58,6 +59,7 @@ export function CompetitorBenchmarkChart({
   yourDomain: string;
   yourHealth: number | null;
   yourPages: number | null;
+  yourAiSharePct?: number | null;
   youSite?: CompetitorWebsite | null;
   rivals: TrackedCompetitor[];
   sites: CompetitorWebsite[];
@@ -72,7 +74,7 @@ export function CompetitorBenchmarkChart({
       pages: yourPages,
       pageTypes: youSite?.pageTypes?.length ? youSite.pageTypes.length : null,
       reviews: youSite?.reviewCount ?? null,
-      aiCitations: null as number | null,
+      aiCitations: yourAiSharePct != null ? Math.round(yourAiSharePct) : null,
     };
 
     const rivalRows = rivals.map((c) => {
@@ -97,7 +99,7 @@ export function CompetitorBenchmarkChart({
     });
 
     return [youRow, ...rivalRows];
-  }, [yourBrand, yourDomain, yourHealth, yourPages, youSite, rivals, sites]);
+  }, [yourBrand, yourDomain, yourHealth, yourPages, yourAiSharePct, youSite, rivals, sites]);
 
   const availableMetrics = useMemo(() => {
     return METRICS.filter((m) =>

@@ -53,6 +53,13 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
     staleTime: 60 * 1000,
     retry: false,
   });
+  const liveFacts = useQuery({
+    queryKey: ["rival-advantages", projectId],
+    queryFn: () => api.getRivalAdvantages(projectId),
+    enabled: Boolean(projectId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
   const data = report.data ?? saved.data ?? undefined;
 
   const printReport = (r: CompetitorIntelReport) => {
@@ -119,6 +126,78 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
           </div>
         )}
       </Panel>
+
+      {!data && liveFacts.data && liveFacts.data.rivals.length > 0 && (() => {
+        const rivals = liveFacts.data.rivals;
+        const missingTopicsTotal = rivals.reduce((s, r) => s + (r.advantages?.missingTopicsTotal ?? 0), 0);
+        const missingSchemas = Array.from(
+          new Set(
+            rivals.flatMap((r) =>
+              (r.advantages?.schema ?? []).filter((s) => s.them > 0 && s.you === 0).map((s) => s.type),
+            ),
+          ),
+        );
+        const topTopics = rivals
+          .flatMap((r) => (r.advantages?.missingTopics ?? []).slice(0, 2).map((t) => ({ ...t, rival: r.name })))
+          .slice(0, 6);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Rivals Benchmarked</p>
+                <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{rivals.length}</p>
+                <p className="mt-1 text-[11px] text-brand-500">Live crawl facts ready</p>
+              </div>
+              <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Missing Topic Pages</p>
+                <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{missingTopicsTotal.toLocaleString()}</p>
+                <p className="mt-1 text-[11px] text-brand-500">Topics rivals cover that you lack</p>
+              </div>
+              <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">Missing Schema Types</p>
+                <p className="mt-1.5 font-mono text-2xl font-black text-brand-950">{missingSchemas.length}</p>
+                <p className="mt-1 text-[11px] text-brand-500 truncate">
+                  {missingSchemas.length ? missingSchemas.slice(0, 3).join(", ") : "Matched on schema"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-400">AI Narrative Plan</p>
+                <p className="mt-1.5 text-sm font-bold text-brand-950">Ready to Generate</p>
+                <p className="mt-1 text-[11px] text-brand-500">Click Generate report for 4-week plan &amp; PDF</p>
+              </div>
+            </div>
+
+            {topTopics.length > 0 && (
+              <Panel
+                title="Instant Crawl Snapshot: Top Missing Topics"
+                subtitle="Live measured highlights from completed crawls. Generate the full report above for the complete 4-week action plan, JSON-LD code templates, and PDF export."
+                padded
+              >
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {topTopics.map((t) => (
+                    <a
+                      key={t.url}
+                      href={t.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-brand-200/70 bg-surface-2/50 px-3.5 py-2.5 hover:border-brand-300 hover:bg-brand-50 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-brand-950">{t.title}</p>
+                        <p className="text-[11px] text-brand-500">
+                          {t.rival} · {t.wordCount.toLocaleString()} words
+                        </p>
+                      </div>
+                      <ExternalLink size={12} className="shrink-0 text-brand-400" />
+                    </a>
+                  ))}
+                </div>
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
 
       {data && (() => {
         const totalMissingTopics = data.facts.rivals.reduce((sum, r) => sum + (r.advantages?.missingTopicsTotal ?? 0), 0);

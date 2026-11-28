@@ -23,6 +23,8 @@ export interface GapItem {
   example?: { label: string; url: string };
   /** What to build, step by step. */
   steps: string[];
+  /** Optional measured side-by-side comparison for visual bars. */
+  compare?: { you: number; them: number; unit: string };
   /** Bigger gaps first. */
   weight: number;
 }
@@ -153,6 +155,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
           "Give each page its own clear title and helpful details, not the same text copied with a name changed.",
           "Link them together from one overview page.",
         ],
+        compare: { you: t.you, them: t.them, unit: kind.many },
         weight: 70 + (t.them - t.you),
       });
     });
@@ -173,6 +176,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
           "Add a short questions-and-answers section to your main pages, each question as a heading with a 2-3 sentence answer.",
           "Answer honestly and specifically: prices, areas you serve, timings.",
         ],
+        compare: { you: a.questions.yourCount, them: a.questions.theirCount, unit: "questions" },
         weight: 50 + (a.questions.theirCount - a.questions.yourCount),
       });
     }
@@ -192,6 +196,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
           "Most website builders and plugins (for example Yoast or Rank Math on WordPress) can add this without coding.",
           "Check it afterwards with Google's free Rich Results Test.",
         ],
+        compare: { you: s.you, them: s.them, unit: "pages" },
         weight: 40 + s.them - s.you,
       });
     });
@@ -212,6 +217,7 @@ export function buildGapItems(rivals: IntelReportRival[], clusters: Programmatic
             ? `They have ${plural(d.theirLongPages, "in-depth page", "in-depth pages")} of 1,000+ words; you have ${d.yourLongPages}. Write one in-depth guide on your main service.`
             : "Keep every addition genuinely useful; do not pad pages with filler.",
         ],
+        compare: { you: d.yourMedianWords, them: d.theirMedianWords, unit: "median words" },
         weight: 45,
       });
     }

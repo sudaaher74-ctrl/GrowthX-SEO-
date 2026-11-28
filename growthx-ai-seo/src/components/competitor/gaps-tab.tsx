@@ -23,6 +23,8 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  Info,
+  Search,
 } from "lucide-react";
 import { useProgrammaticMatrix, useWorkspace } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
@@ -180,6 +182,8 @@ export function GapsTab({
   const searchParams = useSearchParams();
   const initialRival = searchParams.get("rival") || "all";
   const [rivalFilter, setRivalFilter] = useState<string>(initialRival);
+  const [kindFilter, setKindFilter] = useState<GapKind | "all">("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<GapKind>>(new Set());
   const [planFor, setPlanFor] = useState<GapItem | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -211,10 +215,23 @@ export function GapsTab({
 
   const rivals = useMemo(() => facts.data?.rivals ?? [], [facts.data]);
   const items = useMemo(() => buildGapItems(rivals, series.data?.clusters ?? []), [rivals, series.data]);
-  const shown = rivalFilter === "all" ? items : items.filter((i) => i.rivalDomain === rivalFilter);
+  const rivalScoped = rivalFilter === "all" ? items : items.filter((i) => i.rivalDomain === rivalFilter);
+  const shown = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return rivalScoped.filter((i) => {
+      if (kindFilter !== "all" && i.kind !== kindFilter) return false;
+      if (!q) return true;
+      return (
+        i.headline.toLowerCase().includes(q) ||
+        i.why.toLowerCase().includes(q) ||
+        i.rival.toLowerCase().includes(q) ||
+        (i.example?.url || "").toLowerCase().includes(q)
+      );
+    });
+  }, [rivalScoped, kindFilter, searchQuery]);
   const waiting = rivals.filter((r) => !r.advantages).map((r) => r.name);
 
-  const count = (kind: GapKind) => shown.filter((i) => i.kind === kind).length;
+  const count = (kind: GapKind) => rivalScoped.filter((i) => i.kind === kind).length;
   const topicsMissing = rivals
     .filter((r) => rivalFilter === "all" || r.domain === rivalFilter)
     .reduce((n, r) => n + (r.advantages?.missingTopics.length ?? 0), 0);
@@ -429,13 +446,65 @@ export function GapsTab({
             </div>
           )}
 
+          {/* ── SEARCH & CATEGORY FILTER BAR ── */}
+          <div
+            className="flex flex-col gap-3 rounded-xl border bg-surface-1 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="relative flex-1 max-w-md">
+              <Search size={13.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search topics, questions, schema, or competitor URLs…"
+                className="w-full rounded-lg border border-brand-200 bg-surface-2/60 py-1.5 pl-8 pr-3 text-xs text-brand-950 placeholder:text-brand-400 focus:border-brand-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setKindFilter("all")}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                  kindFilter === "all"
+                    ? "bg-signal-400 text-signal-ink font-bold"
+                    : "border border-brand-200 bg-surface-1 text-brand-500 hover:text-brand-950",
+                )}
+              >
+                All ({rivalScoped.length})
+              </button>
+              {SECTIONS.map((s) => {
+                const c = count(s.kind);
+                if (!c) return null;
+                const active = kindFilter === s.kind;
+                return (
+                  <button
+                    key={s.kind}
+                    type="button"
+                    onClick={() => setKindFilter(s.kind)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                      active
+                        ? "bg-signal-400 text-signal-ink font-bold"
+                        : "border border-brand-200 bg-surface-1 text-brand-500 hover:text-brand-950",
+                    )}
+                  >
+                    {SECTION_THEMES[s.kind].badge} ({c})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ── GAP CATEGORY SECTIONS ── */}
           {SECTIONS.map((section) => {
             const list = shown.filter((i) => i.kind === section.kind);
             if (!list.length) return null;
             const theme = SECTION_THEMES[section.kind] || SECTION_THEMES.topic;
             const Icon = theme.icon;
-            const open = expanded.has(section.kind);
+            const open = expanded.has(section.kind) || kindFilter !== "all" || Boolean(searchQuery.trim());
             const visible = open ? list : list.slice(0, SHOWN_PER_SECTION);
 
             return (
@@ -462,8 +531,14 @@ export function GapsTab({
                         <span className={cn("hidden sm:inline-flex items-center rounded-md border px-2 py-0.2 font-mono text-[10px] font-semibold", theme.badgeClass)}>
                           {theme.badge}
                         </span>
+                        <span
+                          title={section.explain}
+                          className="inline-flex items-center gap-1 rounded-full border border-brand-200/70 bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-brand-500 cursor-help"
+                        >
+                          <Info size={10} />
+                          <span>Methodology</span>
+                        </span>
                       </div>
-                      <p className="mt-0.5 text-[11.5px] text-brand-400">{section.explain}</p>
                     </div>
                   </div>
                 </div>
@@ -579,6 +654,33 @@ function GapRow({
           )}
         </div>
         <p className="mt-1 text-[11.5px] text-brand-400 leading-relaxed">{item.why}</p>
+        {item.compare && (() => {
+          const maxVal = Math.max(item.compare.you, item.compare.them, 1);
+          const youPct = Math.round((item.compare.you / maxVal) * 100);
+          const themPct = Math.round((item.compare.them / maxVal) * 100);
+          return (
+            <div className="mt-2.5 grid max-w-md grid-cols-2 gap-3 rounded-lg border border-brand-200/60 bg-surface-1 px-3 py-2 text-[10.5px]">
+              <div>
+                <div className="flex justify-between text-brand-500 mb-1">
+                  <span>You</span>
+                  <span className="font-mono font-bold text-brand-950">{item.compare.you.toLocaleString()}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-brand-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-success-500" style={{ width: `${youPct}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-brand-500 mb-1">
+                  <span className="truncate max-w-[90px]">{item.rival}</span>
+                  <span className="font-mono font-bold text-brand-950">{item.compare.them.toLocaleString()}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-brand-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-series-2" style={{ width: `${themPct}%` }} />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
       <div className="flex shrink-0 items-center gap-2 pt-1 md:pt-0">
         {href && (
