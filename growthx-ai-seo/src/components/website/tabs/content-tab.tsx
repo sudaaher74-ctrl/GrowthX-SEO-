@@ -72,34 +72,26 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
 
   return (
     <div className="space-y-4">
-      {/* Executive Content Health Action Banner */}
+      {/* Content Summary Banner */}
       <div className="rounded-2xl border border-brand-200 bg-surface-1 p-4 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 border border-primary-100 shadow-2xs">
-              <FileText className="h-5 w-5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-brand-950">On-Page Content &amp; Snippet Quality</h3>
+              <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
+                {pages.length} pages
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-brand-950">On-Page Content &amp; Snippet Quality</h3>
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse" />
-                  {pages.length} Pages Audited
-                </span>
-              </div>
-              <p className="text-xs text-brand-500">
-                Word depth, title tags, SERP snippets, and heading hierarchy across your crawled pages.
-              </p>
-            </div>
+            <p className="mt-0.5 text-xs text-brand-500">
+              Word depth, title tags, meta descriptions, and heading structure.
+            </p>
           </div>
           {totalMetadataIssues > 0 && (
             <Link
               href="/fix-engine"
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink hover:bg-signal-500 transition shadow-2xs"
             >
-              <Zap size={12} className="text-signal-ink" />
-              <span>Optimize Metadata in Fix Engine</span>
-              <ArrowRight size={12} />
+              <span>Optimize in Fix Engine →</span>
             </Link>
           )}
         </div>
@@ -119,10 +111,7 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
           )}
         >
           <div className="flex items-center justify-between text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2">
-            <div className="flex items-center gap-1.5">
-              <FileText size={14} className="text-primary-600" />
-              <span>Word Depth</span>
-            </div>
+            <span>Word Depth</span>
             <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", thinPages.length > 0 ? "bg-error-50 text-error-700 border-error-200" : "bg-success-50 text-success-700 border-success-200")}>
               {thinPages.length > 0 ? `${thinPages.length} Thin` : "Balanced"}
             </span>
@@ -151,10 +140,7 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
         >
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2">
-              <div className="flex items-center gap-1.5">
-                <Type size={14} className="text-primary-600" />
-                <span>Title Tags</span>
-              </div>
+              <span>Title Tags</span>
               <span
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
@@ -196,10 +182,7 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
         >
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2">
-              <div className="flex items-center gap-1.5">
-                <Layers size={14} className="text-primary-600" />
-                <span>Descriptions</span>
-              </div>
+              <span>Descriptions</span>
               <span
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
@@ -241,10 +224,7 @@ export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
         >
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2">
-              <div className="flex items-center gap-1.5">
-                <Heading size={14} className="text-primary-600" />
-                <span>H1 Structure</span>
-              </div>
+              <span>H1 Structure</span>
               <span
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-semibold",

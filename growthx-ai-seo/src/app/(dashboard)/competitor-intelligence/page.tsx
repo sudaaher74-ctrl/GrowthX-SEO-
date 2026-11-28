@@ -413,33 +413,28 @@ function CompetitorIntelligenceClient() {
   return (
     <div className="space-y-6 pb-12">
       <div className="space-y-4">
-        {/* Clean Branded Header */}
+        {/* Clean Header */}
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
-              <Swords size={18} />
-            </span>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">
-                  Competitor Intelligence
-                </h1>
-                {competitorsList.some(isReading) ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-950">
-                    <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
-                    Reading sites…
-                  </span>
-                ) : competitorsList.length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-success-200/60 bg-success-50/60 px-2.5 py-0.5 text-[11px] font-semibold text-success-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
-                    {competitorsList.length} monitored
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-0.5 text-[12.5px] text-brand-500">
-                Compare your site head-to-head against rivals and get plain-English plans to close every gap.
-              </p>
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl font-bold leading-tight tracking-tight text-brand-950">
+                Competitor Intelligence
+              </h1>
+              {competitorsList.some(isReading) ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-950">
+                  <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
+                  Reading sites…
+                </span>
+              ) : competitorsList.length > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-success-200/60 bg-success-50/60 px-2.5 py-0.5 text-[11px] font-semibold text-success-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
+                  {competitorsList.length} monitored
+                </span>
+              ) : null}
             </div>
+            <p className="mt-1 text-[13px] text-brand-500">
+              Compare your site against tracked rivals and close content gaps.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -447,7 +442,6 @@ function CompetitorIntelligenceClient() {
               href="/fix-engine"
               className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-surface-1 px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition"
             >
-              <Zap size={12} className="text-signal-500" />
               <span>{canUseFixEngine ? "Fix Engine" : "Action Plan"}</span>
             </Link>
 
@@ -507,7 +501,6 @@ function CompetitorIntelligenceClient() {
                     : "text-brand-400 hover:text-brand-950"
                 }`}
               >
-                <Icon size={13.5} className={isActive ? "text-signal-ink" : "text-brand-400"} />
                 <span>{tab.label}</span>
                 {countLabel != null && (
                   <span

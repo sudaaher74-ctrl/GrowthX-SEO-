@@ -183,56 +183,50 @@ function Journey({ projectId }: { projectId: string }) {
       <ActionButton aria-label="Refresh AI Visibility status" icon={<RefreshCw size={14} />} onClick={() => void refresh()}>Refresh</ActionButton>
     </>} />
 
-    {/* ── EXECUTIVE AI VISIBILITY TELEMETRY RIBBON ── */}
+    {/* AI Visibility Summary Ribbon */}
     <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3.5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
-              <Bot size={18} />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-bold text-brand-950">
+                AI Recommendation Health
+              </h2>
+              {measured.length > 0 ? (
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-[10.5px] font-mono font-bold",
+                    recommendationRate >= 50
+                      ? "bg-success-50 text-success-700 border border-success-200/60"
+                      : recommendationRate > 0
+                        ? "bg-warning-50 text-warning-800 border border-warning-200/60"
+                        : "bg-error-50 text-error-700 border border-error-200/60",
+                  )}
+                >
+                  {recommendationRate}% Cited ({recommended}/{measured.length})
+                </span>
+              ) : (
+                <span className="rounded-full bg-brand-100 border border-brand-200/80 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
+                  {configured.length} Engines Connected
+                </span>
+              )}
+              {busy && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[10px] font-mono font-bold text-brand-950">
+                  <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
+                  Running
+                </span>
+              )}
             </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[14.5px] font-bold text-brand-950">
-                  AI Recommendation Health
-                </h2>
-                {measured.length > 0 ? (
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-[10.5px] font-mono font-bold",
-                      recommendationRate >= 50
-                        ? "bg-success-50 text-success-700 border border-success-200/60"
-                        : recommendationRate > 0
-                          ? "bg-warning-50 text-warning-800 border border-warning-200/60"
-                          : "bg-error-50 text-error-700 border border-error-200/60",
-                    )}
-                  >
-                    {recommendationRate}% Cited ({recommended}/{measured.length})
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-brand-100 border border-brand-200/80 px-2.5 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
-                    {configured.length} Engines Connected
-                  </span>
-                )}
-                {busy && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-400/40 bg-signal-400/10 px-2.5 py-0.5 text-[10px] font-mono font-bold text-brand-950">
-                    <span className="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse" />
-                    Live Analysis Running
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-[11.5px] text-brand-400">
-                Saved recommendations and citations by assistant.
-              </p>
-            </div>
+            <p className="mt-0.5 text-xs text-brand-500">
+              Saved recommendations and citations by assistant.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/fix-engine"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500"
             >
-              <Zap size={12} className="text-signal-ink" />
               <span>Fix Engine</span>
               <ArrowRight size={12} />
             </Link>
@@ -404,7 +398,6 @@ function Journey({ projectId }: { projectId: string }) {
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
           )}
         >
-          <LayoutGrid size={14} className={activeTab === "prompts" ? "text-signal-500" : "text-brand-400"} />
           <span>Tracked Prompts</span>
           <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
             {run?.brief?.questions?.length ?? 0}
@@ -421,7 +414,6 @@ function Journey({ projectId }: { projectId: string }) {
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
           )}
         >
-          <Sparkles size={14} className={activeTab === "simulator" ? "text-signal-500" : "text-brand-400"} />
           <span>SERP Simulator</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/20 px-2 py-0.2 text-[10px] font-mono text-brand-900 border border-brand-200">
             <span className="h-1.5 w-1.5 rounded-full bg-signal-500 animate-pulse" />
@@ -439,7 +431,6 @@ function Journey({ projectId }: { projectId: string }) {
               : "text-brand-600 hover:text-brand-950 hover:bg-surface-3"
           )}
         >
-          <Bot size={14} className={activeTab === "answers" ? "text-signal-500" : "text-brand-400"} />
           <span>AI Responses</span>
           <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[10px] font-mono text-brand-700">
             {data?.answers?.length ?? 0}

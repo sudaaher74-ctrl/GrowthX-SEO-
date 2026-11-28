@@ -464,18 +464,13 @@ function TrafficViewClient() {
       {/* ── ZONE 1: COMPACT SINGLE-ROW COMMAND BAR ── */}
       <div className="flex flex-col gap-3 rounded-2xl border border-brand-200/80 bg-surface-1 px-4 py-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
-              <Activity className="h-4 w-4" />
-            </span>
-            <div>
-              <h1 className="text-base font-bold leading-tight tracking-tight text-brand-950">
-                Traffic
-              </h1>
-              <p className="text-[11px] text-brand-400">
-                3D global reach · GA4 · Search Console · AI referrals
-              </p>
-            </div>
+          <div>
+            <h1 className="text-lg font-bold leading-tight tracking-tight text-brand-950">
+              Traffic
+            </h1>
+            <p className="text-xs text-brand-500">
+              GA4 visitors, Search Console, and AI referrals.
+            </p>
           </div>
 
           {/* Inline Overview | Report Pill Switcher */}
@@ -490,14 +485,13 @@ function TrafficViewClient() {
               aria-selected={activeTab === "overview"}
               onClick={() => selectTab("overview")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1 transition cursor-pointer",
+                "rounded-lg px-3 py-1 transition cursor-pointer",
                 activeTab === "overview"
                   ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
-              <Activity className="h-3.5 w-3.5" />
-              <span>Overview</span>
+              Overview
             </button>
             <button
               type="button"
@@ -505,14 +499,13 @@ function TrafficViewClient() {
               aria-selected={activeTab === "report"}
               onClick={() => selectTab("report")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1 transition cursor-pointer",
+                "rounded-lg px-3 py-1 transition cursor-pointer",
                 activeTab === "report"
                   ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
                   : "text-brand-500 hover:text-brand-950",
               )}
             >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Growth Report</span>
+              Growth Report
             </button>
           </div>
         </div>

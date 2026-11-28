@@ -217,20 +217,11 @@ export function ResultsTrajectoryChart({
       {/* 5-Pillar Navigation Bar */}
       <div className="flex flex-col gap-3.5 border-b border-brand-200/80 pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-xs">
-              <Activity size={15} />
-            </span>
-            <h2 className="text-[14.5px] font-bold text-brand-950 flex items-center gap-2">
-              Results &amp; Impact Across 5 Pillars
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-400" />
-              </span>
-            </h2>
-          </div>
+          <h2 className="text-sm font-bold text-brand-950">
+            Results &amp; Impact Across 5 Pillars
+          </h2>
           <p className="mt-0.5 text-xs text-brand-500">
-            Visual performance charts across Search Console, GA4 Traffic, AI Visibility, Website Audit, and Competitors.
+            Performance trends across Search Console, GA4 Traffic, AI Visibility, Website Audit, and Competitors.
           </p>
         </div>
 
@@ -244,35 +235,30 @@ export function ResultsTrajectoryChart({
             {
               id: "GSC" as const,
               label: "Search Console",
-              icon: <Globe size={13} className="shrink-0" />,
               badge: isGscConnected ? "Live GSC" : "Connect",
               tone: isGscConnected ? "good" : "neutral",
             },
             {
               id: "GA4" as const,
               label: "GA4 Traffic",
-              icon: <BarChart3 size={13} className="shrink-0" />,
               badge: isGa4Connected ? "Live GA4" : "Connect",
               tone: isGa4Connected ? "good" : "neutral",
             },
             {
               id: "AI_VISIBILITY" as const,
               label: "AI Visibility",
-              icon: <Bot size={13} className="shrink-0" />,
               badge: `${visibility?.summary?.citationSharePct ?? 0}%`,
               tone: "neutral",
             },
             {
               id: "WEBSITE_AUDIT" as const,
               label: "Website Audit",
-              icon: <ShieldCheck size={13} className="shrink-0" />,
               badge: crawl?.healthScore != null ? `${crawl.healthScore}/100` : "Ready",
               tone: "good",
             },
             {
               id: "COMPETITORS" as const,
               label: "Competitors",
-              icon: <Compass size={13} className="shrink-0" />,
               badge: `${competitors.length} Rivals`,
               tone: "neutral",
             },
@@ -286,16 +272,13 @@ export function ResultsTrajectoryChart({
                 aria-selected={active}
                 onClick={() => setActivePillar(pillar.id)}
                 className={cn(
-                  "flex w-full min-w-0 items-center justify-between gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition cursor-pointer",
+                  "flex w-full min-w-0 items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer",
                   active
                     ? "border-signal-400/80 bg-signal-400 text-signal-ink font-bold shadow-xs"
                     : "border-brand-200 bg-surface-2 text-brand-600 hover:text-brand-950 hover:bg-surface-1",
                 )}
               >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {pillar.icon}
-                  <span className="truncate">{pillar.label}</span>
-                </span>
+                <span className="truncate">{pillar.label}</span>
                 <span
                   className={cn(
                     "shrink-0 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold font-mono",

@@ -321,40 +321,33 @@ export function TechnicalSeoTab({
         onOpenRecommendations={onOpenRecommendations}
       />
 
-      {/* ── CRAWL DIAGNOSTICS & HTTP STATUS PIPELINE RIBBON ── */}
+      {/* Crawl Diagnostics & HTTP Status Breakdown */}
       <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-2xs">
-                <Activity size={18} />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-brand-950">
+                  HTTP Status Breakdown
+                </h3>
+                <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-brand-700">
+                  {totalPages.toLocaleString()} URLs
+                </span>
+                <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[10.5px] font-mono text-brand-600">
+                  Avg latency: {avgLatency}
+                </span>
               </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-[14.5px] font-bold text-brand-950">
-                    Live Crawl Diagnostics &amp; Status Pipeline
-                  </h3>
-                  <span className="rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-0.5 text-[10.5px] font-mono font-bold text-signal-400">
-                    {totalPages.toLocaleString()} URLs Crawled
-                  </span>
-                  <span className="rounded-full bg-surface-2 border border-brand-200 px-2 py-0.5 text-[10.5px] font-mono text-brand-600">
-                    Latency: {avgLatency}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-[11.5px] text-brand-500">
-                  Real-time HTTP response breakdown across audited pages. Catch broken 4xx errors, redirect loops, and server exceptions before they affect rankings.
-                </p>
-              </div>
+              <p className="mt-0.5 text-xs text-brand-500">
+                Response codes across crawled pages.
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/fix-engine"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500 active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3 py-1.5 text-xs font-bold text-signal-ink shadow-xs transition hover:bg-signal-500"
               >
-                <Zap size={12} className="text-signal-ink" />
-                <span>Fix Engine</span>
-                <ArrowRight size={12} />
+                <span>Open Fix Engine →</span>
               </Link>
               <button
                 type="button"

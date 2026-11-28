@@ -378,7 +378,6 @@ export function LocalSeoWorkspace() {
                   : "text-brand-600 hover:bg-brand-100/70 hover:text-brand-950",
               )}
             >
-              {t.icon}
               <span>{t.label}</span>
               {t.badge && (
                 <span

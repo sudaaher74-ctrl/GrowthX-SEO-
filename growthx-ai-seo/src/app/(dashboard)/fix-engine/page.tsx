@@ -81,14 +81,14 @@ function FixEngineClient() {
 
   const visibleTabs = useMemo(
     () => [
-      { id: "improvement" as TabId, label: "Action Plan & Guides", icon: ClipboardList },
-      { id: "content" as TabId, label: "AI Content Writer", icon: FileText },
+      { id: "improvement" as TabId, label: "Action Plan & Guides" },
+      { id: "content" as TabId, label: "AI Content Writer" },
       {
         id: "github-fixes" as TabId,
         label: canUseFixEngine ? "Auto-Apply & Log" : "Auto-Apply (Agency)",
-        icon: canUseFixEngine ? History : Lock,
+        icon: canUseFixEngine ? undefined : Lock,
       },
-      { id: "results" as TabId, label: "Verified Results", icon: TrendingUp },
+      { id: "results" as TabId, label: "Verified Results" },
     ],
     [canUseFixEngine],
   );
@@ -156,22 +156,15 @@ function FixEngineClient() {
 
   return (
     <div className="space-y-5 pb-16">
-      {/* Clean Universal Header — Written for Everyone (Owners, Marketers & Developers) */}
+      {/* Clean Header */}
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink shadow-2xs">
-            <Wrench size={18} />
-          </span>
-          <div>
-            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">
-              {canUseFixEngine ? "Fix Engine & Action Plan" : "Action Plan & Fix Guides"}
-            </h1>
-            <p className="mt-0.5 text-[12.5px] text-brand-500">
-              {canUseFixEngine
-                ? "Every website issue explained clearly — fix it yourself step-by-step, share with your developer, or apply automatically."
-                : "Every website issue explained in plain English — follow step-by-step platform guides, send ready instructions to your developer, and verify fixes live."}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-brand-950">
+            {canUseFixEngine ? "Fix Engine" : "Action Plan"}
+          </h1>
+          <p className="mt-1 text-[13px] text-brand-500">
+            Prioritized fixes, step-by-step guides, and verified results.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -184,12 +177,11 @@ function FixEngineClient() {
         </div>
       </header>
 
-      {/* 4-Card Universal Clarity Strip (Works Whether or Not GitHub/CMS is Connected) */}
+      {/* 4-Card Summary Strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-            <Zap size={12} className="text-warning-500" />
-            <span>High Impact</span>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            High Impact
           </p>
           <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
             {stats.highImpactCount}
@@ -200,9 +192,8 @@ function FixEngineClient() {
         </div>
 
         <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-            <UserCheck size={12} className="text-success-500" />
-            <span>No Coding Needed</span>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            No Coding Needed
           </p>
           <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
             {stats.noCodeCount}
@@ -213,9 +204,8 @@ function FixEngineClient() {
         </div>
 
         <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-            <Code2 size={12} className="text-accent-500" />
-            <span>Developer Tasks</span>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            Developer Tasks
           </p>
           <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
             {stats.devCount}
@@ -226,9 +216,8 @@ function FixEngineClient() {
         </div>
 
         <div className="rounded-2xl border border-brand-200/80 bg-surface-1 p-4 shadow-2xs">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-            <CheckCircle2 size={12} className="text-success-500" />
-            <span>Confirmed Fixed</span>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-400">
+            Confirmed Fixed
           </p>
           <p className="mt-2 font-mono text-2xl font-bold text-brand-950 tabular-nums">
             {stats.confirmedCount}
